@@ -1,93 +1,141 @@
-# TASK — TODO #48: mouse filter packed-word equality → bit tests (delegation-ready per the #42 ruling)
+# TASK — Compaction-lifecycle CYCLE 1 + plugin rename (approved: `proposals/approved/2026-09-11_compaction-lifecycle.md` "both cycles approved" — this is Cycle 1 only — + `proposals/approved/2026-09-11_plugin-scope-tool-rename.md` item 2)
 
-FIRST read `AGENTS.md`, `agents_repo.md`, and this file.
+FIRST read `AGENTS.md`, `agents_repo.md` (repo parts as needed), this file, and the
+two approved proposals named above (the design of record — the proposal beats this
+spec wherever they conflict; where the proposal is silent, this spec's DoD rules).
 
 ## Goal
 
-In `FST_Keyboard.mouse_win32_event_filter` (`fst_keyboard.py`), replace two
-packed-word EQUALITY checks with bit tests / masks — the maintainer's #42
-ruling (260910) requires that status bits in the other half of a packed word
-must not change the outcome. TODO #48 is explicitly "implicitly approved …
-delegation-ready" — no new behavior decisions are open.
+Build the approved compaction-lifecycle design's Cycle 1 ("core"):
+1. **L1 (data):** ctx.log (`.opencode/temp/ctx.log`) gains a **tool name** field on
+   its normal lines (free: `tool.execute.after` carries the tool name), plus a new
+   **COMPACT line** format: `date_time <model> COMPACT tokens=<t> messages=<m>
+   (<pre-readout>)` — written BY THE TOOL (see 2), session id included.
+2. **L2 (action):** the FIRST custom tool — `.opencode/tools/compact_memory.ts`,
+   `execute(args, context)`:
+   - takes BOTH knobs `{tokens?, messages?}` (args), passed through to
+     `session.compact`'s `keep` (both exposed so forked sessions can be tested
+     with different pairs — the design's open empirical test 2);
+   - targets `context.sessionId` (logged);
+   - before compacting: checks the per-session compaction budget — **≤2 per
+     session id (self + emergency combined)** — and REFUSES with a "hand over and
+     start fresh" result note when exhausted (routes into the stop-line/handover
+     protocol);
+   - on success: writes its own COMPACT line (in-process file append — the
+     design explicitly allows this; never throws), increments the budget state;
+   - returns a short result note ("compacted; kept last N messages / T tokens")
+     + the re-application directive AS A POINTER to the committed file
+     (`.opencode/system_prompts/post_compaction_reapply.md`) — do NOT embed the
+     directive's content in code (the design's point: protocol changes must not
+     require a code change).
+   - Budget state must be PERSISTED (a small state store the future Cycle-2
+     plugin hook will share — e.g. a json/sqlite file under `.opencode/temp/`;
+     your call on the mechanic, record it in your summary) — the in-memory-only
+     `nudgeFired` pattern is NOT acceptable for the budget.
+3. **Re-application directive file:** write
+   `.opencode/system_prompts/post_compaction_reapply.md` VERBATIM per the
+   proposal's "Re-application directive" block (planner will diff it against
+   the proposal).
+4. **L3 (decision):** the standing trigger rule in the THREE acting role
+   prompts (`.opencode/system_prompts/agents/prompt_agent_planner.md`,
+   `prompt_agent_task.md`, `prompt_agent_explorer.md` — NOT the looprunner):
+   exactly ONE short block per prompt (≈3–5 lines), anchored on the design's
+   text: "≥80 % with a big unit ahead → `compact_memory` before starting it;
+   ≥90 % → compact now, keep back to the task spec" + one line noting the tool
+   enforces the ≤2 budget and its refusal means hand over per the stop line.
+   Placement: adjacent to each prompt's existing context-budget/stop-line
+   reference. Keep it reference-style (short), never restate the protocol.
+5. **Rename (approved item 2):** `git mv .opencode/plugin/handover_v2.4.ts` →
+   `.opencode/plugin/ctx_watchdog.ts`. Update ALL live references: the probe's
+   `PLUGIN_TS` path + its header comment, the `gauge.mjs` line-4 comment. Add a
+   one-line rename note to the plugin's header block (version history stays).
+   VERIFIED by the planner: NO config references the plugin filename (opencode
+   auto-loads `.opencode/plugin/*.ts`) — do NOT touch `opencode.jsonc`.
 
-## Evidence (planner-verified against the current tree; the file is 1088 lines —
-the TODO entry's line refs are from an older version, use THESE anchors)
+## Out of scope (do NOT build — Cycle 2 is the next task)
 
-1. `fst_keyboard.py:464-465` — nested `is_simulated_key_event(flags):
-   return flags == 1`. The flags word is the packed LLKHF word; bit 0
-   (0x1) = LLKHF_INJECTED. Any other LLKHF bit set (e.g. 0x20
-   LLKHF_LOWER_IL_INJECTED, value 0x21) fails `== 1` → an injected event is
-   misclassified as REAL input.
-2. `fst_keyboard.py:486-490` — for `msg in [523, 524]` (WM_XBUTTONDOWN/UP),
-   `data.mouseData == 65536` → vk 4, `== 131072` → vk 5. For X-button
-   messages the HIGH word of `mouseData` is the XBUTTON identifier
-   (1 = x1, 2 = x2) and the LOW word is the key state (ctrl/shift). With a
-   modifier held the low word is nonzero → both equalities fail →
-   `get_mouse_vk_code()` returns None → the event is silently suppressed at
-   `:530` with no rebind/tap processing.
-3. Reference patterns already in the same file (follow their style):
-   keyboard `is_simulated_key_event` = `return flags & 0x10` (`:535-536`);
-   wheel direction = `bool((data.mouseData >> 16) & 0x8000)` (`:473-476`,
-   the landed #42 fix — its comment at `:473-475` states the low-word-
-   must-not-matter principle).
+- The plugin `session.error` hook (informed-keep emergency recovery), the
+  activation flag, synthetic directive injection, over-budget clean-fail
+  wiring, the `-WARNING` verification. Do not add a `session.error` hook.
+- Any FST python code (no behavior change — this is meta-only).
+- The retired gauge tool (proposal item 1 is RETIRED — the compaction tool is
+  the first custom tool).
 
-## Changes
+## SDK facts / verification needed (the maintainer's DRAFT is a generic sketch —
+verify, do not trust it)
 
-1. Mouse `is_simulated_key_event` → test bit 0: `return bool(flags & 1)`
-   (explicit bool preferred; the result feeds `is_simulated` into
-   `_win32_event_filter`).
-2. X-button mapping → test the HIGH word, low word ignored, e.g.
-   `(data.mouseData >> 16) == 1` → 4, `(data.mouseData >> 16) == 2` → 5
-   (or the equivalent mask — your call, mirror the wheel idiom above).
-   If the comment block at `:451-453` becomes misleading after the change,
-   reword it minimally.
-3. Tests in `tests/test_filter_behavior.py` class `TestMouseWin32Filter`
-   (reuse the `mouse_msg_data(mouse_data=…, flags=…)` helper + the
-   `patch_filter` pattern; the `kb_env_ns` fixture is the mocked
-   `FakeFST` — NEVER a live listener):
-   - x1 down (523) AND up (524) with a nonzero low word (e.g.
-     `65536 | 0x0010` shift) still map to vk 4;
-   - x2 down with a nonzero low word (e.g. `131072 | 0x0101`) still maps to
-     vk 5;
-   - an X-button message with another identifier (e.g. `196608` = x3) still
-     resolves no vk → suppress path (unchanged behavior — regression guard);
-   - `flags=1` and `flags=0x21` (injected + lower-IL) both classify
-     simulated; `flags=0` and `flags=0x20` classify real.
-   - The existing tests `test_x_buttons_use_mousedata_for_vk`
-     (zero low word) and `test_simulated_flag_passthrough` must stay green
-     UNCHANGED — if `assert_called_with(…, False, …)` matching is a concern
-     with a raw int return, prefer `bool(...)` so the pin stays exact.
+- The maintainer's reference draft: `proposals/maintainer/inbox_planner/draft/
+  compact_memory/compact_memory.ts` — READ IT (its `context.client.session
+  .compact(...)` + `promptAsync` call shapes are the best available wiring
+  reference), but the design supersedes it: it has NO knobs, NO budget, an
+  embedded directive, and a hook (Cycle 2). DO NOT edit anything in the draft
+  folder.
+- The live plugin imports `type { Plugin, PluginInput } from "@opencode-ai/plugin"`
+  (the draft's `@opencode/sdk` may or may not be the right specifier for the
+  TOOL export). The plugin's header (≈line 165) cites the SDK type facts
+  verified from `@opencode-ai/plugin/dist/index.d.ts` +
+  `@opencode-ai/sdk/dist/gen/types.gen.d.ts`. Locate those installed type defs
+  (opencode install / global `~/.config/opencode/node_modules`) and verify
+  BEFORE writing the tool: (a) which module exports the `tool()` constructor
+  for a `.opencode/tools/*.ts` file, (b) the exact `execute(args, context)`
+  signature + what `context` provides (`sessionId`, `client`), (c) the
+  `session.compact` parameter shape (does `keep` take `{tokens, messages,
+  system?}` — the repo `opencode.jsonc` `compaction.keep` shows the config
+  shape). Record the verified facts in your summary.
+- The probe host is the system `node` (v24) importing the TS files DIRECTLY
+  (type-stripping, flag-free — the plugin already loads this way at
+  `handover_probe.mjs:313`); the tool file must load the same way.
 
-## Out of scope
+## Current state (planner-verified at spec time)
 
-- `playground/pynput_mouse_probe.py` — the maintainer's personal live probe
-  (evidence only in #48); do NOT touch.
-- Anything else in the filter (the wheel path is already bit-tested; the
-  plain-button paths have no packed word).
-- No docs changes: WIKI/README do not document these modifier edges.
-- Never run the live listeners; no real keyboard/mouse.
+- Plugin: `.opencode/plugin/handover_v2.4.ts` (715 lines; v2.8 header block;
+  ctx.log writer `appendCtxLog(modelId, readout)` ≈516 → `localStamp()
+  [model] readout`; gauge core `scripts/gauge.mjs` shared; nudge ladder
+  in-memory `nudgeFired` Map ≈541).
+- Probe: `.opencode/plugin/probes/handover_probe.mjs` — 63 checks, sandboxed
+  (its own temp dir), `PROBE handover: 63/63 PASS` exit 0 baseline.
+- Baselines: pytest **451 passed + 1 known #10 warning**; `ruff check
+  --select F .` = **0**; probe **63/63**.
+- `ctx.log` sample line: `2026-09-10_19-06 Qwen3.8-27B-IQ4KT-120K (50%/59K)`
+  (tool-name field to be added — exact shape your call, pinned by the probe).
 
 ## Definition of done
 
-1. `& .\.venv\Scripts\python.exe -m pytest -q` green — baseline 448 passed +
-   1 known #10 warning BEFORE your tests; report the MEASURED count after
-   (it rises by your new tests).
-2. `& .\.venv\Scripts\ruff.exe check --select F .` = 0 findings.
-3. `git diff` scope = exactly `fst_keyboard.py` +
-   `tests/test_filter_behavior.py` + `TODO.md` + the summary file.
-4. `TODO.md`: #48 `Status:` → closed one-line (date + commit ref) and the
-   full record appended to `todo_records.md` per the TODO contract (the
-   evidence stays in the record, not re-derived).
-5. Write your EXECUTIVE SUMMARY to
-   `.opencode/handover/handover_task_to_planner.md` (what changed, measured
-   verification, commit hash, TODO entries, deliberate non-actions) — your
-   commit is the LAST write to that file.
-6. ONE commit (code + tests + TODO.md + todo_records.md + summary).
-   `opencode.jsonc` is NEVER staged.
+1. `node .opencode/plugin/probes/handover_probe.mjs` → `PROBE handover: N/N
+   PASS`, exit 0, with N > 63 and NEW checks covering at least: the tool file
+   imports + exposes `compact_memory`; `execute` calls `session.compact` with
+   the passed-through `keep` knobs (fake client captures the call); the
+   COMPACT line is written (session id + params + pre-readout present); the
+   budget allows 2 compactions and refuses the 3rd with the hand-over note;
+   the ctx.log normal lines carry the tool name; the tool's return contains
+   the re-application file pointer; the tool never throws (error paths return
+   notes).
+2. pytest suite unchanged green: `& .\.venv\Scripts\python.exe -m pytest -q`
+   → 451 passed + 1 known #10 warning (no FST code touched).
+3. `& .\.venv\Scripts\ruff.exe check --select F .` → 0.
+4. Grep-clean rename: NO `handover_v2.4` references left in
+   `.opencode/plugin/` (probe/gauge included) — historical references in
+   `TODO.md` / `todo_records.md` / NAP / `proposals/` / `archive/` are
+   PAST-TENSE RECORDS and stay untouched.
+5. `post_compaction_reapply.md` matches the proposal block verbatim.
+6. Exactly one short standing-rule block added per acting prompt (3 files);
+   nothing else in those prompts changed; `prompt_agent_looprunner.md`
+   untouched.
+7. Your commit: code + probe + prompts + directive file + `TODO.md` (add
+   nothing — the entries close on the planner's verification; append to
+   `todo_inbox.md` only if you find something worth flagging) + the summary
+   file, ONE commit. NEVER stage `opencode.jsonc` (uncommitted by design) or
+   anything under `proposals/maintainer/`.
 
-## Context discipline
+## Approval boundary
 
-Small task — keep reads chunked (the filter region is `:439-531`), gauge
-(`node .opencode\plugin\scripts\peek.mjs`) between units and after the
-commit; stop line `REM ≤ 15k` or `≥ 85 %`. Findings you cannot fix in scope
-→ APPEND to `todo_inbox.md` (never `TODO.md`).
+Pre-approved by the two `approved/` proposals named above (meta-only: plugin /
+tool / probe / role prompts / a system-prompt file — NO FST behavior change,
+NO opencode.jsonc edit, NO observable FST change). If you hit a genuine design
+fork the proposals don't answer, pick the minimal option, RECORD the decision
++ rationale in your summary, and flag it in `todo_inbox.md`.
+
+## Worker
+
+`worker_Q4_120K` (default — same model, high precision; the prior plugin
+builds landed on this worker).

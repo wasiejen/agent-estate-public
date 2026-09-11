@@ -1,69 +1,91 @@
-# TASK T2 — ctx.log normal lines gain the tool-name field (L1 data layer, approved: `proposals/approved/2026-09-11_compaction-lifecycle.md` L1)
+# TASK T3 — `compact_memory` tool completion (L2, approved: `proposals/approved/2026-09-11_compaction-lifecycle.md` L2)
 
 FIRST read `AGENTS.md`, `agents_repo.md` (+ the repo parts it names as
-needed), this file, and the L1 section of the approved proposal above.
-SMALL task — one field added to one log line format + probe updates. Do not
-widen it (the COMPACT line and the `compact_memory` tool are T3, NOT here).
+needed), this file, the L2 + "Re-application directive" sections of the
+approved proposal, and the maintainer's prototype
+`.opencode/tools/compact_memory.ts` (57 lines — the WORKING shape).
+MEDIUM task: extend the prototype with the budget + the COMPACT line. Do
+NOT rewrite the tool from scratch — the shape (export form, arg names,
+call shapes) is the maintainer's and stays.
 
 ## Goal
 
-The single-file ctx log (`.opencode/temp/ctx.log`) normal lines carry the
-tool name — free: `tool.execute.after` already carries `input.tool` (the
-plugin logs it in the `tool.after` plugin.log line already). Per the design:
-the exact line shape is your call — pin it with the probe; keep it minimal
-and consistent with the model-field convention (field OMITTED when empty).
-
-## Current state (planner-verified at spec time)
-
-- Plugin: `.opencode/plugin/ctx_watchdog.ts` (renamed in T1, `6ea76ed`).
-  - `appendCtxLog(modelId, readout)` ≈517 writes
-    `<localStamp>[ <modelId>] <readout>\n` to `.opencode/temp/ctx.log`
-    (best-effort, never throws; sample line:
-    `2026-09-10_19-06 Qwen3.8-27B-IQ4KT-120K (50%/59K)`).
-  - Call site: `onToolAfter` ≈696 `appendCtxLog(g.modelId, readout)` —
-    `input.tool` (string) is available at the same site (≈674 it is already
-    used in the `tool.after` line).
-- Probe: `.opencode/plugin/probes/handover_probe.mjs` — 63 checks; the
-  ctx.log line format is byte-exact pinned in checks 54/55/59/60/61/62/63
-  (e.g. check 54: `NEW ctx log line <dt> probe-model-120K_MTP (35%/78K)`).
-
-## Scope
-
-1. `appendCtxLog` gains the tool name (pass it from the `onToolAfter` call
-   site; omit-when-empty, mirroring the model field).
-2. Probe: update the byte-exact ctx.log expectations in the affected checks
-   + at least ONE explicit check that the tool name is present on the line
-   (the probe's fake tool name) and OMITTED when the payload has no tool
-   name.
-3. A one-line note in the plugin's v2.8 header block (or the ctx-log
-   comment above `appendCtxLog`) recording the new field — comment hygiene.
+Complete the `compact_memory` custom tool per the approved design:
+1. **Budget:** ≤2 compactions per session id (self + emergency COMBINED —
+   the future T5 recovery hook will share this store). The tool REFUSES
+   with a "hand over and start fresh" result note when exhausted (no
+   compact call). Budget state must be PERSISTED to disk (a small state
+   store — json or sqlite — under `.opencode/temp/`; your call on the
+   mechanic, RECORD it in your summary) — in-memory-only is NOT
+   acceptable. Increment on SUCCESS only (a failed compact does not
+   consume budget).
+2. **COMPACT line:** after a successful compaction the tool appends its
+   own COMPACT line to `.opencode/temp/ctx.log` (in-process file append —
+   the design explicitly allows it; never throws). Shape: match the T2
+   line convention (`<stamp>[ <modelId>]…` — omit-when-empty fields);
+   content per the design: `COMPACT` + session id + `tokens=<t>`
+   `messages=<m>` + the PRE-compaction readout in parentheses
+   (best-effort: if the pre-readout or model id is unavailable, omit that
+   field, never throw — record what you could and could not obtain from
+   the tool's `context`).
+3. **Result note:** keep the prototype's shape — short note
+   ("compacted; kept last N messages / T tokens") + the pointer to
+   `.opencode\system_prompts\agent_readme_post_compaction.md` (the
+   prototype's directive SENTENCE stays — it is a pointer, the content
+   lives in the file). On budget refusal: the hand-over note instead.
+4. **Never throws:** every error path returns a note (the prototype
+   already does this — keep it).
 
 ## Do NOT touch
 
-- `opencode.jsonc` (NEVER stage it) or anything under `proposals/maintainer/`.
-- The maintainer's prototypes (`.opencode/tools/compact_memory.ts`,
-  `.opencode/plugin/context_recovery.ts`).
-- The nudge ladder / readout append / plugin.log behavior — ONLY the ctx.log
-  line format changes.
-- Any FST python code.
+- `.opencode/plugin/ctx_watchdog.ts` and the probe's existing plugin
+  checks (T5 adds the recovery hook to the plugin later).
+- The role prompts (T4), `opencode.jsonc` (NEVER stage it), anything
+  under `.opencode/proposals/maintainer/`, FST python code.
+- The prototype's arg names (`keepTokens`/`keepMessages`/`sessionID`)
+  and its `context.client.session.compact({path, body})` call shape.
+
+## Probe extension (the probe host imports the tool file DIRECTLY —
+type-stripping, the same way it loads the plugin; the tool file must load
+that way)
+
+New checks covering at least (fake client + fake shell, sandboxed like the
+existing plugin checks):
+1. The tool file imports and exposes `compact_memory`.
+2. `execute` calls `session.compact` with the PASSED-THROUGH keep knobs
+   (fake client captures the call; also the `context.sessionId` fallback
+   when the `sessionID` arg is absent).
+3. The COMPACT line is written after success (session id + params present;
+   pre-readout field per its best-effort availability).
+4. The budget allows 2 compactions and REFUSES the 3rd with the
+   hand-over note (no compact call on the 3rd); the state file exists on
+   DISK after the calls (persistence, not in-memory).
+5. A failing `session.compact` returns an error note, never throws, and
+   does NOT consume budget.
+6. The success return contains the re-application file pointer; the
+   refusal return contains the hand-over note.
 
 ## Definition of done
 
 1. `node .opencode/plugin/probes/handover_probe.mjs` →
-   `PROBE handover: N/N PASS`, exit 0, with the new/updated checks green
-   (N ≥ 63).
+   `PROBE handover: N/N PASS`, exit 0 (N > 65, the new checks above green).
 2. `& .\.venv\Scripts\python.exe -m pytest -q` → 451 passed + 1 known #10
-   warning.
+   warning (no FST code touched).
 3. `& .\.venv\Scripts\ruff.exe check --select F .` → 0.
-4. ONE commit: plugin + probe + summary file. Follow the AGENTS.md commit
-   routine (gauge check after commit). Record the chosen line shape in your
-   summary (T3 builds the COMPACT line to match it).
+4. ONE commit: the tool + the probe + the summary file. Record in your
+   summary: the budget-store mechanic + its path, the final COMPACT line
+   shape, and everything you verified about the tool `context` (what
+   fields it provides in the probe / what you had to treat as
+   best-effort). Follow the AGENTS.md commit routine (gauge check after
+   commit; your loop-log START/DONE lines per the protocol).
 
 ## Approval boundary
 
-Pre-approved by the approved proposal (meta-only plugin/probe change; the
-ctx.log is a maintainer-side observation file — no observable FST change;
-no config edit).
+Pre-approved by the approved proposal (meta-only: the custom tool +
+probe; no observable FST change; no config edit; the ctx.log is the
+maintainer's observation file). If you hit a genuine design fork the
+proposal doesn't answer, pick the minimal option, RECORD it in your
+summary, and flag it in `todo_inbox.md`.
 
 ## Worker
 

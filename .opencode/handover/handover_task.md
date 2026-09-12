@@ -1,99 +1,108 @@
-# TASK — T2 (iter-10): ctx_gauge tool (the peek readout as a directly-fired tool) + probe S12
+# TASK — T3 (iter-10+1): loop_log tool (the loop log as a directly-fired tool)
 
-FIRST read `AGENTS.md`, `agents_repo.md` (+ repo part `repo_commands.md`), this file, and
-Part 2 of the approved design `.opencode/proposals/approved/2026-09-12_loop-tool-batch.md`.
+FIRST read `AGENTS.md`, `agents_repo.md` (+ repo part `repo_commands.md`), this file,
+and Part 3 of the approved design `.opencode/proposals/approved/2026-09-12_loop-tool-batch.md`
+(the design of record — the spec below sharpens it, it does not contradict it).
 
-Branch: `fst_work` (HEAD at launch = `010c257`; the spec was written at `6e29c29` —
-since then only meta-only bookkeeping commits landed, baselines unchanged). T1 is
-verified on top: probe 80/80, pytest 459 + 1 known #10 warning, ruff F=0 — all
-planner-re-measured. Commit on `fst_work`. META task (no FST python code).
+Branch: `fst_work` (HEAD at launch = `c0eb7b8`). Commit on `fst_work`. META task
+(no FST python code). This iteration is "iteration 10+1" (the launch message's
+numbering); your loop-log role label is `worker-` + that iteration number —
+compute/verify it with a script, never retype it.
 
 ## Goal
-A new custom tool `.opencode/tools/ctx_gauge.ts` an agent fires DIRECTLY for the
-context-gauge readout (no shell-out to peek.mjs), backed by the shared gauge core;
-plus the probe extension that pins it (new S12 section, append-only).
+A new custom tool `.opencode/tools/loop_log.ts` an agent fires DIRECTLY to append
+its loop-log line (no hand-formatting, no per-agent folder-permission management),
+plus a scratchpad smoke that pins it. NO probe section (Part 3's acceptance is
+smoke-based; the probe must simply stay green).
 
 ## Verified facts (planner, at spec time — do not re-derive)
-- `tool()` form reference: `.opencode/tools/compact_memory.ts` (v2) / `block_transfer.ts`
-  (T1, sandboxed): `export default tool({ description, args, execute })`, NO `name`
-  field — the host names the tool by FILENAME.
-- Shared core `.opencode/plugin/scripts/gauge.mjs` exports (USE IT — never re-derive):
-  `readGauge(dbPathOverride?, sessionID?)` (async, NEVER throws; returns
-  `kind:"ok" | "no-total" | "db-error"`), `formatGauge(r)` → the ONE readout string
-  (`SESSION=… CTX=… (…%) REM=…` / `SESSION=… CTX=…` / `SESSION=… CTX=notAvailable`),
-  and `setDbPath(p)` (steers the global db path — the probe's fixture hook).
-- The CLI `.opencode/plugin/scripts/peek.mjs` is exactly: `const r = await readGauge();
-  process.stdout.write(formatGauge(r) + "\n")` (+ a stderr note when
-  `kind === "db-error"`). The tool mirrors this but RETURNS the string in-band.
-- Probe `.opencode/plugin/probes/handover_probe.mjs` (1866 lines): the S10 section
-  (starts ~line 1386) imports a custom tool DIRECT — `const TOOL_TS =
-  path.join(REPO_ROOT, ".opencode", "tools", "compact_memory.ts")` (line 1394),
-  type-stripped import, the same way the host loads tools; the section-sum header
-  comment at line 245 (`S1=3 … S10=9 S11=6 S5=6 → "PROBE handover: 80/80 PASS"`);
-  the totals block at ~line 1856 (`results.length`); the last check number is [81].
-- Baselines at HEAD: probe **80/80**, pytest **459 + 1 #10**, ruff **F=0**.
+- `tool()` form references: `.opencode/tools/ctx_gauge.ts` (T2, simplest) /
+  `block_transfer.ts` (T1): `export default tool({ description, args, execute })`,
+  NO `name` field (the host names the tool by FILENAME).
+- The line format (`.opencode/system_prompts/agent_readme_loop.md` §Loop log):
+  `<date_time> <STATUS> <role>[-<iteration>] <session_id> <agent_model> <content>`
+  where `<date_time>` = local `YYYY-MM-DD_HH-MM` (minute resolution) and the role
+  string ALREADY carries its iteration (e.g. `planner-10+1`, `worker-10+1`).
+- The five STATUS tokens (exactly, 8-char): `-->START`, `DONE<---`, `-RETURN-`,
+  `-WARNING`, `--INFO--`.
+- Loop folder invariant: exactly ONE `autorun-*` folder in `.opencode/loop/` at
+  any time (rollover is planner work — this tool does NOT rollover; see the
+  multi-folder rule below).
+- Baselines at HEAD: probe **84/84**, pytest **459 + 1 #10**, ruff **F=0**.
 
 ## Scope (DO)
-1. **New `.opencode/tools/ctx_gauge.ts`**:
-   - `import { tool } from "@opencode-ai/plugin"` +
-     `import { readGauge, formatGauge } from "../plugin/scripts/gauge.mjs"` (relative
-     import — resolves against the tool file's own location; works both under the
-     Node-24 type-stripped probe import and under the opencode host);
-   - args: optional `sessionID` (string, `tool.schema.string().optional().describe(…)`):
-     empty/omitted = the newest-session default read; a value = the v2.6 per-session
-     read (the core already supports it — pass it through);
-   - `execute`: `const r = await readGauge(undefined, args.sessionID); let out =
-     formatGauge(r); if (r.kind === "db-error") out += ` — ${r.error}`; return out;`
-     (the in-band mirror of peek.mjs — the line is NEVER replaced by a stack trace);
-   - `description` (1–2 lines): read the context usage of the current (or a named)
-     session, read-only; returns the `SESSION=… CTX=… (…%) REM=…` readout; fire this
-     for context-budget decisions instead of the peek.mjs shell-out.
-2. **Probe S12** (APPEND-ONLY — never renumber/reorder existing checks):
-   - a new section after the last S11 check (before the totals block ~line 1850),
-     importing `ctx_gauge.ts` the S10 way (`path.join(REPO_ROOT, ".opencode", "tools",
-     "ctx_gauge.ts")`);
-   - new checks numbered AFTER the current last number [81]:
-     a. module imports + `tool()` result shape (`description` string, `args` carries
-        the optional `sessionID`, `execute` async, no `name` field);
-     b. execute against a fixture db steered via `setDbPath(<fixture>)` (reuse the
-        S7-style fixture dbs): the ok readout is byte-exact
-        `SESSION=… CTX=… (…%) REM=…`;
-     c. the db-error path (`setDbPath` to a nonexistent path): `CTX=notAvailable`
-        + the appended ` — <error>` note, no throw;
-     d. `setDbPath` restored to the default afterwards (the hook-restore pattern —
-        cf. check 39) so the sandbox check 45 stays green;
-   - update the section-sum header comment (line 245) with the S12 count — measured.
-3. **Smoke** (scratchpad `ctx_gauge_smoke.mjs`, the iter-4 pattern): import the tool
-   module; run `execute` with no args against the LIVE db default (expect a well-formed
-   `SESSION=… CTX=…` line) and against a fixture via `setDbPath`; for one fixture,
-   compare the ok readout BYTE-EXACT with `node .opencode/plugin/scripts/peek.mjs`
-   output (the byte-identity requirement).
-4. **Bookkeeping** per your commit routine: summary →
+1. **New `.opencode/tools/loop_log.ts`** per Part 3:
+   - args: `role` (string, required — the agent writes its own full role token),
+     `model` (string, required — verbatim model id), `status` (required enum of
+     exactly the five tokens above — a bogus token must be rejected at PARSE
+     time, i.e. the zod enum, not a runtime check), `content` (string, required),
+     `session` (OPTIONAL string — the agent's own session id from its injected
+     `ctx:` line; omitted/empty → the literal `unknown` in the line);
+   - `execute` (all paths per Part 3, in order):
+     1. resolve `.opencode/loop/` against `context.directory ?? process.cwd()`;
+     2. if NO `autorun-*` folder exists there → create `autorun-<YYYY-MM-DD_HH-MM>`
+        (name MACHINE-COMPUTED from the local clock, never retyped — pattern-5
+        discipline) + its `loop_log.md` (append creates the file when absent);
+        if exactly one exists → use it; if SEVERAL exist → use the
+        most-recently-MODIFIED one and surface the anomaly in the return value
+        (never silently resolve, never pick an arbitrary one);
+     3. append ONE line `<date_time> <status> <role> <session|unknown> <model>
+        <content>` — machine-timestamped, same local `YYYY-MM-DD_HH-MM` form;
+        append-only (the tool never rewrites or curates the file);
+     4. return the folder name + the exact line it wrote (the agent sees what
+        landed); on the anomaly case, also the anomaly note.
+   - `description` (1–2 lines): appends ONE loop-log line to the current
+     looprun's `loop_log.md` (auto-creates the dated folder when `.opencode/
+     loop/` is empty); returns the folder + the line written; fire this for
+     your loop-log bookkeeping (START/DONE/RETURN/WARNING/INFO).
+2. **Smoke** (scratchpad `loop_log_smoke.mjs`, the iter-4 pattern — Node-24
+   type-stripped import of the tool module; the context object carries a
+   scratchpad temp `directory`, NEVER the live `.opencode/loop/`):
+   - empty dir → creates the dated `autorun-*` folder + `loop_log.md`
+     (verify the name by LISTING the dir — never retype/compare a retyped
+     date string; check the form `autorun-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}`);
+   - exact line form: byte-compare the written line against a hand-built
+     expected line for the SAME args — MINUTE-BOUNDARY-SAFE: compute the
+     expected timestamp for the minute before AND after the call and assert
+     the written line equals one of the two (the clock can tick mid-call);
+   - append-when-exists: a second call appends (both lines present, order
+     preserved, file not rewritten);
+   - `session` omitted → literal `unknown` in the line;
+   - the status enum REJECTS a bogus token at parse time (zod `safeParse`
+     fails — no line written);
+   - multi-folder anomaly: pre-create TWO `autorun-*` dirs with distinct mtimes
+     (bump one's mtime explicitly), assert the line lands in the most-recently-
+     modified one AND the return value mentions the anomaly.
+3. **Bookkeeping** per your commit routine: summary →
    `.opencode/handover/handover_task_to_planner.md`, your loop-log lines
-   (`agent_readme_loop.md` §Loop log — role `worker-11`, your session id from the
-   injected `ctx:` line, model verbatim), `todo_inbox.md` only for discrepancies.
+   (this iteration's protocol: hand-append them to the CURRENT loop folder's
+   `loop_log.md` — the new tool is NOT registered in the live host yet; role
+   label per the header; your session id from the injected `ctx:` line; model
+   verbatim), `todo_inbox.md` only for discrepancies.
 
 ## Definition of done
-- Full probe green at the NEW measured total (reported; header updated; existing
-  check numbers untouched).
-- The tool's ok readout is byte-identical to `peek.mjs` output for the same db state
-  (smoke-evidenced).
-- `git diff` of the task commit = `ctx_gauge.ts` (new) + the probe file (+ its header)
-  + bookkeeping — nothing else.
-- Gates re-measured by you and reported: probe <new>/<new>, pytest **459 + 1 #10**,
+- Full probe green at the UNCHANGED total **84/84** (re-run; report).
+- Smoke N/N PASS (measured, reported; script in the scratchpad, untracked).
+- `git diff` of the task commit = `loop_log.ts` (new) + bookkeeping — nothing
+  else (NO probe file change, NO prompt change — those are planner-applied
+  after verification, per Part 3).
+- Gates re-measured by you and reported: probe 84/84, pytest **459 + 1 #10**,
   ruff **F=0**.
 - One green task commit; summary committed.
 
 ## DO-NOT-touch
-- `gauge.mjs` / `peek.mjs` (the core is USED as-is — zero edits), `compact_memory.ts`,
-  `block_transfer.ts`, `context_recovery.ts`, `ctx_watchdog.ts`, `opencode.jsonc`
-  (NEVER stage), everything under `proposals/maintainer/`, the FST python packages +
-  tests, `repo_map.md`, the role prompts.
-- No renumbering/reordering of existing probe checks; no changes to the S1–S11
-  section bodies.
+- The LIVE `.opencode/loop/` folder (the smoke targets a scratchpad `directory`
+  only — never point the tool at the real loop folder during the smoke),
+  `gauge.mjs` / `peek.mjs`, `compact_memory.ts`, `block_transfer.ts`,
+  `ctx_gauge.ts`, `context_recovery.ts`, `ctx_watchdog.ts`, the probe file,
+  `opencode.jsonc` (NEVER stage), everything under `proposals/maintainer/`,
+  the FST python packages + tests, the role prompts + `agent_readme_loop.md`
+  (planner-applied after green), `repo_map.md`.
 - Do NOT register the tool in any config (host-side, maintainer domain).
 
 ## Approval boundary
-- Pre-approved: the tool file + the probe S12 append + the header update. If you find
-  a defect in the shared core (`gauge.mjs`) that blocks the byte-identical readout,
-  do NOT fix it in this task — stop, record it in `todo_inbox.md`, and report.
+- Pre-approved: the tool file + the smoke (scratchpad) + bookkeeping. If you
+  find the Part 3 design under-determines a behavior (e.g. mtime granularity on
+  Windows makes the anomaly rule flaky), do NOT invent a design — stop that
+  sub-point, record it in `todo_inbox.md` with the observed behavior, and
+  report; the planner decides.

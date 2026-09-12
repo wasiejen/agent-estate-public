@@ -1,13 +1,13 @@
-# TASK — T3 (iter-10+1): loop_log tool (the loop log as a directly-fired tool)
+# TASK — T3 (iteration 13): loop_log tool (the loop log as a directly-fired tool)
 
 FIRST read `AGENTS.md`, `agents_repo.md` (+ repo part `repo_commands.md`), this file,
 and Part 3 of the approved design `.opencode/proposals/approved/2026-09-12_loop-tool-batch.md`
 (the design of record — the spec below sharpens it, it does not contradict it).
 
-Branch: `fst_work` (HEAD at launch = `c0eb7b8`). Commit on `fst_work`. META task
-(no FST python code). This iteration is "iteration 10+1" (the launch message's
-numbering); your loop-log role label is `worker-` + that iteration number —
-compute/verify it with a script, never retype it.
+Branch: `fst_work` (HEAD at launch = `7bf6533`). Commit on `fst_work`. META task
+(no FST python code). This iteration is "iteration 13" (the launch message's
+numbering); your loop-log role label is `worker-13` — verify it against this
+header, never retype it.
 
 ## Goal
 A new custom tool `.opencode/tools/loop_log.ts` an agent fires DIRECTLY to append

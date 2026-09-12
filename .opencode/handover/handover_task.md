@@ -1,87 +1,108 @@
-# TASK — FST unit A: vk-error surfacing at every resolution site (TODO #1, approved Rec 1)
+# TASK — T3 (iteration 13): loop_log tool (the loop log as a directly-fired tool)
 
-FIRST read `AGENTS.md`, `agents_repo.md` (+ repo parts: commands, testgate), this file,
-`TODO.md` entry #1, and the approved design
-`.opencode/proposals/implemented/P08_configerror-design.md`.
+FIRST read `AGENTS.md`, `agents_repo.md` (+ repo part `repo_commands.md`), this file,
+and Part 3 of the approved design `.opencode/proposals/approved/2026-09-12_loop-tool-batch.md`
+(the design of record — the spec below sharpens it, it does not contradict it).
 
-Branch: work on `fst_work` (`git checkout fst_work` first; it is current with
-`opencode_test`). Commit on `fst_work`.
+Branch: `fst_work` (HEAD at launch = `7bf6533`). Commit on `fst_work`. META task
+(no FST python code). This iteration is "iteration 13" (the launch message's
+numbering); your loop-log role label is `worker-13` — verify it against this
+header, never retype it.
 
 ## Goal
-Unknown / unresolvable key strings must surface as a USER-VISIBLE error at every
-vk-resolution site — never console-only. The constraint fail-closed path must REUSE
-the same surfacing as the other sites. Fail-closed semantics (the constraint evaluates
-unfulfilled, the listener survives) are preserved.
+A new custom tool `.opencode/tools/loop_log.ts` an agent fires DIRECTLY to append
+its loop-log line (no hand-formatting, no per-agent folder-permission management),
+plus a scratchpad smoke that pins it. NO probe section (Part 3's acceptance is
+smoke-based; the probe must simply stay green).
 
-## Verified current state (planner facts, measured 2026-09-12 — do not re-derive)
-- `FST_Keyboard.convert_to_vk_code` (fst_keyboard.py:140-155) already RAISES
-  ConfigError in both failure branches (out-of-range numeric, unknown non-numeric).
-- Group-init sites (alias ≈269, tap ≈284, rebind ≈346, macro ≈380 in
-  `initialize_groups_from_presorted_lines`) catch ConfigError → print + re-raise;
-  boundary catches exist and are done — CLI top level (free_snap_tap.py:159 print),
-  GUI toasts (fst_overlay.py:212/218/601/620), CLI-menu reload
-  (fst_manager.py:1893 print + continue). DO NOT rework these.
-- `check_for_combination` (fst_keyboard.py:926-938) catches ConfigError, deduped
-  print warning (`self._warned_config_errors`), returns False; listener survives.
-- THE GAP — the two constraint fail-closed guards in
-  `Output_Manager.constraint_evaluation` are console-only:
-  - short-eval branch fst_manager.py:648-658 (`except Exception: print(error); return False`)
-  - eval branch fst_manager.py:676-679 (`except ConfigError: print(error); return False`)
-  In GUI mode (no visible console) the user sees nothing.
-- Surfacing primitive: `FST_Keyboard.toast_callback` (fst_keyboard.py:63) — None in
-  headless, `bridge.trigger_toast` in GUI (wired at free_snap_tap.py:195). P08
-  error-toast style used by the GUI handlers:
-  `toast_callback(str(error), 5, 12, "rgba(200, 40, 40, 200)", "white")`.
-- Pinned today: `tests/test_config_error.py` — `TestConstraintEvalConfigError`
-  (eval branch, capsys print assert), `TestCheckForCombinationConfigError`
-  (deduped print). `tests/conftest.py` `fake_fst` / `kb_env` give a
-  `toast_callback` MagicMock (GUI-mode stand-in).
+## Verified facts (planner, at spec time — do not re-derive)
+- `tool()` form references: `.opencode/tools/ctx_gauge.ts` (T2, simplest) /
+  `block_transfer.ts` (T1): `export default tool({ description, args, execute })`,
+  NO `name` field (the host names the tool by FILENAME).
+- The line format (`.opencode/system_prompts/agent_readme_loop.md` §Loop log):
+  `<date_time> <STATUS> <role>[-<iteration>] <session_id> <agent_model> <content>`
+  where `<date_time>` = local `YYYY-MM-DD_HH-MM` (minute resolution) and the role
+  string ALREADY carries its iteration (e.g. `planner-10+1`, `worker-10+1`).
+- The five STATUS tokens (exactly, 8-char): `-->START`, `DONE<---`, `-RETURN-`,
+  `-WARNING`, `--INFO--`.
+- Loop folder invariant: exactly ONE `autorun-*` folder in `.opencode/loop/` at
+  any time (rollover is planner work — this tool does NOT rollover; see the
+  multi-folder rule below).
+- Baselines at HEAD: probe **84/84**, pytest **459 + 1 #10**, ruff **F=0**.
 
-## Changes
-1. ONE shared ConfigError surfacing helper on `FST_Keyboard`
-   (e.g. `surface_config_error(error)`, name/placement your call): if
-   `self.toast_callback` is set → call it with the P08 error-toast style and a
-   `[FST] `-prefixed message; else `print(f"[FST] {error}")`.
-2. Route BOTH constraint guards through the helper before `return False`
-   (fail-closed unchanged). In the short-eval `except Exception` handler, route
-   only `ConfigError` instances through the helper; keep the plain print for any
-   other unexpected exception (defensive).
-3. Route `check_for_combination`'s warning (fst_keyboard.py:932-936) through the
-   same helper, KEEPING the `_warned_config_errors` dedup (surface at most once per
-   bad string).
-4. Audit: grep every `convert_to_vk_code` call site and every
-   `except ConfigError` site in `fst_keyboard.py` / `fst_manager.py`; any remaining
-   catch that only console-prints a vk-resolution error → route through the helper.
-   List in your summary any site you judged out of scope and why.
+## Scope (DO)
+1. **New `.opencode/tools/loop_log.ts`** per Part 3:
+   - args: `role` (string, required — the agent writes its own full role token),
+     `model` (string, required — verbatim model id), `status` (required enum of
+     exactly the five tokens above — a bogus token must be rejected at PARSE
+     time, i.e. the zod enum, not a runtime check), `content` (string, required),
+     `session` (OPTIONAL string — the agent's own session id from its injected
+     `ctx:` line; omitted/empty → the literal `unknown` in the line);
+   - `execute` (all paths per Part 3, in order):
+     1. resolve `.opencode/loop/` against `context.directory ?? process.cwd()`;
+     2. if NO `autorun-*` folder exists there → create `autorun-<YYYY-MM-DD_HH-MM>`
+        (name MACHINE-COMPUTED from the local clock, never retyped — pattern-5
+        discipline) + its `loop_log.md` (append creates the file when absent);
+        if exactly one exists → use it; if SEVERAL exist → use the
+        most-recently-MODIFIED one and surface the anomaly in the return value
+        (never silently resolve, never pick an arbitrary one);
+     3. append ONE line `<date_time> <status> <role> <session|unknown> <model>
+        <content>` — machine-timestamped, same local `YYYY-MM-DD_HH-MM` form;
+        append-only (the tool never rewrites or curates the file);
+     4. return the folder name + the exact line it wrote (the agent sees what
+        landed); on the anomaly case, also the anomaly note.
+   - `description` (1–2 lines): appends ONE loop-log line to the current
+     looprun's `loop_log.md` (auto-creates the dated folder when `.opencode/
+     loop/` is empty); returns the folder + the line written; fire this for
+     your loop-log bookkeeping (START/DONE/RETURN/WARNING/INFO).
+2. **Smoke** (scratchpad `loop_log_smoke.mjs`, the iter-4 pattern — Node-24
+   type-stripped import of the tool module; the context object carries a
+   scratchpad temp `directory`, NEVER the live `.opencode/loop/`):
+   - empty dir → creates the dated `autorun-*` folder + `loop_log.md`
+     (verify the name by LISTING the dir — never retype/compare a retyped
+     date string; check the form `autorun-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}`);
+   - exact line form: byte-compare the written line against a hand-built
+     expected line for the SAME args — MINUTE-BOUNDARY-SAFE: compute the
+     expected timestamp for the minute before AND after the call and assert
+     the written line equals one of the two (the clock can tick mid-call);
+   - append-when-exists: a second call appends (both lines present, order
+     preserved, file not rewritten);
+   - `session` omitted → literal `unknown` in the line;
+   - the status enum REJECTS a bogus token at parse time (zod `safeParse`
+     fails — no line written);
+   - multi-folder anomaly: pre-create TWO `autorun-*` dirs with distinct mtimes
+     (bump one's mtime explicitly), assert the line lands in the most-recently-
+     modified one AND the return value mentions the anomaly.
+3. **Bookkeeping** per your commit routine: summary →
+   `.opencode/handover/handover_task_to_planner.md`, your loop-log lines
+   (this iteration's protocol: hand-append them to the CURRENT loop folder's
+   `loop_log.md` — the new tool is NOT registered in the live host yet; role
+   label per the header; your session id from the injected `ctx:` line; model
+   verbatim), `todo_inbox.md` only for discrepancies.
 
 ## Definition of done
-- Unknown key in a constraint (BOTH branches) → user-visible error (GUI: toast via
-  the helper; headless: print) and the constraint returns False (fail-closed).
-- `check_for_combination` with an unresolvable string → surfaced via the helper,
-  deduped, returns False.
-- Tests updated/new in `tests/test_config_error.py` (or a sibling): (a) GUI-mode —
-  the constraint path calls `toast_callback` once with the ConfigError message
-  (both branches); (b) headless — `toast_callback = None` → the print fallback
-  fires (replaces the old capsys-only pin); (c) check_for_combination dedup still
-  holds with the helper (second occurrence surfaces nothing).
-- Gates: pytest green — baseline **451 passed + 1 known #10 warning** plus your new
-  tests; ruff `check --select F .` = 0 findings.
-- Commit on `fst_work`: code + tests + the `TODO.md` #1 status line updated (the
-  entry stays — its residual is closed by this build; mark it accordingly) +
-  `handover_task_to_planner.md` executive summary.
+- Full probe green at the UNCHANGED total **84/84** (re-run; report).
+- Smoke N/N PASS (measured, reported; script in the scratchpad, untracked).
+- `git diff` of the task commit = `loop_log.ts` (new) + bookkeeping — nothing
+  else (NO probe file change, NO prompt change — those are planner-applied
+  after verification, per Part 3).
+- Gates re-measured by you and reported: probe 84/84, pytest **459 + 1 #10**,
+  ruff **F=0**.
+- One green task commit; summary committed.
 
-## DO NOT touch
-- The `###XXX 241022-1341` block in `initialize_groups_from_presorted_lines`
-  (mixed-Key rebind conversion — maintainer keeps it until he tests more).
-- The `XXX 241016-1101` contradiction-prevention block (fst_keyboard.py ≈791 —
-  maintainer's LIVE test marker, TODO #11 HOLDING).
-- The NameError silent no-op branch in `constraint_evaluation` (unknown constraint
-  NAMES stay silent by design — SPEC_FEATURES.md §4 #2).
-- `playground/`, `opencode.jsonc`, `AGENTS.md`, `proposals/`, the live prompts,
-  `COVERAGE_TRIAGE.md`.
-- No live listeners — mocked `kb_env` / `fake_fst` patterns only
-  (tests/conftest.py). `opencode.jsonc` is never staged.
+## DO-NOT-touch
+- The LIVE `.opencode/loop/` folder (the smoke targets a scratchpad `directory`
+  only — never point the tool at the real loop folder during the smoke),
+  `gauge.mjs` / `peek.mjs`, `compact_memory.ts`, `block_transfer.ts`,
+  `ctx_gauge.ts`, `context_recovery.ts`, `ctx_watchdog.ts`, the probe file,
+  `opencode.jsonc` (NEVER stage), everything under `proposals/maintainer/`,
+  the FST python packages + tests, the role prompts + `agent_readme_loop.md`
+  (planner-applied after green), `repo_map.md`.
+- Do NOT register the tool in any config (host-side, maintainer domain).
 
-Worker: worker_Q4_120K. This is an approved observable-behavior change (maintainer
-ruling in `.opencode/proposals/approved/2026-09-11_fst-behavior-batch-decisions.md`
-Rec 1) — no further approval needed.
+## Approval boundary
+- Pre-approved: the tool file + the smoke (scratchpad) + bookkeeping. If you
+  find the Part 3 design under-determines a behavior (e.g. mtime granularity on
+  Windows makes the anomaly rule flaky), do NOT invent a design — stop that
+  sub-point, record it in `todo_inbox.md` with the observed behavior, and
+  report; the planner decides.

@@ -456,16 +456,34 @@ export default async function CompactMemoryPlugin(ctx: any) {
               const keep: Record<string, number> = {};
               if (args?.keepTokens != null) keep.tokens = args.keepTokens;
               if (args?.keepMessages != null) keep.messages = args.keepMessages;
-              const { note, error } = await callSummarize(
-                client,
-                sessionID,
-                { providerID, modelID: model },
-                Object.keys(keep).length > 0 ? keep : undefined,
-              );
-              if (error !== "") {
-                return `Compaction request failed: ${error}` + [modelNote, note].filter((s) => s !== "").join("\n");
-              }
-              keepNote = note;
+              // const request = await callSummarize(
+              //   client,
+              //   sessionID,
+              //   { providerID, modelID: model },
+              //   Object.keys(keep).length > 0 ? keep : undefined,
+              // );
+              //
+              const request = client.session.summarize({
+                path: {
+                  id: sessionID
+                },
+                body: {
+                  providerID: providerID,
+                  modelID: model,
+                },
+
+              })
+              //async catch to not block - unknown if set keepTokens and keepMessages are respected
+              void request.catch((err: unknown) => {
+                const { note, error } = request
+                console.error("Background compaction failed:", err)
+                if (error !== "") {
+                  return `Compaction request failed: ${error}` + [modelNote, note].filter((s) => s !== "").join("\n");
+                }
+                keepNote = note;
+              })
+
+
             } else {
               const compactType = typeof client?.session?.compact;
               const summarizeType = typeof client?.session?.summarize;

@@ -45,10 +45,12 @@ so the meaning cannot be misread.
 3. SECONDARY (one-line, same file): the probe header's per-section annotation
    (the `S1=3 S2=4 … → "PROBE handover: N/N PASS"` comment) does not sum to
    the self-counted total (the hygiene checks 40-43/45/64 are not in the
-   section list; old baseline was therefore 94 executed vs the stale "94/94"
-   annotation). Add a `hygiene=5` term (or equivalent) so the annotation sums
-   to the self-counted total (106 for the current check set). Verify with a
-   machine sum, not by eye.
+   section list; the old self-counted baseline was 94 executed (ninetyfour)
+   vs the stale "94/94" annotation (ninetyfour) — both are dense-numeral
+   traps, so WRITE machine-verified numbers into your verification, never
+   retype them). Add a `hygiene=5` term (or equivalent) so the annotation
+   sums to the self-counted total (106 for the current check set, hundred
+   six). Verify with a machine sum, not by eye.
 
 ## Definition of done (measured, report all)
 - `node .opencode/plugin/probes/handover_probe.mjs` → `PROBE handover: 106/106 PASS`.

@@ -62,12 +62,17 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   `repo_custom_tools.md` (block_transfer/ctx_gauge/loop_log/compact_memory) +
   index lines (repo_overview + both role prompts); #9 gauge-lag one-liner in
   planner + worker prompts.
-- NUDGE-CLARITY (speaking minimal readout; spec in `0761e42`, loop copy
-  `plan5_ho_task.md`): worker-5 `ses_f594ba57effeJP9cGt9BI15iDt` DIED at
-  95 %/6K without handover/DONE (2nd limit death this looprun); uncommitted
-  partial edits: `ctx_watchdog.ts` (+40) + `handover_probe.mjs` (+12).
-  Cross-compact (Gemma) DISPATCHED — NEXT: verify COMPACT line → task_id
-  resume (post-compaction protocol + the 90/95 protocol in the launch msg).
+- NUDGE-CLARITY (speaking minimal readout) **DONE + VERIFIED**: worker-5
+  `ses_f594ba57effeJP9cGt9BI15iDt` died at 95 %/6K (2nd limit death);
+  rescued via cross-compact (Gemma COMPACT line 23:18) + task_id resume with
+  the 90/95 protocol in the launch msg — SUCCEEDED. Build `28783a7`
+  (ctx_watchdog.ts v2.8.1 speaking readout + probe re-pins). I re-ran the
+  gates myself: probe 106/106 PASS, pytest 459+1w, ruff F=0, `grep "%/"`
+  clean, annotation machine-summed from the file = 106. Documented
+  deviation CORRECT: annotation term is `hygiene=6` (the spec's `5` was my
+  miscount). NEW FINDING curated → TODO #63: compact_memory smoke has 4
+  failures at HEAD (dump-hook sandbox gap; smokes are NOT in the standard
+  gate — that is why it went undetected).
 - MAINTAINER handled (`--maintainer` msg + `info.md` + ideas.md
   clarifications; his files committed by HIM as `4340043`): stop-line
   semantics = no NEW work past the line BEFORE compaction was controllably

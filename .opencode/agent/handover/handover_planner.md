@@ -3,6 +3,7 @@
 FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 ## Compressed archive (one line each — details in git log + TODO/records)
+- 2026-09-15 direct session (ses_f5d75a58fffeDLp7CGLqqZP8EQ) — Part-2 NAP cleanup COMPLETE + verified (`b36d4c7`); `# 3 2` dump script + 137-session corpus backfill delegated + verified (`ab1451d`, `e877364`); dense-content question answered (knowledge entries); his re-prioritization triaged (`60d61b8`..merge `23eb24c`) — details: .opencode/archive/loop/nap_direct.md + git 1d98075
 - 2026-09-15 direct session (ses_f5df3e30cffeCpv0iy41ybL6iA) — bash switch verified; compact_memory re-verified (Gemma now default compaction model); NAP-size discussion: memory folder + consolidation + session-dump designed, Part-2 cleanup APPROVED (backup condition) and delegated — details: .opencode/archive/loop/nap_direct.md + git b4a6b93
 - 2026-09-14 direct session (ses_f5f0689d9ffe0G0Uhvz0AIr5Vh) — cross-session compaction round 2: WORKS — his explicit-pair fix supersedes round 1; `cross_session_compaction_summary.md` handled → done/ — details: .opencode/archive/loop/nap_direct.md + git 22268de
 - **2026-09-14 direct (ses_f601cfc5):** state rebuild from his uncommitted additions; today's `--comment` (meta-feedback) acknowledged; #02 autorun_summary re-run delegated + verified (`02388a9`); gauge/nudge consistency + mid-turn context reconstruction measured (post-compaction floor ≈ system prompt + keep); cross-session compaction ROUND 1 (old cross path: no resolvable pair → no send; test2 fire-and-forget error swallowing mapped; model-serialization hypothesis) — SUPERSEDED by round 2 (next section, ses_f5f0689d9); detail: `archive/loop/nap_direct.md` + git `663a184`.
@@ -48,6 +49,10 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 ## Standing
 - Baselines (measured 2026-09-15, Part-2 cleanup): probe **99/99**; pytest **459 passed + 1 warning (the known #10 coroutine warning)**; ruff **F=0**.
+- Per-session full NAP backup (his ruling 2026-09-15): ONE `cp handover_planner.md
+  .opencode/archive/nap_backup_<date>_<ses>.md` at the close commit — a single cp
+  (no double write); the emergency-compaction method has to be enough — no further
+  mechanism built for it.
 - Context wall (his protocol 2026-09-15): the real wall sits ≈ **90% gauge reading**
   (a session hit the actual limit at a ~90-96% readout); the gauge lags ~2 tool
   calls (his # 9 — plan with ~5k margin against the injected `ctx:` line).
@@ -75,49 +80,36 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   closed entries in `todo_records.md` (formalized by split proposal part 3).
 - **Disclosure (dc3f137):** the `git add -A` there also staged the maintainer's live `opencode.jsonc` (compaction.keep now system:true / tokens:60000 / messages:20) and his new draft `draft/compact_memory/compact_memory.ts` (72 lines) - both were in the working tree at commit time. Nothing was reverted; maintainer decides whether that belongs in the git record.
 
-## 2026-09-15 (direct session; ses_f5d75a58fffeDLp7CGLqqZP8EQ) — Part-2 cleanup COMPLETE + verified; his re-prioritization triaged; dense-content question answered
-- Part-2 continuation done via the pipeline-only spec (`e8200da`; text worker
-  `ses_f5d60b90`, planner_Q4_120K): 7 remaining sections appended to pointer
-  files + NAP rewritten → **68 lines**, archive 32 section lines + kept
-  `ses_f601cfc5` line + 8 folded legacy lines, Standing to measured baselines —
-  commit `b36d4c7` (+ handover `09789dd`). VERIFIED against git: stat (NAP +
-  exactly the 7 targets, his files unstaged), TSV complete, date histogram
-  matches the backup, spot-checks on pointer files. Worker's 3 flagged
-  judgment calls accepted (dc3f137 hash for the 09-10 chat segment; legacy
-  dates derived via git; `6c2151` confirmed NOT a git prefix — presumed
-  original typo, kept verbatim).
-- Maintainer triage (commits `60d61b8`/`ac020fb`/`ef044e9`/`a58d375`/merge
-  `23eb24c`): loop folders moved → `archive/loop/` (NAP pointers fixed here);
-  `priority.md` restructured (`# 3 1..3 3` + `# 4..# 10`); 6 inbox items
-  (block_transfer ↔ #8; snippet_collection ↔ #4/#10; analyse_helper_scripts ↔
-  #10; save_all_plugin_took_testing_files = smoke-harness-in-repo proposal;
-  summary_summary = "use the summary skillset on each autorun";
-  dense_content_warning = his questions on my list-loop); marker rulings
-  (→ Standing). `# 3 1` (nap size) handled → `_past_priorities.md`.
-- Dense-content question (answered in the closing summary; lesson →
-  `knowledge_tools.md`): the PIPELINE-ONLY rule worked (7/7 correct appends,
-  zero section bodies read); machine counts over in-context counts; anchors
-  over absolute line numbers; pointer over inline detail for compressed
-  sections. My own failure mode: re-reading the same dense list ("scroll up"
-  loop) — stop and script it instead.
-- `# 3 2` DONE (this session, before the stop line): dump script + corpus
-  via worker `ses_f5d03802` (worker_Q4_120K) — `.opencode/agent/scripts/
-  dump_session.cjs` (read-only DB; single-session FULL mode = the
-  pre-compaction dump; `--all` corpus mode) + backfill 137 sessions →
-  `.opencode/archive/sessions/` — commits `ab1451d` + `e877364`. VERIFIED:
-  file count 137 == session count, `readOnly: true` in the code, gates green
-  (99/99, 459+1#10, F=0), his files unstaged, TODO #55 already annotated
-  (unblocked — the `compact_memory` dump HOOK remains his call).
-- Dense-content question ANSWERED (inbox item → `done/`; reply here + in
-  knowledge): (1) mitigation = the PIPELINE-ONLY rule (worked: 7/7 appends
-  with zero section bodies read) + machine counts over in-context counts +
-  anchors over absolute line numbers + emit a dense list at most once; (2)
-  compacted sections: pointers (file + git hash) over inline detail, verify
-  via script, never re-read the stale inline copy. Lessons →
-  `knowledge/knowledge_context.md` (new file) + gauge-lag fact →
-  `knowledge_tools.md`.
-- Queued (his priority order): `# 3 3`
-  distillation experiments (gemma4); `# 4` planner-prompt grep command;
-  `# 5`/`# 6` knowledge + output-limit rules; `# 7` non-ASCII note; `# 8`
-  block_transfer test; `# 9` gauge lag (→ Standing); `# 10` script collection;
-  smoke-harness proposal.
+## 2026-09-15 (direct session; ses_f5ce87718ffedT6ngBjJN3LEhH, post-compaction of ses_f5d75a58) — his `--comment` rulings handled; looprunner prompt reworked; smoke-harness proposal filed
+- His `--comment` (session message) handled + acknowledged: (1) **autorun postponed
+  one round** — noted, no loop work this session; (2) **TODO #55 APPROVED**
+  ("can be done and will be activated before the next autorun") →
+  `TODO.md` #55 status → APPROVED + BUILDABLE (dump HOOK reuses
+  `agent/scripts/dump_session.cjs`; he activates via host restart before the next
+  autorun); (3) **per-session NAP backup**: YES if one efficient cp → Standing rule
+  (single `cp` at the close commit, no double write; emergency compaction must be
+  enough); (4) **smoke-harness home** = `plugin/tests/` → formal proposal filed.
+- **Looprunner prompt REWORKED** (`agent/prompts/agents/prompt_agent_looprunner.md`):
+  new §Communication (the better-communication proposal — fixed readout block per
+  iteration close: planner/action/summary-printed/next; loop start; failure +
+  recovery line; message ack line); new §Resume & recovery with the explicit
+  **context-limit procedure** (WARNING → session id from error/return or last
+  `-->START` line → cross `compact_memory` (provider/model if known else
+  `llama-swap`; fire-and-forget; success = COMPACT line in `temp/ctx.log`; host
+  compaction model Gemma ≠ planner model → no flush) → task_id RESUME with the
+  post-compaction protocol → fallback `restart`); STRONG `loop_log` tool reminder
+  (tool = the only write path; his config-side tool access is HIS part to fix —
+  his commit `a58d375` added `loop_log` to the tools block; the LIVE jsonc has the
+  tools block commented out = all tools available). Text damage fixed ("On/esume"
+  split, stray `- ` line, "interation" typo); his `**` directives kept VERBATIM;
+  Access Gating restated against the config (read-gated, no write access).
+- **Smoke-harness proposal FILED** (`proposals/2026-09-15_smoke-harness-home.md`):
+  home `.opencode/plugin/tests/` + README (layout rule); same-name attribution
+  table (8 scratchpad files → `<tool>.smoke.mjs` + behavior suffix); shared
+  `_smoke_base.mjs`; rewire hardcoded absolute paths; green-from-repo acceptance.
+  Inbox item `save_all_plugin_took_testing_files.md` → `maintainer/done/`
+  (content untouched).
+- Open for his ruling (see closing message): the communication readout format
+  (it is a proposal inside the rework); the smoke-harness proposal (approval);
+  the `loop_log`/`compact_memory` tool availability in his live jsonc (his fix).
+

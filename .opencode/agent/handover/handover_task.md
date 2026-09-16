@@ -1,80 +1,104 @@
-# TASK — numword scriptlet (approved research lane 5.2)
+# Task spec — 5.3 intercept observer plugin (log-only functional prototype)
 
-Worker: worker_Q4_140K
-Goal: ONE numword map + working word→digit / cross-check entry points in
-node + python, fixture-pinned in the probe. Approved (maintainer 2026-09-16,
-source doc 540–549; design + grammar rules in the addendum).
+Approved scope: research doc `2026-09-16_fuzzy-and-numword-tool-reliability.md`
+540–549 + addendum `.opencode/agent/research/2026-09-16_fuzzy-numword-addendum.md`
+§"Scope after the comments" item 3 (read it — it is the design source).
 
-## Verified facts (planner-verified — do not re-derive)
-- Grammar spec + map coverage:
-  `.opencode/agent/research/2026-09-16_fuzzy-and-numword-tool-reliability.md`
-  §3.2 (map coverage: units zero..nine, tens ten..ninety incl. the `fourty`
-  alias→40, teens eleven..nineteen EXPLICIT (ten+one ≠ eleven), tens+unit
-  composition (ninetyfour→94), one-prefix rule ("one-zero-one"→101)) and
-  `.opencode/agent/research/2026-09-16_fuzzy-numword-addendum.md` C4 (the
-  refined grammar, 2026-09-16 maintainer comments):
-  - dash-separated units are the canonical dense form: `two-zero`→20,
-    `one-zero-six`→106 — a separator ALWAYS between dense units;
-  - numberwords ONLY: NO arithmetic in grammar input — `two+zero` is
-    REJECTED as unknown (never guess);
-  - the unseparated `twozero` pattern is NOT legal → REJECTED as unknown
-    (this was the §2.4 8/9 scratchpad failure — it must stay a loud failure);
-  - unknown input → loud error (non-zero exit node / exception python),
-    never a best-guess;
-  - NO speculative aliases beyond `fourty` (the `eigth` example was
-    demonstration, not observed drift — addendum C2).
-- Scripts home: `.opencode/agent/scripts/` — README + `INVENTORY.md` are
-  updated with every new script (existing convention; INVENTORY is the
-  index, keep it current).
-- Probe: `.opencode/plugin/probes/handover_probe.mjs` — APPEND-ONLY
-  discipline (existing sections untouched). Current total = 122 (the header
-  annotation is self-annotated, ~line 376, word-form "one hundred
-  twenty-two" per the #61 convention — machine-check any total you touch;
-  dense-digit trap, AGENTS.md P5). New section labels continue consecutively
-  after the last existing label.
-- Standard gate (repo_commands.md §Run/test): `pytest -q`,
-  `ruff check --select F .`, `node .opencode/plugin/probes/handover_probe.mjs`.
-  Baseline at HEAD: pytest 459 passed + 1 known warning, ruff F=0, probe
-  total self-annotated and green.
+## Goal
+A SEPARATE opencode plugin that observes tool calls and LOGS suspicious
+dense-digit / numword / redundancy / path anomalies. It NEVER mutates
+`output.args` and NEVER blocks — log-only (the mutation channel is unproven,
+§5.4 pending; this prototype must survive being permanently log-only).
 
-## Definition of done (measurable)
-1. ONE shared map source (a JSON file under the new script folder) read by
-   BOTH entry points — the map is defined once.
-2. **node**: `node <script> <word-or-wordlist>` → digits (CLI one-liner
-   friendly: `node -e`-usable from the module too). `numword_check(digit_str,
-   word_str)` → machine-readable agreement / disagreement (shell-usable).
-3. **python**: `w2n(word)` importable (f-string-usable) with the SAME map +
-   grammar behavior; unknown → exception.
-4. Passing cases (each fixture-pinned): `nine`→9, `ninetyfour`→94,
-   `fourty`→40, `one-zero-one`→101, `two-zero`→20, `one-zero-six`→106,
-   `eleven`→11 (explicit, not composed).
-   Failing cases (each fixture-pinned as REJECT): `twozero`, `two+zero`,
-   `foour`, `eleventy` (unknown words are loud, never guessed).
-5. Probe: new appended section pins the above fixtures (spawn the node
-   entry point / run python where the host allows; if python spawn is
-   flaky in the probe, pin the node side in the probe and pin the python
-   side in a committed fixture run recorded in the section header) — ALL
-   green; header annotation total updated by MACHINE-CHECK (never retyped).
-6. `INVENTORY.md` + scripts README updated (2 new scripts, one line each).
-7. Gate: pytest 459+1w unchanged, ruff F=0, probe green at the new total,
-   all 7 plugin smokes still green.
-8. Handover to `handover_task_to_planner.md` (summary, measured gate,
-   commit hash, fixtures pinned, anything deliberately not done).
+## What to build
+1. **NEW** `.opencode/plugin/intercept_observer.ts` (name may vary, keep the
+   concept): `tool.execute.before` hook, active for ALL tools (read/glob/
+   grep/bash + write/edit observed too). Conventions to follow (verified
+   facts, do not re-research):
+   - Hook shape (installed SDK, `@opencode-ai/plugin/dist/index.d.ts`
+     ~235–241): `("tool.execute.before", async (input: {tool, sessionID,
+     callID}, output: {args: any}) => …)` — returned from the default-export
+     plugin function, same registration shape as `ctx_watchdog.ts` /
+     `compact_memory.ts` (both tracked in `.opencode/plugin/`, auto-loaded
+     at host restart — do NOT touch `opencode.jsonc`).
+   - Best-effort, never-throw: any internal error → at most one
+     `kind:"intercept-error"`-style line to the log, the hook returns
+     silently. The watchdog header (ctx_watchdog.ts lines 1–20) states the
+     house rule.
+   - **Single numword map home (addendum C3):** at plugin start, read
+     `.opencode/agent/scripts/numword/numwords.json` (ONE shared map — never
+     embed a second copy). If the read fails, numword checks are
+     silently off (other checks still run).
+   - Observations (fire a log line only when at least one fires; cap lines
+     per call, cap field length — worker's call, document in file header):
+     a) dense-digit args (long digit runs / dates / session-id shapes);
+     b) numword tokens present in args (map hit → value; unknown tokens
+        like `twozero` are NOT hits — they are not in the map);
+     c) `<digit>|<word>` redundancy pairs: left/right check via the map
+        (agreement / mismatch / ambiguous);
+     d) path sanity: doubled segments (`users\users` shape);
+     e) out-of-sandbox path NOTE (the workspace root = the PluginInput
+        project directory; note only, no enforcement).
+   - Log file: `.opencode/temp/intercept.log` (git-ignored, verified).
+     Line shape (addendum C7 — byte-exact, pipe-separated 8 fields):
+     `<timestamp> | <session_id> | <model_id> | <tool> | <original-arg> |
+     <candidates + distances OR gate evidence> | <context: what the arg is —
+     path / commit-ref / date / session-id> | <verdict>` with verdict ∈
+     {observed-redundancy-ok, redundancy-mismatch, no-candidate,
+     ambiguous, out-of-sandbox, path-anomaly}. `model_id`: obtain the same
+     way the watchdog gets model info (its transform cache / session DB
+     pattern — peek at how ctx_watchdog.ts fills the `ctx:` line model);
+     if unavailable, literal `unknown` (never throw, never spawn
+     unbounded).
+   - Export the detection core as a NAMED export (pure function(s) over
+     arg strings + the map) so the probe can pin fixtures WITHOUT a full
+     PluginInput harness (the loop_log smoke shows the alternative).
+2. **NEW** smoke `.opencode/plugin/tests/intercept_observer.smoke.mjs` —
+   established pattern: `_smoke_base.mjs` (`freshSandbox`, `loadRepo`,
+   `makeChecker`); reference `loop_log.smoke.mjs` (simplest). Sandbox must
+   point the log at a sandbox temp dir — NEVER the live
+   `.opencode/temp/intercept.log` (DO-NOT-touch), and the numword map
+   must be the REAL shared file (read-only).
+3. **APPEND** probe section S18 to `.opencode/plugin/probes/handover_probe.mjs`
+   (insert like S17 did — before the S5 hygiene section, existing sections
+   untouched): pin ~15–25 checks on the NAMED-export core — each
+   observation class has pass + negative fixtures (dense-digit; numword map
+   hit; `twozero`-style unknown → no numword hit; `|`-pair agree /
+   mismatch / ambiguous; doubled segment; out-of-sandbox; clean arg → NO
+   line), plus: hook returns without mutating `output.args` (byte-identical
+   before/after), hook never throws (garbage input → silent), log line
+   byte-shape (8 pipe-separated fields, verdict vocabulary). Update the
+   header annotation total (machine-checked, digit form — the S17
+   precedent; the total is currently 148).
+4. **DOCS:** `.opencode/plugin/README.md` gains one line (the new plugin);
+   `repo_custom_tools.md` or the plugin file header carries the usage note
+   (restart-gated activation; log location; verdict vocabulary).
+
+## Definition of done
+- `node .opencode/plugin/probes/handover_probe.mjs` → `PROBE handover:
+  <new total>/<new total> PASS` agreeing with the header annotation.
+- All 8 smokes green (7 existing + the new one), each
+  `node .opencode/plugin/tests/<name>.smoke.mjs` exit 0.
+- `./.venv/Scripts/python.exe -m pytest -q` → 459 passed, 1 warning
+  (UNCHANGED — no FST product code touched).
+- `./.venv/Scripts/ruff.exe check --select F .` → All checks passed.
+- `git status` clean at the end (the live `opencode.jsonc` maintainer edit
+  is NOT yours — leave it uncommitted if present).
+- Commits: one per unit (plugin / smoke / probe / docs) or a single
+  coherent commit — your call, message per the git conventions.
+- Worker handover to `.opencode/agent/handover/handover_task_to_planner.md`
+  (what changed, measured verification, deviations, deliberately not done).
 
 ## DO-NOT-touch
-- `.opencode/maintainer/**` (incl. the --wip `dense_numbers.md` inbox item)
-- `ctx_watchdog.ts`, `compact_memory.ts`, existing probe sections (append
-  only), the research docs (record, not spec input to rewrite),
-  `opencode.jsonc`, `fst_work`/any FST product code — this task touches
-  ONLY `.opencode/agent/scripts/` + the probe (append) + INVENTORY/README.
-- No FST test-suite changes, no new TODO entries (this lane is recorded in
-  the research addendum + your handover).
+- `.opencode/maintainer/**`, `opencode.jsonc`, `ctx_watchdog.ts`,
+  `compact_memory.ts`, `TODO.md` / `todo_inbox.md` (append findings to
+  `todo_inbox.md` only if you hit real blockers), the research docs,
+  `tests/` (FST), `playground/`, the live `.opencode/loop/` +
+  `.opencode/temp/` contents (smoke writes sandbox-only).
+- NO mutation of `output.args` anywhere — the whole point is log-only.
 
-## Suggested shape (procedure is a suggestion)
-- Folder `.opencode/agent/scripts/numword/` (or flat in scripts/ — your
-  call): `numwords.json` (the shared map), `numword.cjs` (node: w2n +
-  numword_check + CLI), `w2n.py` (python: w2n).
-- Grammar implementation detail (split points, one-prefix handling) is yours
-  inside the DoD; the fixtures above are the contract.
-- Keep per-call cost trivial (the map is small; no startup fs cost beyond
-  reading the JSON once).
+## Context budget for you
+Spec names the areas; first greps carry `| head -30`; read file sections,
+not whole files (the watchdog header is history — read lines 1–20 + grep
+for the hook keys, not all 732 lines). Branch truth: you are on
+`opencode_test` — stay there. Standard gate before each commit.

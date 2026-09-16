@@ -3,6 +3,7 @@
 FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 ## Compressed archive (one line each — details in git log + TODO/records)
+- 2026-09-16 looprun 2, iteration 10 (ses_f579a961bffecIKwgeKvhtSVh3, planner-10) — plan10: fast no-actionable close (all real work maintainer-blocked); gates re-verified green (probe 122/122, pytest 459+1w, ruff F=0); priority.md #4/#6/#9/#10 (fully handled) moved to _past_priorities.md — details: loop folder plan10_summary.md + git 2608361
 - 2026-09-16 looprun 2, iteration 9 (ses_f57c84fbbffeaLDqNyuJzEw85G, planner-9) — plan9: approved research lane LANDED + verified (RESEARCH ONLY, no build): worker-13 `37b000d` delivered `.opencode/agent/research/` (README + 426-line fuzzy/numword tool-reliability doc ending in ranked §5.1-5.4 recommendations — maintainer call, content NOT in NAP per his instruction); TODO #64 (stale 84/84 baseline) handled planner-direct; two live 140K dense-digit incidents (subject matter bit back); OPEN (all maintainer-blocked, unchanged from plan8 + new §5.2/§5.3 decision) — details: loop folder plan9_summary.md + git 37b000d/e6564a1
 - 2026-09-16 looprun 2, iteration 8 (ses_f57dc514dffeO3jFufy9dxV6Lw, planner-8) — plan8: approved batch #54 (no-circumvent rule into all three role prompts) + #51 (stale type:module removed) + #58 (probe named in the standard-gate definition) all planner-direct; gates green; ONE concrete 140K observation (dense-digit `1-2-2` perceived as `120+2`); PLAN9 spec = approved research lane (queued, now executed in plan9) — details: loop folder plan8_summary.md + git a3af0d0
 - 2026-09-16 looprun 2, iteration 7 (ses_f5881492fffekCwsEwdfna4sge, planner-7) — plan7: #63 (smoke stub) + #57 (MOVE guard hoist) + #60 (probe S15/S16, worker-9 rescued via dump/cross-compact/resume) + #57live node-resolution fix (`9fd7557`) all verified green (probe 120+2/120+2, pytest 459+1w, ruff F=0, 7/7 smokes); 140K model era begins (renamed agents, 140K window, observation mandate) — details: loop folder plan7_summary.md + git 04cbc0f
@@ -56,57 +57,61 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 - 2026-09-09 session 2 (legacy, no-ses) — looprunner-prompt optimization proposal (consolidated verdicts; adopted closing action protocol `action: restart/ask_maintainer/stop`) — details: git ff86d9b
 - 2026-09-08 session 1 (legacy, no-ses) — agents_repo roster synced to live opencode.jsonc; #38 explorer smoke test (PASSED w/ fabricated-gauge caveat); #37 gauge build LANDED (backend chain node:sqlite → bun:sqlite → spawn sqlite3.exe) — details: git 2a4996c
 
-
-
-## plan10 (iteration 10, ses_f579a961bffecIKwgeKvhtSVh3, planner Qwen3.8-27B-IQ4KT-140K)
-- Fast no-actionable-work close (looprunner predicted it). Reality rebuilt
-  from `git log` + NAP + `TODO.md` + `priority.md` + `proposals/` +
-  maintainer inbox. Standard gate re-verified green at HEAD: probe
-  **122/122**, pytest **459 passed + 1 known warning**, ruff **F=0** — no
-  drift since plan9. No worker launched (nothing to delegate); docs/
-  bookkeeping only, no code change.
-- **Backlog-reduction curation (maintainer #0):** the four fully-handled
-  `priority.md` prompt items — #4 (marker grep command), #6 (context
-  discipline / output-limited greps / name-the-area-by-lines), #9 (gauge
-  lag ~2 tool calls ~5k), #10 (script collection) — moved to
-  `_past_priorities.md` (one line each, with pointers). LEFT in
-  `priority.md` as PARTIAL/BLOCKED, status here per convention item 4:
-  - #0 (active, his top: reduce the open backlog) — this curation is the
-    autonomous slice of it; the rest is his direct session.
-  - #3 3 (distillation) — still `--defer` (he lifts it).
-  - #5 (knowledge-sorting rule) — functionally LIVE in the role prompts
-    (planner + worker knowledge index, output-limited grep, inbox); the
-    literal "addition in agents.md" is a maintainer call (AGENTS.md is his
-    file — currently carries NO knowledge rule). Not moved.
-  - #7 (explicit coding guidelines? + no-non-ASCII note) — the non-ASCII
-    do-not is in knowledge; the "do we need explicit coding guidelines?"
-    is an open question for his session. Not moved.
-  - #8 (block_transfer) — usage guide (repo_custom_tools) + S15/S16 probe
-    pin + MOVE guard all landed; the "for the rest make a proposal"
-    sandbox-shared-scriptlet part is unclear/unfiled. Not moved.
-- **All real work is maintainer-blocked** (verified — nothing autonomous
-  left): #56 distillation (`--defer`), #53 agent-feedback tool (deferred),
-  #55 compact_memory dump live acceptance (pending host restart),
-  fst-rebind-repeat (PARKED for his direct session), #63 smoke-in-gate
-  (optional, his call), AGENTS.md 90% stopline paste (his file — rides
-  `approved/2026-09-15_agents-knowledge-stopline.md`), research doc
-  §5.1-5.4 recommendations (for his direct session; §5.4 = one-shot
-  live-host check at the next restart). `dense_numbers.md` inbox item is
-  `--wip` + "for discussion in direct session" and is ALREADY fully
-  covered by the plan9 research doc (nothing to do short of his session).
-- CLOSE: `action: stop` (goal reached — autonomous backlog reduced to
-  purely maintainer-blocked items). Blocked list for his direct session is
-  in plan10_summary.md.
+## plan1 (iteration 1, ses_f5605f805ffeElHB9mgtksjye1, planner Qwen3.8-27B-IQ4KT-140K) — new looprun 2026-09-16_13-33
+- Rollover: closed looprun `autorun-2026-09-15_13-11` → `archive/loop/`;
+  fresh folder machine-generated. Maintainer unavailable (launch message) —
+  ask_maintainer deferred to loop end.
+- His 2026-09-16 `--comments` on the research doc handled (all seven, C1–C7)
+  → ADDENDUM `.opencode/agent/research/2026-09-16_fuzzy-numword-addendum.md`
+  (evidence reframe: digit drift measured, word drift demonstration-only;
+  refined grammar: dash-separated dense units, numberwords-only, unknown →
+  loud error; 5.3 prototype scope = LOG-ONLY observation, separate plugin
+  (functional separation from watchdog), separate log file
+  `.opencode/temp/intercept.log`, extended line shape
+  session_id|model_id|context-snippet; `|`-redundancy markers = detect +
+  log only, no resolution).
+- Research README: session_id + agent header convention + addendum practice
+  (C1).
+- Approved build 5.2 LANDED + verified (worker-1
+  ses_f55f99299ffe6LtURACkgXKuTD): `scripts/numword/` (`numwords.json` ONE
+  shared map + `numword.cjs` node CLI/module/`numword_check` + `w2n.py`
+  python twin); probe S17 (26 pins, pass + reject fixtures incl.
+  `twozero`/`two+zero` rejects); GATE RE-RUN BY ME: probe 148/148, pytest
+  459+1w, ruff F=0, 7/7 smokes; spot-checks (node 94/106/AGREE, py 94/101,
+  twozero exit 1). Two impl bugs caught by the fixture run (ninetyfour→904
+  numeric fix; check-argv guard). Worker flag (code wins): the probe header
+  total is DIGIT-form (`12/2`), not word-form as my spec claimed.
+- TODO.md comments handled: #56 (triaged — the redundancy-naming idea
+  became addendum open question 1; #56 stays --defer), #55 (approval
+  recorded; his approved improvements QUEUED: count-aware dump,
+  provider/model fallback for cross-session, reworded params, auto-compact
+  toggle), #57 (feedback file
+  `maintainer/feedback/2026-09-16_block_transfer_status.md` — answers his
+  buffer/sandbox/shared-scriptlet questions).
+- Queued next iterations (all approved): (1) 5.3 functional prototype
+  (log-only intercept, separate plugin + log) — spec per addendum scope;
+  (2) #55 compact_memory approved improvements; (3) repo-split
+  research/proposal (priority.md); (4) corpus scan of adder-deconstruction
+  attempts (addendum C5 — feeds #56 when the deferral lifts).
+- §5.4 mutation-channel one-shot: NOT in his approval scope (5.3 approved
+  WITHOUT correction) — stays addendum open question 3 (needs a restart +
+  his call).
+- Model-window note (his --info 2026-09-16): internal limit raised
+  140K→145K gave NO usable buffer — opencode stopped an agent at the gauge's
+  ~140K (gauge normalized to 140K); the ≈90 % stop-line semantics stand;
+  rolling-window research is his.
+- `--deferred` may be ignored when it blocks work on autorun (his --info,
+  extends the `--wip` ruling) — noted here, prompt codification later.
+- Self-compact test (ideas #9 guideline + #55 dump live acceptance):
+  dispatched at session close, parameterless; the
+  `compaction_dumps/<sid>_c0.md` evidence is checked NEXT iteration.
 
 ## Standing
-- Baselines (measured 2026-09-16, plan8; re-verified plan9 charcodes
-  [49,50,50] from a fresh probe run; re-verified plan10 probe 122/122 +
-  pytest 459+1w + ruff F=0): probe **one hundred twenty-two**
-  (live total digit-string "1-2-2"; equals the plan7 "120+2" expression AND
-  the header section-sum 106+10+6 — machine-verified plan8 by char-codes;
-  header annotation line ~376 is the source of the total); pytest **459
+- Baselines (re-verified 2026-09-16, plan1, gates re-run by the planner
+  after worker-1): probe **148/148** (S17 added 26 numword pins; the header
+  annotation total is DIGIT-form — worker-1 code-wins flag); pytest **459
   passed + 1 warning (the known #10 coroutine warning)**; ruff **F=0**.
-  All 7 smokes green (plan8).
+  All 7 smokes green.
 - Corpus refresh cadence (planner call, plan6 — TODO #59 CLOSED): refresh
   BEFORE the #56 distillation runs + after heavy loopruns —
   `node .opencode/agent/scripts/db/dump_session.cjs --all --slim`.

@@ -3,6 +3,7 @@
 FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 ## Compressed archive (one line each — details in git log + TODO/records)
+- 2026-09-16 looprun 2, iteration 1 (ses_f5605f805ffeElHB9mgtksjye1, planner-1) — plan1: research addendum C1-C7 + 5.2 numword scriptlet (worker-1) + 5.3 log-only intercept observer (worker-2) landed+verified (baseline 169/169) + self-compact test PASSED — details: loop folder plan1_summary.md + git aa4132d
 - 2026-09-16 looprun 2, iteration 10 (ses_f579a961bffecIKwgeKvhtSVh3, planner-10) — plan10: fast no-actionable close (all real work maintainer-blocked); gates re-verified green (probe 122/122, pytest 459+1w, ruff F=0); priority.md #4/#6/#9/#10 (fully handled) moved to _past_priorities.md — details: loop folder plan10_summary.md + git 2608361
 - 2026-09-16 looprun 2, iteration 9 (ses_f57c84fbbffeaLDqNyuJzEw85G, planner-9) — plan9: approved research lane LANDED + verified (RESEARCH ONLY, no build): worker-13 `37b000d` delivered `.opencode/agent/research/` (README + 426-line fuzzy/numword tool-reliability doc ending in ranked §5.1-5.4 recommendations — maintainer call, content NOT in NAP per his instruction); TODO #64 (stale 84/84 baseline) handled planner-direct; two live 140K dense-digit incidents (subject matter bit back); OPEN (all maintainer-blocked, unchanged from plan8 + new §5.2/§5.3 decision) — details: loop folder plan9_summary.md + git 37b000d/e6564a1
 - 2026-09-16 looprun 2, iteration 8 (ses_f57dc514dffeO3jFufy9dxV6Lw, planner-8) — plan8: approved batch #54 (no-circumvent rule into all three role prompts) + #51 (stale type:module removed) + #58 (probe named in the standard-gate definition) all planner-direct; gates green; ONE concrete 140K observation (dense-digit `1-2-2` perceived as `120+2`); PLAN9 spec = approved research lane (queued, now executed in plan9) — details: loop folder plan8_summary.md + git a3af0d0
@@ -57,79 +58,61 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 - 2026-09-09 session 2 (legacy, no-ses) — looprunner-prompt optimization proposal (consolidated verdicts; adopted closing action protocol `action: restart/ask_maintainer/stop`) — details: git ff86d9b
 - 2026-09-08 session 1 (legacy, no-ses) — agents_repo roster synced to live opencode.jsonc; #38 explorer smoke test (PASSED w/ fabricated-gauge caveat); #37 gauge build LANDED (backend chain node:sqlite → bun:sqlite → spawn sqlite3.exe) — details: git 2a4996c
 
-## plan1 (iteration 1, ses_f5605f805ffeElHB9mgtksjye1, planner Qwen3.8-27B-IQ4KT-140K) — new looprun 2026-09-16_13-33
-- Rollover: closed looprun `autorun-2026-09-15_13-11` → `archive/loop/`;
-  fresh folder machine-generated. Maintainer unavailable (launch message) —
-  ask_maintainer deferred to loop end.
-- His 2026-09-16 `--comments` on the research doc handled (all seven, C1–C7)
-  → ADDENDUM `.opencode/agent/research/2026-09-16_fuzzy-numword-addendum.md`
-  (evidence reframe: digit drift measured, word drift demonstration-only;
-  refined grammar: dash-separated dense units, numberwords-only, unknown →
-  loud error; 5.3 prototype scope = LOG-ONLY observation, separate plugin
-  (functional separation from watchdog), separate log file
-  `.opencode/temp/intercept.log`, extended line shape
-  session_id|model_id|context-snippet; `|`-redundancy markers = detect +
-  log only, no resolution).
-- Research README: session_id + agent header convention + addendum practice
-  (C1).
-- Approved build 5.2 LANDED + verified (worker-1
-  ses_f55f99299ffe6LtURACkgXKuTD): `scripts/numword/` (`numwords.json` ONE
-  shared map + `numword.cjs` node CLI/module/`numword_check` + `w2n.py`
-  python twin); probe S17 (26 pins, pass + reject fixtures incl.
-  `twozero`/`two+zero` rejects); GATE RE-RUN BY ME: probe 148/148, pytest
-  459+1w, ruff F=0, 7/7 smokes; spot-checks (node 94/106/AGREE, py 94/101,
-  twozero exit 1). Two impl bugs caught by the fixture run (ninetyfour→904
-  numeric fix; check-argv guard). Worker flag (code wins): the probe header
-  total is DIGIT-form (`12/2`), not word-form as my spec claimed.
-- TODO.md comments handled: #56 (triaged — the redundancy-naming idea
-  became addendum open question 1; #56 stays --defer), #55 (approval
-  recorded; his approved improvements QUEUED: count-aware dump,
-  provider/model fallback for cross-session, reworded params, auto-compact
-  toggle), #57 (feedback file
-  `maintainer/feedback/2026-09-16_block_transfer_status.md` — answers his
-  buffer/sandbox/shared-scriptlet questions).
-- **5.3 functional prototype LANDED + verified** (worker-2
-  ses_f55bd6887ffeeIRO1FXrplLr78 per handover): `plugin/intercept_observer.ts` (518 lines,
-  `tool.execute.before`, ALL tools, log-only — NEVER mutates
-  output.args / NEVER blocks; observations: dense-digit, numword tokens
-  via the ONE shared `numwords.json` (no second copy), `|`-pair
-  left/right check, doubled segments, out-of-sandbox NOTE) + 24-check
-  smoke + probe S18 (21 checks) → gate 169/169. GATE RE-RUN BY ME: probe
-  169/169, smoke 24/24, pytest 459+1w, ruff F=0; spot-check verdicts
-  (4|four → observed-redundancy-ok + path-anomaly; 4|fourex →
-  no-candidate; C7 8-field shape + verdict vocabulary exact). Documented
-  deviation: unknown-word pair → `no-candidate` (the C7 vocabulary has no
-  observed-only verdict). Live activation RESTART-GATED (#51/#55 pattern):
-  one restart = acceptance; first `intercept.log` lines are the live
-  evidence (check at the next restart).
-- Queued next iterations (all approved): (1) #55 compact_memory approved
-  improvements; (2) repo-split research/proposal (priority.md); (3) corpus
-  scan of adder-deconstruction attempts (addendum C5 — feeds #56 when the
-  deferral lifts).
-- §5.4 mutation-channel one-shot: NOT in his approval scope (5.3 approved
-  WITHOUT correction) — stays addendum open question 3 (needs a restart +
-  his call).
-- Model-window note (his --info 2026-09-16): internal limit raised
-  140K→145K gave NO usable buffer — opencode stopped an agent at the gauge's
-  ~140K (gauge normalized to 140K); the ≈90 % stop-line semantics stand;
-  rolling-window research is his.
-- `--deferred` may be ignored when it blocks work on autorun (his --info,
-  extends the `--wip` ruling) — noted here, prompt codification later.
-- Self-compact test (ideas #9 guideline + #55 dump live acceptance):
-  PASSED (verified at resume): ctx.log line 4207 `COMPACT ses_f5605f80…
-  tokens=30000 messages=12` + the pre-compaction FULL dump landed
-  (`compaction_dumps/ses_f5605f805ffeElHB9mgtksjye1_c0.md`, 75 msgs /
-  352 parts, `c0` naming = compaction count 0) — the dump hook fires
-  live for the calling session, parameterless dispatch works. Resume
-  went via Work State dump + looprunner `action: resume` (no task
   re-injection); post-compaction protocol re-applied from files.
 
+## plan2 (iteration 2, ses_f556cadecffeH5P5uZNS33i20R, planner Qwen3.8-27B-IQ4KT-140K)
+- 5.3 live acceptance = NO on first check: the plugin FAILED TO LOAD in the
+  current run ("Plugin export is not a function", opencode.log run
+  9f0b3d78); root cause verified in the installed binary: the loader
+  iterates `Object.values(module)` — EVERY value must be a function (or
+  `.server`); the named non-fn exports kill the load (ctx_watchdog is
+  default-only → loads fine). No `.opencode/temp/intercept.log` existed.
+- The small fix + the READ FUNCTION (his conditional approval) LANDED +
+  verified (worker-13 ses_f55463549ffelXphfcDlDGMhPJ, `4719cc5`): core
+  split (`intercept_observer_core.ts`; plugin = default ONLY,
+  `grep -c ^export` = 1, pinned by probe 171) + read-scope fuzzy resolution
+  (`read` + string filePath ONLY; exact/normalize fast-path; d<=2 AND
+  gap>=2 → mutate filePath + `fuzzy-resolved` line; else fail-closed
+  `fuzzy-rejected` line w/ top-3 cands — C7 8-field shape; corpus TTL
+  cache). GATE RE-RUN BY ME: probe 180/180, smoke 29/29, pytest 459+1w,
+  ruff F=0.
+- Worker incidents (loop log): launch 1 died on a doubled-path permission
+  rejection (spec now carries the relative-path rule); launch 2 died at
+  context_length_exceeded (142k) → cross-compact (friction: summarizer
+  resolved to the SAME model — Qwen — not the Gemma compaction model →
+  #70) → COMPACT line verified → task_id resume → green.
+- Maintainer feedback delivered:
+  `maintainer/feedback/2026-09-16_number-w2n-convention.md` (one / multiple
+  / mixed-with-letters cases); he live-commented it (`--comment`, "to be
+  discussed in direct session": `<8-6-1>`→861 fallback, `<6|six>`
+  redundancy form — the grammar part waits for that discussion).
+- Addendum Q1-Q3 rulings folded in: Q1 redundancy naming YES (loop/plan
+  file names); Q2 `<4|four>` angle-bracket delimitation (name format);
+  Q3 roadmap = read THEN write scope, one step after the other.
+- TODO #65-71 filed (loop_log tool bug, restart acceptance, fuzzy
+  extension, write-scope gated, naming codification, compact_memory
+  rework, stale repo_commands totals).
+- **RESTART ACCEPTANCE PENDING (#66) — the FIRST check at the next
+  restart:** (1) `.opencode/temp/intercept.log` exists with lines;
+  (2) mutation-channel verdict: read the scratchpad sentinel
+  `home/AppData/Local/Temp/opencode/fuzzy_accept/file-four.txt`
+  via a d<=2 mistyped path → TWIN content (`TWIN`) + `fuzzy-resolved` line
+  = mutation LIVE (→ #68 unblocked); else NOT live (5.3 stays log-only,
+  #69 naming route primary). Then record verdict (TODO + research doc) and
+  tear down the sentinel per §5.4.
+- Maintainer live files UNCOMMITTED (never stage): priority.md (new
+  compact_memory rework item → #70), ideas.md (bit-drift = GENERATION
+  problem not perception; ctx.log wants session_id+role attribution),
+  feedback-file comment.
+- Loop folder this run: `autorun_2-6_0-9_1-6__1-3_3-3` (his rename).
+
 ## Standing
-- Baselines (re-verified 2026-09-16, plan1, gates re-run by the planner
-  after worker-2): probe **169/169** (S17=26 numword pins, S18=21
-  intercept-observer pins; the header annotation total is DIGIT-form);
+- Baselines (re-verified 2026-09-16, plan2, gates re-run by the planner
+  after worker-13): probe **180/180** (S17=26 numword pins, S18=32
+  intercept-observer + read-scope-fuzzy pins incl. the loader-contract
+  check; the header annotation total is DIGIT-form and is the source);
   pytest **459 passed + 1 warning (the known #10 coroutine warning)**;
-  ruff **F=0**. All 8 smokes green (7 + intercept_observer 24/24).
+  ruff **F=0**. All 8 smokes green (7 + intercept_observer 29/29).
 - Corpus refresh cadence (planner call, plan6 — TODO #59 CLOSED): refresh
   BEFORE the #56 distillation runs + after heavy loopruns —
   `node .opencode/agent/scripts/db/dump_session.cjs --all --slim`.

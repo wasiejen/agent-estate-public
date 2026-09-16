@@ -3,6 +3,7 @@
 FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 ## Compressed archive (one line each — details in git log + TODO/records)
+- 2026-09-16 looprun 2, iteration 9 (ses_f57c84fbbffeaLDqNyuJzEw85G, planner-9) — plan9: approved research lane LANDED + verified (RESEARCH ONLY, no build): worker-13 `37b000d` delivered `.opencode/agent/research/` (README + 426-line fuzzy/numword tool-reliability doc ending in ranked §5.1-5.4 recommendations — maintainer call, content NOT in NAP per his instruction); TODO #64 (stale 84/84 baseline) handled planner-direct; two live 140K dense-digit incidents (subject matter bit back); OPEN (all maintainer-blocked, unchanged from plan8 + new §5.2/§5.3 decision) — details: loop folder plan9_summary.md + git 37b000d/e6564a1
 - 2026-09-16 looprun 2, iteration 8 (ses_f57dc514dffeO3jFufy9dxV6Lw, planner-8) — plan8: approved batch #54 (no-circumvent rule into all three role prompts) + #51 (stale type:module removed) + #58 (probe named in the standard-gate definition) all planner-direct; gates green; ONE concrete 140K observation (dense-digit `1-2-2` perceived as `120+2`); PLAN9 spec = approved research lane (queued, now executed in plan9) — details: loop folder plan8_summary.md + git a3af0d0
 - 2026-09-16 looprun 2, iteration 7 (ses_f5881492fffekCwsEwdfna4sge, planner-7) — plan7: #63 (smoke stub) + #57 (MOVE guard hoist) + #60 (probe S15/S16, worker-9 rescued via dump/cross-compact/resume) + #57live node-resolution fix (`9fd7557`) all verified green (probe 120+2/120+2, pytest 459+1w, ruff F=0, 7/7 smokes); 140K model era begins (renamed agents, 140K window, observation mandate) — details: loop folder plan7_summary.md + git 04cbc0f
 - 2026-09-15 looprun 2, iteration 5 (ses_f5978ea6affe6oCCcpZsyN6hEl, planner-5) — plan5: worker-4 RESCUE succeeded (dump hook `4512fe6`); worker-5 speaking-readout build `28783a7` verified by the planner (probe 106/106, gates green); #8 custom-tools repo part + #9 gauge-lag one-liners; maintainer stop-line semantics + info.md rulings recorded; baseline corrected + TODO #60-62 filed — details: loop folder plan5_summary.md + git 84421c8
@@ -57,47 +58,50 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## plan9 (iteration 9, ses_f57c84fbbffeaLDqNyuJzEw85G, planner Qwen3.8-27B-IQ4KT-140K)
-- Approved research lane executed (RESEARCH ONLY, no build): worker-13
-  (ses_f57bfbc8effeXSe8mY7wuP0Xy7) delivered `.opencode/agent/research/` —
-  README (19 lines) + `2026-09-16_fuzzy-and-numword-tool-reliability.md`
-  (commit `37b000d`). Planner-verified: scope clean (no code/plugin/prompt
-  changes), citations machine-checked (spot-checked loop_log line 46),
-  gates re-run green (probe total charcodes [49,50,50] == baseline
-  expression 120 + 2, pytest 459+1w, ruff F=0). Doc length 426 lines vs
-  spec "~150-300" — substantive, not padding; accepted (the maintainer
-  reads it in his direct session).
-- Per the maintainer's explicit instruction: the RESEARCH CONTENT is NOT in
-  the NAP — the doc is the record. One pointer: the doc ends with ranked
-  recommendations (§5.1 prompt-rule floor / §5.2 scriptlet under
-  agent/scripts / §5.3 intercept plugin — maintainer call) + a §5.4
-  one-shot live-host verification plan for the mutation-channel gap
-  (shaped like #51/#55, runs at his next restart).
-- TODO #64 (stale "84/84" probe baseline in `.opencode/plugin/README.md`,
-  found by worker-13 via todo_inbox): handled planner-direct — the number
-  replaced by the #58 curate-don't-duplicate pointer to the probe's
-  self-annotated header total; inbox curated.
-- TODO.md header ID note corrected (max #63 → next #64) — it was stale.
-- TWO live dense-digit incidents in this planner session (both in the loop
-  log INFO lines): (1) the machine-computed 10+1 (the next worker number
-  after ten) was perceived as a shifted digit across several outputs —
-  settled by letter-based machine output (roman + word spelling): it is
-  `eleven`, so the worker ran as worker-13 (the token in the loop log);
-  (2) the probe total was perceived as a 5-char string with an inserted
-  "zero-plus" — even typed literals were corrupted, producing a false
-  "baseline drift" alarm; raw charcodes [49,50,50] from a fresh probe run
-  settled it (total unchanged). The research lane's subject matter bit
-  back in its own planning session — the strongest evidence
-  yet for §5.1's prompt-rule floor.
-- OPEN (unchanged, all maintainer-blocked): #56 deferred, #53 deferred,
-  #55 live acceptance pending host restart, fst-rebind-repeat PARKED, #63
-  smoke-in-gate question, AGENTS.md stopline paste. NEW (queued for his
-  direct session, NOT autonomously liftable): research doc §5.2/§5.3
-  approval decision + §5.4 one-shot verification at next restart.
+## plan10 (iteration 10, ses_f579a961bffecIKwgeKvhtSVh3, planner Qwen3.8-27B-IQ4KT-140K)
+- Fast no-actionable-work close (looprunner predicted it). Reality rebuilt
+  from `git log` + NAP + `TODO.md` + `priority.md` + `proposals/` +
+  maintainer inbox. Standard gate re-verified green at HEAD: probe
+  **122/122**, pytest **459 passed + 1 known warning**, ruff **F=0** — no
+  drift since plan9. No worker launched (nothing to delegate); docs/
+  bookkeeping only, no code change.
+- **Backlog-reduction curation (maintainer #0):** the four fully-handled
+  `priority.md` prompt items — #4 (marker grep command), #6 (context
+  discipline / output-limited greps / name-the-area-by-lines), #9 (gauge
+  lag ~2 tool calls ~5k), #10 (script collection) — moved to
+  `_past_priorities.md` (one line each, with pointers). LEFT in
+  `priority.md` as PARTIAL/BLOCKED, status here per convention item 4:
+  - #0 (active, his top: reduce the open backlog) — this curation is the
+    autonomous slice of it; the rest is his direct session.
+  - #3 3 (distillation) — still `--defer` (he lifts it).
+  - #5 (knowledge-sorting rule) — functionally LIVE in the role prompts
+    (planner + worker knowledge index, output-limited grep, inbox); the
+    literal "addition in agents.md" is a maintainer call (AGENTS.md is his
+    file — currently carries NO knowledge rule). Not moved.
+  - #7 (explicit coding guidelines? + no-non-ASCII note) — the non-ASCII
+    do-not is in knowledge; the "do we need explicit coding guidelines?"
+    is an open question for his session. Not moved.
+  - #8 (block_transfer) — usage guide (repo_custom_tools) + S15/S16 probe
+    pin + MOVE guard all landed; the "for the rest make a proposal"
+    sandbox-shared-scriptlet part is unclear/unfiled. Not moved.
+- **All real work is maintainer-blocked** (verified — nothing autonomous
+  left): #56 distillation (`--defer`), #53 agent-feedback tool (deferred),
+  #55 compact_memory dump live acceptance (pending host restart),
+  fst-rebind-repeat (PARKED for his direct session), #63 smoke-in-gate
+  (optional, his call), AGENTS.md 90% stopline paste (his file — rides
+  `approved/2026-09-15_agents-knowledge-stopline.md`), research doc
+  §5.1-5.4 recommendations (for his direct session; §5.4 = one-shot
+  live-host check at the next restart). `dense_numbers.md` inbox item is
+  `--wip` + "for discussion in direct session" and is ALREADY fully
+  covered by the plan9 research doc (nothing to do short of his session).
+- CLOSE: `action: stop` (goal reached — autonomous backlog reduced to
+  purely maintainer-blocked items). Blocked list for his direct session is
+  in plan10_summary.md.
 
 ## Standing
-- Baselines (measured 2026-09-16, plan8; re-verified plan9, charcodes
-  [49,50,50] from a fresh probe run): probe **one hundred twenty-two**
+- Baselines (measured 2026-09-16, plan8; re-verified plan9 charcodes
+  [49,50,50] from a fresh probe run; re-verified plan10 probe 122/122 +
+  pytest 459+1w + ruff F=0): probe **one hundred twenty-two**
   (live total digit-string "1-2-2"; equals the plan7 "120+2" expression AND
   the header section-sum 106+10+6 — machine-verified plan8 by char-codes;
   header annotation line ~376 is the source of the total); pytest **459

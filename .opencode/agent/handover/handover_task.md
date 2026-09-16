@@ -1,80 +1,62 @@
-# TASK SPEC — plan7: #63 compact_memory smoke fix (dump-hook sandbox gap)
+# TASK SPEC — plan7: #57 block_transfer MOVE dstFile guard (approved data-loss fix)
 
 Worker: `worker_Q4_140K`
 Branch: stay on the current checkout (`opencode_test`).
 
 ## Goal
-`node .opencode/plugin/tests/compact_memory.smoke.mjs` is GREEN (exit 0, all
-checks pass), with the smoke adapted to the pre-compaction dump hook — without
-changing the plugin behavior (the hook stays; the smoke adapts).
+A `block_transfer` MOVE with a missing `dstFile` returns the error with the
+SOURCE FILE UNTOUCHED. (Today it cuts the block out of the source first and
+only then errors — silent data loss of the yanked block.) Approved by the
+maintainer (`--comment: approved` on TODO #57, landed in commit 0e7bd8b):
+"goal is to prevent unintended destruction of data". Behavior change applies
+to INVALID input only (error+source-cut → error-only); all valid-input
+semantics stay byte-identical.
 
-## Verified facts (planner-measured at spec time, HEAD 0e7bd8b — do NOT re-derive)
-- `node .opencode/plugin/tests/compact_memory.smoke.mjs` at clean HEAD → exactly
-  **4 FAILs**:
-  (1) "response IS the dispatch line (never a success claim)"
-  (2) "explicit pair: dispatch line names the override model"
-  (3) "message arg: 'resume unit-3\n' + the exact dispatch line"
-  (4) "fail: the response is STILL the dispatch line + cross note (never a success claim, never a failure)"
-  All other checks PASS.
-- **Root cause (measured):** the pre-compaction dump hook
-  (commit 4512fe6, the TODO #152 build) fires on EVERY dispatch
-  (`.opencode/plugin/compact_memory.ts` ~543: `preCompactionDump(root, sessionID, count)`)
-  and runs `<root>/.opencode/agent/scripts/db/dump_session.cjs`. On dump
-  FAILURE it appends `\nWARNING: pre-compaction dump failed for <sid> (<error>)`
-  to the tool response (compact_memory.ts 543-544, appended at 592/624); on dump
-  SUCCESS it appends nothing. The smoke's fresh sandbox
-  (scratchpad subdir, `_smoke_base.mjs` `freshSandbox`) has NO
-  `.opencode/agent/scripts/db/dump_session.cjs` → spawn fails MODULE_NOT_FOUND
-  → the WARNING line breaks the 4 byte-exact response comparisons.
-- **The probe already solves this — mirror it:** `handover_probe.mjs`
-  lines 1983-2015 — the S13 preamble places a stub script (`QC_FAKE_DUMP`,
-  lines 1997-2012) at `<SANDBOX>/.opencode/agent/scripts/db/dump_session.cjs`
-  BEFORE any dispatch, so the S13 byte-exact checks 87/90/97 stay green
-  (comment at 1991-1996 explains exactly this). Read those probe lines as the
-  reference shape; the stub can be byte-identical to `QC_FAKE_DUMP` (it is a
-  CJS script that takes `<sid> --out <rel>` and writes the marker file under
-  `archive/sessions/`).
+## Verified facts (planner-measured at spec time, HEAD 6a9877f — do NOT re-derive)
+- `.opencode/tools/block_transfer.ts` (167 lines, read in full by the planner):
+  - The source-cut write happens at **lines 120-126** for MOVE/CUT/DELETE
+    (`fs.writeFileSync(srcPath, remainingLines.join("\n"))`).
+  - The MOVE dstFile requirement is checked at **line 141** — AFTER the cut:
+    `if (!args.dstFile) return "Error: 'dstFile' is required for MOVE mode."`
+  - The dst sandbox guard at lines 96-99 runs only `if (mode === "MOVE" &&
+    args.dstFile)` — a missing dstFile skips it too.
+- The probe does NOT pin block_transfer (zero hits for `block_transfer` in
+  `handover_probe.mjs`) — the probe total stays 106/106 after this fix.
+- Existing smokes (all green at HEAD): `block_transfer.smoke.mjs` (20/20),
+  `block_transfer.sandbox.smoke.mjs` (52/52).
 
 ## What to change (the scope)
-1. `.opencode/plugin/tests/compact_memory.smoke.mjs` — add the stub dump
-   script placement right after the sandbox setup (before the first
-   `withClient(...).exec`), mirroring the probe preamble. The stub must make
-   EVERY dump in the smoke SUCCEED (so no WARNING is ever appended).
-2. Add ONE new `chk` in the "self summarize success" section: after the
-   dispatch + drain, `compaction_dumps/ses_sm_self_c0.md` exists under
-   `path.join(SANDBOX, ".opencode", "archive", "sessions")` — pins that the
-   hook fires on the tool path (not just the direct `preCompactionDump`
-   calls the probe makes).
-3. Update the smoke's header comment (lines 1-16) with ONE line: the sandbox
-   carries a stub `dump_session.cjs` so the dump-hook (4512fe6) succeeds
-   silently (mirrors the probe S13 preamble).
-4. DO NOT touch: `.opencode/plugin/compact_memory.ts` (behavior is pinned by
-   probe S13/S14 — the smoke adapts to the hook, never the reverse); the probe
-   file; `_smoke_base.mjs` (if you find you need to change it, STOP and flag it
-   in the handover instead); everything under `.opencode/agent/prompts/**`
-   (edit-deny) and `.opencode/maintainer/**`.
+1. `.opencode/tools/block_transfer.ts` — hoist the MOVE dstFile requirement
+   check to BEFORE the source-cut write: right after the
+   `if (!fs.existsSync(srcPath))` check (line 100) is a natural spot. Keep the
+   error string BYTE-IDENTICAL: `"Error: 'dstFile' is required for MOVE mode."`
+   One short comment at the guard: a rejected/missing dst must not leave the
+   source already cut (mirrors the existing sandbox-guard comment style at
+   line 94-95). No other behavior changes.
+2. A NEW smoke assertion (in `block_transfer.smoke.mjs` or the sandbox smoke —
+   your call, matching each file's existing fixture style): MOVE with
+   `dstFile` omitted → returns the exact error string AND the source file on
+   disk is byte-identical to before the call.
 
 ## Definition of done (measured)
-- `node .opencode/plugin/tests/compact_memory.smoke.mjs` → exit 0, ALL checks
-  PASS (the 4 former failures + the new one). Report the new total check count
-  in the handover (old total = the count printed by the last `finish()` at HEAD;
-  new = old + 1).
-- Every OTHER smoke in `.opencode/plugin/tests/` still green (run each
-  `*.smoke.mjs` in the folder).
-- Standard gates UNCHANGED at HEAD baseline:
+- The new smoke assertion passes; ALL smokes in `.opencode/plugin/tests/`
+  green (run each `*.smoke.mjs`).
+- Standard gates UNCHANGED at baseline:
   - `node .opencode/plugin/probes/handover_probe.mjs` → 106/106 PASS
-  - `pytest -q` → 459 passed + 1 warning (the known #10 coroutine warning)
-  - `ruff check --select F .` → 0 findings
+  - `./.venv/Scripts/python.exe -m pytest -q` → 459 passed + 1 warning
+  - `./.venv/Scripts/ruff.exe check --select F .` → 0 findings
 - `git status` clean after your commit (code + TODO.md close-note + handover in
   one commit per the commit routine).
 
 ## TODO.md bookkeeping
-- Close-note on #63 (one line: fixed by smoke stub, commit hash) — leave the
-  "DECISION NEEDED (optional)" paragraph in place (the smoke-in-standard-gate
-  question stays open for the maintainer; it relates to #58).
+- Close-note on #57 (one line: guard hoisted pre-write, commit hash). Keep the
+  maintainer's `--comment` line in place (he may remove it; do not).
 - `todo_inbox.md`: append any out-of-scope findings (dated + role-tagged).
+  (His idle-thoughts in the comment — shared sandbox scriptlet for scripts —
+  are NOT in scope; do not build them, just note the question if relevant.)
 
-## Definition of NOT done (out of scope)
-- No plugin behavior changes. No probe changes. No gate-definition changes
-  (that is #58, maintainer-owned). No refactoring of the stub beyond what the
-  byte-exact assertions require.
+## DO-NOT-touch
+- `.opencode/plugin/compact_memory.ts`, the probe file, anything under
+  `.opencode/agent/prompts/**` (edit-deny) and `.opencode/maintainer/**`.
+- No behavior changes beyond the guard hoist (no buffer-append-on-doubt
+  features, no arg-schema changes, no description-text changes).

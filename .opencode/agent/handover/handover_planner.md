@@ -108,10 +108,12 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   hook's spawn uses `process.execPath` (compact_memory.ts ~279) — on the LIVE
   host that is the opencode CLI binary (`opencode.exe`), so the live dump
   ALWAYS fails (CLI help output; WARNING + DUMP-FAIL line as designed — the
-  contract held, only the resolution is wrong). SPEC WRITTEN (node resolver
-  + 2-3 smoke chks, no probe pin — the fallback is unreachable under plain
-  node); worker-10 launched. Live acceptance of the fix = pending the
-  maintainer's NEXT host restart (plugin reload).
+  contract held, only the resolution is wrong). worker-10 DONE + VERIFIED
+  (`9fd7557`): exported `resolveNodeExe()` (node-basename pass-through, else
+  PATH `node`) + 3 smoke chks (43→46); probe untouched (120+2/120+2). Live
+  acceptance of the fix = pending the maintainer's NEXT host restart
+  (plugin reload). 140K observations (bitshift/looping/misremember)
+  reported in plan7_summary.md per his request.
 - OPEN (his direct session, non-blocking): #63's optional decision — should
   the plugin smokes join the standard gate in repo_commands.md (folds into
   #58, which he has now approved for the agent)? fst-rebind-repeat still

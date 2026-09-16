@@ -122,11 +122,63 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   pause the loop — open questions are recorded here, never issued as ask
   actions.
 
+## plan8 (iteration 8, ses_f57dc514dffeO3jFufy9dxV6Lw, planner Qwen3.8-27B-IQ4KT-140K)
+- Batch per the plan7 order, all planner-direct, all previously approved:
+  #54 → #51 → #58. No delegation needed (each <~20 diff lines, text/config).
+- **#54 DONE:** no-circumvent rule codified in all three role prompts —
+  `prompt_agent_task.md` + `prompt_agent_explorer.md` (§Honesty guard, worker
+  + explorer variants) and `prompt_agent_planner.md` (§Delegate vs. do, full
+  rule + "zero circumvention attempts in loop logs" expectation). Wording =
+  the approved TODO #54 outcome. Grep-verifiable: `rg -n circumvent
+  .opencode/agent/prompts/agents/` → 5 hits.
+- **#51 DONE:** `"type": "module"` removed from `.opencode/package.json` per
+  his ruling (stale plugin-activation test; "we will see on next restart").
+  Probe header (line ~45) and the file now agree; the
+  `MODULE_TYPELESS_PACKAGE_JSON` stderr warning is the expected/harmless
+  post-state (verified present in the live run). The `@opencode-ai/plugin`
+  dep + stale `opencode-context-meter` package name left untouched (out of
+  scope for his ruling — flagged for his restart observation).
+- **#58 DONE:** `repo_commands.md` §Run/test names the probe command +
+  defines **"standard gate" = pytest + ruff + probe** (total self-annotated —
+  the header annotation is the source, per his "curate, don't duplicate");
+  his `$TMP/opencode` note added to §Environment & shell (verified: git-bash
+  `$TMP` = user temp dir, `$TMP/opencode` = the approved scratchpad,
+  `pwd -W` → `home/AppData/Local/Temp/opencode`).
+- **Gates (planner re-ran, all green):** probe one hundred twenty-two
+  (char-code-verified vs header), pytest 459+1w, ruff F=0, all 7 smokes.
+- **140K observation (his plan7 request) — ONE concrete instance:** while
+  reading the probe total, I repeatedly transcribed the digit-string "1-2-2"
+  as the expression "120+2" across multiple tool outputs and nearly filed a
+  false "baseline drift" alarm (string-compare false, value-compare true —
+  caught by a char-code check). The dense-digit trap is LIVE on this model:
+  always machine-verify dense numeric strings before acting on perceived
+  mismatches (AGENTS.md Pattern 5, confirmed again).
+- **OPEN (all blocked on maintainer action, none autonomously liftable):**
+  #56 deferred (his --comment: experiments better in a direct session);
+  #53 DEFERRED (proposal owed only when the deferral lifts); #55 live
+  acceptance pending his next host restart (first
+  `compaction_dumps/` file will be the proof); fst-rebind-repeat PARKED;
+  #63 smoke-joins-gate question → his direct session;
+  `proposals/approved/2026-09-15_agents-knowledge-stopline.md` → his paste
+  into AGENTS.md (his file, I do not edit it).
+- **PLAN9 SPEC (queued, approved research lane):** his #56 --comment +
+  ideas #5/#6/#7 (in `maintainer/inbox_planner/dense_numbers.md`, --wip
+  read-only): RESEARCH ONLY (no build) of (a) fuzzy name resolution on file
+  read / section grep, and (b) num_to_word auto-replace as an opencode
+  intercept plugin (`hook.execute.before`) to harden tool calls against
+  bitshifts. Output: a NEW `.opencode/agent/research/` folder (README ≤20
+  lines in the SAME commit per the .opencode layout rule) with one dated
+  research doc. His explicit instruction: do NOT save the research in the
+  NAP. Context budget: launch at fresh session, keep the research ≤ ~50 %
+  window (it needs doc reads).
+
 ## Standing
-- Baselines (measured 2026-09-15, plan5): probe **106/106** (one-zero-six —
-  self-count AND header annotation agree at HEAD, machine-verified plan6;
-  the plan3-era baseline was ninetyfour — TODO #61); pytest **459 passed +
-  1 warning (the known #10 coroutine warning)**; ruff **F=0**.
+- Baselines (measured 2026-09-16, plan8): probe **one hundred twenty-two**
+  (live total digit-string "1-2-2"; equals the plan7 "120+2" expression AND
+  the header section-sum 106+10+6 — machine-verified plan8 by char-codes;
+  header annotation line ~376 is the source of the total); pytest **459
+  passed + 1 warning (the known #10 coroutine warning)**; ruff **F=0**.
+  All 7 smokes green (plan8).
 - Corpus refresh cadence (planner call, plan6 — TODO #59 CLOSED): refresh
   BEFORE the #56 distillation runs + after heavy loopruns —
   `node .opencode/agent/scripts/db/dump_session.cjs --all --slim`.

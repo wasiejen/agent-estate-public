@@ -1,92 +1,72 @@
-# Task spec — the `submit` tool (Part B, approved #53 proposal)
+# Task spec — submit tool: session/role autofill from the tool context
 
-Approved: `proposals/approved/2026-09-17_agent-feedback-closedown.md` — his
-ruling: "approved both parts in one unit". Part A (the mandatory friction
-close-down step) is ALREADY LANDED in the 4 role prompts — do NOT touch
-`.opencode/agent/prompts/**`.
+Worker: worker_Q4_140K · Iteration: plan2 (looprun autorun-2026-09-17_23-58)
+Baselines at spec time (2026-09-18, verified): probe two-two-nine (S1–S23, no S5;
+the header annotation total is the source), smokes: all 9 green (submit.smoke.mjs
+20/20), pytest 459 passed + 1 warning, ruff F=0.
 
 ## Goal
-ONE unified append tool `submit(feedback?, knowledge?, todo?)` — all three
-params optional, at least one required. The tool machine-stamps each entry
-(date + role + session), appends to a HARDCODED target file, and NEVER reads
-the targets (append-only). It removes the file-fiddling friction the #53
-entry is about — the agent supplies the text only.
+The maintainer's inbox instruction (`.opencode/maintainer/inbox_planner/submit_tool.md`):
+"session and role can be auto filled and do not need to be set". The tool's
+`execute(args, context)` receives the tool context — `context.sessionID` and
+`context.agent` (the role, e.g. `worker_Q4_140K`) are available there (reference:
+`.opencode/agent/knowledge/plugin_tool_implementation/tool.context.md`). Derive both
+from the context and REMOVE the `role`/`session` parameters from the args schema —
+the agent supplies the three channel texts only.
 
-## Behavior (exact)
-- Tool form: the committed `tool()` form — build on `.opencode/tools/loop_log.ts`
-  (same `import { tool } from "@opencode-ai/plugin"`, same
-  `context.directory ?? process.cwd()` resolution, same machine-stamp helper,
-  host names the tool by FILENAME — no `name` field).
-- Args (zod via `tool.schema`, mirroring loop_log's schema style):
-  - `feedback` (optional string): friction description (one line preferred).
-  - `knowledge` (optional string): verified actionable knowledge (inbox format).
-  - `todo` (optional string): a loose finding (unnumbered).
-  - `role` (optional string, default `agent`): role token for the stamp.
-  - `session` (optional string, default `unknown`): session id for the stamp.
-- Runtime:
-  - NONE of feedback/knowledge/todo provided → return an error string, no
-    file touched.
-  - For each PROVIDED param, append ONE entry to its hardcoded target
-    (relative to `context.directory`), entry = stamp line + the raw text +
-    one trailing blank line:
-    - feedback → `.opencode/agent/agent_feedback.md`, stamp `### <YYYY-MM-DD_HH-MM> <role> <session>`
-    - knowledge → `.opencode/agent/knowledge/knowledge_inbox.md`, stamp `## <YYYY-MM-DD_HH-MM> <role> <session>`
-    - todo → `todo_inbox.md` (repo root), stamp `## <YYYY-MM-DD_HH-MM> <role> <session>`
-  - Target file missing → create it carrying only the entry (no header invention).
-  - The tool NEVER reads a target (append-only by fs use: `appendFileSync`).
-  - Sandbox discipline: the targets are HARDCODED — there is NO path
-    parameter (that is the sandbox; note the deviation from the proposal's
-    ".opencode/ subtree" wording — `todo_inbox.md` sits at the repo root).
-  - Return, per provided param: `target: <relative path>` + `entry: <exact text>`.
-- `description` field: usage guidance (what to fire it for; auto-stamping;
-  the three channels).
+## Scope (3 files)
+1. `.opencode/tools/submit.ts`
+   - args schema: remove the `role` and `session` entries (feedback/knowledge/todo
+     stay).
+   - execute: `role` = non-empty string `context.agent` else `"agent"`;
+     `session` = non-empty string `context.sessionID` else `"unknown"`
+     (the same fallback semantics the defaults had — keeps the smoke harness
+     working when it passes a bare `{ directory }`).
+   - description: update — role + session are auto-filled from the tool context
+     (no parameter); drop the "from the SESSION= field of your injected ctx: line"
+     instruction. Keep the one-stamp-per-entry wording accurate.
+2. `.opencode/plugin/tests/submit.smoke.mjs` (currently 20/20)
+   - the args-optional check (line ~56) now covers the 3 channel args only;
+   - every test that passed explicit `role`/`session` args now passes them via
+     the context object (`{ directory, agent: <role>, sessionID: <ses> }`) and
+     expects the stamped entry from the context values;
+   - add (or adapt) ONE assertion proving the fallback: a context WITHOUT
+     agent/sessionID stamps `agent` / `unknown` (the existing (A) default test is
+     the natural home).
+   - keep the smoke self-counting; the total may move — the printed total is the
+     source (no external baseline to re-pin).
+3. `.opencode/plugin/probes/handover_probe.mjs` — S23 section ONLY
+   (section header line ~4671 `S23 submit tool (9)`, checks ~230–238):
+   - the args-shape check (line ~4723, `args [feedback, knowledge, todo, role,
+     session]`) → re-pin to `[feedback, knowledge, todo]`;
+   - where a check exercises execute, pass a context carrying agent/sessionID
+     and pin the stamp from it;
+   - keep the section's check COUNT and the section-header count in agreement
+     (adding a check is allowed if the header count follows); the probe header
+     annotation total must agree with the reported total (machine-verified — do
+     not retype the number).
 
-## Files
-- NEW `.opencode/tools/submit.ts`
-- NEW `.opencode/plugin/tests/submit.smoke.mjs` — build on
-  `.opencode/plugin/tests/loop_log.smoke.mjs` (same `loadRepo` /
-  `freshSandbox` / `makeChecker` base from `./_smoke_base.mjs`): shape
-  checks (tool() result, no stale name/parameters keys, execute async, all
-  args optional at parse), the no-params error, one append behavior per
-  param in a sandbox project dir, a multi-param call, and the never-read
-  preservation (a pre-seeded sentinel line stays byte-exact before the
-  appended entry).
-- `.opencode/plugin/probes/handover_probe.mjs` — APPEND a new section (the
-  NEXT FREE section number — the last existing one is S21; verify by grep
-  and let the machine compute the new number, never retype it) pinning: the
-  registration shape (3 shape checks), the arg schema (5 optional accepts),
-  the no-params error, one append behavior per param, the never-read
-  preservation. Update the header self-annotation (section-sum line + the
-  expected `PROBE handover: N/N PASS` string) — the annotation is the source
-  (curate-don't-duplicate).
-
-## Definition of done (measured)
-1. `node .opencode/plugin/tests/submit.smoke.mjs` green (exit 0).
-2. All 7 pre-existing smokes in `.opencode/plugin/tests/` still green (run each).
-3. `node .opencode/plugin/probes/handover_probe.mjs` → all checks pass and
-   the reported total agrees with the updated header annotation
-   (launch total = two-two-zero; new total = launch total + new-section
-   check count — machine-verify the sum, never eyeball it).
-4. `./.venv/Scripts/python.exe -m pytest -q` → 459 passed + 1 warning.
-5. `./.venv/Scripts/ruff.exe check --select F .` → F=0.
-6. `TODO.md` #53: append ONE status line to the entry: "Part B (submit tool)
-   LANDED <hash> — probe + smoke green; registration + per-agent tool grant =
-   maintainer restart; live acceptance pending."
-7. `handover_task_to_planner.md` written (executive summary per AGENTS.md
-   §Handover-files: what changed, measured verification, commit hash, what
-   deliberately NOT done); final message = a short pointer to it.
-8. ONE green commit (submit.ts + smoke + probe + TODO.md + handover files);
-   subject names the submit tool (#53 Part B).
+## Definition of done
+- `role`/`session` are GONE from the submit.ts args schema (grep-verified:
+  `grep -n "session" submit.ts` hits only the context-derivation line(s) + the
+  stamp code; zero schema entries).
+- stamp = `<header> <YYYY-MM-DD_HH-MM> <context.agent|agent> <context.sessionID|unknown>`.
+- Standard gate green: `node .opencode/plugin/probes/handover_probe.mjs` (annotation
+  agrees) + `node .opencode/plugin/tests/<each>.smoke.mjs` (all 9) + `pytest -q`
+  (459+1w) + `ruff check --select F .` (0). Commands/venv per `repo_commands.md`.
 
 ## DO-NOT-touch
-- `.opencode/agent/prompts/**` (Part A already landed; worker edit-deny).
-- `.opencode/maintainer/**`, `AGENTS.md` (his files).
-- The EXISTING content of the three target files (append-only; never
-  rewrite — the never-read rule).
-- `intercept_observer*` / the fuzzy plugin files (a different topic).
-- Stay on the current checkout (verify `git branch -v`; do NOT switch).
+- `.opencode/agent/prompts/**` (edit-deny for workers — and not needed),
+  `.opencode/maintainer/**` (read-only for you), AGENTS.md, WIKI.md, README.md,
+- `intercept_observer*.ts`, `compact_memory.ts`, `loop_log.ts`, `block_transfer.ts`,
+  `ctx_gauge.ts` + their smokes/probe sections (out of scope),
+- TODO.md numbering (the status line you add rides under the existing #53 entry).
 
-## Baselines at launch (planner-verified 2026-09-18, machine-checked)
-probe two-two-zero/two-two-zero (annotation agrees with section sum) ·
-smoke three-seven/three-seven (7 smokes) · pytest 459 passed + 1 warning ·
-ruff F=0.
+## Bookkeeping (rides your commit, per AGENTS.md commit routine)
+- `TODO.md` #53: append a one-line status: maintainer inbox instruction
+  (session/role autofill) LANDED <hash> (plan2/iter2).
+- Write `.opencode/agent/handover/handover_task_to_planner.md`: executive summary,
+  measured verification (gate readouts verbatim), commit hash, what was deliberately
+  not done. Your final message = a short pointer to that file.
+- ONE commit (code + TODO.md + handover files). Stay on the current checkout
+  (verify with `git branch -v` first; do not name a branch from memory).

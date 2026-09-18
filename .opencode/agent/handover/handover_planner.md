@@ -2,58 +2,40 @@
 
 FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
-## Current session — looprun autorun-2026-09-17_23-58, iteration 2 (ses_f4e47085affelnyR0nKkHeF54M, planner-2, Qwen3.8-27B-IQ4KT-140K)
-- **plan2 EMERGENCY CHECKPOINT (2026-09-18, stop line, self-compact dispatched):**
-- Unit 1 LANDED + planner-verified: submit session/role autofill (maintainer
-  inbox instruction `submit_tool.md` → done/; the `submit` tool derives
-  role + session from the tool context `context.agent`/`context.sessionID`,
-  args removed from the schema). Code 86a977f + bookkeeping ac8f1c8. Gate
-  RE-RUN BY PLANNER green (probe two-two-nine annotation-agree, all 9
-  smokes incl. submit 20/20, pytest 459+1w, ruff F=0). NOTE: the worker's
-  report said "probe two-three-nine" = dense-numeral drift; the machine's
-  two-two-nine is correct (annotation line 611 agrees with the run).
-- Unit 2 (#0 numword escape, spec 9924e71) IN FLIGHT: worker-2
-  ses_f4e084942ffeSedvBfOKl2ehQY STOPPED by the host at a sandbox violation
-  (accessed `C:\Users\Asiejen\AppData\Local\Temp\opencode\brtest.mjs` —
-  username bit-shift W→A; correct scratchpad has the W). Committed
-  checkpoint 4e2fd0c: core `resolveEscapes`/`resolveEscapeSafe` + observer
-  `runEscapeContent` pre-step (write/edit/block_transfer content fields,
-  `pair-resolved kind=escape scope=content`, nine verdicts unchanged) +
-  smoke 39/39 + probe regression two-two-nine.
-- Resume cycle IN FLIGHT: the resume attempt hit context_length_exceeded
-  (the worker session is FULL — 63 msgs/302 parts). Full dump SECURED
-  (`.opencode/archive/sessions/ses_f4e084942ffeSedvBfOKl2ehQY.md`);
-  cross-compaction DISPATCHED (Gemma4-12B-Q4KXL-MTP-128K per
-  opencode.jsonc agent.compaction; explicit providerID/modelID required —
-  the #70 session-id-only rework is NOT live yet).
-- **ON RETURN (resumed session):** (1) verify the worker's COMPACT line in
-  `.opencode/temp/ctx.log`; (2) resume worker-2 via task_id with the spec
-  + state: S24 probe section is ~176 lines UNCOMMITTED in the working tree
-  of handover_probe.mjs (verify/complete the six pins; annotation total
-  machine-verified), primer "Where it applies" block, decision-record §4
-  paste-draft line, finish the handover (IN PROGRESS), commit ONLY task
-  files BY NAME (the working tree also carries the maintainer's live
-  changes — never stage those); (3) verify the gate; (4) close: proposal
-  `2026-09-17_numword-escape-output.md` → implemented/ (verdict note),
-  TODO #53 status note stays, plan2_summary.md, action line. FALLBACK if
-  the worker resume fails again: a FRESH worker (new session) continues
-  from 4e2fd0c + the working tree + the spec (the checkpoint is complete
-  enough — no session state needed).
-- **Queue behind #0 (his priority.md order):** #1 (compact_memory rework /
-  TODO #70 — incl. the measured gap: cross-compact still requires explicit
-  providerID/modelID; the param rework + session-id-only path), #2
-  (repo-split research). #56 distillation DEFERRED. PENDING (maintainer
-  domain): `submit` registration in the live opencode.jsonc + live
-  acceptance + the AGENTS.md paste.
-- **NAP debt (do at the FINAL close of this session, post-compaction):**
-  compress the 2026-09-17 direct-session section (ses_f4f539d7c…) into the
-  Compressed archive (detail preserved in TODO #53/#65/#71/#73 +
-  knowledge_plugins.md + decision-record §5 + git 0105b9f/dfda0dd).
+## Current session — looprun autorun-2026-09-17_23-58, iteration 2 (ses_f4e47085affelnyR0nKkHeF54M, planner-2, Qwen3.8-27B-IQ4KT-140K) — CLOSED
+- **plan2 closed (2026-09-18): BOTH units LANDED, gate re-verified by the
+  planner (probe two-three-five 235/235 annotation-agree, 9/9 smokes,
+  pytest 459+1w, ruff F=0).**
+- Unit 1 — submit session/role autofill (maintainer inbox `submit_tool.md`
+  → done/): `submit` derives role from `context.agent`, session from
+  `context.sessionID`; args removed from the schema. Code 86a977f +
+  bookkeeping ac8f1c8. (Worker's "probe 239/239" report = dense-numeral
+  drift; the machine measured two-two-nine — corrected in TODO #53 line.)
+- Unit 2 — #0 numword escape (approved proposal): sentinel `esc`/`escape`
+  (one regex, `i` flag) in the `content`/`oldString`/`newString` of
+  write/edit/block_transfer → field-2 digits (existing `resolveNumword`
+  grammar); `pair-resolved kind=escape scope=content` (nine verdicts
+  unchanged); path channel unaffected (S24 pins). Commits 4e2fd0c (core +
+  observer + smoke 39/39) + 67ccd73 (S24 six pins — carried by my emergency
+  checkpoint) + 281b6d9 (primer + decision-record §4 paste-draft line +
+  handover). Check-245 deviation accepted (NTFS alternate-data-stream
+  infeasibility → non-existent path arg, same ruling pinned).
+- Incidents (both recovered, zero loss): worker-2 sandbox stop (username
+  bit-shift W→A) + context_length_exceeded → full dump + Gemma
+  cross-compaction + task_id resume; my own stop-line self-compact (DUMP-FAIL
+  ETIMEDOUT — the committed checkpoint 67ccd73 is the durable state).
+  Measured for TODO #70: cross-compact still REQUIRES explicit
+  providerID/modelID.
+- PENDING (maintainer domain): `submit` registration in live opencode.jsonc
+  + live acceptance; AGENTS.md paste (submit one-liner + escape
+  paste-draft line).
+- **Queue (his priority.md order):** 1. TODO #70 compact_memory rework
+  (incl. the measured cross-compact gap). 2. Repo-split research. 3. #56
+  distillation — DEFERRED.
 
 ## Compressed archive (one line each — details in git log + TODO/records)
 - 2026-09-18 looprun 2026-09-17_23-58, iteration 1 (ses_f4e9ea998ffeQ3Pa0atv10oysQ, planner-1) — plan1: #53 unit LANDED in full (Part A 5e29cb0 friction-check close-down in all 4 role prompts, planner-direct + Part B worker-14 `submit` tool b83b34f + bookkeeping a8636ef; gate re-verified by planner: probe two-two-nine, 9 smokes, pytest 459+1w, ruff F=0; proposal → implemented/); pending maintainer-domain: submit registration + live acceptance + AGENTS.md paste — details: loop folder plan1_summary.md + git 4fd2065/f13886d
-
-## Compressed archive (one line each — details in git log + TODO/records)
+- 2026-09-17 direct (ses_f4f539d7cffeVeRhsFQRdoSRUC, Qwen3.8-27B-IQ4KT-120K) — the FST live-listener session: live capture (FST 0.1.2.4) + fuzzy/numword observer R0–R7 + R7.5 LANDED & live-accepted (baseline two-two-nine) + #56 distillation DEFERRED (his 2-2-0 ruling); TODO #65/#71/#73 + #70/#53 filed; maintainer domain left: live-listener restarts, AGENTS.md paste, FST live testing, #56 distillation — details: TODO + knowledge_plugins.md + decision-record §5 + git 0105b9f/dfda0dd
 - 2026-09-17 direct (ses_f510a05ceffeE6SnMBlvti40DE) — #73 dedup-collapse build + planner-verified (spec d627403, code dce82ad, bookkeeping 9c701ed; gate 216/37/459+1w/F=0; M1 write guard untouched; flattenField pin lesson; the abs-path-not-rel design catch) + numword-escape proposal filed (da3ca41) — details: nap_direct.md + git dce82ad/9c701ed/da3ca41
 - 2026-09-17 direct (ses_f53a10d24ffesL2Oc8jPqY1bBc) — R2 write-scope LIVE accepted post-restart (benign corrected + #72 hazard live-measured + display finding: post-mutation path shown, log field 5 = authority); #72 M1 ruling recorded + LANDED (9ec4c0b) + live-accepted; dump-fail evidence (hung child in host, not script slowness; DUMP-OK suggestion); path-repair topic opened + R7/R8 STAGED (his ruling; allowlist config-derived; R9 parked); R7 design (substitution bar approved) + FOUNDING (ee19a84; 1-seg bypass amendment 134b107); realistic nested doubling REJECTED → #73 filed — details: nap_direct.md + git 35f8143/9ec4c0b/ee19a84/24daf1e
 - 2026-09-16/17 looprun 2, iteration 2 (ses_f556cadecffeH5P5uZNS33i20R, planner Qwen3.8-27B-IQ4KT-140K) — plan2: read-scope fuzzy + pair convention `[left:right]` ruled (supersedes pipe form); R1 (96bb173) + R2 (35f8143) landed + verified, gates 206/206 + 35/35 + 459+1w + F=0; TODO #65-72; details: loop folder plan2_nap.md + git 4030e01
@@ -117,90 +99,21 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## Direct session (2026-09-17, ses_f4f539d7cffeVeRhsFQRdoSRUC) — #73 live acceptance + display-layer finding + rulings batch
-- **#73 LIVE ACCEPTED** (post-restart one-shot, scratchpad `fst_accept`
-  fixture, torn down): doubled nested `read` resolved `kind=dedup scope=read
-  d=0` (log `orig=` doubled → corrected, content returned); doubled `edit`
-  resolved `kind=dedup scope=write d=0` (applied to the real file; the doubled
-  arg arrived on the 3rd attempt). Doubled `write` NOT live-proven via the
-  planner's own emission — 5/5 attempts collapsed the doubled segment at
-  emission (log-verified `orig=` single each time; the single writes landed
-  literal + zero lines — M1 guard held). Hook-level doubled-write coverage
-  stands on pins 21/218–220 (same runner as the live-proven edit path).
-  Emission data point: the collapse bias is STRONGEST on write args (read
-  doubled 1st try, edit 3rd, write 5/5 collapsed).
-- **DISPLAY-LAYER FINDING (his hypothesis, CONFIRMED):** the stored tool-call
-  `state.input` is POST-mutation — the DB part for the resolved read shows the
-  corrected single path while the log `orig=` proves it arrived doubled; the
-  session context only ever shows the corrected path → an agent CANNOT
-  self-verify its own raw emission from within the session; `intercept.log`
-  (field 5 `orig=` + the `doubled=` path-anomaly line) is the sole pre-
-  mutation authority. The same session measured BOTH directions: the read =
-  display artifact (emitted doubled, stored single — my "I dropped the
-  doubling" self-diagnosis was wrong for the read), the 5 write calls = REAL
-  emission collapse (arrived single at the hook). → `knowledge_plugins.md`
-  entry + decision-record §5 R7 note.
-- **Rulings batch handled (his 2026-09-17 direct):** #53 agent-feedback
-  DEFERRAL LIFTED (proposal `2026-09-17_agent-feedback-closedown.md` filed —
-  Part A mandatory close-down prompt step + Part B unified `submit` tool,
-  his #5 sketch; recommendation: both as one unit); #65 CLOSED (maintainer
-  cause — his own date-format test on the autorun folder; he re-unified both
-  folders into the old date style, minute changed to kill the 3→5 bitdrift —
-  NOT a tool bug); #71 CLOSED (repo_commands.md §Run/test → curate-don't-
-  duplicate pointer, planner explicitly allowed); stopline paste values
-  finalized (90 % = ≈14 k + 5 k before the real ceiling; 95 % = emergency
-  handover + compaction) — recorded in
-  `2026-09-15_agents-knowledge-stopline.md` (the PASTE stays his action);
-  `dense_numbers.md` → `done/` content-untouched (all ideas already covered:
-  fuzzy read-path = R1/R2 LIVE, in-file line match = R3 staged, numword→
-  number = R1, the num() shell scriptlet = 5.2 (plan1), count-in-words =
-  AGENTS.md protocol, the quoted interceptor draft = the built observer
-  plugin).
-- **NOTE:** the distillation TODO ID is #56 (his priority "# 3 3") — my
-  opening status report mislabeled it "#3" (confusing his priority number
-  with the TODO ID); the TODO.md header counter was stale (claimed up to
-  #63/start #64 — actually up to #73; now corrected, new entries start #74).
-  A phantom "duplicate #53 heading" was my read drift on a dense numeral —
-  grep verified the file has exactly one #53 and one #55.
-- Baselines: probe 216/216 (re-verified by running the probe post-compaction
-   2026-09-17 — the earlier bare "/216" in this line was a transcription
-   drift; the numword two-two-zero = 216 was right), smoke 37/37, pytest
-   459+1w, ruff F=0.
- - **#53 (dump function) LIVE ACCEPTED** (this session's own self-compact call
-   at 21:32, the acceptance it was): `compaction_dumps/ses_f4f539d7cffeVeRhsFQRdoSRUC_c0.md`
-   carries the FULL pre-compaction content (75 messages / 360 parts, mode=full,
-   dumped 19:32:58 — before the summarize landed); compaction ran clean
-   (COMPACT line in `.opencode/temp/ctx.log` 21-33, gauge 84% → 27%). All
-   acceptance criteria met (dump exists, pre-compaction messages intact,
-   no-overwrite `_c0` naming, compaction not blocked). TODO #53 → CLOSED.
-   The 4 compaction dumps (incl. 3 from 09-16/17 sessions) committed as
-   corpus artifacts. Today's clean dump is the first live acceptance AFTER
-   the node-resolution fix (9fd7557); the earlier DUMP-FAIL "hung child"
-   observation (session ses_f53a10d24…, 09-17) PRE-DATES that fix — whether
-   it shared the root cause is an open question for the next failure (if
-   any): CLI help text in the log = wrong spawn, silence = real hang.
- - **Session was compacted once** (the #53 live-acceptance self-compact);
-   post-compaction continuation: re-verified state from git log + this file
-   (commit 0105b9f = the pre-compaction bookkeeping; its commit message is
-   the session work summary).
- - **OPEN after this session (his priority order):** #53 (agent-feedback
-   protocol — proposal `2026-09-17_agent-feedback-closedown.md` filed, awaiting
-   his ruling); #1 (compact_memory additions — TODO #70 update he asked for:
-   the cross-compact-by-session_id + Gemma worker compaction + no-wait flow);
-   #0 (numword-escape build — his approved proposal
-   `proposals/approved/2026-09-17_numword-escape-output.md`, the escape
-   notation: resolve a number in write/edit content); #2 (repo-split
-   research); #5 (knowledge/submit tools — partly served by the #53
-   proposal's Part B); #7 (non-ASCII edit notes).
 
 ## Standing
-- Baselines (re-verified 2026-09-18 by the planner post-#53, plan1): probe
-  **two-two-zero → two-two-nine** [2-2-0 → 2-2-9; S1–S23 (no S5) incl. the
-  new S23 submit-tool pin; the header annotation total is the source and
-  agrees with the reported total — machine-verified]; smokes **all 9 green**
-  (submit.smoke.mjs 20/20 new; the per-suite counts are in each smoke's own
-  readout — no total kept here); pytest **459 passed + 1 warning (the known
-  #10 coroutine warning)**; ruff **F=0**.
+- Baselines (re-verified 2026-09-18 by the planner post-#0-escape, plan2):
+  probe **two-three-five** [2-3-5; S1–S24 (no S5) incl. the new S24 escape
+  pin (6 checks); the header annotation total is the source and agrees with
+  the reported total — machine-verified]; smokes **all 9 green**
+  (intercept_observer 39/39, submit 20/20; the per-suite counts are in each
+  smoke's own readout — no total kept here); pytest **459 passed + 1 warning
+  (the known #10 coroutine warning)**; ruff **F=0**.
+- Cross-compaction (measured 2026-09-18, plan2): `compact_memory` with a
+  foreign sessionID still REQUIRES explicit providerID + modelID (else
+  "no resolvable model" — the request is NOT sent); the Gemma compaction
+  model per opencode.jsonc `agent.compaction` =
+  `llama-swap/Gemma4-12B-Q4KXL-MTP-128K`; keep defaults tokens=30000 /
+  messages=12. Feeds the TODO #70 rework (queue #1).
 - Corpus refresh cadence (planner call, plan6 — TODO #59 CLOSED): refresh
   BEFORE the #56 distillation runs + after heavy loopruns —
   `node .opencode/agent/scripts/db/dump_session.cjs --all --slim`.

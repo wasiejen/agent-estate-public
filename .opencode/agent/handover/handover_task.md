@@ -1,61 +1,59 @@
-# TASK — auto_resume UNIT B: the auto-compact toggle (budget-file gated)
+# TASK — auto_resume #79: msgPairs dual-shape unwrap (Unit 4 action routing)
 
-Worker: `worker_Q3S_160K`. Branch: stay on the current checkout (`opencode_test`).
+Worker: `worker_Q3S_110K_mtp`. Branch: stay on the current checkout (`opencode_test`).
 
 ## Goal
-Gate Unit 2's 0.85 self-compact trigger behind an OPTIONAL top-level
-`"autoCompact"` flag in `.opencode/temp/compact_budget.json` (maintainer
-priority.md #1, first bullet). Absent / `true` → current behavior unchanged;
-`false` → the trigger is suppressed with an evidence line.
+Fix TODO #79 (HIGH, live, measured): `msgPairs` in
+`.opencode/plugin/auto_resume.ts` (line 521) never unwraps the SDK
+`RequestResult` wrapper `{ data: [...] }` that `sess.messages()` returns
+live → `lastAssistantAction` (line 548) / `userHasMarker` (line 535)
+always see an empty list → Unit 4 routing NEVER recognizes an action line
+→ finished planner sessions get spurious recovery prompts (context drain;
+ping-pong on the single model slot, measured live this looprun — planner-6
+was re-woken repeatedly after a valid `action: restart`).
 
 ## Design (the WHAT — HOW is yours inside this boundary)
-1. In `.opencode/plugin/auto_resume.ts`, add a small reader (per tick, inside
-   the Unit 2 block of `tick()` — lines ~635-651; the file is small, a per-tick
-   read is fine): file path = `join(logDir, "compact_budget.json")` (logDir is
-   already the temp dir where auto_resume.log lands). Lenient parse:
-   - file missing / unreadable / JSON parse failure → ON (status quo)
-   - key absent → ON
-   - key present → `Boolean(value)`
-2. In the Unit 2 tick loop, KEEP the ratio computation and the `saturation=`
-   log line exactly as they are (below-threshold). When `ratio >=
-   SATURATION_THRESHOLD` (line ~643-647) AND the toggle is OFF: log
-   `skip= autoCompact-off sid=<sid> ratio=<3-decimals>` and do NOT call
-   `sendSelfCompact` and do NOT consume the `w.attempts` budget (the
-   once-per-busy-cycle budget stays for a later ON state). Toggle ON →
-   current path unchanged (`trigger=` + queued promptAsync).
-3. Update the Unit 2 header comment block (lines ~33-42) to document the
-   toggle (one short paragraph; the file's existing comment style).
-
-## Smoke (`.opencode/plugin/tests/auto_resume.smoke.mjs`)
-The smoke already sandboxes under `proj/.opencode/temp/` (factory
-`{ directory: proj }`; the trigger-file pattern at ~lines 281-285 is the
-precedent). NEVER write the LIVE `.opencode/temp/compact_budget.json` (it
-carries real budget state). ADD four cases to the Unit 2 section:
-1. no budget file / key absent + ratio >= 0.85 → trigger fires (regression —
-   the existing firing cases already cover this; one explicit no-file case).
-2. `autoCompact: false` + ratio >= 0.85 → ZERO promptAsync calls, the
-   `skip= autoCompact-off` line present, the `saturation=`/ratio still
-   observable.
-3. `autoCompact: true` + ratio >= 0.85 → trigger fires.
-4. malformed file content + ratio >= 0.85 → trigger fires (fail-open).
+1. `msgPairs` (line 521): normalize the dual response shape BEFORE the
+   array check — a bare array stays; a non-null object with an array
+   `data` property → use `data`; anything else → `[]`. The precedent
+   pattern is verified in-repo — copy that normalization verbatim:
+   `.opencode/plugin/compact_memory.ts` line 467 (`resolveModel`, the
+   dual-shape fix of 280b8d0). Update the comment block at lines 515-518
+   to document the dual shape (one line, the file's comment style).
+2. The messages-RPC site is the SINGLE call at line 597
+   (`msgs = await sess.messages({ path: { id: sid } })`) — verified at
+   spec time (grep `\.messages(` in auto_resume.ts = one hit). No other
+   site needs the unwrap.
+3. Smoke (`.opencode/plugin/tests/auto_resume.smoke.mjs`): ADD one
+   wrapper-shape case to the Unit 4 section: the fake client's
+   `messages()` returns `{ data: [...] }` (not a bare array), the last
+   assistant text part carries a recognized action line → the router acts
+   on it (e.g. `action: stop` → `route= stop`, no send). KEEP all existing
+   bare-array cases (dual shape — the same pinning approach as 4b1a965 /
+   280b8d0). For the fake-client plumbing, follow the existing Unit 4
+   fake-client pattern in the smoke (grep the smoke for the Unit 4
+   section — it is the section with the scope/routing cases).
 
 ## Definition of done
-- `node .opencode/plugin/tests/auto_resume.smoke.mjs` — ALL PASS (existing +
-  the 4 new cases).
+- `node .opencode/plugin/tests/auto_resume.smoke.mjs` — ALL PASS (62
+  existing + the new wrapper case).
 - Standard gate green: `./.venv/Scripts/python.exe -m pytest -q`
-  (459 passed + 1 known warning), `./.venv/Scripts/ruff.exe check --select F .`
-  (F=0), `node .opencode/plugin/probes/handover_probe.mjs`
-  (241/241 — reported total == header annotation).
+  (459 passed + 1 known warning), `./.venv/Scripts/ruff.exe check
+  --select F .` (F=0), `node .opencode/plugin/probes/handover_probe.mjs`
+  (241/241 — reported total == header annotation; re-pin ONLY if an
+  existing pin breaks — say so).
 - ONE commit (code + smoke + handover bookkeeping), message per the
   commit-routine conventions.
 
 ## DO-NOT-touch
-- `.opencode/plugin/compact_memory.ts` (just fixed in the previous task —
-  read-only reference only), `opencode.jsonc`, `.opencode/maintainer/**`,
-  the LIVE `.opencode/temp/compact_budget.json`, auto_resume Unit 3/4 code
-  blocks, probe sections (re-pin ONLY if an existing pin breaks — say so).
+- `.opencode/plugin/compact_memory.ts` (read-only reference — the
+  precedent), `opencode.jsonc`, `.opencode/maintainer/**`, the LIVE
+  `.opencode/temp/**` files, auto_resume Unit 2/3 code blocks (incl. the
+  UNIT B toggle that just landed in d4ef76e), probe sections.
 
 ## Context discipline
-- Read ONLY: auto_resume.ts lines ~1-160 (header + constants + log setup),
-  ~320-370 (selfCompactText + sendSelfCompact), ~620-670 (tick), and the
-  smoke ~150-270 (Unit 2 section + fake client). Run the gates. Nothing else.
+- Read ONLY: auto_resume.ts lines ~510-620 (MsgPair type + msgPairs +
+  userHasMarker + lastAssistantAction + the scope/routing part of tick),
+  compact_memory.ts lines ~439-483 (the resolveModel precedent), and the
+  smoke's Unit 4 section (locate it by grep, then read it bounded). Run
+  the gates. Nothing else.

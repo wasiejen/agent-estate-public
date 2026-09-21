@@ -2,51 +2,20 @@
 
 FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
-## Current session — looprun autorun-2026-09-21_15-33, iteration 1 (ses_f3bd43f5bffe32mM8F3rQfaNh5, planner-1, Qwen3.8-27B-Q3S-160K)
-- **Maintainer task handled (his --maintainer marker in `memory/planner/destilled_mem.md` + launch message):** the destill is FILLED (three condensed MEM-010x lines + pointers to `memory.md`/README; all comments removed; the two `--comment` ideas PARKED below, not lost); the memory-folder README gained a "The destill" section (format + maintenance rules — the `--comment` "codify in the readme" idea honored). The destill is already wired into BOTH planner agents' prompts in `opencode.jsonc` (loads on next compact/restart — his words).
-- **Knowledge curation (his note: "not well integrated and curated"):** all 4 `knowledge_inbox.md` entries cured (two new entries + a description-section merge in `knowledge_tools.md`; the `test(`-vs-`it(` layout note in `opencode-plugins/auto-resume-map.md`); the knowledge README file list updated (was stale — missing knowledge_context/inbox + the three subfolders); a host-tooling caveat line (the TODO #74 workaround for long write payloads) added to `repo_commands.md` — covers all roles incl. planner spec authoring.
-- **AUTO-RESUME UNIT 1 LANDED + PLANNER-VERIFIED** (the proposal is APPROVED — he moved it to `approved/`; worker `worker_Q3S_160K` ses_f3bbdd89affeigE26tm2lka7AT, code `d322927`): spec `f39117a` + loop-folder copy, worker delegated; verified from files: smoke 14/14, gate green (probe 235/235, pytest 459+1w, ruff F=0). Files: `.opencode/plugin/auto_resume.ts` (event log to `.opencode/temp/auto_resume.log` + one-shot init `surface=` probe), `tests/auto_resume.smoke.mjs`, the static surface report in `knowledge/opencode-plugins/`. Planner-direct fix of a PRE-EXISTING gate failure the worker's gate run surfaced: probe check [87] stale classifier pin `iq3` 1→3 (TODO #76 closed). Flag: installed SDK 1.18.29 vs the doc's 1.18.31 (both v1-generation; the live probe is the authority). This session hit the context limit after the worker's return (opencode restarted; the maintainer compacted) — section brought current in the post-compaction pass.
-- **Unit 1 LIVE ACCEPTANCE PASSED (this session, post-restart — his inbox item 26-09-21_16-31, moved to done/):** the init `surface=` line present (v1 surface confirmed: `summarize=function`, `compact=undefined`, `app.log=function`; one deviation from the static grep — `session.message=function` live, the bounded .d.ts grep missed it); 12,629 live event lines incl. this session itself. Verdict appended to the unit-1 surface report; TODO #75 status updated. NOTE: the event stream is DENSE (per-part updates) — Unit 2/3 consumers must filter events, not count raw lines.
-- **NEXT (next iteration): Unit 2 spec + delegation** (context-limit compaction trigger, the gated send path in `auto_resume.ts`) per the approved proposal's strict order; unit numbering: Unit 3 = spawn helper, Unit 4 = planner liveness watchdog.
-- **Open questions (his two `--comment` ideas from destilled_mem.md — commentary, no explicit request to act; parked, not actioned):** (1) a smaller NAP snapshot that gets loaded directly via the agent prompt in opencode.jsonc (survives compaction/restart without re-reading); (2) a tool that codifies the first reality-rebuild steps (auto-reads + git + the marker sweep) and injects the results into the session.
+## Current session — looprun autorun-2026-09-21_15-33, iteration 2 (ses_f3b948fcdffeiw3Lx7PsOzvP7I, planner-2, Qwen3.8-27B-Q3S-160K)
+- **AUTO-RESUME UNIT 2 LANDED + PLANNER-VERIFIED** (worker `worker_Q3S_160K` ses_f3b8c19e9ffe2IoV4S9lrx0vSi, spec `3d51721`, code `d90973b` + summary `0a21139`): the context-limit compaction trigger in `.opencode/plugin/auto_resume.ts` — per-session watch objects, ONE 5s `.unref()`-ed tick as the sole decision+send funnel, on idle: skip (tokens ≤ 0 / attempts 1 this busy cycle / usable null / ratio < 0.85) else re-entrancy latch + gate re-check → ONE QUEUED `promptAsync` (never synchronous) instructing the session to self-compact via `compact_memory` (SELF path, no sessionID) with a 1-3 line continuation message; usable = `context - min(20_000, output)` from the provider list, cached per model, fail-safe null. New decision log lines `arm=`/`saturation=`/`trigger=`/`send-fail=`. Smoke extended 14 → 32 checks (all 7 DoD cases pinned; mock provider.list + promptAsync spy). Verified from files: smoke 32/32, probe 235/235, pytest 459+1w, ruff F=0; code spot-checked against the locked design (tick/latch/budget/threshold/arm-reset).
+- **Three spec-vs-reality discrepancies (worker-flagged, resolved defensively, facts cured to the unit-1 surface report §UNIT 2 supplement):** (1) SDK provider namespace = `list()` not `get()` (code tries list, get fallback); (2) the live model pair is TOP-LEVEL `providerID`/`modelID` on the message (no `model` sub-object — the spec's `info.model` key would have silently never fired; code accepts both shapes); (3) the live auto_resume.log grows in real time — the smoke's "size unchanged" invariant replaced with "no smoke-session line in the newly appended bytes". LESSON for spec authoring: "already-grepped" SDK facts must name the exact method/field — the live surface is the authority over the static .d.ts (same pattern as `session.message`).
+- **Knowledge curation:** the worker's 3 SDK/event facts cured from `knowledge_inbox.md` into the surface report §UNIT 2 supplement; curation-log line added.
+- **Maintainer idea parked (ideas.md, 2026-09-21, no marker — commentary, not actioned):** "pathfinder mentality as a planner prompt part" — when in an area (files/folders) and something is bad/stale/easily fixed, leave it in a better state; small edits yes, bigger ones → todo_inbox (his caveat: might distract from the task).
+- **NEXT (next iteration): Unit 2 LIVE ACCEPTANCE** (a live session crossing 85 % self-compacts once per busy cycle, no re-prefill stall — verified from `arm=`/`saturation=`/`trigger=` lines in `.opencode/temp/auto_resume.log`; runs when the host picks up the build — this looprun's host already loaded Unit 1; the Unit 2 code needs a restart to be live) — THEN Unit 3 spec + delegation (new-planner spawn helper, per the approved proposal's strict order).
+- **Open questions (his parked ideas — commentary, no explicit request to act):** (1) a smaller NAP snapshot loaded directly via the agent prompt in opencode.jsonc (survives compaction/restart without re-reading); (2) a tool that codifies the first reality-rebuild steps (auto-reads + git + the marker sweep) and injects the results into the session; (3) pathfinder-mentality prompt part (this session — above).
 
 
 
-
-## Closed session — looprun autorun-2026-09-17_23-58, iteration 2 (ses_f4e47085affelnyR0nKkHeF54M, planner-2, Qwen3.8-27B-IQ4KT-140K) — CLOSED
-- **plan2 closed (2026-09-18): BOTH units LANDED, gate re-verified by the
-  planner (probe two-three-five 235/235 annotation-agree, 9/9 smokes,
-  pytest 459+1w, ruff F=0).**
-- Unit 1 — submit session/role autofill (maintainer inbox `submit_tool.md`
-  → done/): `submit` derives role from `context.agent`, session from
-  `context.sessionID`; args removed from the schema. Code 86a977f +
-  bookkeeping ac8f1c8. (Worker's "probe 239/239" report = dense-numeral
-  drift; the machine measured two-two-nine — corrected in TODO #53 line.)
-- Unit 2 — #0 numword escape (approved proposal): sentinel `esc`/`escape`
-  (one regex, `i` flag) in the `content`/`oldString`/`newString` of
-  write/edit/block_transfer → field-2 digits (existing `resolveNumword`
-  grammar); `pair-resolved kind=escape scope=content` (nine verdicts
-  unchanged); path channel unaffected (S24 pins). Commits 4e2fd0c (core +
-  observer + smoke 39/39) + 67ccd73 (S24 six pins — carried by my emergency
-  checkpoint) + 281b6d9 (primer + decision-record §4 paste-draft line +
-  handover). Check-245 deviation accepted (NTFS alternate-data-stream
-  infeasibility → non-existent path arg, same ruling pinned).
-- Incidents (both recovered, zero loss): worker-2 sandbox stop (username
-  bit-shift W→A) + context_length_exceeded → full dump + Gemma
-  cross-compaction + task_id resume; my own stop-line self-compact (DUMP-FAIL
-  ETIMEDOUT — the committed checkpoint 67ccd73 is the durable state).
-  Measured for TODO #70: cross-compact still REQUIRES explicit
-  providerID/modelID.
-- PENDING (maintainer domain) — **CLOSED 2026-09-18** (direct
-  ses_f4c039ae2ffeRqvdPqGu8IdB37): submit registered + live-accepted;
-  escape live-accepted via intercept.log; AGENTS.md paste STILL pending
-  (submit one-liner + the escape sentinel-gated tail sentence — see the
-  current-session section).
-- **Queue (his priority.md order):** 1. TODO #70 compact_memory rework
-  (incl. the measured cross-compact gap). 2. Repo-split research. 3. #56
-  distillation — DEFERRED.
 
 ## Compressed archive (one line each — details in git log + TODO/records)
+- 2026-09-21 looprun 2026-09-21_15-33, iteration 1 (ses_f3bd43f5bffe32mM8F3rQfaNh5, planner-1, Qwen3.8-27B-Q3S-160K) — plan1: maintainer destill task FILLED (destilled_mem.md + memory README) + knowledge curation (4 inbox entries + README + repo_commands caveat) + AUTO-RESUME UNIT 1 LANDED & planner-verified (d322927, smoke 14/14, probe 235/235) + probe [87] stale pin fix (TODO #76) + Unit 1 LIVE ACCEPTANCE PASSED post-restart (surface= line + 12,629 live event lines; verdict in the unit-1 surface report) — details: loop folder plan1_summary.md + git 8491a04
+- 2026-09-18 looprun 2026-09-17_23-58, iteration 2 (ses_f4e47085affelnyR0nKkHeF54M, planner-2, Qwen3.8-27B-IQ4KT-140K) — plan2: BOTH units LANDED + planner-verified (Unit 1 = submit session/role autofill 86a977f; Unit 2 = #0 numword escape sentinel 4e2fd0c/67ccd73/281b6d9, S24 pins; gate probe 235/235, 9/9 smokes, pytest 459+1w, ruff F=0); incidents recovered (worker sandbox stop + context-limit dump/cross-compact/resume; my stop-line self-compact with DUMP-FAIL — committed checkpoint was the durable state); maintainer-domain tail (registration, live acceptance, AGENTS.md paste) closed in the 2026-09-18 direct session — details: archive/loop/autorun-2026-09-17_23-58/plan2_summary.md + git
 - 2026-09-21 direct (ses_f3cb105d3ffetOmzWtMuDVBFN5, planner Qwen3.8-27B-Q3S-160K) — Phase 3 kickoff: the auto-resume build spec written as ONE slim proposal (4 ordered units, A/B/C referenced by path) + TODO #75 seeded; #74 CLOSED-ENOUGH (timeline root cause, old ik_llama, A/B 4-fail-vs-3-clean); spec revised per his two in-file comments (queued-prompt rule, Unit 2/3/4 restructure) and back at root — details: full section appended to `.opencode/archive/loop/nap_direct.md` + git 629d19d
 - 2026-09-21 direct (ses_f4a3f85e1ffeO9206c9ENvkK0f, planner Qwen3.8-27B-IQ4KT-140K) — opencode-auto-resume research Phases 1-2 COMPLETE: map (Run C, verified) + deep-dives A/B/C all vendored into `knowledge/opencode-plugins/` (B consolidated from 3 runs + spec line fix 1084→1122-1159; C vendored byte-identical from Q3S worker ses_f3e0a156bffeQYDNsR9B4AfIbb); compaction budget ruling landed (3-bit cap→3, 2-bit row→1); TODO #74 filed (write-tool flakiness, host-side) — details: full section appended to .opencode/archive/loop/nap_direct.md (2026-09-21) + git 820a7bd
 - 2026-09-18 direct (ses_f4c039ae2ffeRqvdPqGu8IdB37, planner Qwen3.8-27B-IQ4KT-140K, post-opencode-restart) — live acceptance PASSED for both pending items (submit registration, #0 escape via intercept.log); his AGENTS.md paste LANDED (submit one-liner + sentinel-gated escape block); prompt-rework 8 commits `671a582..e00d52b` mapped; memory pilot planner namespace seeded (MEM-0101/0102); maintainer-file discipline (MEM-0103) + IQ3KT-MTP corruption/recovery entry recorded; full section text appended to nap_direct.md — details: git cc8e8cb
@@ -117,14 +86,14 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 ## Standing
-- Baselines (re-verified 2026-09-21 by the planner, plan1 — UNIT 1):
+- Baselines (re-verified 2026-09-21 by the planner, plan2 — UNIT 2):
   probe **two-three-five** [2-3-5; S1–S24 (no S5) incl. the S24 escape pin
   (6 checks); the header annotation total is the source and agrees with the
   reported total — machine-verified; the [87] classifier pin refreshed 1→3
-  in the same pass (TODO #76)]; smokes **all 10 green** (auto_resume 14/14,
-  intercept_observer 39/39, submit 20/20; the per-suite counts are in each
-  smoke's own readout — no total kept here); pytest **459 passed + 1 warning
-  (the known #10 coroutine warning)**; ruff **F=0**.
+  in plan1 (TODO #76)]; smokes **all 10 green** (auto_resume 32/32 after
+  UNIT 2, intercept_observer 39/39, submit 20/20; the per-suite counts are
+  in each smoke's own readout — no total kept here); pytest **459 passed +
+  1 warning (the known #10 coroutine warning)**; ruff **F=0**.
 - Cross-compaction (measured 2026-09-18, plan2): `compact_memory` with a
   foreign sessionID still REQUIRES explicit providerID + modelID (else
   "no resolvable model" — the request is NOT sent); the Gemma compaction

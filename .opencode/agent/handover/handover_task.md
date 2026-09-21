@@ -1,110 +1,80 @@
-# Task spec — Auto-resume UNIT 3: new-planner spawn helper
+# Task spec — Auto-resume UNIT 2 fix: live `session.status` shape mismatch
 
-Worker: `worker_Q3S_160K` · Iteration: plan3 (looprun autorun-2026-09-21_15-33)
-Design source (APPROVED): `.opencode/proposals/approved/2026-09-21_opencode-auto-resume-plugin.md` —
-the Unit 3 section (its lines 85-90) + the shared architecture rules (lines 40-53) BIND.
+Worker: `worker_Q3S_160K` · Iteration: plan4 (looprun autorun-2026-09-21_15-33)
+Design source: `.opencode/proposals/approved/2026-09-21_opencode-auto-resume-plugin.md`
+(Unit 2 section + shared architecture rules BIND — the funnel stays the 5s tick;
+events stay ARM-only).
 
 ## Goal
 
-One spawn helper in `.opencode/plugin/auto_resume.ts` that starts a fresh planner
-session: create a new session + queue the planner start prompt (QUEUED
-`promptAsync`, never synchronous). Shared building block for Unit 4's restart
-branches. DoD: invoking the helper produces a running fresh planner session —
-smoke-verified here; the LIVE acceptance (one-shot trigger file) is run by the
-planner after the next host restart.
+Unit 2's context-limit trigger has NEVER fired live. The live `session.status`
+event carries `status` as an OBJECT `{type: "busy"|"idle"|...}`, but `armEvent`
+compares `props.status === "busy"` / `=== "idle"` (strings) → zero `arm=` lines,
+the idle transition is never registered, the tick never evaluates. Fix the shape
+handling, re-pin the smoke to the live shape, and append the live-acceptance
+findings to the surface report.
 
-## Verified facts (planner, 2026-09-21 — do NOT re-derive)
+## Verified facts (planner-measured 2026-09-21 — do NOT re-derive)
 
-- `client.session.create()` EXISTS — `sdk.gen.d.ts` line 114; `SessionCreateData`
-  (types.gen.d.ts 1811): body optional `{parentID?, title?}`, no path →
-  `create()` with no args creates in the default directory; 200 response =
-  `Session` (`{id, ...}`, types.gen.d.ts 465). NOT in the Unit 1 live surface
-  line (static-only fact) — this build adds `create` to the surface probe; the
-  LIVE `typeof` becomes the authority (the live-more-than-static pattern,
-  surface report §UNIT 2 supplement).
-- `client.session.promptAsync({ path: { id }, body: { parts: [...], agent?,
-  model? } })` — sdk.gen.d.ts 180-182 ("start if needed and return
-  immediately"); body type `SessionPromptAsyncData` (types.gen.d.ts 2329).
-- Live planner agent (opencode.jsonc lines 166-170, verified today): agent id
-  `planner_Q3S_160K`, model `llama-swap/Qwen3.8-27B-Q3S-160K`. The maintainer
-  edits that file LIVE — re-verify the agent id at build time; note any drift.
-- The looprunner today spawns the planner WITHOUT an explicit model — the
-  agent-configured model applies (proven path on this host).
-- Smoke pattern: factory re-invoked with a SPY client; real 5s tick driven by
-  `waitUntil` polling (smoke lines 43-52); the module must export the DEFAULT
-  factory ONLY (smoke check line 57 — a named export breaks it).
+- Live log `.opencode/temp/auto_resume.log`: EVERY `session.status` line ends in
+  `status=[object Object]` (e.g. 16:51:43.577Z, this planner session's own
+  busy/idle); the WHOLE log has ZERO `arm=` / `saturation=` / `trigger=` lines.
+- `auto_resume.ts`: `armEvent` (423-454) — the `session.status` branch (424-435)
+  compares `props.status === "busy"` (425) / `=== "idle"` (431); `keyFields`
+  (154-162) does `String(props.status)` → the `[object Object]` line.
+- The live object's field is `type`; vocabulary `"idle" | "busy" | "retry"` (+
+  `"interrupted"` in the reference plugin) — the `SessionStatus` comment in
+  `ctx_watchdog.ts` (~line 175, the SDK `client.session.status()` map) is the
+  in-repo measured fact.
+- The smoke `statusEv` helper (`auto_resume.smoke.mjs:175`) mocks the STRING
+  shape — why the smoke was green while the live path was dead. String-shape
+  events also appear at smoke lines 90, 119, 328 (Unit 1 checks — leave them).
+- Surface line `2026-09-21T16:42:39.969Z` (post-restart, log line 148832) carries
+  `create=function` — the Unit 3 pending surface verdict, now settled.
+- UNIT 3 LIVE ACCEPTANCE PASSED (planner-run 17:00Z): trigger file → `spawn=
+  sid=ses_f3b16aa46ffe07iI4CSrScxeWK agent=planner_Q3S_160K` (log line 163103) +
+  `.consumed` rename + the spawned session WROTE the marker
+  `.opencode/temp/auto_resume_unit3_live_acceptance.txt`
+  (`unit3-live-acceptance ses_f3b16aa46ffe07iI4CSrScxeWK 2026-09-21 17:00:55 UTC`).
+- Baseline at HEAD `504105a`: probe 235/235, pytest 459+1w, ruff F=0,
+  auto_resume smoke 39/39.
 
 ## Design (locked — a deviation is reported, not self-decided)
 
-1. `spawnPlanner(startPrompt)` — async module-INTERNAL function (no named
-   export):
-   - `create()` → `res.data.id`; missing `create` / throw / missing id → log
-     `spawn-fail= <reason>`, no promptAsync, never throws outward.
-   - ONE queued `promptAsync({ path: { id: newSid }, body: { parts:
-     [{ type: "text", text: startPrompt }], agent: "planner_Q3S_160K" } })` —
-     NO `model` field (the agent-configured model applies; the host is the
-     live source of truth).
-   - success → record `sid → epoch` in a module-level `spawned` map (the
-     self-mark for Unit 4) + log `spawn= sid=<newSid> agent=planner_Q3S_160K`.
-   - `promptAsync` throw → log `spawn-fail= <reason>`, no crash.
-2. Trigger — the 5s tick (the ONLY decision+send funnel; events stay ARM-only)
-   checks `.opencode/temp/auto_resume_spawn_trigger` (same dir as the log,
-   `logDir`):
-   - present + non-empty trimmed → spawn once with the content as startPrompt
-     (in-flight latch — no double-spawn), then RENAME the file to
-     `auto_resume_spawn_trigger.consumed` — consumed EVEN ON FAILURE (a failed
-     trigger never re-fires; re-trigger = write a new file).
-   - present but empty trimmed → log `spawn-fail= empty trigger` + rename to
-     consumed.
-   - absent → nothing.
-3. `SESSION_CANDIDATES` (plugin L59-73): add `"create"` — one more `typeof` in
-   the one-shot `surface=` line.
+1. `auto_resume.ts` — a small module-internal `statusOf(status: unknown):
+   string | null`: string → as-is; object with a string `type` → that `type`;
+   else null. `armEvent`'s `session.status` branch uses it: `"busy"` arms
+   (unchanged behavior/log line); `"idle"` sets idle (unchanged); any other
+   value (retry/interrupted/unknown/null) → NO state change, no log line.
+   `keyFields` prints the normalized value (`status=busy`), falling back to the
+   old `String(...)` only when `statusOf` yields null.
+2. `auto_resume.smoke.mjs` — `statusEv` (175) emits the LIVE object shape
+   `{ type: <s> }` (the existing Unit 2 checks then pin the live shape); ADD ONE
+   check that a STRING-shape `"busy"` event still arms + fires a `trigger=`
+   line for a ≥0.85 session (dual-shape acceptance, new sid).
+3. Surface report `.opencode/agent/knowledge/opencode-plugins/auto-resume-unit1-
+   surface-report.md` — APPEND a dated section (2026-09-21 plan4 live
+   acceptance): (a) the live `session.status` `{type}` shape + the string-mock
+   gap (log evidence lines); (b) `create=function` live verdict; (c) Unit 3
+   LIVE ACCEPTANCE PASSED with the evidence above.
+4. `TODO.md` #75 — status line: Unit 3 LIVE ACCEPTANCE PASSED (evidence);
+   Unit 2: shape bug found in live acceptance + fixed (this commit); live
+   re-acceptance PENDING the next host restart (expect `arm=`/`saturation=`/
+   `trigger=` lines).
 
-## DoD (measured)
+## Definition of done
 
-- Smoke `.opencode/plugin/tests/auto_resume.smoke.mjs` extended (UNIT 3
-  section, same spy-client + real-tick pattern as Unit 2, lines 136-268):
-  1. trigger present (non-empty) → `create` called exactly once; `promptAsync`
-     exactly once with `path.id` = the created sid, `body.agent =
-     "planner_Q3S_160K"`, NO `model` key, `body.parts[0].text` = the trigger
-     content; a `spawn=` line; file renamed to `.consumed`.
-  2. `create` throws → zero `promptAsync` calls; a `spawn-fail=` line; the
-     tick/handler survive.
-  3. `promptAsync` throws → a `spawn-fail=` line; the tick/handler survive.
-  4. no trigger file → zero `create` + zero `promptAsync` calls (regression pin).
-  5. a second tick after consumption → no second spawn (no double-fire).
-  6. empty trigger → `spawn-fail= empty trigger`, file consumed.
-  7. surface pin updated: `create=` in the candidates (smoke `CANDIDATES`
-     list line 35, the v1 mock session line 62, the Unit 1 check line 79).
-  All 32 existing checks stay green → total = 32 + 7 (check 7 replaces the
-  surface-candidates pin).
-- Gates: probe **235/235 UNCHANGED** (the probe has zero auto_resume refs),
-  pytest 459+1w, ruff F=0, all other smokes green.
-- The trigger file lives in git-ignored `.opencode/temp/` — no new repo files.
+- All four items landed; standard gate GREEN: probe 235/235, pytest 459+1w,
+  ruff F=0 — plus the FULL smoke suite run (every `*.smoke.mjs` in
+  `.opencode/plugin/tests/`, not only auto_resume — the #77 lesson).
+- One commit: code + TODO + handover files; summary to
+  `.opencode/agent/handover/handover_task_to_planner.md` (measured gate
+  numbers, commit hash, deliberately-not-done list).
 
 ## DO-NOT-touch
 
-`.opencode/maintainer/**` (read-only), the live `opencode.jsonc` (read-only),
-NAP/handover files, the probe, other plugins/tools, FST product code,
-AGENTS.md, the loop files. Findings you cannot fix → `todo_inbox.md`.
-Spec-vs-reality drift (e.g. the live `create` response shape differing from
-the static .d.ts) resolved DEFENSIVELY + reported in your handover, with the
-fact noted for the surface-report supplement.
-
-## Context map (read only what you need)
-
-- `.opencode/plugin/auto_resume.ts` (367 lines at HEAD): constants L59-80;
-  Watch/watches L91-101; `log` L106; `sendSelfCompact` L236-260 (the funnel +
-  latch pattern to copy); `tick` L262-284 (wiring point); `probeSurface`
-  L339-351; factory L353-367.
-- Smoke: L36-135 (mock client + factory + Unit 1 checks), L136-268 (Unit 2
-  spy-client section — the pattern to copy).
-- Surface report: `.opencode/agent/knowledge/opencode-plugins/auto-resume-unit1-surface-report.md`
-  (the §UNIT 2 supplement only).
-
-## Approval boundary
-
-Plugin-internal only — no product behavior, no config/registration change (the
-plugin auto-discovers). The queued-prompt rule + tick-only-funnel rule bind.
-One green commit: code + smoke + the TODO #75 status line; your summary in
-`handover_task_to_planner.md`.
+- Unit 3 spawn code, the tick funnel, the `spawned` map, trigger-file logic.
+- Unit 2 constants (threshold 0.85, once-per-cycle budget) — shape only.
+- The probe (it pins no auto_resume event shape — if you believe a pin is
+  needed, put it in `todo_inbox.md`; do NOT build one).
+- `.opencode/maintainer/**` and the live `opencode.jsonc`.

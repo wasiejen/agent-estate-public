@@ -1,77 +1,81 @@
-# Task Spec — opencode-auto-resume Phase 2, Deep-Dive C: generally-useful mechanisms
-Run date 2026-09-21. Worker: **worker_Q3S_160K** (maintainer choice: Q3S = best
-overall for deep code analysis; see knowledge_tools.md model-sizing entry).
-Source (READ-ONLY, static analysis, NEVER executed — no bun/npm/node in the
-plugin repo): `home/AppData/Local/Temp/opencode/opencode-auto-resume-master`.
-Before touching the plugin, read FIRST (reference material, not re-research):
-- The verified map `.opencode/agent/knowledge/opencode-plugins/auto-resume-map.md`
-- The Deep-Dive A and B recipes in the same folder — shared machinery
-  (timer architecture, send path / watchdog chain, ESC boundary, arm/tick
-  handoff) is REFERENCED by pointer only; never re-derived.
-SCOPE — six items against src/index.ts exact ranges (IF a named line ref does
-not contain its symbol, TRUST THE SYMBOL via symbol-name grep and record the
-discrepancy in recipe section 8 — this worked across all prior runs):
-1. THE idle-scan mega-function `checkForToolCallAsText()` (map range
-   1372-1692): DECOMPOSE IT per sub-candidate — every internal check/block
-   gets its own entry (symbol name + verified range + role + gates + which
-   state fields it reads/writes). Sub-candidates per the map: XML/tool-as-text
-   candidates, thinking-part tool traps, ready-to-continue, done-claim
-   (open-todos vs no-todos), idle open-todos reminder, celebration.
-2. The `task_complete` tool: its registration inside the returned hooks
-   block (banner region near 2638) + the behavior contract — rejects while
-   open todos exist (bounded retries, overrides per its field consumers)
-   + the test-file references named in the map's feature row.
-3. Celebration mechanics (~969 region): locate by symbol/string anchor
-   ("celebrat" or the emoji constant), verify the anti-race behavior pinned
-   by its test files (index.continue / index.issue16-regression case names).
-4. Done-claim machinery: the DONE_CLAIM_PATTERNS definition region
-   (~183-230, locate by symbol) + consumers of budget field
-   `doneClaimNoTodosAttempts` (capped at maxRetries across busy cycles per
-   the map).
-5. Test files, case NAMES ONLY (Phase method, bounded: one per-file grep
-   head-limited loop over the C-relevant named files). Regex MUST be
-   `(describe|it|test)` — these files use vitest-style `test(` calls with
-   zero `it(` (the bare describe|it regex under-collects; lesson from
-   Deep-Dive B run notes §8.6).
-6. Fit assessment focus: our `.opencode/plugin/compact_memory.ts` +
-   ctx_watchdog (read-only); the binding constraint we keep: NO-AWAIT
-   fire-and-forget dispatch on the single llama-swap model slot
-   (Deep-Dive A §7 + B §7).
-DELIVERABLE — ONE canonical output path only (no suffixed variants):
-`home/AppData/Local/Temp/opencode/auto-resume-deepdive-C.md`.
-Sections IN ORDER:
- 1. Problem map (one table row per mechanism: trigger conditions +
-    detection/action location + key gates).
- 2. Idle-scan mega-function decomposition (the sub-candidate entries).
- 3. task_complete.
- 4. Celebration.
- 5. Done-claim.
- 6. Recipes per mechanism: reuse/adapt for OUR stack (what is portable as-is
-    vs what needs host-side adaptation; the no-await dispatch shape is
-    binding), each WITH "tests prove" evidence (case names collected in
-    scope item 5).
- 7. Fit assessment against our stack (focus compact_memory.ts, read-only).
- 8. Unverified / unclear (incl. any spec line-ref discrepancies found,
-    same house form as runs A and B).
-DEFINITION OF DONE:
-- Every src/index.ts line ref verified by bounded direct read or
-  line-anchored grep this session; every mismatch recorded in section 8
-  (trust-the-symbol rule above).
-- All six scope items covered, marked done/not-done explicitly.
-- Recipe written via CHUNKED APPENDS: small writes of at most ~35 content
-  lines each, then edit-append with a unique marker line — long write
-  payloads are flaky on this host (TODO #74); after writing verify:
-  `wc -l` + count of section headers matches 8 sections.
-- Handover summary to `.opencode/agent/handover/handover_task_to_planner.md`
-  (it currently holds Deep-Dive A's committed copy — overwriting it per
-  the channel convention is expected; the git copy stays canonical).
-- ONE commit staging NAMED paths only (never git add -A): the handover file
-  rides along; the recipe file lives in the scratchpad (outside the repo).
-- NO TODO.md / todo_inbox.md entries (Phase 3 curates TODO seeds).
-DO-NOT-TOUCH / CONTEXT DISCIPLINE:
-- The plugin repo is READ-ONLY; never execute anything inside it.
-- Nothing under `.opencode/maintainer/**`.
-- First greps carry an output limit (`| head -30` style).
-- Read only the listed ranges plus symbol-anchored lookups you actually use.
-APPROVAL BOUNDARY: documentation-only task deliverables — pre-approved class;
-zero behavioral changes anywhere (repo plugins included), no new tests here.
+# Task spec — auto-resume plugin, UNIT 1: skeleton logging plugin (the testbed)
+
+Worker: `worker_Q3S_160K`. Branch: stay on the current checkout (`opencode_test`).
+Design of record: `.opencode/proposals/approved/2026-09-21_opencode-auto-resume-plugin.md`
+— read its "Shared architecture rules" + "Unit 1" sections (lines 40-61); the
+reference corpus is referenced by path there, do NOT re-derive it.
+
+## Goal
+A small skeleton plugin in `.opencode/plugin/` that (1) logs every event it
+receives and (2) probes the live v1 client surface at init. It is the testbed
+that validates the v1 API for all later units (Unit 2-4 grow from it).
+
+## Build (the HOW is yours inside the DoD)
+1. **New file `.opencode/plugin/auto_resume.ts`** — default-exported Plugin
+   factory, the SAME shape as the existing plugins: see the TAIL of
+   `.opencode/plugin/intercept_observer.ts` (the last ~15 lines:
+   `export default (async (input: PluginInput) => { ... return { hooks } })
+   satisfies Plugin;`) — do NOT read the whole file. Hooks installed:
+   - `event: onEvent` — the event hook key, verified in the installed types
+     (`.opencode/node_modules/@opencode-ai/plugin/dist/index.d.ts`
+     `Hooks.event?: (input: { event: Event }) => Promise<void>`, ~line 175).
+     Log ONE line per event: `<ISO time> event=<type> sid=<sessionID> <key
+     fields>` (key fields: the event's `type`/`properties` bits that exist,
+     e.g. status for session.status, tokens for message.updated — keep it
+     short). The handler MUST never throw (try/catch swallow, same
+     discipline as intercept_observer).
+   - **One-shot init surface probe** (runs once at plugin load): log a
+     `surface=` line listing `typeof ctx.client.session.<m>` for the
+     candidate methods (`prompt, promptAsync, abort, list, get, message,
+     todo, command, summarize, compact`) + whether `ctx.client.app.log` is a
+     function. Detect with `typeof` ONLY — `Object.keys` misses prototype
+     methods (knowledge_plugins.md "The plugin ctx client on THIS host").
+     Expected from the 2026-09-12 probe: `summarize`=function, `compact`=
+     undefined (v1-generation client) — the probe CONFIRMS live, the report
+     records both.
+   - Log file: `.opencode/temp/auto_resume.log` (append; create the dir if
+     missing — `.opencode/temp/` exists).
+   - NO timers, NO sends, NO state machine in this unit — events + probe
+     only. (Unit 2 adds the saturation trigger; keep the file structured so
+     a 5s tick + gated send path can slot in later.)
+2. **Smoke `.opencode/plugin/tests/auto_resume.smoke.mjs`** — follow the
+   existing smoke pattern (read the first ~40 lines of
+   `tests/_smoke_base.mjs` + one existing smoke such as `loop_log.smoke.mjs`
+   for the shape; sandbox/mocks like the other smokes). Checks: the factory
+   returns an `event` handler; a mocked `session.status` event produces a log
+   line carrying type + sid; the init probe produces the `surface=` line
+   against a mocked client; a throwing mock client does not crash the
+   handler.
+3. **Surface report (static part) — new file**
+   `.opencode/agent/knowledge/opencode-plugins/auto-resume-unit1-surface-report.md`:
+   the `session.*` method list from the installed `.d.ts` (bounded grep of
+   `client.d.ts`/`index.d.ts` in `@opencode-ai/plugin`/`@opencode-ai/sdk` —
+   one grep, head -40), the probe design + its expected values, and a
+   "LIVE CONFIRMATION PENDING (maintainer restart)" marker. Provenance per
+   the folder README (source, verifying session, date).
+
+## Definition of done (measured)
+- The smoke run is GREEN (its own readout, all checks pass).
+- Standard gate green: `./.venv/Scripts/python.exe -m pytest -q` (459+1w),
+  `./.venv/Scripts/ruff.exe check --select F .` (F=0),
+  `node .opencode/plugin/probes/handover_probe.mjs` (probe total UNCHANGED —
+  this unit adds no probe pins; the gate just stays green).
+- The three files above exist + committed, with your executive summary in
+  `handover_task_to_planner.md` (commit it with the code).
+
+## DO-NOT-TOUCH
+- product code (`fst_*.py`, `tests/`), `opencode.jsonc` (no registration
+  needed — plugins auto-discover from `.opencode/plugin/`; no tool
+  registration in this unit), AGENTS.md, `.opencode/agent/prompts/**`
+  (edit-deny), other plugins (`ctx_watchdog.ts`, `intercept_observer*.ts`,
+  `compact_memory.ts`), the probe file, `.opencode/maintainer/**`,
+  `.opencode/temp/intercept.log` (another plugin's channel).
+- Long write payloads can fail with server-side JSON parse errors (host
+  bug, TODO #74): on a `JSON parsing failed: Text: {.` hit, retry once, else
+  create via bash heredoc + small edit-append batches (repo_commands.md).
+
+## Pending (maintainer domain — name it in your summary, do NOT do it)
+- LIVE ACCEPTANCE after the maintainer's host restart (planner does it):
+  (a) `.opencode/temp/auto_resume.log` carries live event lines from a live
+  session; (b) the init `surface=` probe line is present; then the live
+  confirmation is appended to the surface report.

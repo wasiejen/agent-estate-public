@@ -1,115 +1,109 @@
-# Task spec — Auto-resume UNIT 4: planner liveness watchdog
+# Task spec — compact_memory rework, unit A (priority.md #1, TODO #70)
 
-Worker: `worker_Q3S_160K` · Iteration: plan4 (looprun autorun-2026-09-21_15-33),
-worker-5. Design source (APPROVED): `.opencode/proposals/approved/2026-09-21_opencode-
-auto-resume-plugin.md` — the Unit 4 section (lines 92-121) + shared architecture
-rules (lines 40-53) BIND. Builds on Units 1-3 as landed (`4b1a965`).
+Worker: `worker_Q3S_160K` · Iteration: plan5 (looprun autorun-2026-09-21_15-33),
+worker-6. Design source (his rulings): `.opencode/maintainer/priority.md` item #1
+(lines 48-79) — READ it first; it BINDS. Build on `compact_memory.ts` as landed.
 
 ## Goal
 
-On a planner-scoped session going idle (or `session.error`), route by the last
-assistant message: recognized `action:` line → `stop`/`ask_maintainer` left
-alone, `resume`/no-line → queued continue prompt (backoff, cap 2), `restart`
-(or cap exhausted) → successor check → `spawnPlanner` (Unit 3). Smoke-verified
-here; live acceptance by the planner after the next host restart.
+Rework `.opencode/plugin/compact_memory.ts`: (A) providerID/modelID removed from
+the exposed args — the summarizer model resolves from the root config's
+`agent.compaction.model`, falling back to the compacting session's model;
+(B) the `message` arg is queued to the compacted session as a direct prompt;
+(C) dump-hook diagnostics: a DUMP-OK line on success + defensive stdio change.
 
-## Verified facts (planner-measured 2026-09-21 — do NOT re-derive)
+## Verified facts (planner-measured at spec time — do NOT re-derive)
 
-- `client.session.messages({ path: { id } })` — sdk.gen.d.ts:170;
-  `SessionMessagesData` (types.gen.d.ts 2209-2222: path `{id}`, query
-  `{directory?, limit?}`, url `/session/{id}/message`); 200 = `Array<{info:
-  Message, parts: Array<Part>}>` (2234-2242). `Message = UserMessage |
-  AssistantMessage` with `role: "user" | "assistant"` (types 42/101/128);
-  text parts per the established smoke pattern. NOTE: `messages` (list) was
-  NOT among the Unit 1 surface candidates (the singular `message` = the
-  single-fetch endpoint, sdk.gen.d.ts:178 — different thing).
-- The looprunner's launch message carries the literal marker `<|autonom|>`
-  (measured in this planner's own launch message; the looprunner prompt
-  defines it). Direct/interactive sessions never do.
-- Unit 3 `spawned` map (sid → epoch) exists in `auto_resume.ts` (module-level,
-  self-marks the plugin's own spawns); Unit 3 `spawnPlanner(startPrompt)` is
-  module-internal, called from the tick funnel.
-- The Unit 2 `statusOf` shape fix is LANDED (`4b1a965`) — `session.status`
-  busy/idle now arms correctly; the Unit 2 `watches` map carries
-  `lastActivityAt` (stamped on assistant `message.updated`).
-- Post-compaction protocol file: `.opencode/agent/prompts/agent_readme_post_
-  compaction.md` (exists, verified).
-- Baseline at HEAD `4b1a965`: probe 235/235, pytest 459+1w, ruff F=0, full
-  smoke suite green (auto_resume 40/40).
+- Tool: `.opencode/plugin/compact_memory.ts` (654 lines; the v1 `summarize`
+  path is the ACTIVE one on this host; the `compact` v2 branch stays as-is).
+- Args today = 6 keys; the override pair is read at lines 521-534;
+  `resolveModel` (line 415) does self = `c.extra.model` / cross = last
+  `session.messages` entry — that function is the FALLBACK behavior to keep.
+- `callSummarize` (line 373) requires providerID+modelID in the body; the
+  keep-rejected retry, verified-success-only budget increment, COMPACT line,
+  quant-class gate, and `preCompactionDump` (line 284,
+  `execFileSync(..., { timeout: 60_000, stdio: "pipe" })`) all stay.
+- Root config = `opencode.jsonc` (JSONC — `//` comments that may also appear
+  INSIDE strings, e.g. URLs → a naive comment-strip corrupts; the parser must
+  be string-state-aware). The live `agent.compaction` block is COMMENTED OUT
+  today → the fallback path is the active one at present. Shape when set:
+  `agent: { compaction: { model: "provider/model", temperature?: number } }`.
+- Queued-prompt pattern (measured, `auto_resume.ts` line 357):
+  `client.session.promptAsync({ path: { id }, body: { parts: [{ type: "text",
+  text }] } })` — never awaited.
+- Baselines at spec time: compact_memory smoke 47/47; probe 235/235;
+  pytest 459+1w; ruff F=0.
+- Branch: stay on the current checkout (verify `git branch -v`; do not switch).
 
-## Design (locked — a deviation is reported, not self-decided)
+## Changes (WHAT + end state; HOW is yours inside the DoD)
 
-1. **Surface:** add `messages` to `SESSION_CANDIDATES` (live typeof verdict
-   pending; the smoke surface pin gains it).
-2. **Scope (planner-scoped sessions):** a sid is scoped iff (a) it is in the
-   `spawned` map, OR (b) ANY of its user messages (fetched via
-   `client.session.messages`) contains the literal `<|autonom|>`. Cached on
-   the watch: `scope: "planner" | "none" | "unknown"` (fetch pending/failed →
-   unknown, re-check next idle; fail-safe = no action). Non-scoped sessions
-   are NEVER acted on.
-3. **Trigger:** scoped session `session.status` idle (via `statusOf`) or
-   `session.error` → route on the next tick (the 5s funnel stays the only
-   decision+send funnel; events only set state). Track `session.created`
-   events (sid → epoch) for the successor check.
-4. **Routing (per scoped idle, one decision per idle cycle):** fetch the
-   session's messages (fail-safe: no action, `err=` line on failure); no
-   assistant messages → no action. Scan the LAST assistant message's text
-   parts for `action:\s*(restart|resume|stop|ask_maintainer)` (last match
-   wins):
-   - `stop` / `ask_maintainer` → NO send, log `route= stop|ask sid=…`.
-   - `resume` or NO recognized line → CONTINUE prompt (text below),
-     `recoveryCount++` (cap 2 per idle cycle; reset on fresh busy), log
-     `recovery= sid=… attempt=N`.
-   - `restart`, or cap exhausted with still no line → SUCCESSOR CHECK: a
-     different sid in `session.created` tracked since the closing session's
-     `lastActivityAt` → `skip= successor sid=…`; else `spawnPlanner`
-     (RESTART prompt below) + log `route= restart spawn sid=…`.
-5. **Prompt texts (locked, queued `promptAsync`, never synchronous):**
-   - CONTINUE: `[auto-resume unit 4 — planner liveness watchdog, session
-     ${sid}] Your last turn ended without a recognized action: line
-     (compaction, sudden stop, or protocol gap). Follow .opencode/agent/
-     prompts/agent_readme_post_compaction.md — re-read the named head files,
-     rebuild from the committed state (git log + NAP + TODO), and continue the
-     current unit or close it with an action: line.`
-   - RESTART (the Unit 3 spawn start prompt): `<|autonom|>` + a short block:
-     run autonomously; (auto-resume unit 4 restart branch: the previous
-     planner closed with `action: restart`); your iteration number = the
-     largest `planner-N` in the current loop folder's `loop_log.md` plus one
-     (verify from the log; the counter-mismatch rule applies); rebuild reality
-     from committed state (git log, NAP, TODO.md) and continue per your
-     planner prompt's autonomous mode.
-6. **Overlap-era caveat (document, don't solve):** the looprunner ALSO reacts
-   to `action: restart` — the successor check + the 5s tick grace window
-   mitigate double-spawn; residual race accepted until the maintainer retires
-   the looprunner (his call). Note it in the surface-report section.
-7. **Fail-safe:** every section try/catch; the tick never rejects; one
-   `err=` line per failed cycle per sid (no log spam).
+A. Params + resolution
+- Args schema = EXACTLY 4 keys: sessionID, keepTokens, keepMessages, message.
+  providerID/modelID removed (schema + read sites).
+- New exported PURE function (probe-pinnable) resolving the summarizer pair:
+  `resolveCompactionModel(configContent: string, fallback: { providerID:
+  string; modelID: string }): { providerID: string; modelID: string; source:
+  "config" | "fallback" }`. Rules: parse the content JSONC-safely (comment-
+  aware, string-state-aware); `agent.compaction.model` = "provider/model" →
+  split at the FIRST "/" (both halves non-empty — a missing "/" or empty half
+  is malformed → fallback); absent file / unparseable / key missing /
+  malformed → the fallback pair UNCHANGED, `source: "fallback"`.
+- In the tool: read `opencode.jsonc` from the root (fall back to
+  `opencode.json` if absent) → `resolveCompactionModel` with the existing
+  `resolveModel` result as fallback → on an empty pair, refuse exactly as
+  today (request not sent, no budget burned).
+- Update the tool's description string (no override pair; summarizer = config
+  compaction model when set, else the session's model).
+
+B. message → queued prompt
+- When `message` is non-empty: AFTER the compaction dispatch (the existing
+  void path — no await anywhere), fire exactly ONE queued `promptAsync` to
+  the compacted sessionID with text = the message. Fire-and-forget.
+- `typeof promptAsync !== "function"` → no prompt sent; the dispatch response
+  gains a WARNING line saying the message was not queued.
+- The dispatch response states the message was queued for the target session
+  (delivered on its resume).
+
+C. Dump diagnostics
+- On success: append a `DUMP-OK <sid> <relfile> <ms>` line to
+  `.opencode/temp/ctx.log` (same local-stamp prefix style as the DUMP-FAIL
+  line; relfile = the corpus-relative dump path, e.g.
+  `compaction_dumps/ses_..._c0.md`; ms = elapsed milliseconds).
+- `preCompactionDump` spawn: `stdio: "pipe"` → `"ignore"` (removes the
+  pipe-buffer deadlock failure mode — the ETIMEDOUT evidence: hung child
+  in-host, script runs 0.12 s standalone).
+- The DUMP-FAIL line format and the 60 s timeout are UNCHANGED.
 
 ## Definition of done
 
-- All items landed; standard gate GREEN: probe 235/235, pytest 459+1w, ruff
-  F=0; FULL smoke suite run (every `*.smoke.mjs` in `.opencode/plugin/tests/`).
-- New UNIT 4 smoke section (~10 checks, mocked `client.session.messages`
-  scripted per sid): stop/ask → zero sends; restart w/o successor → spawn;
-  restart w/ successor (`session.created` first) → skip; no-line → continue
-  attempt 1; second idle → attempt 2; third idle cap-exhausted → restart
-  spawn; non-scoped (no marker, not spawned) → zero sends; `spawned`-map scope
-  routes without a fetch; `messages()` throwing → no action, no throw.
-  Existing 40 checks stay green.
-- Surface report `.opencode/agent/knowledge/opencode-plugins/auto-resume-unit1-
-  surface-report.md` — append a brief UNIT 4 section (the `messages` endpoint
-  facts, the overlap-era caveat).
-- `TODO.md` #75 — status line: Unit 4 LANDED + smoke-verified; live
-  acceptance PENDING the next host restart (the four acceptance cases in the
-  proposal lines 138-142).
-- One commit (code + smoke + surface report + TODO + handover files); summary
-  to `.opencode/agent/handover/handover_task_to_planner.md` (measured gate
-  numbers verbatim, commit hash, deliberately-not-done list).
+- All of A/B/C landed; `compact_memory.smoke.mjs` re-pinned (4-key args;
+  config-resolution cases: config set → config pair in body, config
+  commented-out → fallback, malformed → fallback; the old override case
+  removed; message → promptAsync pins incl. the no-promptAsync WARNING;
+  DUMP-OK line pin; stdio-ignore pin) — ALL PASS.
+- probe: APPEND a new section pinning the exported resolver (config present /
+  absent / malformed / comment+URL-safe parse) + the DUMP-OK format;
+  update the existing compact_memory pins that changed (4-key args);
+  header annotation updated; the probe total self-consistent (run + verify).
+- Full standard gate green: probe (new total), pytest 459+1w, ruff F=0,
+  ALL 10 smokes green (auto_resume stays 53/53 — you do not touch it).
+- ONE commit: code + smoke + probe + a one-line TODO #70 status note (append
+  "unit A landed, commit <hash>" to its status line — do not reword the
+  entry) + your handover summary. Handover to
+  `.opencode/agent/handover/handover_task_to_planner.md`.
 
-## DO-NOT-touch
+## DO-NOT-TOUCH
 
-- Units 1-3 behavior (except the `SESSION_CANDIDATES` addition above).
-- The tick funnel structure, the `spawnPlanner` body, Unit 2 constants.
-- The probe (pins no auto_resume shape — if you believe a pin is needed,
-  `todo_inbox.md`; do NOT build one). `.opencode/maintainer/**`, live
-  `opencode.jsonc`.
+`.opencode/maintainer/**`, the live `opencode.jsonc` (READ-ONLY — never
+write/modify it; the config is only ever read), `AGENTS.md`,
+`.opencode/plugin/auto_resume.ts`, `dump_session.cjs`, the budget store,
+other smokes / probe sections, and the maintainer's `--comment` block inside
+compact_memory.ts (lines 481-504). No new dependencies.
+
+## Approval boundary
+
+Pre-approved (his priority.md #1 rulings): the param removal, the config
+resolution order, the queued message, the DUMP-OK line, the stdio change.
+Anything else is out of scope. If a verified fact above conflicts with the
+reality you measure, STOP and report the discrepancy in your handover
+instead of deciding.

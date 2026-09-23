@@ -23,6 +23,43 @@ the last own-line toggle first (Direct deactivates Unit 4 for the planner).
   nudge should ride in the same channel.
 - Baseline: auto_resume smoke 105/105, probe 241/241, pytest 459+1w, ruff F=0.
 
+## Partial state on disk (2026-09-23, worker-12 death — planner-verified)
+- Worker-12 (ses_f33ee8eabffeaE0xuwZ7lc65NR) died mid-task at the context wall
+  (final step `reason=length`, output=23,156, total=170,238). No commit, smoke
+  untouched, TODO untouched, no handover.
+- `.opencode/plugin/auto_resume.ts` carries the COMPLETE uncommitted code-side
+  implementation of change 1: the Unit-2 tick leg is removed from `tick()`,
+  `onToolAfterNudge` is registered on `tool.execute.after`, the ladder (0.95
+  suffix / 0.98 `--maintainer` line), the (c) scope gate (fresh `scopeVerdict`
+  per nudge-eligible tool result), the `nudge=` log line with the per-busy-cycle
+  dedup (reusing `w.attempts`), and the header rewrite. Planner reviewed the
+  diff: complete and coherent. FIRST review it:
+  `git diff .opencode/plugin/auto_resume.ts` — keep it, fix any small
+  inconsistency, and verify items 2–4 of "The change" are covered (if a piece
+  is missing, build it).
+- The in-flight smoke section is salvaged VERBATIM at
+  `.opencode/loop/autorun-2026-09-21_15-33/plan8_worker12_smoke_draft.md`
+  (the unit-2 scenario setup + the DoD checks up to the cut — helpers like
+  `statusEv`/`msgUpdated`/`fire`/`toolAfter`/`SUFFIX_95`/`SUFFIX_98`/`nudgeLine`
+  included). Use it as the STARTING SKELETON for the smoke's new unit-2
+  section; validate every check against the DoD and finish the cut tail
+  (it ends mid-scenario at the "fresh busy cycle → dedup resets" arm).
+- The smoke file itself is UNCHANGED (105 checks, the OLD unit-2 promptAsync
+  checks that must be adapted to the passive mechanism — the draft's DoD
+  checks show the intended adaptations).
+
+## Output discipline (plan8 worker-12 lesson — binding)
+- NO giant planning/design prose (worker-12 burned ~34k tokens in two
+  planning messages). Write the code directly; keep reasoning short.
+- Write the smoke section in CHUNKS: ≤ ~8KB (≈2k tokens) per write/edit call;
+  append chunk by chunk. Run the smoke EARLY (as soon as the first
+  runnable chunk is in) and fix reds incrementally — do not assemble the
+  whole section before the first run.
+- Read the smoke file SECTIONALLY: the helpers at the top + the UNIT 2
+  section (locate it by its section markers — grep the markers first, then
+  read that bounded range). NOT the whole file (worker-12's full read was
+  ~60KB).
+
 ## The change (WHAT — the HOW is yours inside the DoD)
 1. **Unit 2 redesign: the nudge is a passive ctx-line suffix.**
    - Drop the `sendSelfCompact` promptAsync path (no resume, no queued turn, no
@@ -59,8 +96,10 @@ the last own-line toggle first (Direct deactivates Unit 4 for the planner).
   CONTINUE (Unit 4 deactivated for the planner).
 - No `promptAsync` on the Unit-2 path (the nudge is passive).
 - auto_resume smoke green (new checks: stale-armed no-fire, ctx-line-suffix at
-  0.95/0.98, per-session nudge, Direct suppresses both units) + the existing 105
-  checks still pass.
+  0.95/0.98, per-session nudge, Direct suppresses both units) + the existing
+  checks still pass — with the OLD unit-2 promptAsync checks ADAPTED to the
+  passive mechanism (the draft shows the intended adaptations; the other
+  units' checks stay as-is). Report the final check total in the handover.
 - Full gate green: probe 241/241, all plugin smokes, pytest 459 passed +
   1 warning, ruff F=0.
 - TODO.md: #85 → "part 3 (Unit-2 ctx-line-suffix + Direct gates) LANDED" (the hash

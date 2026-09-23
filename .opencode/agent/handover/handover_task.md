@@ -1,74 +1,57 @@
-# TASK SPEC — #78: Dump completeness (options 1+2 + unified 3+4)
+# TASK SPEC — R4: the intercept.log mining scriptlet (staged spec, gate now satisfied)
 
 Worker: `worker_Q3S_170K`. Branch: stay on the current checkout (`opencode_test`).
 
 ## Goal
-Per the maintainer's ruling (2026-09-23, planner-12 direct session): make session
-dumps complete —
-- (A) a `--json` raw-as-is mode in `dump_session.cjs` (option 1);
-- (B) lossless full markdown (the tool `state.input`/`state.output` verbatim, caps
-  removed) + a `--lite` filtered preset — the "unfiltered vs filtered" toggle
-  (unified options 3+4; the maintainer's 3/4 intuition, confirmed by the planner);
-- (C) the pre-compaction dump hook: raise the timeout + spawn diagnostics + one
-  retry (option 2).
+Build the staged R4 scriptlet per its own design source
+`.opencode/agent/research/fuzzy-numword/spec_R4_log_mining.md` — READ THAT FILE
+FIRST (it is the full design: the 6 output sections, the home conventions, the
+DoD). One committed
+`node .opencode/agent/scripts/log/summarize_intercept.cjs [logfile]`
+(default `.opencode/temp/intercept.log`) that turns the log into a readable
+evidence summary + a committed fixture test + one pinned check + the
+INVENTORY/README entries. The script must be GENERIC — the log keeps growing,
+never hardcode counts or session ids.
 
-All verified findings + exact line references:
-`.opencode/loop/autorun-2026-09-21_15-33/plan11_78_scope.md` — READ IT FIRST
-(read-only scoping; its line references were verified at spec time).
-
-## Ordered units (each leaves the repo green; gate once at the end)
-
-### A — `--json` raw mode (`.opencode/agent/scripts/db/dump_session.cjs`)
-- New flag `--json`: emit the session row + every message + every part's `data`
-  value as RAW JSON — unfiltered, uncapped, structure preserved. Reuse the
-  existing queries (L114-121); a new render path. `--out` writes the JSON to
-  OUT_DIR/<relpath> (append `.json` if the relpath has no extension).
-- Verify: dump `ses_f31a5dee5ffe1DIBxZzEDZF8aF` (58 msgs / 263 parts per scoping
-  §2b) to a scratch file; `JSON.parse` it; message + part counts match; spot-check
-  one tool part's `state.input` byte-identical to the DB (curated readOnly helpers
-  in `.opencode/agent/scripts/db/` — README there). Delete the scratch before close.
-
-### B — Lossless full markdown + `--lite` preset (`dump_session.cjs`, `fullBody` L161-176)
-- Full mode (single-session default) becomes lossless: emit the tool
-  `state.input` / `state.output` verbatim; remove the 400/600-char caps for known
-  part types (text/reasoning are already verbatim; tool, step-start, step-finish,
-  patch, meta become uncapped).
-- New flag `--lite`: the human-readable filtered preset — text + reasoning
-  verbatim, tool calls header-only (name, callID, status — no input/output),
-  step-start/step-finish skipped. (The current mid-rendering shape survives as
-  the filtered view.)
-- Verify: a fresh full dump of the same session shows a known tool-argument
-  string byte-identical to the DB; no truncation on known types; the `--lite`
-  dump contains no tool input/output. Scratch dumps, deleted before close.
-
-### C — Pre-compaction dump hook (`.opencode/plugin/compact_memory.ts`)
-- L359: raise the fixed 60 s timeout to 120 s (measured dump wall-times 64–87 ms
-  — scoping §3; the live DUMP-FAIL is a spawn-LEVEL STALL, not budget exhaustion).
-- Diagnostics: log the elapsed ms on every dump (the `DUMP-OK` line gains
-  `ms=`); on failure, surface the child's stderr + the error text (replace
-  `stdio: "ignore"` with pipe capture) + ONE retry (a `DUMP-RETRY=` line), after
-  which the `DUMP-FAIL` line carries the captured detail.
-- The hook keeps the markdown backup, rendered with the new lossless full mode
-  (complete + human-readable); raw JSON stays the on-demand `--json` mode.
-- If any smoke/probe pins the DUMP line format: re-pin (the #81 precedent) and
-  record the re-pin in your handover.
+## Verified context (planner-measured 2026-09-23, HEAD d6ddf37 — do not re-derive)
+- The R4 GATE is SATISFIED: `.opencode/temp/intercept.log` = 3076 lines / 139
+  distinct session ids.
+- Log line shape (verify with a BOUNDED read: `head -20` of the log, do not
+  read the whole file): `date_time | session_id | model | tool |
+  args-json | <free-form evidence fields...>` — the final field(s) carry the
+  verdict (e.g. `no-candidate`, `out-of-sandbox`, `pair-resolved`).
+- Home conventions: `.opencode/agent/scripts/log/README.md` (script home + the
+  fixture-under-tests convention) and `.opencode/agent/scripts/INVENTORY.md`
+  (one entry per script — copy an existing entry's format).
+- Standard gate (must stay green): run per
+  `.opencode/agent/prompts/repo/repo_commands.md` — probe 241/241, all
+  `.opencode/plugin/tests/` smokes, pytest 459 passed + 1 warning, ruff F=0.
 
 ## DoD
-- Units A/B/C as above, each verified by its named checks.
-- TODO.md #78 status → LANDED (the hash is recorded in the planner's follow-up
-  bookkeeping commit — NOT in your commit).
-- Gate green: probe 241/241 (re-pin only if a pinned behavior changed — record
-  it), all smokes, pytest 459 passed + 1 warning, ruff F=0.
+1. The script runs on the real log without error and prints the 6 sections from
+   the R4 spec (machine-stable lines).
+2. One committed fixture log (a few lines) under the log/ tests home + the
+   fixture test green.
+3. Your ONE pinned check (the fixture test, or a probe section if you judge the
+   probe the right home — pick one, pin it, explain the choice in the
+   handover) + the standard gate green.
+4. `INVENTORY.md` entry + the `log/README.md` pointer.
+5. Status: record `LANDED` in your handover (the commit hash goes in the
+   planner's follow-up bookkeeping — a commit never carries its own hash).
 
 ## DO-NOT-touch
-- `.opencode/maintainer/**` (maintainer live files — ideas.md / my_todos.md are
-  dirty in the tree — never edit, never stage).
-- The live DB: readOnly helpers only; no writes.
-- `.opencode/plugin/auto_resume.ts` (the #91 build is live — v=7d2e6207).
-- `.opencode/agent/prompts/**` (no edit access — report a block in your handover,
-  never circumvent it).
+- `.opencode/agent/prompts/**` (no edit access) and the R4 spec file itself
+  (its stale `Worker: worker_Q4_140K` line is corrected by the planner — do not
+  edit it).
+- `.opencode/maintainer/**` (his live files).
+- `.opencode/plugin/**` — this task touches NO plugin code.
+- Uncommitted maintainer changes on disk (`context_recovery.ts` move,
+  `ideas.md`, `my_todos.md`) — never stage them; stage only your named paths,
+  never `git add -A`.
 
-## Commit
-One code commit: A+B+C + TODO #78 status + your handover files. Subject:
-"dump #78 LANDED: --json raw mode + lossless full markdown + --lite preset + hook
-timeout/diagnostic/retry".
+## Commit routine
+One commit: the script + fixture + INVENTORY/README entries +
+`handover_task_to_planner.md`. Commit green, never red. Your handover:
+executive summary, measured verification (the script run on the real log +
+the fixture test + gate output), commit hash, TODO entries (none expected —
+the planner updates #67), what was deliberately not done.

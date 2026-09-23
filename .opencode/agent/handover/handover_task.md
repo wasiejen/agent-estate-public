@@ -1,85 +1,73 @@
-# TASK: autorun-identifiable names for plugin-spawned sessions (his # 2026-09-23_04-34)
+# TASK: TODO.md shrink curation (execute the review in todo_inbox 2026-09-23_02-51)
 
-**Worker:** worker_Q3S_170K (worker-15). **Branch:** stay on the current
-checkout (verified `opencode_test` — do not switch).
+**Worker:** worker_Q3S_170K (worker-16). **Branch:** stay on the current
+checkout (`opencode_test` — verified, do not switch).
 
 ## Goal
-Sessions the auto_resume plugin SPAWNS (the file-trigger spawn and the
-Unit-4 restart branch) must carry an identifiable name: the current loop
-folder name + the loop's session number, e.g.
-`autorun-2026-09-21_15-33 planner-9`. Cosmetic — makes the sessions that
-belong to a loop autorun findable later (the maintainer's request in
-priority.md # 2026-09-23_04-34; today the name is auto-resolved by
-opencode from context).
+Execute a PLANNER's curation review (already done — you execute, you do
+not re-decide): read the entry `## 2026-09-23_02-51` in `todo_inbox.md`
+FIRST — it is the findings list (6 findings) + the target "net open
+set". Shrink `TODO.md` (1125 lines) roughly in half WITHOUT losing any
+open content.
 
 ## Definition of done
-1. Identifier: `<loop-folder> planner-<N>` where `<N>` = the largest
-   `planner-<N>` found in the current loop folder's `loop_log.md`, + 1
-   (the same rule the planner uses to derive its iteration number).
-   - Loop folder: scan `.opencode/loop/` for the folder holding a
-     `loop_log.md` (mirror the detection in `.opencode/tools/loop_log.ts`
-     ~L75: readdirSync, pick the current one; the plugin's directory
-     input is the project dir).
-   - If `.opencode/loop/` has no folder or the log has no `planner-<N>`
-     line → no identifier (spawn exactly as today).
-2. Delivery of the identifier — BOUNDED verification first (ONE question,
-   then build): does `session.create()` accept a `title`? The plugin
-   imports `@opencode-ai/sdk` (`auto_resume.ts` L164), resolved in the
-   HOST process — the repo has NO node_modules; host install is the npm
-   global at `home\AppData\Roaming\npm\` (locate the SDK type
-   defs there, or grep the vendored source study in
-   `.opencode/agent/knowledge/opencode-plugins/`). ONE answer:
-   - title supported → pass it in the `create()` call on BOTH spawn
-     paths (they share the helper);
-   - not supported → the queued launch prompt's FIRST LINE on both paths
-     is the identifier (opencode derives the session title from the
-     first user message).
-3. Smoke (`tests/auto_resume.smoke.mjs`, spy-client harness — the UNIT 3
-   section ~L577 re-invokes the factory with a spying client;
-   `createCalls` / `spawnCalls` record the args): create a deterministic
-   loop folder in the smoke's temp project (e.g. `autorun-test_0-0` with
-   a `loop_log.md` carrying a `-->START planner-7` line), trigger a
-   spawn, and assert the identifier lands where the chosen mechanism
-   puts it (the create title, or the first line of
-   `spawnCalls[0].parts[0].text`). At least ONE new check; keep every
-   existing check (102/102 before → 102+n after, no removals).
-4. Gates green: full smoke suite, probe 241/241, pytest 459 passed +
-   1 warning (the known #10 coroutine warning), ruff F=0. Baselines as
-   of commit 725ab3a.
-5. TODO.md: APPEND entry #89 (next free ID — #88 is the highest
-   existing) with the contract fields; status per the commit-hash rule:
-   → LANDED (the hash is recorded in the PLANNER's bookkeeping commit,
-   never in this one).
-6. Handover summary to `.opencode/agent/handover/handover_task_to_planner.md`
-   (executive summary, measured verification, TODO entries, what was
-   deliberately not done). Commit: code + smoke + TODO.md + handover
-   (named paths only — see below).
+1. Header numbering note: "used so far up to #84, new entries start at
+   #85" → "up to #89, new entries start at #90" (#89 is the highest
+   existing entry).
+2. Closed-entry condensation: for every entry whose TITLE line marks it
+   closed / LANDED / superseded, condense the body down to the one-line
+   title form — but FIRST verify the full text exists in
+   `todo_records.md` (repo root):
+   - title already says "full text in todo_records.md" → just drop the
+     body (keep the title line);
+   - NO such pointer → APPEND the full entry text to `todo_records.md`
+     (append-only) FIRST, then condense in `TODO.md`.
+   - Only condense entries whose own title line carries a
+     closed/landed/superseded marker. When in doubt → LEAVE IT open and
+     untouched. Never delete open content.
+3. Status-marker alignment (review findings 3): reconcile the drifted
+   markers so title truth and status line agree — #66 (title CLOSED
+   verdict LIVE vs status PENDING RESTART), #81 (title "(open)" but the
+   re-pin LANDED with full gate green — it STAYS open as a maintainer
+   call: keep the entry, fix the marker to show the LANDED sub-status),
+   #79 (title "(open HIGH)" but LANDED with live-acceptance pending —
+   same pattern), #80/#82/#85 (title markers lag their LANDED
+   sub-statuses). The review's net-open list is the target: every
+   member (#56, #66, #67, #70 follow-ons, #74, #75, #78, #79/#82/#85,
+   #80, #81, #83 — plus #86/#87/#88/#89 which post-date the review)
+   stays present with a clear status.
+4. #74: split the single ~4k-char line into the contract fields (title /
+   problem+evidence / desired outcome / acceptance / suggested scope /
+   status) and MOVE it out of "FST behavior decisions" (it is an
+   opencode host-side tool issue) to the "Plugin & gauge" section.
+5. #75: collapse the ~90-line running changelog into a short status
+   pointer (per unit, one line each); APPEND the unit-history text to
+   `todo_records.md` first.
+6. `todo_inbox.md`: APPEND a planner-curation block (2026-09-23,
+   planner-9, plan9) recording the 2026-09-23_02-51 review as executed
+   (finding by finding, where each landed). Do NOT delete or edit
+   existing inbox entries (append-only file).
+7. Commit: `TODO.md` + `todo_records.md` + `todo_inbox.md` (named paths
+   only). No code changes — no gates. Verification in the handover:
+   before/after line counts of TODO.md, the condensed-entry list (IDs),
+   the net-open set as it stands, and a machine check that every ID
+   1..89 appears exactly once as an entry in TODO.md (script it — do
+   not count by eye).
 
 ## DO-NOT-touch
-- `.opencode/maintainer/**` (priority.md, ideas.md, my_todos.md — his
-  live files) and `opencode.jsonc` (read ok, edit/stage NO). The working
-  tree also carries his uncommitted files (knowledge_inbox.md, ideas.md,
-  opencode.jsonc, untracked archive dumps) — NEVER stage those.
-- TODO.md header numbering note + the closed entries (a separate
-  curation unit runs right after you — your commit is APPEND-ONLY there).
-- The #88 tick mechanism (the `tickMs` factory option + `tickWait()`) —
-  do not restructure the smoke timing.
-- The Unit-2 ctx-line-suffix code (#85 part 3, ded7245) — the spawn
-  paths only.
-- LIVE acceptance is NOT yours: the live plugin activates on the next
-  host restart; the planner verifies the first named spawn.
-
-## Spawn area (where to work)
-`.opencode/plugin/auto_resume.ts` — the `sess.create()` call ~L585
-(UNIT 3 helper) + the Unit-4 restart branch (the comment at L146-148,
-the `route= restart spawn` line; the restart prompt text is built near
-the spawn helper). The helper is shared by both spawn paths — implement
-the identifier once in it.
+- `.opencode/maintainer/**`, `opencode.jsonc`, the maintainer's
+  uncommitted live files (verify `git status` before committing — ideas.
+  md, knowledge_inbox.md, repo_opencode.md were live-edited mid-run)
+  and the archive dumps (gitignored by his dba6973 — still never stage).
+- Open entries on the net-open list: content preserved VERBATIM — only
+  their status/marker lines change, plus the #74 restructure and the
+  #75 collapse (history preserved in todo_records.md).
+- No renumbering — IDs are stable and never reused.
 
 ## Notes
-- Keep writes chunked (≤ ~8KB per write call) — the long-write host flake
-  (TODO #74) + the worker limit-death precedent (the previous worker on
-  this plugin died mid smoke-write at the output cap).
-- If the SDK answer is unclear after the bounded check: build the
-  prompt-prefix fallback (it always works) and note the open question in
-  the handover.
+- Bounded reads: TODO.md is 1125 lines — read it in section windows
+  (the section headers at the top of each grep `^## ` output are your
+  map), never whole-file. Chunked writes ≤ ~8KB per call.
+- The review's findings are the CONTRACT — if a finding turns out stale
+  (e.g. an entry already condensed), note it in the handover and move
+  on; do not re-derive the review.

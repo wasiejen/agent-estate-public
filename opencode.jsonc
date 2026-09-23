@@ -3,7 +3,9 @@
   "permission": {
     "external_directory": { // as basis for sandboxing, so the base paths that are possible to correct to are known
       "home/Projects/OpenCodeProjects/Free-Snap-Tap/Free-Snap-Tap": "allow",
-      "home/AppData/Local/Temp/opencode": "allow"
+      "home/AppData/Local/Temp/opencode": "allow",
+      "home/.local/share/opencode/log": "allow",
+      "home/AppData/Roaming/npm": "allow"
     }
   },
   "snapshots": false,
@@ -64,6 +66,13 @@
           "limit": {
             "context": 170000,
             "output": 170000
+          }
+        },
+        "Qwen3.8-27B-Q3S-170K": {
+          "name": "Qwen3.8-27B-Q3S-50k",
+          "limit": {
+            "context": 50000,
+            "output": 50000
           }
         },
         "Qwen3.8-27B-Q3S-230K-slow": {

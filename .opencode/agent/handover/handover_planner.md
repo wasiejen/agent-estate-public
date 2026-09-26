@@ -39,9 +39,29 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 - Pending the maintainer (non-blocking): loop_log-v2 LIVE ACCEPTANCE
   (registration in the live opencode.jsonc + per-agent grant — effective
   at his next restart; the hand-format fallback applies until then),
-  `emergencyRecovery` re-enable (= unification live acceptance), #99 live
-  fork test, #98 self-compact→idle cycle, the section-anchor schema
-  question, the WRITE-on-absent-file semantic.
+   `emergencyRecovery` re-enable (= unification live acceptance), #99 FORK
+   TEST FOLLOW-UP (N=10 discriminator + summarize-scope probe — see below),
+   #98 self-compact→idle cycle, the section-anchor schema question, the
+   WRITE-on-absent-file semantic.
+- **#99 live fork test RAN (direct fork ses_f20b3bf14ffedWHp2HGajHmGLN,
+  2026-09-26, keepMessages=30):** dispatch side PASS — COMPACT line
+  `keep=30m tok=15916 computed` matches my independent DB replication
+  (15,903; Δ13 = the fork turn) — no hidden minimum in computeKeepTokens
+  (pure sum, fail-open). HOST side: full 30-message tail retained RAW
+  (raw 179KB ≈ 37-40k tokens; prefill 61k = ~20k system + ~37k retained +
+  ~2k summary + new turns; first-resumed-call DB input 60,877 ≈ backend
+  61,298) — the 15.9k token budget caused NO observable truncation → host
+  retention = COUNT semantics; the "host retains the token budget, not the
+  count" expectation (#99 wording) is NOT confirmed (structurally the
+  budget always ≈ last-N content mass on the current interface, so it can
+  only bind under a raw-part host metric — not observed). Summarizer step
+  recorded as agent=compaction msg (input 32,507 ≈ head text mass excl.
+  tool outputs — his reading: summary over the whole context minus system
+   + tool outputs). Follow-up to nail the semantics: (a) N=10 fork test
+   (count → prefill ≈ 20k + ~20k raw last-10 (measured 89.5KB) + ~2k
+   summary + ~2k new ≈ 44k; budget-bound → ≈ 20k + 4.7k content mass + ~2k
+   + ~2k ≈ 29k), (b) summarize-body probe
+   (scripts/log/summarize_intercept.cjs) to verify scope.
 - **NEXT (iteration 25):** maintenance pass (N % 5 == 0, at session start),
   then the queue (currently maintainer-blocked on restarts/rulings).
 

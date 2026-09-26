@@ -1,87 +1,79 @@
-# TASK SPEC — #101 opencode host map (explorer task)
+# Task spec S1 — block_transfer v2 Part A: unified anchor rule
 
-Goal: build the durable, dated host map in the knowledge base so planner/worker
-LOOK UP installed opencode facts instead of re-deriving them (TODO #101).
+Goal: make anchor matching ONE rule for ALL modes — a single exported
+pure function with the precisely-defined prefix semantics from the
+approved proposal `proposals/approved/2026-09-25_block_transfer-v2.md`
+(Part A + his 3 comments addressed). Today the documented contract
+("short unique line prefix") deviates per mode (COPY accepts
+mid-line substrings, REPLACE needs the exact prefix — friction
+`fa6fb38`).
 
-Deliverable (one file): `.opencode/agent/knowledge/opencode-plugins/host-map.md`
-(existing folder — no new README needed). Read the folder README first and
-follow the knowledge format (dated entries, evidence-backed).
+## Scope (verified state at spec time)
+- The tool: `.opencode/tools/block_transfer.ts` (219 lines; modes
+  MOVE/COPY/CUT/PASTE/REPLACE/DELETE/CLEAR; module-level
+  `clipboardBuffers`; `sandboxCheck` helper at ~L11).
+- Pins: `.opencode/plugin/tests/block_transfer.smoke.mjs`
+  (81 lines, 30/30) and `.opencode/plugin/tests/
+  block_transfer.sandbox.smoke.mjs` (166 lines, 53/53).
+- Read the tool file fully (it is small) + the two smoke files before
+  editing. Do NOT research the SDK — the tool is self-contained
+  (no SDK surface used beyond fs + the existing tool() shape).
 
-## The 6 areas to cover (one section each)
-1. **SDK surface** — the v1 `session.*`/`app.*`/`config.*` endpoint surface
-   from the installed `.d.ts` (method + line). Note which are actually called
-   by our plugins (`.opencode/plugin/*.ts`) vs merely available.
-2. **Plugin hook registration + ordering** — the hook keys the installed
-   plugin package registers (from `plugin/dist/index.d.ts`), their input/
-   output shapes, and which hooks our own plugins use (auto_resume,
-   compact_memory, intercept_observer, block_transfer, loop_log, the ctx
-   nudge). Registration mechanics (how a plugin file is loaded/registered).
-3. **DB schema** — session/message/part (+ permission/event) columns from
-   the live DB via `node .opencode/agent/scripts/db/probe_schema.cjs`
-   (bounded, read-only). Note the `data` JSON shape for message/part only if
-   already documented in the vendored deep-dives — do not re-derive.
-4. **Permission / external_directory mechanics** — how `permission` and
-   `external_directory` in `opencode.jsonc` are enforced (read our plugins'
-   usage + the vendored knowledge files; the R8 redirect is a live example in
-   `intercept_observer_core.ts`). Mark anything not verifiable from files as
-   "unverified — live behavior only".
-5. **Compaction / summarize path** — build ON the vendored deep-dives A/B/C
-   + `2026-09-25_compaction_keep_semantics.md`; do NOT re-derive. Add only
-   what is missing for the map (e.g. the keepTokens/keepMessages resolution
-   order as it stands after #99).
-6. **Tool registration** — how our tools are registered (the `tool()` form,
-   the plugin export shape, the two known load-error anomalies from
-   repo_overview.md §Safety limits — kept as dated facts).
-
-## Upstream research (secondary, bounded)
-Only where the installed build leaves a gap: webfetch the official opencode
-docs (opencode.ai/docs, GitHub anakin-tech or opencode-ai) to fill it.
-Every upstream-sourced line: date-stamped + marked "upstream (not
-installed-verified)". No deep multi-page crawling — a handful of targeted
-fetches, output bounded.
-
-## Verified starting points (planner facts, 2026-09-26 — do not re-derive)
-- Installed SDK + plugin under `.opencode/node_modules/@opencode-ai/`,
-  BOTH at 1.18.29 (measured today). The live host binary is 1.18.31 (a
-  1.18.29/1.18.31 discrepancy is already documented in the unit-1 surface
-  report — carry that caveat forward, don't re-measure).
-- Key locators: `.opencode/node_modules/@opencode-ai/sdk/dist/gen/
-  sdk.gen.d.ts` (endpoints), `.../sdk/dist/client.d.ts` (`createOpencodeClient`),
-  `.opencode/node_modules/@opencode-ai/plugin/dist/index.d.ts` (`Hooks`).
-- Live DB: `home/.local/share/opencode/opencode.db` — READ-ONLY,
-  never write (the probe script opens it readOnly).
-- Vendored starting points (build on, don't re-derive): `auto-resume-map.md`,
-  `auto-resume-deepdive-A/B/C.md`, `auto-resume-unit1-surface-report.md`,
-  `2026-09-25_compaction_keep_semantics.md` (all in the same folder), plus
-  `knowledge/plugins` area files for hook-usage facts.
-
-## Context discipline (binding)
-- NEVER read whole `.d.ts`/DB dumps — bounded greps with output caps
-  (`| head -30` first), targeted line ranges after. The `.d.ts` files are
-  large; the DB is live and big.
-- Every map entry: date (2026-09-26 for fresh findings) + a locator
-  (file + line, or script + query).
-- This is a RESEARCH + one-file task: no code, no gate, no probe changes.
+## What to build
+1. Add ONE exported pure function
+   `resolveAnchor(fileText: string, anchor: string): number | null`
+   (returns the 1-based line number of the EXACT ONE match, else
+   null). Isolated, with its own pins — the general behavior (prefix
+   -> substring / case-insensitive / fuzzy) must be swappable in
+   THIS ONE place without touching the rest of the tool.
+   Rule (exactly as approved in the proposal Part A):
+   - file split into lines on `\n`; a trailing `\r` on a line is
+     ignored for matching (CRLF-tolerant);
+   - an anchor A matches line L if L, after removing LEADING
+     spaces/tabs, BEGINS with A verbatim (case-sensitive; A is used
+     as typed — no trimming of the anchor itself);
+   - the line's remainder after A is irrelevant (a longer line still
+     matches — that's the prefix);
+   - the anchor must match EXACTLY ONE line.
+2. Route ALL existing anchor lookups (startMarker / endMarker /
+   targetMarker in every mode) through `resolveAnchor` — replacing the
+   current per-mode logic (this removes COPY's substring tolerance —
+   a flagged, approved decision).
+3. Error taxonomy — one line each, teaching (the tool's existing
+   error style): `not-found` (the anchor quoted) / `non-unique`
+   (match count + the first match line numbers) / `empty-buffer` /
+   `ref-out-of-range` (a line-number ref beyond the file's line
+   count, with the count). NOTE: Part B/C line-number refs do not
+   exist yet — `ref-out-of-range` is prepared for them; implement the
+   text now, wire it when refs land. Out-of-sandbox is NOT in this
+   taxonomy (handled upstream by the intercept plugin; the existing
+   `sandboxCheck` guard stays unchanged as defense-in-depth).
+4. Pins: add to `block_transfer.smoke.mjs` — the prefix rule (case
+   sensitivity, leading-whitespace trim, CRLF tolerance, longer-line
+   prefix match), `not-found`, `non-unique` (count + first match
+   lines). Existing pins stay green; where a pin asserts an OLD error
+   string that the new taxonomy changes, adapt the assertion minimally
+   (re-pin convention — the pin's SEMANTIC is kept, not the old text).
 
 ## Definition of done
-- `host-map.md` exists in the folder, covers all 6 areas, every entry
-  dated + located; vendored deep-dive content is REFERENCED/summarized, not
-  re-deriving and not duplicated in bulk (a pointer + the delta).
-- Knowledge format per the folder README; no other file touched except
-  `TODO.md` (#101 status → one-line pointer; full detail stays in the map)
-  and the handover summary.
-- `handover_task_to_planner.md`: areas covered, locators spot-checked,
-  upstream fetches used (or not needed), anything marked unverified, what
-  you deliberately left out.
-- ONE commit at the end (research task — no code units): the map + TODO
-  note + handover. Message subject: one-line imperative naming the map.
+- `resolveAnchor` exported, own pins present; all modes route through
+  it (grep-verify no per-mode duplicate matching logic remains).
+- block_transfer smoke ALL PASS (30 existing, adapted where the
+  taxonomy changed, + the new pins); sandbox smoke 53/53 ALL PASS.
+- Standard gate green per `repo_commands.md` (probe 297/297 — this
+  unit adds NO probe checks; pytest 459+1w; ruff F=0).
+- Single-ref calls keep byte-identical behavior vs today EXCEPT the
+  COPY substring tolerance (approved change).
+- Checkpoint: ONE green commit (code + pins + smoke). TODO + handover
+  ride the final commit.
 
-## DO-NOT-touch
-- The live DB (read-only), `.opencode/maintainer/**`,
-  `.opencode/agent/prompts/**` (edit-denied), `AGENTS.md`, `.git/**`,
-  any `.opencode/plugin/*.ts` or test (no code edits), `opencode.jsonc`
-  (maintainer's live file — read ok, edit NO).
-- No live-listener / FST execution, no requests to the backend inference
-  server (opencode sessions only).
+## Do-NOT-touch
+`.opencode/maintainer/**`, `opencode.jsonc` (maintainer domain — no
+registration change needed), `.opencode/plugin/**` except the two
+smoke files, `.opencode/plugin/probes/**` (probe section is S3), FST
+product code, other tools/plugins, `knowledge/**` (a knowledge entry
+goes via the submit todo/knowledge channels if you gain verified
+knowledge — the planner curates).
 
-Worker: `explorer_Q3S_170K`. This is research, not a build.
+## Worker
+`worker_Q3S_245K_slow` (same-model, serial slot).

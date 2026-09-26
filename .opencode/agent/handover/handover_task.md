@@ -1,79 +1,63 @@
-# Task spec S3 — block_transfer v2 Parts D+E+F: WRITE + PEEK + feedback complete
+# Task spec S4 — block_transfer v2 Parts G+H+I: MAP + last_write + description
 
-Goal: the bufferless WRITE mode (direct text -> line-anchored region),
-the bounded PEEK buffer preview, and the Part F feedback redesign
-COMPLETE for all modes + a new probe section — per the approved
+Goal: the Wave-2 additions (MAP structure preview, the `last_write`
+auto-buffer) and the Part I description rework — per the approved
 proposal `proposals/approved/2026-09-25_block_transfer-v2.md`.
-Built ON TOP of S1+S2 (anchor rule + refs/assembly are settled — do
-not touch them).
+Built ON TOP of S1+S2+S3 (all core parts settled — do not touch
+them). This is the LAST build unit; the new-hire + held-out
+verification is PLANNER-side AFTER this unit (see DoD).
 
-## Scope (verified state at spec time — S1+S2 landed)
-- The tool: `.opencode/tools/block_transfer.ts` (post-S2; modes
-  MOVE/COPY/APPEND/CUT/PASTE/REPLACE/DELETE/CLEAR).
+## Scope (verified state at spec time — S1+S2+S3 landed)
+- The tool: `.opencode/tools/block_transfer.ts` (post-S3; modes
+  MOVE/COPY/APPEND/CUT/PASTE/REPLACE/WRITE/PEEK/DELETE/CLEAR).
 - Pins: the two smoke files under `.opencode/plugin/tests/`.
-- Probe: `.opencode/plugin/probes/handover_probe.mjs` (append-only
-  section per the established numbered-check pattern; current count
-  297/297).
-- Read the post-S2 tool file fully + the probe file's LAST section
-  (bounded read: tail, ~60 lines) to copy the check pattern. No SDK
-  research.
+- Read the post-S3 tool file fully (small) + the current tool
+  description text in the file. No SDK research.
 
 ## What to build
-1. **D. `WRITE` mode** — replace a line-anchored region with direct
-   text (bufferless — "no DELETE + extra write call").
-   - Single ref (startMarker..endMarker form, marker-or-number per
-     S2) OR a LIST of regions.
-   - LIST form: ALL refs resolved against the PRE-call file state,
-     applied HIGHEST LINE -> LOWEST (no shifting); an overlap check —
-     error text `overlapping spans (lines 12..40 and 30..55)`
-     (teaching, with the ACTUAL line numbers).
-   - WRITE CREATES the target file if absent (flagged detail #2,
-     approved); PASTE's existing behavior is unchanged.
-2. **E. `PEEK` mode** — bounded buffer preview, NEVER the full
-   buffer: default = the buffer's line count + 3 head + 3 tail lines
-   (each echoed capped ~40 chars; BLANK LINES SKIPPED when picking
-   echoed lines); optional `from` + `count` giving a bounded window
-   (capped ≤25 lines). Boundary sentence in the description: "full
-   content: PASTE it to a file and read."
-3. **F. Feedback redesign — ALL modes.** One line per op: resolved
-   line range + line count + truncated first-line echo (~40 chars);
-   buffer ops add the buffer's line count AFTER the op; multi-op WRITE
-   = one line per applied op (descending) + a summary line; errors
-   teach (the S1 taxonomy). Finalize for every mode that S1/S2 left
-   on the old shape (MOVE/CUT/PASTE/REPLACE/DELETE/CLEAR).
-4. **Probe section** in `handover_probe.mjs` (append-only, numbered
-   checks per the existing pattern): the new WRITE/PEEK surface +
-   the unified feedback shapes (a few pins per mode — the smoke
-   carries the breadth).
-   **S1 deferred switch (curated from the S1 worker's inbox entry
-   2026-09-26):** probes 115 + 263 pin the LEGACY byte-exact error
-   strings (`Error: Start marker 'DUP' is not unique in bt/bt-rep-nq.txt.`
-   / `Error: End marker 'ZZ-END' not found after start marker.`), so the
-   Part A richer `non-unique` format (match count + the first match line
-   numbers) was deferred. This unit performs the switch: update S15
-   probes 115/263 to the v2 teaching format AND switch the tool's
-   `nonUniqueError` / `notFoundError` + the legacy end-before-start
-   branch to it (extraction end-not-found carrying the file reference);
-   re-pin the smoke pins to the same format.
-5. Pins in the smoke: WRITE single + LIST descending + overlap error;
-   PEEK shape + blank-skip + window cap; feedback line shapes (all
-   modes).
+1. **G. `MAP` mode** — buffer structure: line count + head 3 + tail 3
+   + a HEADING SKELETON (max ~10 headings, then `+N more`), lines
+   echoed VERBATIM WITH line numbers. Detection rule narrow +
+   documented: `^#{1,6} ` at column 0 (markdown H1-H6; indented `#`
+   EXCLUDED). No file-type sniffing — a `#` comment in a code buffer
+   is self-evident from the verbatim echo; a one-line caveat in the
+   description.
+2. **H. `last_write` auto-buffer.** block_transfer's OWN WRITE text
+   is auto-stored in a buffer named `last_write` (overwritten per
+   WRITE; automatic, NO parameter — poka-yoke) for direct reuse when
+   anchor resolution fails. (Journal-COLLECT stays DEFERRED — not
+   here.)
+3. **I. Description rework** of the tool's description, per the
+   handout ordering (`knowledge/plugin_tools/2026-09-18_tool-plugin-
+   design-handout.md`): what / when / when-NOT / a copy-pasteable
+   example / edge cases. Sharpened boundary vs `edit`: edit = exact
+   `oldString` match (string-level); block_transfer = line-anchored
+   (ASCII-safe — no non-ASCII / dense-numeral oldString problems).
+   The final mode set in the description: MOVE, COPY, APPEND, CUT,
+   PASTE, REPLACE, WRITE, PEEK, MAP, DELETE, CLEAR.
+4. Pins in the smoke: MAP skeleton + the ~10 cap + verbatim echo with
+   line numbers + indented-`#` exclusion; `last_write` store +
+   overwrite.
 
 ## Definition of done
-- Both smokes ALL PASS (existing adapted where the feedback shape
-  changed — re-pin convention: semantic kept, not the old string) +
-  new pins.
-- Probe = 297 + your new checks, ALL PASS (report the measured
-  count). pytest 459+1w, ruff F=0.
-- Existing single-ref calls keep byte-identical input forms and
-  behavior vs S2 (compatibility rule).
-- Checkpoint: ONE green commit (code + pins + probe section). TODO +
-  handover ride the final commit.
+- Both smokes ALL PASS (existing + new pins). Standard gate green per
+  `repo_commands.md` (probe count unchanged — this unit adds NO probe
+  checks; pytest 459+1w; ruff F=0).
+- The description covers every mode + the boundary vs edit + the
+  PEEK "full content" boundary sentence.
+- Checkpoint: ONE green commit (code + pins). TODO + handover ride
+  the final commit.
+- **PLANNER-SIDE (not yours):** the new-hire test (a fresh agent uses
+  every mode from the description ALONE — file-blind task) + the
+  held-out multi-step task (assemble a 3-section file from two
+  sources via COPY-list + APPEND, then a 2-region WRITE-list, verify
+  via PEEK/MAP; measure tool calls / errors / tokens, read the raw
+  transcript) — the planner launches these after verifying this unit.
 
 ## Do-NOT-touch
 `.opencode/maintainer/**`, `opencode.jsonc`, FST product code, other
-tools/plugins, the S1/S2 anchor+ref logic (wrong rule? STOP and say so
-in your handover).
+tools/plugins, the S1-S3 logic (wrong behavior? STOP and say so in
+your handover).
 
 ## Worker
 `worker_Q3S_245K_slow` (same-model, serial slot).

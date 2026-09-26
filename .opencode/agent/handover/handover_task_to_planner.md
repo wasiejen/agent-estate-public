@@ -1,102 +1,76 @@
-# Worker handover — loop_log v2 (DONE — worker-24)
+# Handover task → planner (worker-24, 2026-09-26)
 
-## Result: build complete — parts A–D + smoke + S16 re-pin all green; full gate green
+Task: #99 keepTokens metric fix — usage-field sums → RAW PART MASS (part
+bytes ÷ 4, usage-field fallback kept). Spec: `handover_task.md` (committed
+30b81d9).
 
-Task spec: `.opencode/agent/handover/handover_task.md` (commit 68da83d). Approved
-design: `.opencode/proposals/approved/2026-09-12_loop_log-v2.md` (parts A–D, build
-order A→B→C→D; the spec's two corrections applied — the model chain prefers
-`context.agent` over the proposal's `context.modelId`/`context.model.id`, and the
-S16 probe section DOES exist and was re-pinned, contra the proposal's stale
-"no probe section" acceptance line). Branch `opencode_test` (no branch switch).
-Code delta = ONE file: `.opencode/tools/loop_log.ts` (+ its smoke + the S16 probe
-section re-pin).
+## What changed (code commit b95d532)
+- `.opencode/plugin/compaction_core.ts` — `computeKeepTokens`: per-message
+  metric is now the RAW PART MASS — `Math.round(Σ JSON.stringify(part).length
+  / 4)` over `entry.parts` (ALL part types). Entries with absent / empty /
+  non-array `parts` fall back to the OLD usage value (user → input,
+  assistant → output+reasoning, other → 0) with the SAME fail-open numeric
+  guards. The dual-shape unwrap (#79), the last-`keepMessages` slice, the
+  `keepMessages <= 0 → no sum` guard, and the computed/budget/none resolution
+  are UNCHANGED. Doc comment rewritten (new metric + fallback + the measured
+  ~20–30%-below-bytes/4 provider note).
+- `.opencode/plugin/compact_memory.ts` — the `keepMessages` schema
+  description: "the token size of the last N messages" → "the raw content
+  mass (part bytes ÷ 4) of the last N messages" (rest of the sentence kept).
+- `.opencode/plugin/tests/compact_memory.smoke.mjs` — #99 COMPUTED case:
+  fixture now carries raw parts (2 × 8000-char text parts per fake message),
+  expected sum 6200 → 8026 (machine-computed); section header updated. The
+  budget-fallback / sum-0 / none cases are UNCHANGED (their fixtures already
+  carry no parts and no token info → sum 0 → budget / none paths).
+- `.opencode/plugin/tests/context_recovery.smoke.mjs` — #99 case 13: fixture
+  gains parts, expected 4500 → 8026. Case 14 (read-fail → budget 42000)
+  UNCHANGED.
+- `.opencode/plugin/probes/handover_probe.mjs` — cases (285) + (287):
+  fixtures gain parts, expected 4500 → 8026 (section header + code block).
+  Cases (286)/(288) (read-fail → budget) UNCHANGED. **PROBE COUNT UNCHANGED:
+  340** (no case split/merge).
+- `.opencode/plugin/context_recovery.ts` — VERIFIED ONLY, no change (it
+  passes the client's raw messages to `computeKeepTokens`, which carry
+  `parts`).
 
-## Commits (one per verified unit, in build order)
-- **Part A — auto-identity** — `aa5a411`: `role`/`model`/`session` now OPTIONAL;
-  best-effort chains (first hit wins, else literal `unknown`; never throws):
-  session `args.session → context.sessionID → context.sessionId → context.session?.id`;
-  role `args.role → context.agent`; model `args.model → context.agent`
-  (agent-identifier preference) `→ context.extra.model.id`. Line format
-  byte-unchanged. Smoke + Part A matrix (context-set / each source absent /
-  arg-override / unknown fallbacks / empty-string-arg fall-through) +
-  line-format byte-match + append-only prefix checks. Smoke 35/35.
-- **Part B — write confirmation** — `006a137`: after the append the file is read
-  back and the last line byte-compared. Return gains
-  `folder: <name> (created|existing)` (`(created)` iff THIS call created the folder
-  in an empty root) + `verified: readback-match` /
-  `verified: readback-MISMATCH: <actual last line>`; the ANOMALY note stays
-  appended last. Smoke re-pins (A)/(B)/(E) + a simulated mismatch path
-  (pre-existing file with no trailing newline → the glued last line is surfaced
-  verbatim). Smoke 40/40.
-- **Part C — lenient status** — `320d09f`: `status` is a REQUIRED free-form
-  string; normalize = lowercase + strip non-alphanumerics, keyword check in the
-  spec's order `done/return/warn/info/start/correct` → the established 8-char
-  tokens (`restart` → `-->START`, intended). No keyword → returns
-  `Error: unrecognizable status … — accepted keywords: start / done / return /
-  warn / info / correct (…)` and writes NOTHING (no folder creation, no append);
-  never a silent INFO fallback. Smoke re-pins (D) + the normalization table
-  (22 spellings across the 6 keywords, each ≥3 variants) + no-write error checks.
-  Smoke 66/66.
-- **Part D — `CORRECT-` + description** — `b9d57c9`: `correct` → `CORRECT-`,
-  appended normally (append-only stays absolute — no rewrite/delete anywhere);
-  the return gains `corrects: <previous line of the log>` (byte-exact; the log's
-  last line BEFORE this append; an empty/absent log omits the field). The tool
-  `description` was rewritten (keywords, optional role/model/session auto-filled
-  from host context, the confirmed return format). NOTE: this commit landed
-  AFTER the probe commit below (missed the unit commit at the time — the probe
-  run happened with the Part D code present in the tree; both commits are green
-  on their own scope). Smoke 69/69.
-- **S16 re-pin** — `b1d122c`: `.opencode/plugin/probes/handover_probe.mjs` S16
-  section (6 checks, same sandbox pattern) re-pinned to the v2 return; check
-  count unchanged → the self-annotated total stays 340 (header line 936
-  untouched, `S16=6`).
+Machine-computed expectations (no mental math, AGENTS.md Pattern 1 — script
+in the scratchpad): each 8000-char text part serializes to 8025 bytes;
+2 parts per message → Σ 16050 → `Math.round(16050/4)` = 4013; the two
+counted messages → 8026 (all four computed pins share 8026).
 
-## S16 re-pin list (what moved per check)
-- **118** (schema): status was pinned as a strict 5-token ENUM (bogus fails
-  safeParse) → now a REQUIRED free-form string (parse accepts any string —
-  rejection is runtime, Part C); `role`/`model` were pinned REQUIRED → now
-  OPTIONAL (Part A); `content` still REQUIRED; `session` still OPTIONAL.
-- **119** (empty root): return pinned at EXACTLY 2 lines
-  `folder: <name>` + `line: <line>` → now EXACTLY 3 lines:
-  `folder: <name> (created)` + `line: <line>` + `verified: readback-match`.
-  (The log-file path derivation strips the new `(created)` suffix.)
-- **120** (line format): the line-byte pin is UNCHANGED (format contract intact;
-  omitted session → literal `unknown`) + the `line:` field byte-match unchanged;
-  gains pins for the ` (created)` folder line and the `verified:` line on the
-  same return.
-- **121** (call #2, session passthrough): 2-line return → 3 lines;
-  `folder: <name>` → `folder: <name> (existing)`; adds the `verified:` pin.
-- **122** (empty session → `unknown`): same line pin; folder line now
-  ` (existing)`-flagged.
-- **123** (anomaly): the byte-exact ANOMALY note was the 3rd return line → now the
-  4th (LAST) line, with `verified: readback-match` on line 3; the folder is
-  flagged ` (existing)` (the two dummy folders pre-existed).
+## Verification (measured this session)
+- `node .opencode/plugin/probes/handover_probe.mjs` → **340/340 PASS**
+  (count unchanged)
+- `node .opencode/plugin/tests/compact_memory.smoke.mjs` → **74/74**
+- `node .opencode/plugin/tests/context_recovery.smoke.mjs` → **17/17**
+- `./.venv/Scripts/python.exe -m pytest -q` → **459 passed, 1 warning**
+  (baseline)
+- `./.venv/Scripts/ruff.exe check --select F .` → **All checks passed**
+  (F=0)
+Pre-edit baselines were green too (340/340, 74/74, 17/17) — the fix did not
+regress any other pin.
 
-## Measured verification (full gate, this session)
-- Probe: `PROBE handover: 340/340 PASS` (exit 0; self-annotation == header sum).
-- ALL 10 smokes green, exit 0 each: auto_resume 139/139, block_transfer.sandbox
-  64/64, block_transfer 123/123, compact_memory 74/74, context_recovery 17/17,
-  ctx_gauge 3/3, gauge_core ALL PASS, intercept_observer 77/77,
-  **loop_log 69/69**, submit 20/20.
-- pytest: `459 passed, 1 warning in 2.10s` (matches the spec baseline 459+1w).
-- ruff `--select F`: `All checks passed!` (F=0).
+## Commits
+- `b95d532` — code + pins (5 files; named-path commit — the maintainer's
+  modified `priority.md` / `opencode.jsonc` /
+  `dev_get_tool_context_contents.ts` were NEVER staged or touched)
+- this commit — TODO #99 close note + this handover (final)
 
-## Deliberately NOT done (per the spec's DO-NOT-TOUCH / division of labor)
-- Prompt bookkeeping (`agent_readme_loop.md` §Loop log + the loop lines in the
-  planner/worker/looprunner role prompts: keywords instead of the 8-char tokens,
-  optional identity) — the proposal assigns this to the PLANNER, after
-  verification, as a separate commit. The tool's `description` (the usage
-  channel) already carries it.
-- `opencode.jsonc` registration + per-agent grant — the maintainer's domain,
-  effective at his next process restart.
-- The five established status tokens + the line format — untouched (public
-  contract); no token renaming anywhere.
-- Everything under `.opencode/maintainer/`, the live `.opencode/loop/` (smoke +
-  probe are sandboxed; the only live-loop writes are this session's own
-  START/DONE loop-log lines, riding this final commit), `AGENTS.md`, all prompt
-  files, all other tools/plugins/tests.
-- TODO entries: none — no discrepancies found (the spec's stated baselines all
-  matched: 340, 459+1w, F=0).
+## TODO
+- #99: one-line close note appended (metric fixed → raw part mass (bytes/4),
+  usage-field fallback kept). The entry STAYS OPEN for the maintainer's live
+  fork-test acceptance (unchanged).
 
-## Final gauge
-`SESSION=ses_f2114f171ffeuKJrMkXe1QczCA CTX=103291 (42%) REM=141709 | 5 compactions left`
+## Deliberately NOT done
+- No new probe/smoke cases (spec: keep the count — no split/merge).
+- The usage-fallback path (entries with NO parts but token info) is not
+  pinned by any case — the spec's pin list did not require it and the count
+  had to stay 340.
+- Comments outside the spec's named scope (the config-file header comment,
+  the COMPACT-line header comment, the context_recovery caller comment)
+  left as-is per the DO-NOT-TOUCH boundary.
+- No python touched (the .ts change touches no python — the gates were run
+  anyway, baseline unchanged).
+
+## Gauge (verbatim)
+SESSION=ses_f206bea11ffetlA7q2Ie3BRtU4 CTX=114423 (46%) REM=130577 | 5 compactions left

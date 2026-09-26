@@ -4,275 +4,34 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## Current session — autorun, 2026-09-25 (ses_f27282d2dfferl9gScrfLt2AxV, planner-17, Qwen3.8-27B-Q3S-170K)
-- Launch (unit-4 restart branch; his message: "opencode restarted. continue planner-17.").
-- **Rebuilt from committed state:** git log + NAP + TODO + loop_log (max
-  planner-16 → this = planner-17, the bounded-grep rule) + priority.md (his
-  live uncommitted edit: the loop.log read-cost question = top # item,
-  "# TODO #97", the log-tool-v2 "not yet implemented" note, the
-  block_transfer upgrade draft, the fuzzy return-info + AGENTS-example
-  notes) + proposals (the loop_log-v2 is back in `approved/`). Inbox empty.
-- **His live items triaged:** (1) the loop.log question — ANSWERED with
-  live evidence: my own session title = `autorun-2026-09-21_15-33
-  planner-17` (the #89 spawn ident — the title carries loop folder +
-  iteration, so a spawned session needs no loop-log read) → codified in
-  `agent_readme_loop.md` §Loop folder (the title + the bounded-grep rule);
-  the "iteration in the unit-4 start message" idea = his "(later maybe)" —
-  deferred. (2) "# TODO #97" = the next build → spec written + worker
-  launched (this session, see below). (3) loop_log-v2 (back in
-  `approved/`): per his 26-09-18 `--info` it is NOT fully implemented
-  (only the session autofill landed — model autofill, the Part B readback
-  confirmation, the Part C lenient status, the Part D `correct` are
-  missing from the live tool schema) → QUEUED next (after #97 lands;
-  needs a spec). (4) the block_transfer upgrade draft
-  (`2026-09-25_15-23-upgrade.md`) = discussion basis ("direct session") →
-  noted, NO build (design exchange is the direct-session channel).
-  (5) the fuzzy return-info note → folded into the #97 spec (Unit 2); his
-  AGENTS.md escape-example note (examples with different left/right sides
-  + "single digit/numwords are safe") — grep-clean: the escape convention
-  is NOT in AGENTS.md / knowledge / prompts (only the proposal + the
-  plugin code) → open question in the summary (a paste-proposal candidate).
-- **#96 CLOSED (live-verified this session, post-restart):**
-  `auto_resume.log` shows `log-trim= old=293026007 new=2097152`
-  (12:50:57Z — the 293MB file trimmed to 2MB at init) + zero
-  `message.part.delta` lines appended after the trim (last delta line
-  24391 < trim line 24434; the new build's ~2.7k lines are delta-free) —
-  acceptance met; TODO one-liner + full text in todo_records.md.
-- **#97 LANDED + verified (this session):** `worker_Q3S_170K` (session
-  `ses_f271155b4ffeIWwbQEekkRQRA6`) — Unit 1 `07bdd56` (R8 redirect: core
-  resolver + plugin wiring + smoke 12a–12i + probe S28) + Unit 2 `0d9b8e6`
-  (escape return-info: after-hook feedback note + journal `pre-escape`
-  field + smoke 13a–13d) + final handover `6684991`; planner-17
-  spot-verified: intercept smoke re-run 67/67, handover numbers (probe
-  303/303, pytest 459+1w, ruff F=0); TODO #97 → LANDED; the 4 sign-off
-  decisions (S28 label, `pair-resolved` verdict reuse, the note text, the
-  13b hint token) accepted. **Worker context-limit saga:** self-compact
-  #1 (Work State at the planning stage) → resume ran + committed Unit 1,
-  then STOPPED SILENTLY at the wall (empty Task result, no compaction
-  triggered — maintainer-confirmed involuntary) → my 2nd resume
-  hard-rejected (`request 170869 > 170240`) → the auto-resume emergency
-  compaction + my CROSS compaction #3 (both keep=18; the COMPACT line
-  verified in ctx.log) → resume SUCCESS (units green, DONE line written).
-- **Direct exchange (mid-session, 2026-09-25 — his reply to my 3 open
-  questions; 2nd round answered):**
-  (0) **HIS RULINGS (2nd round):** #1 GO → **TODO #100** (escape-channel
-  removal, scope agreed, the NEXT AUTORUN BUILD); #2 confirm still pending
-  (loop_log-v2 as the build after #100 — no objection raised); #3 the
-  design conversation continues (his questions: the default `last_write`
-  buffer, the unified input schema, the feedback design — my answers in
-  the 2nd-round message; the dedicated design session still ahead).
-  (1) **bit-drift solved backend-side** → he leans to remove the
-  numword/escape part. My recommendation (pending GO): remove ONLY the
-  escape channel (core `ESCAPE_RE`/`resolveEscapes`, plugin
-  `runEscapeContent`, its pins, the Unit-2 `pre-escape=` journal
-  extension) — KEEP the numword map + pair channel (R1/R2, his "positive
-  part") + the dense/numword observation logging; the noteCache/
-  after-hook delivery stays (R8 redirect notes ride it); primer → new
-  `knowledge/fuzzy-numword/` (README in the same commit, escape section
-  annotated as removed); NOT into AGENTS.md (his ruling).
-  (2) **loop_log**: no new tool-level items from this session — the
-  approved loop_log-v2 proposal (model autofill, Part B readback, Part C
-  lenient status, Part D `correct`) stands as the NEXT build (confirm
-  pending).
-  (3) **block_transfer** dedicated session — my concrete additions
-  sketched (1: unify+document anchor semantics — measured this session:
-  COPY matched mid-line/substring, REPLACE needed the exact prefix — +
-  line-number references; 2: SET/APPEND buffer modes (direct text→buffer,
-  unlocks his COLLECT idea); 3: line-number refs; 4: WRITE mode
-  (bufferless region replace); 5: in-line fuzzy anchors — DEFER;
-  6: journal-as-source + #8 failed-write buffering — DEFER/backlog).
-  Proposed order: 1+2 → 3+4 → 5/6 separate decisions.
-  (4) **3rd round (2026-09-25):** his questions: append-vs-replace on
-  COPY, section separators, + the interface handout
-  (`knowledge/plugin_tools/2026-09-18_tool-plugin-design-handout.md`).
-  My answers: COPY keeps REPLACE semantics (current, verified); new
-  APPEND mode (named mode, no flag) for stepwise assembly, accepts refs
-  or `text`, creates-if-absent; exactly ONE newline between list sections
-  (default, no param);   buffer-preview mode (renamed PEEK in the 4th round — see there);
-  WRITE-list overlap check in
-  the error taxonomy; the `last_write` auto-buffer stays automatic
-  (no param — poka-yoke); build DoD per the handout's "Verify before
-  done": multi-step held-out task (COPY-list assembly + WRITE-list) +
-  transcript read + description rework per the handout's ordering.
-  No fundamental sketch changes.
-  (5) **4th round (2026-09-25):** his: SHOW is context-heavy risk +
-  "more like a PEEK". Ruling (agreed, my take confirmed his): the mode
-  is **PEEK** — bounded preview, NEVER the full buffer: default = line
-  count + 3 head + 3 tail lines (each capped ~40 chars; blank lines
-  SKIPPED when picking the echoed lines — his "2 lines if a blank starts
-  the end" refinement); optional `from` + `count` (capped, e.g. 25)
-  bounded window; the all-lines-truncated-to-10-chars variant REJECTED
-  (scales with buffer size = the handout's "never return all"); full
-  content = PASTE to a file + read (the explicit boundary).
-  (6) **5th round (2026-09-25):** his: the unbounded preview could also
-  echo heading-like lines (#/##) between head and tail. Agreed design:
-  a SEPARATE mode **MAP** (PEEK stays single-shape): line count + head 3
-  + tail 3 + the heading skeleton (max ~10 headings, `+N more`) with line
-  numbers. Detection rule narrow + documented: `^#{1,6} ` at column 0
-  (markdown H1-H6; indented # excluded); echoed lines VERBATIM with line
-  numbers, so a `#` comment in a code buffer is self-evident to the
-  agent (his comment-collision concern is mitigated by the verbatim
-  echo + a one-line description caveat — NO file-type sniffing, that's
-  the unpredictable part). Build priority: 2nd wave (purely additive).
-  (7) **Proposal FILED** `proposals/2026-09-25_block_transfer-v2.md`
-  (2026-09-25, awaiting his approval): Parts A–I, Wave 1/2, 3 flagged
-  details (anchor rule, WRITE file-creation, the `last_write` name),
-  handout "Verify before done" DoD; deferred: in-line fuzzy anchors,
-  journal-COLLECT, #8 failed-write buffering.
-  **REV 1 (2026-09-25):** his 3 comments — (a) "prefix" now precisely
-  defined in Part A + the matching rule specced as ONE exported pure
-  function (`resolveAnchor`, easily swappable), (b) `out-of-sandbox`
-  REMOVED from the tool's taxonomy (that layer is the intercept
-  plugin's — R8 redirect before the call; the tool guard stays
-  defense-in-depth only), (c) Parts D + H confirmed (`last_write`) →
-  replies appended, file back at the proposals/ root for his decision.
-  (8) **Off-topic Q (2026-09-25):** his draft
-  `maintainer/draft/programming_guidelines/software_quality_handout.md`
-  as mandatory worker read for programming tasks. My verdict (no
-  sugarcoating): too generic to mandate — half overlaps existing
-  conventions (spec DoD, gate discipline, AGENTS.md protocols), half is
-  what capable workers already do by default; ~1.3k tokens/launch cost.
-  Binding parts: rules 5/6/7 (deterministic core, trust-boundary
-  validation, intentional errors) + the completion checklist.
-  My recommendation: DISTILL ~8-10 lines into the worker prompt, full
-  file stays reference; alternatives (reference-only / mandatory for a
-  task class) offered. Awaiting his ruling (advisory only — his file).
-  (9) **2nd round (2026-09-25):** he shared another AI's reply on my
-  verdict (`maintainer/draft/programming_guidelines/feedback.md` — NOT
-  his ruling, advisory comparison only). My take: good reply — its
-  "existing code is not a normative spec" rebuttal is fair (my
-  default-based argument can't cover greenfield), and its "New
-  component design" block (interface/ownership/boundary-failure/
-  test-plan as spec add-on artifacts) is the best new mechanism. I
-  converged on the distill (his ~190-token floor ≈ my rules 5/6/7 +
-  checklist) and would accept it for the worker prompt as cheap
-  insurance for the future FST-product/greenfield task mix; my
-  tempering: applying its OWN failure-mode test to our measured corpus
-  (friction log + TODO + worker history) shows our failures are
-  process/context failures, not code-quality ones of the handout's
-  kind — so "mandatory" is not yet earned for the current mix. No
-  ruling requested.
-  (10) **Programmer role + PS (2026-09-25, his direction):** he wants
-  the floor adapted for future new projects + a programmer role
-  (worker + programming additions), and a PS: I am too accommodating —
-  more pushback + clear answers (ACCEPTED as standing instruction).
-  Adapted draft written: `prompts/agents/prompt_programmer_additions.md`
-  (quality floor ~200 tokens incl. the new-project first-commits line +
-  the greenfield design block + verification hierarchy). My pushbacks
-  (stated in-session): (a) the roster entry (his live opencode.jsonc)
-  only at the FIRST programming-centric task / new project — no measured
-  code-quality failures in our corpus, the spec is the ceiling, the role
-  is the floor; (b) explorer/internet: local-first is right for this
-  repo — the real gap is UPSTREAM freshness (opencode SDK/host moves
-  fast) → explicit upstream-research remit + date-stamped knowledge
-  facts, not more explorer launches; (c) serial stays (controllability
-  is the design); upgrade leverage: faster/bigger PLANNER model first,
-  then worker model; parallel slots only if slot-wait is measured.
-  (d) memory/knowledge/maintenance gap = CADENCE → proposed a standing
-  maintenance unit every N iterations (his GO pending).
-  (11) **System-design exchange (2026-09-25, his long message):**
-  (a) **Memory separation** — his design intent: worker failure-mode
-  knowledge = PLANNER PROMPT baseline section ("Worker failure-mode
-  recognition"), one line per entry + pointer to the grounded memory.md
-  entry (evidence/reasoning); general-planning MEMs stay in the distill
-  block. **GO RECEIVED + LANDED** (this session): `destilled_mem.md` —
-  the 4 failure-mode MEMs (0104/0106/0107/0109) moved into a named
-  "Worker failure-mode recognition (baseline — fires on EVERY worker
-  return)" section; the general MEMs (0101/0102/0103/0105/0108) stay in
-  the flat list; file stays 22 lines (<40 policy).
-  (b) **Research/map** — agreed (his strongest point): per-task
-  re-derivation is the cost structure. Proposal: (1) explorer builds the
-  OPENCODE HOST MAP (SDK surface, hooks, DB schema, permission,
-  compaction path) → knowledge file, dated refresh; (2) delegated
-  upstream research via the explorer (webfetch; cost in its context,
-  finding → knowledge base; planner reads installed types for
-  verification only); (3) scope rule: standard problems → upstream
-  first, OUR core (loop/compaction protocol) stays ours. → FILED as
-  **TODO #101** (explorer task, GO after #100).
-  (c) **Consolidation** — no ground-up rewrite now; EVIDENCE-TRIGGERED:
-  a change touching 3+ plugin files on a bad boundary / repeated
-  cross-plugin debugging / a feature unbuildable without restructuring.
-  Until then: boundary discipline + repo_overview.md as the coherence
-  instrument (tangles in the map = the signal).
-  (d) **Maintenance unit** — design given: trigger = ITERATION COUNTER
-  (every 5th, at session top before task selection — not idle, not the
-  priority list); planner-run inline, bounded ~10 calls; scope:
-  knowledge_inbox curation, NAP compression, TODO curation with a
-  14-day RETIREMENT target, baselines, stale proposals/drafts
-  (flag-to-maintainer, never auto-delete). + BEHAVIOR RULE (his
-  self-observation, accepted):   unmarked observation → NAP ONLY, no
-  action; action needs a marker / inbox / explicit instruction.
-  **GO RECEIVED + LANDED** (this session): maintenance section appended to
-  `agent_readme_loop.md`; the observation-triage rule added to
-  `prompt_agent_planner.md` (after the Inbox cadence bullet); first trigger
-  at iteration 20 (N % 5 == 0).
-  (12) **Observation (2026-09-25, unmarked — recorded ONLY, per the new
-  observation-triage rule):** knowledge curation + a real "find anything"
-  (knowledge search/retrieval) system is an open area in HIS words. No
-  action now (no marker/inbox/instruction); it will surface via the
-  maintenance unit's knowledge-curation passes and the #101 host map; a
-  marker or inbox item makes it a task.
-
-  ### planner-18 (autorun resume, same session — 2026-09-25/26)
-  - His autorun decisions (all 4 resolved): (1) **bt-v2 GO** — he moved it
-    to `approved/` himself (a87a64e) + opencode.json model → 245k;
-    (2) **R3 GO** "as you deem fit" — planned AFTER bt-v2 (its anchor piece
-    is absorbed by Part A; the arg-scope piece remains); (3) **model = the
-    slow 245k + SAME-MODEL delegation** (a model change drops the cache →
-    full re-fill paid; compaction beats re-fill; same-model back-and-forth
-    ~5 s) → knowledge entry written; he set the roster default in
-    repo_map; (4) quality distill / programmer role **DEFERRED** to the
-    new-project phase.
-  - Orientation doc written (his invitation): `.opencode/agent/
-    orientation.md` (goal sketch in my words + idle-initiative guide) +
-    init-list pointer in the planner prompt (item 2 — every session reads it).
-  - **#100 LANDED** (worker-18 ses_f24f0a902ffe4WVaIf7ceNLMWb,
-    worker_Q3S_245K_slow): `bc374b2` (removal, 7 files: code + tests +
-    knowledge move; amended ONCE — primer annotations ride the same commit
-    as the move) + `910e767` (TODO + handover). Planner-verified: git log,
-    grep-clean (4 DoD patterns, zero hits in .opencode/plugin/), targeted
-    smoke re-run. Measured: smoke 64/64 (67−6 escape +3 repurposed note
-    pins), probe 297/297 (303−6 S24), pytest 459+1w, ruff F=0; numwords.json
-    untouched; R8 note delivery repurposed as smoke (13a-13c). Worker
-    lesson → knowledge_tools.md (block_transfer over giant oldString).
-  - **Queue:** #101 explorer host map (NEXT) → bt-v2 build (spec wave may
-    pre-write bt-v2 + R3 + loop_log-v2 specs; test doctrine: pure-script
-    version + new-hire worker run from the description without code access)
-    → R3 (arg-scope only) → loop_log-v2 v2 parts. Maintenance pass at
-    iteration 20.
-  - Budget note: his --info raised the slow-model budget to 5, but my
-    gauge still reads 0 compactions left — session-keyed vs model-keyed
-    is an open question (his, 2026-09-26).
-  - Observations (NAP-only): HQKV unproven (memory setting a tad higher,
-    real influence unknown); workers probe the sandbox boundary at the
-    first opportunity (relevant: the R8 redirect + the bt-v2 sandbox
-    test idea).
-  - Clarification (his --info, 2026-09-26): an OUT-OF-SANDBOX access by any
-    worker (via any tool) = LOOP FULL STOP — it fires an interactive
-    allow/deny on his TUI and halts the loop until he answers. Allowed
-    without a stop: the DB + every `external_directory` path in
-    opencode.json. So the bt-v2 pure-script test must exercise the guard
-    logic WITHOUT triggering a real out-of-sandbox stop; a new-hire worker
-    test that DOES probe the boundary will pause the loop on his TUI
-    (acceptable friction discovery — plan for it, don't surprise it).
-    Recorded in knowledge_tools.md.
-  - North star (his words): "I want you to learn." — folded into
-    orientation.md as the overarching goal.
-  - Gauge is now 245K-based (he renamed the model in 4 places); 0
-    compactions left this session — the #100 launch must finish in-window.
-  (e) **Standing duties** — net-zero rule: a new standing duty is added
-  only when an existing one is retired or automated.
-- **Pending live observations (maintainer / natural):** #99 fork test (his,
-  post-restart), #98 live acceptance (the next self-compact→idle cycle —
-  the #98 build is live in this process), #93 live overflow (his fork
-  test), #95 sub-item (3) R3 (still BLOCKED on his GO), #92 (his call),
-  #83 (his call).
-- Working tree: his live files uncommitted (priority.md, ideas.md, the
-  new draft `block_transfer_tool/2026-09-25_15-23-upgrade.md`) — never
-  stage (standing rule); named-path commits only.
+## Current session — autorun, 2026-09-26 (ses_f24c5d8a8ffe4bIlW0kjoMbCCF, planner-19, Qwen3.8-27B-Q3S-245K-slow)
+- **#101 LANDED (this session, explorer):** spec `37847e8` (committed
+  before launch; loop copy plan19_ho_task.md) → `explorer_Q3S_170K`
+  ses_f24bf71beffekwRYMtnlrWy5UG → map commit `1081e52`
+  (`.opencode/agent/knowledge/opencode-plugins/host-map.md`, 420 lines,
+  all 6 areas dated + located; one bounded upstream fetch; 6 unverified
+  items). Planner-verified from files: 4 locator spot-checks all matched
+  the installed build; DoD met; TODO #101 status DONE (header line
+  curation fix rode the bookkeeping commit).
+- Findings to re-read before the next builds (in the map): §2 the stale
+  2026-09-12 "plugins-array-only registration" knowledge line; §6 the
+  `intercept_observer_core.ts` load-error root cause (no default export —
+  feeds the FIX PENDING item in repo_overview).
+- **Queue:** iteration 20 = maintenance pass FIRST (N%5==0, at session
+  start, per agent_readme_loop.md) → then the bt-v2 build (approved
+  `2026-09-25_block_transfer-v2.md`; spec wave may pre-write bt-v2 + R3 +
+  loop_log-v2 specs; test doctrine: pure-script + new-hire run from the
+  description without code access; the out-of-sandbox LOOP-FULL-STOP
+  clarification is recorded in knowledge_tools.md — plan the boundary test
+  accordingly).
+- Budget: gauge is 245K-based; this session launched with the ctx line
+  reading "1 compactions left" while the explorer (170K) read "5 left" —
+  session-keyed vs model-keyed budget remains the open question (his
+  --info 2026-09-26 raised the slow-model budget to 5).
 
 
 ## Compressed archive (one line each
+- 2026-09-25/26 autorun (ses_f27282d2dfferl9gScrfLt2AxV, planner-17→18, Q3S-170K→245K-slow) — #100 LANDED (worker-18: bc374b2 removal + 910e767 bookkeeping, planner-verified: smoke 64/64, probe 297/297, pytest 459+1w, ruff F=0) + his 4 autorun decisions resolved (bt-v2 GO → approved by him + model→245k; R3 after bt-v2; same-model delegation; quality-distill/programmer DEFERRED) + orientation.md written + queue set (#101 → bt-v2 → R3 → loop_log-v2; maintenance at iter 20) + friction entry b6cb1b8 — details: loop folder plan17_summary.md + plan18_summary.md + git 4db671b..b6cb1b8
 - 2026-09-25 autorun (ses_f2761efb2ffeUhMTEM4hgSLKKK, planner-16, Qwen3.8-27B-Q3S-170K) — #98 LANDED + planner-verified (Part A: line-anchored ACTION_RE `4f90218`; Part B: the 5s tick re-arms watched sids on NEW ctx.log COMPACT lines `cf7e6f5`; Part C not-applicable — smoke 139/139, probe 291/291, pytest 459+1w, ruff F=0; live acceptance pending the next self-compact→idle cycle) + #98 spec `eda314e` + friction entry (block_transfer marker-matching CRLF/semantics) `fa6fb38` — details: loop folder plan16_summary.md + git eda314e/4f90218/cf7e6f5/80797e4
 - 2026-09-25 autorun (ses_f27a7d75affeqsh0h1c4LZS3CY, planner-15, Qwen3.8-27B-Q3S-170K) — TODO #99 LANDED + planner-verified (probe 291/291, compact 74/74, context_recovery 17/17, pytest 459+1w, ruff F=0; spec staged keepTokens computed-primary) + live fork test PENDING (maintainer, post-restart; computed ~27k -> ~52k proves body keep.tokens honored) — details: loop folder plan15_summary.md + git ebf59b2/c5859c7/abb0915 + 282a583
 - 2026-09-25 autorun (ses_f29afbb66ffeRM1EHgBIpTwTg5, planner-14, Qwen3.8-27B-Q3S-170K) — his 3 items triaged (normalize-then-compare CONFIRMED + 2 directives; R-unit question answered; #96 filed 233MB log) + R6 LANDED (acb6323 — worker close-out died SILENTLY, planner verified from files: probe 279/279, smoke 48/48) + (2) edit-fuzzy LANDED (15761d8 code + 78b68e7 probe S27/docs, probe 287/287, smoke 55/55; worker saga: launch 1 died zero-work, launch 2 clean checkpoint, task_id resume NO-OP, launch 3 fresh finished) + #96 LANDED (22c36e4/70399ea/57f773f, live check pending next restart) + his live priority.md edit RENOUMBERED (R8 = #97 filed, unit4-resume = #98 filed) + R3 gate CLEARED (bitdrift retired; absorbs the anchor-drift fix) — details: git 305ce1b..099fea8 + TODO #95/#96/#97/#98

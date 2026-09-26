@@ -323,9 +323,10 @@
   //          afterwards)
   //      (261) unresolvable model pair (no session.messages) → the
   //          request is NOT sent (CLEAN FAIL)
-  //      (285) keepTokens computed: messages return token data (wrapper
-  //          shape, last 12 = all 2) → body keep.tokens 4500 (computed)
-  //          + the line `keep=12m tok=4500 computed`
+  //      (285) keepTokens computed: messages return raw parts (wrapper
+  //          shape, last 12 = all 2, Σ part bytes ÷ 4) → body
+  //          keep.tokens 8026 (computed) + the line
+  //          `keep=12m tok=8026 computed`
   //      (286) keepTokens budget fallback: messages read FAILS + budget
   //          store keepTokens 42000 + sandbox config pair (deviation 1)
   //          → body keep.tokens 42000 (budget) + the line
@@ -382,9 +383,10 @@
 //          the state survives a FRESH module instance (cache-busted
 //          re-import); (225) emergency_budget 0 → DENIED; (226) key ABSENT
 //          → fail-open default 1 (the emergency is consumed);
-//          (287) keepTokens computed (tool path): messages return token
-//          data (wrapper shape, last 2) → body keep.tokens 4500
-//          (computed) + the line `keep=2m tok=4500 computed`;
+//          (287) keepTokens computed (tool path): messages return raw
+//          parts (wrapper shape, last 2, Σ part bytes ÷ 4) → body
+//          keep.tokens 8026 (computed) + the line
+//          `keep=2m tok=8026 computed`;
 //          (288) keepTokens budget fallback (tool path): messages read
 //          FAILS + store keepTokens 30000 + model_budget cap 3 → body
 //          keep.tokens 30000 (budget) + the line `keep=4m tok=30000 budget`
@@ -2694,14 +2696,16 @@ const rcOVF = (text) => ({ name: "MessageAbortedError", data: { message: text } 
   );
 }
 
-// 285 — keepTokens computed: the fake client's messages return token data
-//       (wrapper shape, last 12 = all 2) → the summarize body carries
-//       keep.tokens 4500 (computed) + the COMPACT line
-//       `keep=12m tok=4500 computed`
+// 285 — keepTokens computed: the fake client's messages return RAW PARTS
+//       (metric fixed 2026-09-26: part bytes ÷ 4, not usage fields) — each
+//       message: 2 text parts of 8000 chars (2 × 8025 part bytes) →
+//       Math.round(16050 / 4) = 4013; last 12 = all 2 → 8026 (machine-
+//       computed) → the summarize body carries keep.tokens 8026 (computed)
+//       + the COMPACT line `keep=12m tok=8026 computed`
 {
   rcMessages = { data: [
-    { info: { role: "user", tokens: { input: 1200 } } },
-    { info: { modelID: "smoke-model", providerID: "smoke-provider", role: "assistant", tokens: { output: 2500, reasoning: 800 } } },
+    { info: { role: "user", modelID: "smoke-model", providerID: "smoke-provider" }, parts: [ { type: "text", text: "u".repeat(8000) }, { type: "text", text: "v".repeat(8000) } ] },
+    { info: { modelID: "smoke-model", providerID: "smoke-provider", role: "assistant" }, parts: [ { type: "text", text: "w".repeat(8000) }, { type: "text", text: "x".repeat(8000) } ] },
   ] };
   rcSetStore((store) => { store.emergencyRecovery = true; store.model_budget = { default: 1 }; delete store.keepMessages; delete store.keepTokens; });
   const before285 = { s: rcCalls.summarize.length, p: rcCalls.prompt.length };
@@ -2711,9 +2715,9 @@ const rcOVF = (text) => ({ name: "MessageAbortedError", data: { message: text } 
   check(
     "285",
     "S11",
-    "keepTokens computed: messages return token data (wrapper shape, last 12 = all 2) → body keep.tokens 4500 (computed) + the COMPACT line `keep=12m tok=4500 computed`",
-    sc285?.path?.id === "ses_rc_tokcomp" && sc285?.body?.keep?.messages === 12 && sc285?.body?.keep?.tokens === 4500 &&
-      tokLine != null && new RegExp(`^${DT} smoke-model COMPACT ses_rc_tokcomp keep=12m tok=4500 computed$`).test(tokLine),
+    "keepTokens computed: messages return raw parts (wrapper shape, last 12 = all 2, Σ part bytes ÷ 4) → body keep.tokens 8026 (computed) + the COMPACT line `keep=12m tok=8026 computed`",
+    sc285?.path?.id === "ses_rc_tokcomp" && sc285?.body?.keep?.messages === 12 && sc285?.body?.keep?.tokens === 8026 &&
+      tokLine != null && new RegExp(`^${DT} smoke-model COMPACT ses_rc_tokcomp keep=12m tok=8026 computed$`).test(tokLine),
     JSON.stringify({ keep: sc285?.body?.keep, line: tokLine }),
   );
   rcMessages = [{ info: { modelID: "smoke-model", providerID: "smoke-provider" } }];
@@ -3333,15 +3337,17 @@ writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
 }
 
 // 287 — keepTokens computed (S13 tool path): the fake client's messages
-//       return token data (wrapper shape, last 2) → the summarize body
-//       carries keep.tokens 4500 (computed) + the COMPACT line
-//       `keep=2m tok=4500 computed` (model field `QC-TokModel` — unlisted,
-//       cap 1, fresh session)
+//       return RAW PARTS (metric fixed 2026-09-26: part bytes ÷ 4, not
+//       usage fields) — each message: 2 text parts of 8000 chars (2 ×
+//       8025 part bytes) → Math.round(16050 / 4) = 4013; last 2 = all 2
+//       → 8026 (machine-computed) → the summarize body carries keep.tokens
+//       8026 (computed) + the COMPACT line `keep=2m tok=8026 computed`
+//       (model field `QC-TokModel` — unlisted, cap 1, fresh session)
 {
   const { rec, res } = await qcExec(
     { summarize: true, messages: { data: [
-      { info: { role: "user", tokens: { input: 1200 } } },
-      { info: { modelID: "QC-TokModel", providerID: "llama-swap", role: "assistant", tokens: { output: 2500, reasoning: 800 } } },
+      { info: { role: "user", modelID: "QC-TokModel", providerID: "llama-swap" }, parts: [ { type: "text", text: "u".repeat(8000) }, { type: "text", text: "v".repeat(8000) } ] },
+      { info: { modelID: "QC-TokModel", providerID: "llama-swap", role: "assistant" }, parts: [ { type: "text", text: "w".repeat(8000) }, { type: "text", text: "x".repeat(8000) } ] },
     ] } },
     { keepMessages: 2, sessionID: "ses_qc_tokcomp" },
   );
@@ -3351,11 +3357,11 @@ writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
   check(
     "287",
     "S13",
-    "keepTokens computed (tool path): messages return token data (wrapper shape, last 2) → body keep.tokens 4500 (computed) + the COMPACT line `keep=2m tok=4500 computed`",
-    rec.summarize.length === 1 && rec.summarize[0]?.body?.keep?.messages === 2 && rec.summarize[0]?.body?.keep?.tokens === 4500 &&
+    "keepTokens computed (tool path): messages return raw parts (wrapper shape, last 2, Σ part bytes ÷ 4) → body keep.tokens 8026 (computed) + the COMPACT line `keep=2m tok=8026 computed`",
+    rec.summarize.length === 1 && rec.summarize[0]?.body?.keep?.messages === 2 && rec.summarize[0]?.body?.keep?.tokens === 8026 &&
       rec.summarize[0]?.body?.modelID === "QC-TokModel" &&
       st287.sessions.ses_qc_tokcomp?.count === 1 &&
-      tokLine287 != null && new RegExp(`^${DT} QC-TokModel COMPACT ses_qc_tokcomp keep=2m tok=4500 computed$`).test(tokLine287),
+      tokLine287 != null && new RegExp(`^${DT} QC-TokModel COMPACT ses_qc_tokcomp keep=2m tok=8026 computed$`).test(tokLine287),
     JSON.stringify({ keep: rec.summarize[0]?.body?.keep, line: tokLine287 }),
   );
 }

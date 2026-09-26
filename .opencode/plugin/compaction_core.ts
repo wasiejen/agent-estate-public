@@ -102,16 +102,24 @@ export function readCompactionConfig(root: string): CompactionConfig {
   return cfg;
 }
 
-// The dispatch-time keepTokens resolution (#99, 2026-09-25) — PURE (no fs,
-// no client, no clock — probe-pinnable): the token size of the LAST
-// `keepMessages` messages (fewer → all of them; keepMessages <= 0 → no sum)
-// with the DUAL SHAPE unwrap per #79 (the bare array, or the in-process
-// client's RequestResult wrapper { data: [...] } — anything else → no sum).
-// Per-message size: role "user" → info.tokens.input, role "assistant" →
+// The dispatch-time keepTokens resolution (#99, 2026-09-25; metric fixed
+// 2026-09-26) — PURE (no fs, no client, no clock — probe-pinnable): the RAW
+// PART MASS of the LAST `keepMessages` messages (fewer → all of them;
+// keepMessages <= 0 → no sum) with the DUAL SHAPE unwrap per #79 (the bare
+// array, or the in-process client's RequestResult wrapper { data: [...] } —
+// anything else → no sum). Per-message mass: Σ JSON.stringify(part).length
+// over entry.parts (ALL part types), ÷ 4, Math.round — a coarse bytes→
+// tokens estimate (measured provider counts run ~20–30% BELOW bytes/4 on
+// this corpus: the estimate errs high, so it can bind against the raw mass
+// the host keeps — the usage fields do NOT measure message content: user
+// rows are all-zero, reasoning usage is 0, input is the cumulative per-call
+// context). Entries WITHOUT parts (absent / empty / non-array) fall back to
+// the usage value: role "user" → info.tokens.input, role "assistant" →
 // info.tokens.output + info.tokens.reasoning, other roles → 0 (non-finite /
-// negative / absent token values count 0 — fail-open). sum > 0 → computed;
-// else the budget file's keepTokens (finite, > 0) → budget; else none (the
-// host config default applies — keep.tokens is omitted from the body).
+// negative / absent token values count 0 — fail-open, same guards).
+// sum > 0 → computed; else the budget file's keepTokens (finite, > 0) →
+// budget; else none (the host config default applies — keep.tokens is
+// omitted from the body).
 // Exported for the entry points + the smoke / probe pins.
 export function computeKeepTokens(
   raw: unknown,
@@ -127,6 +135,16 @@ export function computeKeepTokens(
   if (msgs != null && keepMessages > 0) {
     const last = msgs.slice(Math.max(0, msgs.length - keepMessages));
     for (const entry of last) {
+      // RAW PART MASS (2026-09-26): the message's actual content bytes —
+      // the primary metric now (see the doc comment above).
+      const parts = entry?.parts;
+      if (Array.isArray(parts) && parts.length > 0) {
+        let bytes = 0;
+        for (const p of parts) bytes += JSON.stringify(p).length;
+        sum += Math.round(bytes / 4);
+        continue;
+      }
+      // FALLBACK (absent / empty parts): the usage value (fail-open).
       const info = entry?.info;
       if (info == null) continue;
       const tokens = info.tokens;

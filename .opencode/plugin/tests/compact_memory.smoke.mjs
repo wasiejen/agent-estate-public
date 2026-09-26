@@ -573,32 +573,35 @@ const CFG_PATH = path.join(SANDBOX, "opencode.jsonc");
     spawn);
 }
 
-// ---- #99 (2026-09-25): the dispatch-time keepTokens resolution — the
-// token size of the last keepMessages messages is the PRIMARY (sent as
-// keep.tokens in the body + logged on the COMPACT line), the budget file's
-// keepTokens is the FALLBACK when the read fails or the sum is 0, else
-// NONE (keep.tokens omitted — the host config default applies). The seed
-// store has no keepTokens — any seeded key is RESTORED after the case.
+// ---- #99 (2026-09-25; metric fixed 2026-09-26): the dispatch-time
+// keepTokens resolution — the RAW PART MASS (part bytes ÷ 4) of the last
+// keepMessages messages is the PRIMARY (sent as keep.tokens in the body +
+// logged on the COMPACT line; entries without parts fall back to the usage
+// fields), the budget file's keepTokens is the FALLBACK when the read fails
+// or the sum is 0, else NONE (keep.tokens omitted — the host config default
+// applies). The seed store has no keepTokens — any seeded key is RESTORED
+// after the case.
 {
-  // COMPUTED: the wrapper-shape { data: [...] } fake with role + tokens
-  // info — the last 2 of 3: (assistant 2000 out + 500 reasoning) +
-  // (assistant 3000 out + 700 reasoning) = 6200
+  // COMPUTED: the wrapper-shape { data: [...] } fake carries RAW PARTS —
+  // each counted message: 2 text parts of 8000 chars (2 × 8025 part bytes)
+  // → Math.round(16050 / 4) = 4013; the last 2 of 3 → 8026 (machine-
+  // computed 2026-09-26)
   const { rec, exec } = await withClient({
     summarize: true,
     messages: { data: [
-      { info: { role: "user", modelID: "m", providerID: "llama-swap", tokens: { input: 1000 } } },
-      { info: { role: "assistant", modelID: "m", providerID: "llama-swap", tokens: { input: 1, output: 2000, reasoning: 500 } } },
-      { info: { role: "assistant", modelID: "m", providerID: "llama-swap", tokens: { input: 2, output: 3000, reasoning: 700 } } },
+      { info: { role: "user", modelID: "m", providerID: "llama-swap" }, parts: [ { type: "text", text: "u".repeat(8000) }, { type: "text", text: "v".repeat(8000) } ] },
+      { info: { role: "assistant", modelID: "m", providerID: "llama-swap" }, parts: [ { type: "text", text: "w".repeat(8000) }, { type: "text", text: "x".repeat(8000) } ] },
+      { info: { role: "assistant", modelID: "m", providerID: "llama-swap" }, parts: [ { type: "text", text: "y".repeat(8000) }, { type: "text", text: "z".repeat(8000) } ] },
     ] },
   });
   await exec({ keepMessages: 2, sessionID: "ses_sm_toks" });
   await drain();
-  chk("keepTokens computed: body keep.tokens = the exact sum of the last 2 messages' tokens (user → input; assistant → output + reasoning)",
-    rec.summarize.length === 1 && rec.summarize[0].body.keep.tokens === 6200 && rec.summarize[0].body.keep.messages === 2,
+  chk("keepTokens computed: body keep.tokens = the raw part mass of the last 2 messages (Σ part bytes ÷ 4, rounded per message)",
+    rec.summarize.length === 1 && rec.summarize[0].body.keep.tokens === 8026 && rec.summarize[0].body.keep.messages === 2,
     JSON.stringify(rec.summarize[0]));
   const lineToks = readLog().trim().split("\n").find((l) => l.includes("COMPACT ses_sm_toks"));
-  chk("keepTokens computed: COMPACT line `keep=2m tok=6200 computed`",
-    lineToks != null && /COMPACT ses_sm_toks keep=2m tok=6200 computed$/.test(lineToks),
+  chk("keepTokens computed: COMPACT line `keep=2m tok=8026 computed`",
+    lineToks != null && /COMPACT ses_sm_toks keep=2m tok=8026 computed$/.test(lineToks),
     JSON.stringify(lineToks));
 }
 {

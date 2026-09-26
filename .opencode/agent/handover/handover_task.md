@@ -1,77 +1,64 @@
-# Task spec — keepTokens metric fix: usage fields → raw part mass (2026-09-26)
+# Task spec — keepTokens metric v2: raw part bytes → S-diff (provider-true tokens) (2026-09-26)
 
 Worker: `worker_Q3S_245K_slow`. Branch: stay on the current checkout (`opencode_test`).
+Supersedes the spec you just implemented (`b95d532`): the bytes/4 metric stays ONLY as
+the fallback path.
 
-## Goal
-`computeKeepTokens` (the #99 dispatch-time keepTokens resolution) currently sums
-per-message USAGE fields (user → `info.tokens.input`, assistant →
-`info.tokens.output + info.tokens.reasoning`). Those fields do NOT measure
-message content: user rows are all-zero (usage is attached to the consuming
-assistant call), `reasoning` usage is 0 (provider doesn't report it), and
-`input` is the cumulative per-call context (never usable as a per-message
-delta). Measured consequence (fork test, ses_f20b3bf14ffedWHp2HGajHmGLN):
-last-30 usage mass = 15,903 while the host's raw retention of the same 30
-messages = 179,151 part bytes (≈ 32–40k provider tokens) — the dispatched
-budget can never bind against the raw mass the host keeps.
+## Goal (verified facts — do not re-derive)
+Per assistant message, `S = tokens.input + tokens.output + tokens.cache.read` is the
+CUMULATIVE context size after that call (all values already in provider tokens).
+Verified continuity: `S[i] ≈ cr[next assistant]` with drift ±1 across ~90% of rows
+(cache evictions drift 1–2.3k at a few rows; some rows have all-zero token fields —
+sparse recording). Forks do NOT break S: the fork's first call moves the whole context
+from `cache.read` into `input` (refilled prefill) — measured: S[45]=150,482 ≈
+cr[46]=150,481 (drift 1). So the raw mass of the last-N messages ≈
+`S[last assistant IN the window] − S[last assistant BEFORE the window]`.
+Example (this session, keepMessages=12 at the fork point): S[43]−S[32] = 9,458.
 
-CHANGE the metric to RAW PART MASS: per message = Σ JSON.stringify(part).length
-over its `entry.parts` (ALL part types), ÷ 4 (coarse bytes→tokens; measured
-provider counts run ~20–30% below bytes/4 on this corpus — document that).
+## New computation (compaction_core.ts, `computeKeepTokens`)
+- Keep the dual-shape unwrap (#79).
+- Window = the last `keepMessages` entries (any role; fewer → all; `<= 0` → no sum).
+- Primary: `S(end) − S(start)` where `S(end)` = input+output+cache.read of the LAST
+  assistant entry in the window, `S(start)` = the same sum for the LAST assistant entry
+  strictly before the window (none → 0). Fail-open numeric guards per value
+  (non-finite/negative/absent → 0); an assistant entry whose whole token object is
+  absent contributes nothing (treated as zero-row).
+- If the window has no assistant entry, or the difference ≤ 0 (drift) → FALL BACK to
+  the bytes/4 part-mass metric landed in `b95d532` (same per-entry formula).
+- `sum > 0` → `computed`; else budget file keepTokens (finite > 0) → `budget`; else
+  `none`. UNCHANGED.
+- Update the doc comment to describe: S-diff primary, bytes/4 fallback, usage/none
+  resolution.
+- `compact_memory.ts` `keepMessages` description (~L284): update to "the provider-token
+  mass of the last N messages (S-diff: cumulative context size input+output+cache.read
+  across the window; bytes/4 fallback) is sent as keep.tokens …".
 
-## New computation (compaction_core.ts, `computeKeepTokens`, ~L105–145)
-- Keep the dual-shape unwrap (#79: bare array OR `{ data: [...] }`; else no sum).
-- Per entry: if `entry.parts` is a non-empty array → mass =
-  `Math.round(Σ JSON.stringify(part).length / 4)`; else (absent/empty parts)
-  → fall back to the CURRENT usage value for that entry (user → input,
-  assistant → output+reasoning, other → 0). Same fail-open numeric guards.
-- Sum over the last `keepMessages` (fewer → all; `keepMessages <= 0` → no sum).
-- `sum > 0` → `{ tokens: sum, source: "computed" }`; else budget file's
-  keepTokens (finite > 0) → "budget"; else "none". UNCHANGED.
-- Update the doc comment (~L105–115) to describe the new metric + fallback.
-
-## Caller + description
-- `compact_memory.ts` schema description of `keepMessages` (~L284): update
-  the wording to "the raw content mass (part bytes ÷ 4) of the last N
-  messages is sent as keep.tokens …" (keep the rest of the sentence).
-- `context_recovery.ts` caller (~L207–222): NO change needed (it passes the
-  client's raw messages, which carry `parts`). Verify only.
-
-## Pins to update (exact locations)
-- `tests/compact_memory.smoke.mjs` — the #99 section (~L576–660): the
-  "computed" case fixture must carry `parts` on the fake messages (e.g. two
-  text parts whose byte mass gives a clean expected sum); recompute
-  expectations MACHINE-SCRIPTED (AGENTS.md Pattern 1 — no mental math). The
-  budget-fallback case (read fails) and none case: give those fixtures NO
-  parts AND no token info → sum 0 → budget / none paths unchanged. The
-  sum-0 case: fixture messages with no parts + no token info → budget wins.
-- `tests/context_recovery.smoke.mjs` — #99 cases 13/14 (~L274–316): same
-  treatment (case 13 fixture gains parts; case 14 stays read-fail).
-- `probes/handover_probe.mjs` — S32 keepTokens cases (285)–(288)
-  (~L326–395): update the fake `messages` fixtures (parts shape) and the
-  expected body/line values accordingly. KEEP THE TOTAL PROBE COUNT (340)
-  unless a case is genuinely split/merged — report any change in the
-  handover.
-- COMPACT line format (`keep=Nm tok=<t> <source>`) and budget-store shape:
-  UNCHANGED.
+## Pins (exact locations — the fixtures were just rewritten for bytes/4; re-derive)
+- `tests/compact_memory.smoke.mjs` #99 section (~L576–660): the computed case fixture
+  needs assistant entries carrying a `tokens: {input, output, cache.read}` series so
+  S-diff is exercised (e.g. two assistants with cr 1000 → 2000 → expected 1000 + their
+  in/out); keep ONE bytes/4 fallback case (assistant entries WITHOUT tokens but WITH
+  parts → bytes/4 wins); budget/none/read-fail cases keep their no-mass fixtures.
+  Recompute all expectations MACHINE-SCRIPTED (AGENTS.md Pattern 1).
+- `tests/context_recovery.smoke.mjs` #99 case 13 (~L274–316): fixture gains the token
+  series (S-diff expected value); case 14 (read-fail) unchanged.
+- `probes/handover_probe.mjs` S32 cases (285)–(288) (~L326–395): case 285/287 fixtures
+  gain the token series (S-diff values); if one case now needs the fallback path
+  covered, reuse an existing case rather than adding one — KEEP THE TOTAL COUNT (340).
+- COMPACT line format (`keep=Nm tok=<t> <source>`) + budget store: UNCHANGED.
 
 ## Definition of done
-- `node .opencode/plugin/probes/handover_probe.mjs` → all checks green
-  (count 340 if unchanged).
-- `node .opencode/plugin/tests/compact_memory.smoke.mjs` → 74/74 (or new
-  count if a case split — report it).
-- `node .opencode/plugin/tests/context_recovery.smoke.mjs` → 17/17 (or new
-  count — report it).
-- `pytest` baseline 459+1w, `ruff` F=0 (the .ts unit touches no python —
-  run anyway, report measured).
-- Checkpoint commit(s) per verified unit (code only); `TODO.md` (append a
-  one-line close-note to the #99 entry: "metric fixed → raw part mass
-  (bytes/4), usage-field fallback kept") + handover in the FINAL commit.
+- `node .opencode/plugin/probes/handover_probe.mjs` → 340/340 (count unchanged).
+- `node .opencode/plugin/tests/compact_memory.smoke.mjs` → green (report count).
+- `node .opencode/plugin/tests/context_recovery.smoke.mjs` → green (report count).
+- pytest 459+1w, ruff F=0 (no python touched — run + report measured).
+- Checkpoint commit(s) per verified unit (code only); TODO #99 close-note UPDATE
+  ("metric v2: S-diff provider-true primary, bytes/4 fallback") + handover in the
+  FINAL commit.
 
 ## DO-NOT-TOUCH
-- `.opencode/maintainer/**` (incl. `priority.md`), `opencode.jsonc`,
-  `.opencode/tools/dev_get_tool_context_contents.ts` — maintainer's live
-  files (currently modified in the tree, uncommitted).
-- The summarizer-pair resolution, budget store, cap resolver, dump writer,
-  COMPACT-line writer — everything else in compaction_core.ts /
-  context_recovery.ts / compact_memory.ts.
-- No behavior change beyond the keepTokens metric + the description text.
+- `.opencode/maintainer/**`, `opencode.jsonc`, `.opencode/tools/dev_get_tool_context_contents.ts`
+  (maintainer's live files, modified in the tree — never stage/edit them).
+- Everything else in compaction_core.ts / context_recovery.ts / compact_memory.ts
+  (summarizer pair, budget store, cap resolver, dump writer, COMPACT-line writer).
+- Named-path commits only — the working tree carries uncommitted maintainer changes.

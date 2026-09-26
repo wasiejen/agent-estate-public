@@ -1,63 +1,59 @@
-# Task spec S4 — block_transfer v2 Parts G+H+I: MAP + last_write + description
+# R3 spec (STAGED) — arg-scope extension beyond `read`
 
-Goal: the Wave-2 additions (MAP structure preview, the `last_write`
-auto-buffer) and the Part I description rework — per the approved
-proposal `proposals/approved/2026-09-25_block_transfer-v2.md`.
-Built ON TOP of S1+S2+S3 (all core parts settled — do not touch
-them). This is the LAST build unit; the new-hire + held-out
-verification is PLANNER-side AFTER this unit (see DoD).
+GATE: **CLEARED 2026-09-25 by maintainer ruling** (bitdrift retired → no
+correction data → R4 mining retired as meaningless; no R4 data needed). R2
+is green + verified (live). R3 also ABSORBS the anchor-semantics drift fix
+(todo_inbox 2026-09-25, found in #94): the existing block_transfer modes
+MOVE/COPY/CUT/DELETE match `includes` + no unique-check → migrate to
+startsWith + unique (the #94 REPLACE semantics) — approved 2026-09-25
+(folded into R3 per his ruling; observable behavior change, pinned).
+Design source: `decision-record.md` §2 + research doc §2.6/§3.5.
 
-## Scope (verified state at spec time — S1+S2+S3 landed)
-- The tool: `.opencode/tools/block_transfer.ts` (post-S3; modes
-  MOVE/COPY/APPEND/CUT/PASTE/REPLACE/WRITE/PEEK/DELETE/CLEAR).
-- Pins: the two smoke files under `.opencode/plugin/tests/`.
-- Read the post-S3 tool file fully (small) + the current tool
-  description text in the file. No SDK research.
+## Scope (line numbers refreshed at launch)
+- **`glob` / `grep` path args:** pair form + fuzzy resolution with READ
+  semantics (these are read tools — mismatch resolves, read thresholds
+  d<=2/gap>=2).
+- **Section-anchor resolver (research §2.6):** a named section anchor (short
+  UNIQUE line prefix — the `block_transfer` marker convention) resolves to
+  the first line number BEFORE the read executes; exactly-one match →
+  rewrite `offset` (+ clamp `limit`), 0 or ≥2 matches → fail-closed with the
+  match count logged. Bounded grep on the named file only. Line-offsets stay
+  the fallback.
+- **`bash` command args** via `command.execute.before`: quoted-form
+  resolution (the form inside a quoted string in the command); the quoting
+  prompt rule from AGENTS.md is the companion (his paste).
+- **`block_transfer` anchors:** pair/fuzzy on anchor markers — anchors
+  decide where a block lands, so this rides the R2 write-scope gate logic
+  (strict existence, fail-closed on mismatch), not read semantics.
+- Log: same channel/shape; new verdicts pinned.
 
-## What to build
-1. **G. `MAP` mode** — buffer structure: line count + head 3 + tail 3
-   + a HEADING SKELETON (max ~10 headings, then `+N more`), lines
-   echoed VERBATIM WITH line numbers. Detection rule narrow +
-   documented: `^#{1,6} ` at column 0 (markdown H1-H6; indented `#`
-   EXCLUDED). No file-type sniffing — a `#` comment in a code buffer
-   is self-evident from the verbatim echo; a one-line caveat in the
-   description.
-2. **H. `last_write` auto-buffer.** block_transfer's OWN WRITE text
-   is auto-stored in a buffer named `last_write` (overwritten per
-   WRITE; automatic, NO parameter — poka-yoke) for direct reuse when
-   anchor resolution fails. (Journal-COLLECT stays DEFERRED — not
-   here.)
-3. **I. Description rework** of the tool's description, per the
-   handout ordering (`knowledge/plugin_tools/2026-09-18_tool-plugin-
-   design-handout.md`): what / when / when-NOT / a copy-pasteable
-   example / edge cases. Sharpened boundary vs `edit`: edit = exact
-   `oldString` match (string-level); block_transfer = line-anchored
-   (ASCII-safe — no non-ASCII / dense-numeral oldString problems).
-   The final mode set in the description: MOVE, COPY, APPEND, CUT,
-   PASTE, REPLACE, WRITE, PEEK, MAP, DELETE, CLEAR.
-4. Pins in the smoke: MAP skeleton + the ~10 cap + verbatim echo with
-   line numbers + indented-`#` exclusion; `last_write` store +
-   overwrite.
+## DoD
+Probe pins per surface (glob/grep resolution, anchor exactly-one/zero/multi,
+bash quoted-form, block_transfer anchor gate branches), smoke green,
+standard gate green.
 
-## Definition of done
-- Both smokes ALL PASS (existing + new pins). Standard gate green per
-  `repo_commands.md` (probe count unchanged — this unit adds NO probe
-  checks; pytest 459+1w; ruff F=0).
-- The description covers every mode + the boundary vs edit + the
-  PEEK "full content" boundary sentence.
-- Checkpoint: ONE green commit (code + pins). TODO + handover ride
-  the final commit.
-- **PLANNER-SIDE (not yours):** the new-hire test (a fresh agent uses
-  every mode from the description ALONE — file-blind task) + the
-  held-out multi-step task (assemble a 3-section file from two
-  sources via COPY-list + APPEND, then a 2-region WRITE-list, verify
-  via PEEK/MAP; measure tool calls / errors / tokens, read the raw
-  transcript) — the planner launches these after verifying this unit.
-
-## Do-NOT-touch
-`.opencode/maintainer/**`, `opencode.jsonc`, FST product code, other
-tools/plugins, the S1-S3 logic (wrong behavior? STOP and say so in
-your handover).
+## Re-scope note (2026-09-26, planner-21 — staging)
+- The anchor-semantics drift fix (MOVE/COPY/CUT/DELETE
+  includes→startsWith + unique) is **ALREADY LANDED** in bt-v2 S1
+  (`0d85a8c` — the unified `resolveAnchor` routes ALL modes through the
+  prefix+unique rule; COPY substring tolerance removed). It no longer
+  belongs to R3 — build only the four remaining scope items above
+  (glob/grep path args, section-anchor resolver, bash quoted-form,
+  block_transfer anchor pair/fuzzy via the R2 gate logic).
+- The bash `command`-string redirect (#102, `be07ce6`) is already in the
+  core resolver — the R3 bash quoted-form resolution extends that same
+  1:1 resolver (one `kind=redirect`-style line per resolved span).
+- Baselines at staging (planner-verified 2026-09-26, post-S4): probe
+  **316/316**, block_transfer **123/123** + sandbox **64/64**,
+  intercept_observer **68/68**, pytest 459+1w, ruff F=0. Re-verify at
+  start; the measured baseline wins (S3 staging lesson).
+- The `block_transfer` anchor markers now resolve via the S1
+  `resolveAnchor` taxonomy — R3's pair/fuzzy form must COMPOSE with it
+  (pair/fuzzy resolves the marker to a line, then the same
+  startsWith+unique rule applies at the resolved site — confirm against
+  `decision-record.md` §2 if ambiguous).
 
 ## Worker
-`worker_Q3S_245K_slow` (same-model, serial slot).
+`worker_Q3S_245K_slow` (spec line was `worker_Q4_140K` — stale, not in the
+live opencode.jsonc; 245K-slow = the proven worker for this build family,
+verified active).

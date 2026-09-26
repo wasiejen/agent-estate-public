@@ -271,27 +271,28 @@ chk(
   );
 }
 
-// 13) #99 keepTokens COMPUTED: the fake messages carry RAW PARTS (metric
-//     fixed 2026-09-26: part bytes ÷ 4, not usage fields) — each message:
-//     2 text parts of 8000 chars (2 × 8025 part bytes) → Math.round
-//     (16050 / 4) = 4013; last 12 → all 2 → 8026 (machine-computed) → body
-//     keep { messages: 12, tokens: 8026 } + the COMPACT line
-//     `keep=12m tok=8026 computed`
+// 13) #99 keepTokens COMPUTED (metric v2, 2026-09-26): the fake messages
+//     carry a TOKEN SERIES on the assistant — S = input + output +
+//     cache.read (the CUMULATIVE context size after the call) = 500 + 300 +
+//     4000 = 4800; no assistant strictly before the window (last 12 = all
+//     2) → S-diff = 4800 − 0 (machine-computed) → body keep
+//     { messages: 12, tokens: 4800 } + the COMPACT line
+//     `keep=12m tok=4800 computed`
 {
   writeBudget({ version: 2, emergencyRecovery: true, sessions: {} });
   rcMessages = [
-    { info: { role: "user", modelID: "smoke-model", providerID: "smoke-provider" }, parts: [ { type: "text", text: "u".repeat(8000) }, { type: "text", text: "v".repeat(8000) } ] },
-    { info: { role: "assistant", modelID: "smoke-model", providerID: "smoke-provider" }, parts: [ { type: "text", text: "w".repeat(8000) }, { type: "text", text: "x".repeat(8000) } ] },
+    { info: { role: "user", modelID: "smoke-model", providerID: "smoke-provider" } },
+    { info: { role: "assistant", modelID: "smoke-model", providerID: "smoke-provider", tokens: { input: 500, output: 300, cache: { read: 4000 } } } },
   ];
   const before = { s: clientCalls.summarize.length, p: clientCalls.prompt.length };
   await fireError("ses_smoke_tokcomp", OVF("context length exceeded"));
   const compLine = ctxLines().find((l) => l.includes("COMPACT ses_smoke_tokcomp"));
   chk(
-    "keepTokens computed: body keep { messages: 12, tokens: 8026 } + line `keep=12m tok=8026 computed`",
+    "keepTokens computed (S-diff): body keep { messages: 12, tokens: 4800 } + line `keep=12m tok=4800 computed`",
     clientCalls.summarize.length === before.s + 1 &&
       clientCalls.summarize.at(-1)?.path?.id === "ses_smoke_tokcomp" &&
-      clientCalls.summarize.at(-1)?.body?.keep?.messages === 12 && clientCalls.summarize.at(-1)?.body?.keep?.tokens === 8026 &&
-      compLine != null && new RegExp(`^${DT} smoke-model COMPACT ses_smoke_tokcomp keep=12m tok=8026 computed$`).test(compLine),
+      clientCalls.summarize.at(-1)?.body?.keep?.messages === 12 && clientCalls.summarize.at(-1)?.body?.keep?.tokens === 4800 &&
+      compLine != null && new RegExp(`^${DT} smoke-model COMPACT ses_smoke_tokcomp keep=12m tok=4800 computed$`).test(compLine),
     JSON.stringify({ keep: clientCalls.summarize.at(-1)?.body?.keep, line: compLine }),
   );
   // restore the default messages state for the re-run

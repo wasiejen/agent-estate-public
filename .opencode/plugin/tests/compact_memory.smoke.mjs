@@ -573,19 +573,50 @@ const CFG_PATH = path.join(SANDBOX, "opencode.jsonc");
     spawn);
 }
 
-// ---- #99 (2026-09-25; metric fixed 2026-09-26): the dispatch-time
-// keepTokens resolution — the RAW PART MASS (part bytes ÷ 4) of the last
-// keepMessages messages is the PRIMARY (sent as keep.tokens in the body +
-// logged on the COMPACT line; entries without parts fall back to the usage
-// fields), the budget file's keepTokens is the FALLBACK when the read fails
-// or the sum is 0, else NONE (keep.tokens omitted — the host config default
-// applies). The seed store has no keepTokens — any seeded key is RESTORED
-// after the case.
+// ---- #99 (2026-09-25; metric v2 2026-09-26): the dispatch-time
+// keepTokens resolution — the PROVIDER-TOKEN MASS of the last keepMessages
+// messages is the PRIMARY (the S-diff: per assistant message S = tokens.input
+// + tokens.output + tokens.cache.read is the CUMULATIVE context size after
+// the call — the window's mass ≈ S[last assistant in the window] − S[last
+// assistant strictly before the window]), sent as keep.tokens in the body +
+// logged on the COMPACT line; the BYTES/4 PART MASS (part bytes ÷ 4, usage
+// fields for entries without parts) is the FALLBACK when the window has no
+// assistant entry or the diff is ≤ 0 (drift); the budget file's keepTokens
+// is the FALLBACK when the read fails or the sum is 0, else NONE
+// (keep.tokens omitted — the host config default applies). The seed store
+// has no keepTokens — any seeded key is RESTORED after the case.
 {
-  // COMPUTED: the wrapper-shape { data: [...] } fake carries RAW PARTS —
-  // each counted message: 2 text parts of 8000 chars (2 × 8025 part bytes)
-  // → Math.round(16050 / 4) = 4013; the last 2 of 3 → 8026 (machine-
-  // computed 2026-09-26)
+  // COMPUTED (S-diff): the wrapper-shape { data: [...] } fake carries a
+  // TOKEN SERIES on the assistants (S = input + output + cache.read — the
+  // cumulative context size after each call). The window (last 2 of 4) =
+  // [user, assistant-B (S 300 + 200 + 2000 = 2500)]; the last assistant
+  // strictly BEFORE the window = assistant-A (zero in/out row, S 1000) →
+  // S-diff = 2500 − 1000 = 1500 (machine-computed 2026-09-26)
+  const { rec, exec } = await withClient({
+    summarize: true,
+    messages: { data: [
+      { info: { role: "user", modelID: "m", providerID: "llama-swap" } },
+      { info: { role: "assistant", modelID: "m", providerID: "llama-swap", tokens: { input: 0, output: 0, cache: { read: 1000 } } } },
+      { info: { role: "user", modelID: "m", providerID: "llama-swap" } },
+      { info: { role: "assistant", modelID: "m", providerID: "llama-swap", tokens: { input: 300, output: 200, cache: { read: 2000 } } } },
+    ] },
+  });
+  await exec({ keepMessages: 2, sessionID: "ses_sm_toks" });
+  await drain();
+  chk("keepTokens computed (S-diff): body keep.tokens = S(last assistant in window) − S(last assistant before window) = 2500 − 1000 = 1500",
+    rec.summarize.length === 1 && rec.summarize[0].body.keep.tokens === 1500 && rec.summarize[0].body.keep.messages === 2,
+    JSON.stringify(rec.summarize[0]));
+  const lineToks = readLog().trim().split("\n").find((l) => l.includes("COMPACT ses_sm_toks"));
+  chk("keepTokens computed (S-diff): COMPACT line `keep=2m tok=1500 computed`",
+    lineToks != null && /COMPACT ses_sm_toks keep=2m tok=1500 computed$/.test(lineToks),
+    JSON.stringify(lineToks));
+}
+{
+  // BYTES/4 FALLBACK: the assistants carry NO token object (zero rows — the
+  // S-diff is 0) but WITH parts → the bytes/4 part-mass metric wins — each
+  // counted message: 2 text parts of 8000 chars (2 × 8025 part bytes) →
+  // Math.round(16050 / 4) = 4013; the last 2 of 3 → 8026 (machine-computed
+  // 2026-09-26)
   const { rec, exec } = await withClient({
     summarize: true,
     messages: { data: [
@@ -594,15 +625,15 @@ const CFG_PATH = path.join(SANDBOX, "opencode.jsonc");
       { info: { role: "assistant", modelID: "m", providerID: "llama-swap" }, parts: [ { type: "text", text: "y".repeat(8000) }, { type: "text", text: "z".repeat(8000) } ] },
     ] },
   });
-  await exec({ keepMessages: 2, sessionID: "ses_sm_toks" });
+  await exec({ keepMessages: 2, sessionID: "ses_sm_tokfb" });
   await drain();
-  chk("keepTokens computed: body keep.tokens = the raw part mass of the last 2 messages (Σ part bytes ÷ 4, rounded per message)",
+  chk("keepTokens bytes/4 fallback: assistants WITHOUT tokens (zero rows) but WITH parts → the part-mass metric wins (Σ part bytes ÷ 4, rounded per message)",
     rec.summarize.length === 1 && rec.summarize[0].body.keep.tokens === 8026 && rec.summarize[0].body.keep.messages === 2,
     JSON.stringify(rec.summarize[0]));
-  const lineToks = readLog().trim().split("\n").find((l) => l.includes("COMPACT ses_sm_toks"));
-  chk("keepTokens computed: COMPACT line `keep=2m tok=8026 computed`",
-    lineToks != null && /COMPACT ses_sm_toks keep=2m tok=8026 computed$/.test(lineToks),
-    JSON.stringify(lineToks));
+  const lineFb = readLog().trim().split("\n").find((l) => l.includes("COMPACT ses_sm_tokfb"));
+  chk("keepTokens bytes/4 fallback: COMPACT line `keep=2m tok=8026 computed`",
+    lineFb != null && /COMPACT ses_sm_tokfb keep=2m tok=8026 computed$/.test(lineFb),
+    JSON.stringify(lineFb));
 }
 {
   // BUDGET FALLBACK: the messages read FAILS — the budget file's keepTokens

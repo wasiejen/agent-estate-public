@@ -102,21 +102,29 @@ export function readCompactionConfig(root: string): CompactionConfig {
   return cfg;
 }
 
-// The dispatch-time keepTokens resolution (#99, 2026-09-25; metric fixed
-// 2026-09-26) — PURE (no fs, no client, no clock — probe-pinnable): the RAW
-// PART MASS of the LAST `keepMessages` messages (fewer → all of them;
-// keepMessages <= 0 → no sum) with the DUAL SHAPE unwrap per #79 (the bare
-// array, or the in-process client's RequestResult wrapper { data: [...] } —
-// anything else → no sum). Per-message mass: Σ JSON.stringify(part).length
-// over entry.parts (ALL part types), ÷ 4, Math.round — a coarse bytes→
-// tokens estimate (measured provider counts run ~20–30% BELOW bytes/4 on
-// this corpus: the estimate errs high, so it can bind against the raw mass
-// the host keeps — the usage fields do NOT measure message content: user
-// rows are all-zero, reasoning usage is 0, input is the cumulative per-call
-// context). Entries WITHOUT parts (absent / empty / non-array) fall back to
-// the usage value: role "user" → info.tokens.input, role "assistant" →
-// info.tokens.output + info.tokens.reasoning, other roles → 0 (non-finite /
-// negative / absent token values count 0 — fail-open, same guards).
+// The dispatch-time keepTokens resolution (#99, 2026-09-25; metric v2
+// 2026-09-26) — PURE (no fs, no client, no clock — probe-pinnable): the LAST
+// `keepMessages` entries (any role; fewer → all of them; keepMessages <= 0 →
+// no sum) with the DUAL SHAPE unwrap per #79 (the bare array, or the
+// in-process client's RequestResult wrapper { data: [...] } — anything else
+// → no sum).
+// PRIMARY metric: the provider-true S-DIFF. Per assistant message,
+// S = tokens.input + tokens.output + tokens.cache.read is the CUMULATIVE
+// context size AFTER that call (all values already in provider tokens;
+// verified continuity: S[i] ≈ the next assistant's cache.read within ±1,
+// fork-continuous — the fork's first call refills the context from
+// cache.read into input, S itself is continuous). So the raw mass of the
+// last-N window ≈ S[last assistant IN the window] − S[last assistant
+// strictly BEFORE the window] (none before → 0). Fail-open numeric guards
+// per value (non-finite / negative / absent → 0); an assistant entry whose
+// whole token object is absent contributes nothing (treated as a zero row).
+// If the window has NO assistant entry, or the difference is ≤ 0 (drift) →
+// FALL BACK to the bytes/4 part-mass metric (b95d532, per entry): Σ
+// JSON.stringify(part).length over entry.parts (ALL part types), ÷ 4,
+// Math.round; entries WITHOUT parts (absent / empty / non-array) fall back
+// to the usage value: role "user" → info.tokens.input, role "assistant" →
+// info.tokens.output + info.tokens.reasoning, other roles → 0 (the same
+// fail-open guards).
 // sum > 0 → computed; else the budget file's keepTokens (finite, > 0) →
 // budget; else none (the host config default applies — keep.tokens is
 // omitted from the body).
@@ -133,26 +141,52 @@ export function computeKeepTokens(
       : null;
   let sum = 0;
   if (msgs != null && keepMessages > 0) {
-    const last = msgs.slice(Math.max(0, msgs.length - keepMessages));
-    for (const entry of last) {
-      // RAW PART MASS (2026-09-26): the message's actual content bytes —
-      // the primary metric now (see the doc comment above).
-      const parts = entry?.parts;
-      if (Array.isArray(parts) && parts.length > 0) {
-        let bytes = 0;
-        for (const p of parts) bytes += JSON.stringify(p).length;
-        sum += Math.round(bytes / 4);
-        continue;
+    const winStart = Math.max(0, msgs.length - keepMessages);
+    const last = msgs.slice(winStart);
+    // Fail-open numeric guard: non-finite / negative / absent → 0.
+    const take = (n: unknown): number => (typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0);
+    // S of an entry: the CUMULATIVE context size after the call (input +
+    // output + cache.read — all already in provider tokens). A whole absent
+    // token object contributes nothing (zero row).
+    const sOf = (entry: unknown): number => {
+      const tokens = (entry as any)?.info?.tokens;
+      return take(tokens?.input) + take(tokens?.output) + take(tokens?.cache?.read);
+    };
+    const isAssistant = (entry: unknown): boolean =>
+      (entry as any)?.info?.role === "assistant";
+    // PRIMARY (metric v2, 2026-09-26): S(last assistant IN the window) −
+    // S(last assistant strictly BEFORE the window; none → 0).
+    let endI = -1;
+    for (let i = last.length - 1; i >= 0; i--) {
+      if (isAssistant(last[i])) { endI = i; break; }
+    }
+    if (endI >= 0) {
+      let startI = -1;
+      for (let i = winStart - 1; i >= 0; i--) {
+        if (isAssistant(msgs[i])) { startI = i; break; }
       }
-      // FALLBACK (absent / empty parts): the usage value (fail-open).
-      const info = entry?.info;
-      if (info == null) continue;
-      const tokens = info.tokens;
-      const role = typeof info.role === "string" ? info.role : "";
-      // fail-open numeric guard: non-finite / negative / absent → 0
-      const take = (n: unknown): number => (typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0);
-      if (role === "user") sum += take(tokens?.input);
-      else if (role === "assistant") sum += take(tokens?.output) + take(tokens?.reasoning);
+      const diff = sOf(last[endI]) - (startI >= 0 ? sOf(msgs[startI]) : 0);
+      if (diff > 0) sum = diff;
+    }
+    // FALLBACK (no assistant in the window, or diff <= 0 / drift): the
+    // bytes/4 part-mass metric (b95d532), per entry.
+    if (sum === 0) {
+      for (const entry of last) {
+        const parts = entry?.parts;
+        if (Array.isArray(parts) && parts.length > 0) {
+          let bytes = 0;
+          for (const p of parts) bytes += JSON.stringify(p).length;
+          sum += Math.round(bytes / 4);
+          continue;
+        }
+        // Entries WITHOUT parts: the usage value (fail-open).
+        const info = entry?.info;
+        if (info == null) continue;
+        const tokens = info.tokens;
+        const role = typeof info.role === "string" ? info.role : "";
+        if (role === "user") sum += take(tokens?.input);
+        else if (role === "assistant") sum += take(tokens?.output) + take(tokens?.reasoning);
+      }
     }
   }
   if (sum > 0) return { tokens: sum, source: "computed" };

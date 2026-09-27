@@ -66,6 +66,22 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   post-compaction reliability complaint = the context of the #99 "updated
   prematurely" remark (the fork session landed the metric rework before his
   test verdict).
+- Rulings round 2 (same session): #99 — his ruling: PURSUE the flexible
+  per-dispatch keepToken (compact_memory must keep control over WHAT to keep,
+  not just WHEN) → the follow-up research APPROVED (trace where the installed
+  host reads `preserve_recent_tokens` — config vs per-call body; his fork-
+  test matrix = the decider; wire it if found, config knob the fallback);
+  host-map §compaction gap noted (it does not trace the source — the research
+  fills it). #83 — threshold confirmed at 0.85 (no change). block_transfer
+  anchor design (his question after my ref friction this session): my
+  recommendation = NO fuzzy resolution for the mutating paths (a near-miss =
+  wrong block surgery — the fail-closed exactly-one-match bar stands); instead
+  (a) fix the integer line refs (they get stringified — measured this
+  session), (b) pin the implicit trim behavior + smoke it, (c) enrich the
+  not-found error with the closest candidate lines (the fuzzy value lives in
+  the error message, not the resolution) — his GO pending; candidate unit
+  (small: block_transfer.ts + smoke + probe), queued behind #92 unless he
+  re-orders.
 
 ## Compressed archive (one line each
   - 2026-09-26 autorun (ses_f21359d77ffe2pviXZoIavxweh, planner-24, Qwen3.8-27B-Q3S-245K-slow) — plan24: loop_log-v2 LANDED+verified (worker-24: aa5a411/006a137/320d09f/b9d57c9 + S16 re-pin b1d122c; gates probe 340/340 + loop_log smoke 69/69 + all smokes + pytest 459+1w + F=0) + spec staged against the verified state (the proposal's 09-15 verdict line STALE) + proposal → implemented/ + prompt/doc bookkeeping — details: loop folder plan24_summary.md + git 68da83d..de31cdf

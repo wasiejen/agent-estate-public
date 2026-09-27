@@ -42,6 +42,11 @@
   its own bookkeeping commit (the #80 precedent: 1fd3726 recorded 4098253).
   Never write "LANDED (commit hash)" as a same-commit requirement — it is
   unsatisfiable by construction.
+- **One-line shape notes for nested fields:** when the spec names a data
+  shape, state the nesting explicitly (e.g. `info.tokens: {input, output,
+  cache.read}` — the tokens live INSIDE entry.info, not at the entry top
+  level) — prevents double-drafted wrong-shape fixtures (knowledge_inbox
+  2026-09-27_00-15 lesson).
 - **Checkpoint commits (approved 2026-09-25 — the one-commit loosening, his
   #2026-09-24_22-47):** the worker commits ONE green checkpoint per verified
   unit (code only — the commit routine's append-discrepancies rule still

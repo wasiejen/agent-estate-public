@@ -82,6 +82,17 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   the error message, not the resolution) — his GO pending; candidate unit
   (small: block_transfer.ts + smoke + probe), queued behind #92 unless he
   re-orders.
+- **plan25 IN FLIGHT (this session, direct→autorun on his `<|Autorun|>`
+  2026-09-27):** the bt anchor fix is the FIRST unit (his GO "start with the
+  bt fix"; he's afk) — (a) type-aware integer line refs, (b) explicit trim
+  rule + pinned, (c) candidate-hint not-found error; NO fuzzy resolution.
+  Maintenance pass (N=25, N%5==0) done light: todo_inbox empty; knowledge
+  inbox 1 item → curated as a one-line spec bullet into
+  agent_readme_task_spec.md; stale approved/ proposals re-flagged
+  (unchanged — his adoption flow). #99 research source AVAILABLE:
+  `home\AppData\Local\Temp\opencode\opencode-dev` (dev branch =
+  default, 1.18.32 — his copy, inside the scratchpad). Order: bt fix → #92
+  build → #99 research.
 
 ## Compressed archive (one line each
   - 2026-09-26 autorun (ses_f21359d77ffe2pviXZoIavxweh, planner-24, Qwen3.8-27B-Q3S-245K-slow) — plan24: loop_log-v2 LANDED+verified (worker-24: aa5a411/006a137/320d09f/b9d57c9 + S16 re-pin b1d122c; gates probe 340/340 + loop_log smoke 69/69 + all smokes + pytest 459+1w + F=0) + spec staged against the verified state (the proposal's 09-15 verdict line STALE) + proposal → implemented/ + prompt/doc bookkeeping — details: loop folder plan24_summary.md + git 68da83d..de31cdf

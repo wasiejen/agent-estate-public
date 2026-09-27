@@ -28,14 +28,15 @@
 
   submit [feedback=A worker session that stops at the context wall WITHOUT triggering a self-compaction returns only an EMPTY Task result (no error, no Work State, no loop-log line) — recovery required full file forensics (git log + status + in-progress handover). A signal in the result channel (stop reason) or a plugin-side detection + `-WARNING` loop-log line for silent limit-stops would make the resume decision instant instead of forensic.]
 
-2026-09-26_07-50:
-- explorer prompt needs a general makeover as a reseasrch, information finder, map creator for e.g. apis
+2026-09-27_20-08:
+- adapt the current version of opencode to respect the keepToken setting
+  - create a fork
+- what even is the most up to date branch currently? there are nearly 2000 branches
+  - should we migrate to v2 instead of adapting the now very little updated v1?
 
-2026-09-25_14-46 
-- planner-15 session was switched to Build agent on start of the new session?
-  - lets see if this repeats
-    - set default agent to planner in opencode.json
-  - tried to change the agent to planner but it reverted to build without prompt from me to apply the change i guess
+2026-09-26_07-50:
+- explorer prompt needs a general makeover as a researcher, information finder, map creator for e.g. apis
+  - should generally only have a very limited write access, not shell/bash?
 
 2026-09-25_14-33:
 - explorer prompt needs to be updated ? mh do i even need the explorer? same model to prevent
@@ -46,11 +47,6 @@
   - e.g. what unit 2 and 4 actually do, how the restart of the planner after compaction works, how a new planner is started
   - move it to knowledge folder together
   - and include changes of handout into agents.md
-
-2026-09-23_19-42:
-- have an agent map out all the available functions of context.session in plugin scope. 
-  - via the local node modules path: .opencode\node_modules\@opencode-ai\sdk\dist\gen\
-  - create an overview over the available functions and what each does with a reference where to find more information
 
 2026-09-23_05-19:
 try to be more creative and experiment a bit with different appoaches to problems - to use context this was is never a waste - when you learn something from it save it in memories.

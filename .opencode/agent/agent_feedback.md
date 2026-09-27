@@ -611,3 +611,12 @@ Host "2 consecutive tool errors / your previous approach is incorrect — retry 
 ### 2026-09-27_14-39 worker_Q3S_245K_slow ses_f1d2ea77fffet94z6jtoZUD7z1
 glob tool silently skips gitignored paths (found no *.smoke.mjs under .opencode/ while the files exist) — fell back to bash ls; note in the worker prompt or the tool description would save the detour.
 
+### 2026-09-27_15-55 planner_Q3S_245K_slow ses_f1d198b41ffeJA3a3By7tu3TfD
+Probe-comment syntax slip (# vs // on a long comment line, #104 edit) self-caught by review before the gate ran — a cheap `node --check .opencode/plugin/probes/handover_probe.mjs` after each probe edit batch would have caught such a token slip before the ~2-min gate run.
+
+### 2026-09-27_16-20 planner_Q3S_245K_slow ses_f1d198b41ffeJA3a3By7tu3TfD
+#92 live-acceptance verification cost two extra probes: the ctx.log DUMP-OK line carries only the archive-RELATIVE path (`compaction_dumps/…_c0.md`) but the real dir is `.opencode/archive/sessions/compaction_dumps/` — the DUMP-OK line (or the #92 TODO/summary) should name the full repo-relative dir so acceptance is a single ls.
+
+### 2026-09-27_20-49 planner_Q3S_245K_slow ses_f1d198b41ffeJA3a3By7tu3TfD
+Hand-re-typing a multi-line log-fixture pair block (the 10-pair #96 (c) child fixture) is error-prone — I wrote 19 lines for 10 pairs (dropped one route= line), which the smoke caught only after 2 runs + a standalone repro. The fixture builder should generate pair blocks programmatically (a loop building the string, not literal lines) — a pair-count assert would have made it instant.
+

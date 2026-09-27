@@ -605,3 +605,6 @@ block_transfer: integer line-number refs are NOT honored despite the schema/desc
 ### 2026-09-27_13-53 worker_Q3S_245K_slow ses_f1d622087ffeGu1toSY7Xzt1fw
 plan25 spec said "TODO.md no new entry expected", but fix (b) genuinely created a doc/code discrepancy (S31 drift-guard equivalence note now stale in the anchor-trim dimension — filed #104); the DoD assumption was slightly off, and the spec's S15 line range (L3523-3817) was ~28 lines short (S15 actually ends at L3845).
 
+### 2026-09-27_14-00 planner_Q3S_245K_slow ses_f20d1b39dffefE8ge0hH7jbgAn
+Host "2 consecutive tool errors / your previous approach is incorrect — retry with fundamentally different arguments" warning false-alarmed during deliberate error-path measurement (live root-cause probes of KNOWN-failing block_transfer behavior — the error WAS the expected measurement); it pushed toward abandoning a valid measurement sequence; consider relaxing/suppressing it when the session shows intentional error probing (e.g. the agent stated the probe purpose first).
+

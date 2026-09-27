@@ -93,11 +93,15 @@
 // non-existent session reads as no-total (sid "unknown" — the read came from
 // no session row).
 //
-// TOKEN SEMANTICS (verified 2026-09-10 across all recent step rows — TODO #30):
-// total = input + output + cache.read holds EXACTLY ⇒ ctx = total − output =
-// the exact prompt size at the latest FINISHED step of the newest session =
-// the current context at that moment. The in-flight step has NO "finish"
-// field (excluded by the LIKE); user rows carry no token fields.
+// TOKEN SEMANTICS (verified 2026-09-10 across all recent step rows — TODO #30;
+// #103, 2026-09-27 — the readout is TOTAL, not total−output):
+// total = input + output + cache.read holds EXACTLY ⇒ ctx = total = the
+// context size at the START of the NEXT turn after the latest FINISHED step
+// (the finished step's OWN output included). The readout thus lags the live
+// context by ONE generated turn (the in-flight step's output — not yet in
+// the DB), not TWO (the old total−output form missed the finished step's
+// output too). The in-flight step has NO "finish" field (excluded by the
+// LIKE); user rows carry no token fields.
 //
 // WINDOW RULE (MAINTAINER CONFIRMED 2026-09-09): llama-swap model names
 // encode the window as a trailing `<N>K` or `<N>M` marker — the window is
@@ -542,8 +546,8 @@ function gaugeFromRaw(raw) {
     sid,
     modelId,
     total,
-    output,
-    ctx: total - output,
+    output, // evidence field — kept in the shape, NOT subtracted (#103)
+    ctx: total, // #103: in+out+cr — the context at the start of the NEXT turn
     window: parseWindow(modelId),
   };
 }

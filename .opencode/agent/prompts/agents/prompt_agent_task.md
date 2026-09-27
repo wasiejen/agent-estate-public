@@ -82,9 +82,10 @@ General compaction model: AGENTS.md §Compaction Guidelines (default-compact
 until the budget is spent — a routine speed/maintenance tool, not an
 emergency valve; compaction is NOT a restart — after it, re-read your head
 files and CONTINUE). Your section = the worker-specific mechanics:
-**Stop line: gauge readout ≈90 %** (the readout lags true usage by ≈2 tool
-calls / ~5k — treat it as optimistic; the gauge-lag note also lives in the
-`ctx_gauge` tool description). Stop lines are TRIAGE thresholds, not the only
+**Stop line: gauge readout ≈90 %** (the readout lags true usage by ≈1 tool
+call / ~5k — the in-flight step's output; the gauge reads the last FINISHED
+step's in+out+cr, #103 — treat it as optimistic; the gauge-lag note also
+lives in the `ctx_gauge` tool description). Stop lines are TRIAGE thresholds, not the only
 compaction moments: at ≥80 % estimate the tool calls still needed to finish
 the current unit (estimates near the limit are optimistic — round up); if
 more than ~10 remain, checkpoint (handover current + commit) and compact

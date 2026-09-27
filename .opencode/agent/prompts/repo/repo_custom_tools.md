@@ -27,8 +27,10 @@ Contract pinning lives in `.opencode/plugin/probes/handover_probe.mjs`.
   no shell cost.
 - Readout forms: `SESSION=… CTX=n (p%) REM=m`; unknown window → no pct/REM;
   no total / unreadable db → `CTX=notAvailable` + the error appended.
-- GAUGE-LAG TRAP (maintainer #9): the readout lags the TRUE context by ≈2
-  tool calls (~5k). Plan with margin; a displayed readout is optimistic.
+- GAUGE-LAG TRAP (maintainer #9): the readout lags the TRUE context by ≈1
+  tool call (~5k — the in-flight step's output; the gauge reads the last
+  FINISHED step's in+out+cr, #103, 2026-09-27). Plan with margin; a
+  displayed readout is optimistic.
 
 ## loop_log — append one loop-log line (loop roles only)
 - Roles in the loop (planner / worker) write their bookkeeping

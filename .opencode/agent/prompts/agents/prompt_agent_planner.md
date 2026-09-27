@@ -193,8 +193,10 @@ The general compaction model (cost/gain, the budgets, when to use) is the
 AGENTS.md `# Compaction Guidelines` section — this section holds the
 role-specific triage + handover mechanics on top of it.
 **Stop line: gauge readout ≈90 %** (his "95 % true wall" with the gauge's
-lagging value included — the readout LAGS true usage by ≈2 tool calls (~5k),
-so treat a displayed readout as optimistic; plan with margin). AGENTS.md
+lagging value included — the readout LAGS true usage by ≈1 tool call (~5k —
+the in-flight step's output, not yet in the DB; the gauge reads the last
+FINISHED step's in+out+cr, #103, 2026-09-27), so treat a displayed readout as
+optimistic; plan with margin). AGENTS.md
 §Context budget carries the same 90 % line (2026-09-15 ruling, landed there).
 - **Default: compact until the budget is spent** — compaction is a routine
   speed/maintenance tool (it reclaims generation speed + window space), not

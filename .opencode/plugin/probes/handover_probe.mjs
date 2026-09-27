@@ -141,7 +141,7 @@
 //   S4 chat.message shapes (8) — v2.5 native gauge, session-gated match-only
 //      post (the v2.2.1 fake-shell shapes are GONE):
 //      (t1) ok-match: the posted part is BYTE-EXACT
-//          `ctx: SESSION=ses_fx_ok CTX=10000 (3%) REM=246000` (id prt-ctx-,
+//          `ctx: SESSION=ses_fx_ok CTX=12345 (4%) REM=243655` (id prt-ctx-,
 //          messageID from output.message.id, sessionID echo, prior part kept)
 //          + chatmsg evidence carries sess=ses_fx_ok + ZERO gauge lines
 //      (t2) unknown-window match: `ctx: SESSION=ses_fx_unk CTX=50` posted
@@ -988,7 +988,7 @@ const ORIGINAL_SPEC =
 // sentinel must survive the whole probe byte-for-byte.
 const STALE_SENTINEL = "STALE MIRROR SENTINEL — the plugin must NOT touch this file (mirror disabled, P02).\n";
 // v2.5 S4 expected posted text (byte-exact, straight from the core's readout forms)
-const CTX_OK = "ctx: SESSION=ses_fx_ok CTX=10000 (3%) REM=246000";
+const CTX_OK = "ctx: SESSION=ses_fx_ok CTX=12345 (4%) REM=243655";
 const CTX_UNKNOWN = "ctx: SESSION=ses_fx_unk CTX=50";
 const CTX_UNAVAILABLE = "ctx: SESSION=ses_fx_empty CTX=notAvailable";
 const cap120 = (s) => (s.length <= 120 ? s : s.slice(0, 119) + "\u2026");
@@ -1239,7 +1239,7 @@ check("12", "S3", "final mirror state byte-identical to the pre-filled sentinel"
   check(
     "13",
     "S4",
-    "ok-match: posted part byte-exact `ctx: SESSION=ses_fx_ok CTX=10000 (3%) REM=246000` (prt-ctx-, msg echo, prior kept), sess evidence, zero gauge lines",
+    "ok-match: posted part byte-exact `ctx: SESSION=ses_fx_ok CTX=12345 (4%) REM=243655` (prt-ctx-, msg echo, prior kept), sess evidence, zero gauge lines",
     !threw && parts.length === 2 && p1 && typeof p1.id === "string" && p1.id.startsWith("prt-ctx-") && p1.sessionID === "ses_fx_ok" && p1.messageID === "msg_t1" && p1.type === "text" && p1.text === CTX_OK && parts[0].text === "orig" && evs.length === 1 && ev1.sess === "ses_fx_ok" && ev1.session === "ses_fx_ok" && ev1.agent === "worker_q4_120k" && ev1.message === "msg_t1" && linesOfKind("gauge").length === 0,
     JSON.stringify({ threw, parts, ev1, gauge: linesOfKind("gauge") }),
   );
@@ -1379,7 +1379,7 @@ check("12", "S3", "final mirror state byte-identical to the pre-filled sentinel"
     "21",
     "S6",
     "known-window: formatGauge byte-exact + kind ok + sid/modelId/total/output/ctx/window fields",
-    formatGauge(r) === "SESSION=ses_fx_ok CTX=10000 (3%) REM=246000" && r.ok === true && r.kind === "ok" && r.sid === "ses_fx_ok" && r.modelId === "probe-model-256K_MTP" && r.total === 12345 && r.output === 2345 && r.ctx === 10000 && r.window === 256000,
+    formatGauge(r) === "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655" && r.ok === true && r.kind === "ok" && r.sid === "ses_fx_ok" && r.modelId === "probe-model-256K_MTP" && r.total === 12345 && r.output === 2345 && r.ctx === 12345 && r.window === 256000,
     JSON.stringify(r),
   );
 }
@@ -1485,7 +1485,7 @@ const setBudgetFx = (count, eb, sid = "ses_fx_ok") => {
   writeFileSync(BUDGET_FX, JSON.stringify(rec), "utf-8");
   setBudgetFileForTest(BUDGET_FX);
 };
-const FX_OK_LINE = "SESSION=ses_fx_ok CTX=10000 (3%) REM=246000";
+const FX_OK_LINE = "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655";
 
 // 28.1 — state 1: count 0 < cap 3 → 3 remaining (plural form)
 {
@@ -1619,7 +1619,7 @@ const MOCK_LOG = [];
     "29",
     "S7",
     "chain/node:sqlite (forced): FX_OK byte-identical readout + fields (chain-invariant form)",
-    formatGauge(r) === "SESSION=ses_fx_ok CTX=10000 (3%) REM=246000" && r.ok === true && r.kind === "ok" && r.sid === "ses_fx_ok" && r.modelId === "probe-model-256K_MTP" && r.total === 12345 && r.output === 2345 && r.ctx === 10000 && r.window === 256000,
+    formatGauge(r) === "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655" && r.ok === true && r.kind === "ok" && r.sid === "ses_fx_ok" && r.modelId === "probe-model-256K_MTP" && r.total === 12345 && r.output === 2345 && r.ctx === 12345 && r.window === 256000,
     JSON.stringify(r),
   );
 }
@@ -1671,7 +1671,7 @@ const MOCK_LOG = [];
     "32",
     "S7",
     "unit-mock bun:sqlite: adapter drives Database(path,{readonly:true,timeout:2500}) + PRAGMA exec + prepare().get() x2 (ordered) + close; readout byte-identical",
-    formatGauge(r) === "SESSION=ses_fx_ok CTX=10000 (3%) REM=246000" && r.ok === true && r.ctx === 10000 && r.window === 256000 &&
+    formatGauge(r) === "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655" && r.ok === true && r.ctx === 12345 && r.window === 256000 &&
       construct !== undefined && construct.path === FX_OK && construct.opts !== undefined && construct.opts.readonly === true && construct.opts.timeout === 2500 &&
       execs.length === 1 && execs[0].sql === "PRAGMA busy_timeout = 2500;" &&
       prepares.length === 2 && !String(prepares[0].sql).includes("tokens.total") && String(prepares[1].sql).includes("tokens.total") &&
@@ -1710,7 +1710,7 @@ const MOCK_LOG = [];
     "34",
     "S7",
     "chain/spawn-sqlite3 (forced, REAL exe end-to-end on the fixture): byte-identical readout + fields",
-    formatGauge(r) === "SESSION=ses_fx_ok CTX=10000 (3%) REM=246000" && r.ok === true && r.kind === "ok" && r.sid === "ses_fx_ok" && r.modelId === "probe-model-256K_MTP" && r.total === 12345 && r.output === 2345 && r.ctx === 10000 && r.window === 256000,
+    formatGauge(r) === "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655" && r.ok === true && r.kind === "ok" && r.sid === "ses_fx_ok" && r.modelId === "probe-model-256K_MTP" && r.total === 12345 && r.output === 2345 && r.ctx === 12345 && r.window === 256000,
     JSON.stringify(r),
   );
 }
@@ -1782,7 +1782,7 @@ const MOCK_LOG = [];
     "39",
     "S7",
     "hook restore: getBackends() back to the default chain order; setDbPath/getDbPath plumbing intact; read byte-identical",
-    JSON.stringify(getBackends()) === JSON.stringify(["node:sqlite", "bun:sqlite", "spawn-sqlite3"]) && getDbPath() === FX_OK && formatGauge(r) === "SESSION=ses_fx_ok CTX=10000 (3%) REM=246000",
+    JSON.stringify(getBackends()) === JSON.stringify(["node:sqlite", "bun:sqlite", "spawn-sqlite3"]) && getDbPath() === FX_OK && formatGauge(r) === "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655",
     JSON.stringify({ backends: getBackends(), dbPath: getDbPath(), r }),
   );
 }
@@ -1806,8 +1806,8 @@ const LAD_ROW = (sid, ctx) => ({
       data: JSON.stringify({
         role: "assistant",
         finish: "stop",
-        // total = input + output + cache.read(0); ctx = total - output (the verified token semantics)
-        tokens: { total: ctx + 101, input: ctx, output: 101, reasoning: 0, cache: { write: 0, read: 0 } },
+        // total = input + output + cache.read(0) holds; the gauge reads ctx = TOTAL (in+out+cr) — #103: the context at the START of the next turn (lags one generated turn, not two); the fixture keeps the intended readout value in total
+        tokens: { total: ctx, input: ctx - 101, output: 101, reasoning: 0, cache: { write: 0, read: 0 } },
       }),
     },
   ],
@@ -1961,7 +1961,7 @@ const RO_ROW = (sid, ctx, model) => ({
       data: JSON.stringify({
         role: "assistant",
         finish: "stop",
-        tokens: { total: ctx + 101, input: ctx, output: 101, reasoning: 0, cache: { write: 0, read: 0 } },
+        tokens: { total: ctx, input: ctx - 101, output: 101, reasoning: 0, cache: { write: 0, read: 0 } },
       }),
     },
   ],
@@ -2830,8 +2830,8 @@ const dbPathBeforeS12 = getDbPath(); // the hook-restore capture (cf. check 39)
   check(
     "83",
     "S12",
-    "execute on the fixture (setDbPath): default newest-session read BYTE-EXACT `SESSION=ses_fx_ok CTX=10000 (3%) REM=246000`; sessionID arg passed through (ses_fx_old → `SESSION=ses_fx_old CTX=10000 (8%) REM=110000`)",
-    def === "SESSION=ses_fx_ok CTX=10000 (3%) REM=246000" && per === "SESSION=ses_fx_old CTX=10000 (8%) REM=110000",
+    "execute on the fixture (setDbPath): default newest-session read BYTE-EXACT `SESSION=ses_fx_ok CTX=12345 (4%) REM=243655`; sessionID arg passed through (ses_fx_old → `SESSION=ses_fx_old CTX=12345 (10%) REM=107655`)",
+    def === "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655" && per === "SESSION=ses_fx_old CTX=12345 (10%) REM=107655",
     JSON.stringify({ def, per }),
   );
 }

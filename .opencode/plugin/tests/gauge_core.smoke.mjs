@@ -50,9 +50,9 @@ const wb = (count, eb) => {
   fs.writeFileSync(bfx, JSON.stringify(rec), "utf-8");
   m.setBudgetFileForTest(bfx);
 };
-const R_OK = { ok: true, kind: "ok", sid: "ses_fx_ok", modelId: "probe-model-256K_MTP", total: 12345, output: 2345, ctx: 10000, window: 256000 };
+const R_OK = { ok: true, kind: "ok", sid: "ses_fx_ok", modelId: "probe-model-256K_MTP", total: 12345, output: 2345, ctx: 12345, window: 256000 }; // #103: ctx = total (in+out+cr)
 const R_NOTAL = { ok: false, kind: "no-total", sid: "ses_fx_ok", modelId: "" };
-const base = "SESSION=ses_fx_ok CTX=10000 (3%) REM=246000";
+const base = "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655";
 const chkS = (label, want) => {
   const got = m.formatGauge(R_OK);
   const ok = got === want;

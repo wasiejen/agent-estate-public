@@ -28,24 +28,37 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   `knowledge/opencode-plugins/2026-09-27_summarize-keep-source-trace.md` +
   host-map §compaction gap resolved + version note fixed + TODO #99 close
   note.
+- **plan27 part 2** (maintainer in-session GO after the part-1 close — same
+   session, same iteration): **bt live acceptance ALL 3 PASS** (digit-string
+   refs, indented-anchor trim, candidate-hint not-found error — live tool
+   calls, scratch fixture created + deleted) + his **approval-boundary
+   ruling** (recorded in Standing) + **#104 LANDED planner-direct**
+   (e57f8a3 — the core now MIRRORS the tool's plan25-b anchor trim exactly;
+   probe 317/318 re-pinned; probe 345/345 + io 77/77) + **#103 LANDED
+   planner-direct** (fcc0fc8 — gauge readout = TOTAL in+out+cr of the last
+   FINISHED step; the structural 2-turn lag is gone, now one generated
+   turn; probe S6/S7/S12 re-pins + S8/S9 fixtures rebuilt + gauge_core
+   smoke; lag wording updated in role prompts / repo docs / ctx_gauge
+   description — AGENTS.md + the compaction guide stay his paste). One
+   routine self-compaction mid-unit (81 % → 33 %).
 - RESIDUAL (maintainer, live, on 1.18.32): the **N=10 discriminator**
-  (count-vs-budget retention semantics — the 2026-09-26 fork observation of
-  the FULL 30-message tail retained despite a 30k budget CONTRADICTS
-  1.18.32's `select()`; version drift 1.18.31→1.18.32 is the candidate
-  explanation the test resolves) + the summarize-scope probe — protocol in
-  the research doc.
+   (count-vs-budget retention semantics — the 2026-09-26 fork observation of
+   the FULL 30-message tail retained despite a 30k budget CONTRADICTS
+   1.18.32's `select()`; version drift 1.18.31→1.18.32 is the candidate
+   explanation the test resolves) + the summarize-scope probe — protocol in
+   the research doc.
 - Unmarked maintainer observation (priority.md uncommitted line
-  2026-09-27: "no delegation in a direct session without prior explicit ok")
-  — already codified as MEM-0110 (ff94000); NAP-only per observation triage.
+   2026-09-27: "no delegation in a direct session without prior explicit ok")
+   — already codified as MEM-0110 (ff94000); NAP-only per observation triage.
 - Pending the maintainer (non-blocking, carried from plan25 — full list in
-  plan25_nap.md): #104 (S31 anchor-trim equivalence — his call), #103 on GO
-  (worker launch deferred by his ruling), the plan25 live-channel acceptance
-  + the #92 live acceptance (his next restart), #86 DEFERRED (queue tail),
-  the section-anchor schema call, the #98 natural cycle.
+   plan25_nap.md): the AGENTS.md / compaction-guide gauge-lag wording paste
+   (the #103 doc tail — his files, NOT edited), the plan25 live-channel
+   acceptance + the #92 live acceptance (his next restart), #86 DEFERRED
+   (queue tail), the section-anchor schema call, the #98 natural cycle.
 - NEXT (next session/iteration): no clear build work without maintainer
-  input (#104/#103 are his calls, #86 deferred tail) → idle-initiative lane
-  per the standing `--maintainer` block (proposals always allowed, research,
-  bookkeeping-reducing tools, prompt improvements, maintenance at iter 30).
+   input (#86 deferred tail) → idle-initiative lane per the standing
+   `--maintainer` block (proposals always allowed, research,
+   bookkeeping-reducing tools, prompt improvements, maintenance at iter 30).
 
 ## Compressed archive (one line each
   - 2026-09-27 autorun (ses_f1d4258efffeFUXLn6PTolcHsB, planner-26, Qwen3.8-27B-Q3S-245K-slow) — plan26: #92 build LANDED+verified (worker-26: 11f4a12 two-artifact dump / 5a6e842 probe S14 re-pins + check 345 / e2a1a52 smoke 76→78 / 86bda25 bookkeeping; planner re-run probe 345/345 + compact smoke 78/78; live acceptance = next real compaction shows both artifacts + two DUMP-OK lines) — details: loop folder plan26_summary.md + git 77f93fc
@@ -182,8 +195,10 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   (no double write); the emergency-compaction method has to be enough — no further
   mechanism built for it.
 - Context wall (his protocol 2026-09-15): the real wall sits ≈ **90% gauge reading**
-  (a session hit the actual limit at a ~90-96% readout); the gauge lags ~2 tool
-  calls (his # 9 — plan with ~5k margin against the injected `ctx:` line).
+   (a session hit the actual limit at a ~90-96% readout); the gauge lags ~1 tool
+   call — the in-flight step's output (#103, 2026-09-27: the gauge reads the
+   last FINISHED step's in+out+cr) (his # 9 — plan with ~5k margin against the
+   injected `ctx:` line).
 - **Stop line (his ruling 2026-09-15, priority.md top): ≈90 % gauge** (= 95 %
   true wall) — codified in both role prompts; worker protocol = order-stop →
   pre-compaction dump (`dump_session.cjs`) → cross `compact_memory` → `task_id`
@@ -194,6 +209,10 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   orientation). Full pre-cleanup NAP backup: `archive/nap_backup_2026-09-15_pre-cleanup.md`.
 - Markers (his ruling 2026-09-15, priority.md): `--comment` MAY be removed once
   acted on/acknowledged; `--wip` may be ignored when it blocks work (afk/autorun).
+- **Approval boundary (his ruling 2026-09-27, plan27 part 2):** agent-usage-facing
+  plugin/tool changes are PRE-APPROVED when the intent is
+  improvement/truthfulness/friction-removal (the #103/#104 cases — planner-direct
+  is fine); maintainer-usage changes still need an explicit call.
 - Maintainer-inbox handling: move the file to `maintainer/done/` CONTENT-UNTOUCHED;
   the reply/feedback is recorded in the NAP + summary (the `proposals/maintainer/feedback/` folder no longer exists).
 - The maintainer's live files (prompt set, `proposals/files/` drafts) — never stage/flag;

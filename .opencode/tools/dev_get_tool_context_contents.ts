@@ -36,6 +36,7 @@ export default tool({
       callID: context.callID,
       extra: context.extra,
       agent: context.agent,
+      //--comment: i bet the slice is the problem that this does not work? because i made this xD
       messages:  context.messages.slice(0,1), // to much info - one example only
       metadata: context.metadata,
       ask: context.ask,

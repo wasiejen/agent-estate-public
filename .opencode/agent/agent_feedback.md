@@ -593,3 +593,9 @@ Approved proposal files can carry stale in-file verdict blocks (the loop_log-v2 
 ### 2026-09-26_20-50 planner_Q3S_245K_slow ses_f21359d77ffe2pviXZoIavxweh
 dev_get_tool_context_contents is broken on this host: both calls failed with `undefined is not an object (evaluating 'c.split')` — the debug context-dump tool (the spec-time evidence channel for tool-context fields) is unusable; a fallback (e.g. a tiny throwaway tool that console.logs context keys) or a fix would save the manual evidence re-derivation.
 
+### 2026-09-26_23-37 worker_Q3S_245K_slow ses_f206bea11ffetlA7q2Ie3BRtU4
+Spec line ranges for probe cases pointed at the header annotations (~L326-395), not the code blocks (cases 285/287 live at ~L2697-2720 / ~L3335-3361) — the code had to be located by grep on the case IDs; future spec line refs for probes should point at the code blocks.
+
+### 2026-09-27_00-15 worker_Q3S_245K_slow ses_f204cc004ffeRfCvdnq1fyREae
+Spec phrasing "assistant entries carrying a tokens: {...} series" left the nesting ambiguous (tokens live INSIDE entry.info, not at the entry top level) — I drafted the fixtures with the wrong shape twice (verification script + rc smoke + probe 285/287) before the machine check caught it; a one-line shape note in the spec (e.g. "info.tokens: {input, output, cache.read}") would have prevented it.
+

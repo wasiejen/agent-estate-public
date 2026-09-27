@@ -37,6 +37,18 @@
 - you are intelligent - you will find something to do
   - go through my ideas for new research on functions. create a folder in research for each if you find something worthwhile
 
+# planner behavioral guidelines needs to be moved from nap entirely into the destill memory
+- can be its own sectio in it
+- planner after a compaction acted really unreliable and implemented without giving the chance for interaction and clarification. behavioral learned guidelines were completely absend. jumped to conclusions, did not offer theories or asked questions to a topic we were currently talking about. he behaved really dump. answer/interact first (verify shortly if needed but never start a task with a worker without confirmation on what we actually want to implement). stop guessing and ask.
+- push back, do not sugarcoat. question my assumptions. i am learning and do not know everything. i bring ideas, you bring specific implementation knowledge and ability to fast check facts in our codebase. i want you to learn, so do not hesitate to ask directly. questions are a sign of maturity - jumping to conclusions without using the resources available is dump behavior.
+
+# 2026-09-26_18-48 observation block transfer friction of worker-23 
+- quote: "The parameter format stringifies refs — switching to unique line-prefix markers (span L1..L347, re-adding the dump-header line in the new text):"
+  - tried 3 or 4 times with lines refs but could not get it to work
+- quote: ""Start marker '1' not found" — the string "1" is being treated as a marker (a string, not a number). The JSON parameter I passed was the string "1". According to the tool's description: "The type determines (schema poka-yoke — no string sniffing: the string '42' is a prefix marker, the number 42 is line 42)." So I have to pass an integer type. In JSON, write 1 as a number: "startMarker": 1 (without quotes). In the function call above I wrote "startMarker": "1" — a string. Let me pass a number: startMarker: 1, endMarker: 345."
+- also unexpected inclusions of empty line at end let a edit fail
+  - should we give a bit more feedback about what was copied, deleted, replaced?
+
 # 2026-09-26_14-26 observation recovery_context: 
 planner-21 and "Worker_Q3S_245K_slow Task — Launch R3 arg-scope worker"
 - planner-21 started worker

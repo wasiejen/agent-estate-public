@@ -1,64 +1,97 @@
-# Task spec — keepTokens metric v2: raw part bytes → S-diff (provider-true tokens) (2026-09-26)
+# TASK — plan25: block_transfer anchor fix (integer refs + trim rule + candidate hints)
 
-Worker: `worker_Q3S_245K_slow`. Branch: stay on the current checkout (`opencode_test`).
-Supersedes the spec you just implemented (`b95d532`): the bytes/4 metric stays ONLY as
-the fallback path.
+Worker: `worker_Q3S_245K_slow`. Stay on the current checkout (`opencode_test`).
+Maintainer GO 2026-09-27 (direct session, round 2). NO fuzzy resolution —
+resolution stays fail-closed exactly-one-match; the fuzzy value lives in the
+ERROR MESSAGE only.
 
-## Goal (verified facts — do not re-derive)
-Per assistant message, `S = tokens.input + tokens.output + tokens.cache.read` is the
-CUMULATIVE context size after that call (all values already in provider tokens).
-Verified continuity: `S[i] ≈ cr[next assistant]` with drift ±1 across ~90% of rows
-(cache evictions drift 1–2.3k at a few rows; some rows have all-zero token fields —
-sparse recording). Forks do NOT break S: the fork's first call moves the whole context
-from `cache.read` into `input` (refilled prefill) — measured: S[45]=150,482 ≈
-cr[46]=150,481 (drift 1). So the raw mass of the last-N messages ≈
-`S[last assistant IN the window] − S[last assistant BEFORE the window]`.
-Example (this session, keepMessages=12 at the fork point): S[43]−S[32] = 9,458.
+## Background (planner-verified facts, measured 2026-09-27 live + in code)
+1. The host's constrained decoding of the `anyOf: [string, integer]` ref schema
+   stringifies integers in the LIVE channel (measured: `startMarker: 2` →
+   `Error: Start marker '2' not found`). The type-aware `resolveRef` number
+   branch (block_transfer.ts L136-142) is therefore dead in the live channel.
+   Unit-level (direct `execute` with native numbers) it works — S15 pin 108.
+2. `matchAnchorLines` (L46-56) strips LEADING spaces/tabs from the LINE but
+   never from the anchor (the rule comment L38-40 says so) → an anchor typed
+   with the line's indentation can NEVER match (measured live: end-marker
+   `   indented line five` against a line with 3 leading spaces → not found;
+   the same anchor without the spaces → match).
+3. `notFoundError` (L76-78) carries no candidate hints.
 
-## New computation (compaction_core.ts, `computeKeepTokens`)
-- Keep the dual-shape unwrap (#79).
-- Window = the last `keepMessages` entries (any role; fewer → all; `<= 0` → no sum).
-- Primary: `S(end) − S(start)` where `S(end)` = input+output+cache.read of the LAST
-  assistant entry in the window, `S(start)` = the same sum for the LAST assistant entry
-  strictly before the window (none → 0). Fail-open numeric guards per value
-  (non-finite/negative/absent → 0); an assistant entry whose whole token object is
-  absent contributes nothing (treated as zero-row).
-- If the window has no assistant entry, or the difference ≤ 0 (drift) → FALL BACK to
-  the bytes/4 part-mass metric landed in `b95d532` (same per-entry formula).
-- `sum > 0` → `computed`; else budget file keepTokens (finite > 0) → `budget`; else
-  `none`. UNCHANGED.
-- Update the doc comment to describe: S-diff primary, bytes/4 fallback, usage/none
-  resolution.
-- `compact_memory.ts` `keepMessages` description (~L284): update to "the provider-token
-  mass of the last N messages (S-diff: cumulative context size input+output+cache.read
-  across the window; bytes/4 fallback) is sent as keep.tokens …".
+## The fix (WHAT — exact end states; HOW is your call inside the DoD)
+**(a) Digit-string line refs.** In `resolveRef` (and hence every ref side:
+`startMarker`/`endMarker`/`targetMarker`, `refs[]` items, `regions[].start/end`):
+a ref that is a NUMBER or a string matching `/^\d+$/` resolves as a 1-based
+line number against the PRE-call file state; any other string is a prefix
+marker (unchanged). Keep the existing number branch (unit/probe calls pass
+native numbers). Errors stay byte-identical to the current number path:
+`0` (or `"0"`) → `Error: ${label} 0 is not a 1-based line number in ${fileRef}.`;
+beyond the line count → the existing `refOutOfRangeError` (with the count).
+Update the Part B header comment (L103-113) and the description REFS section
+(L261) to the new rule: an all-digits ref (number or digit-string) is a line
+number; any other string is a prefix marker. Schema UNCHANGED.
+**(b) Anchor normalization.** `matchAnchorLines`: strip leading spaces/tabs
+from the ANCHOR as well, before the `startsWith` (line-side strip unchanged;
+case-sensitive verbatim otherwise). An anchor that is empty AFTER trimming
+(all-whitespace) matches NO line (never match-all). Update the rule comment
+(L35-43) + the description where the prefix rule is stated.
+**(c) Candidate hints in the not-found error.** `notFoundError` gains the
+file text and, when no line matches, appends ` Closest lines: ` + up to 5
+candidates, each `${lineNo}: '${first 40 chars of the line}'` (`...` appended
+when cut, the line's `\r` stripped, original indentation shown), joined by
+`", "`. "Closest" = deterministic: length of the longest common prefix of the
+trimmed anchor and each trimmed line; top 5 by that length descending, ties by
+ascending line number; only lines sharing ≥ 1 char qualify; when NO line
+qualifies the message stays byte-identical to today's. The non-unique,
+empty-buffer, ref-out-of-range, after-start-marker, and sandbox error strings
+are UNTOUCHED (pinned). The quoted anchor in the error stays AS GIVEN (not
+trimmed).
 
-## Pins (exact locations — the fixtures were just rewritten for bytes/4; re-derive)
-- `tests/compact_memory.smoke.mjs` #99 section (~L576–660): the computed case fixture
-  needs assistant entries carrying a `tokens: {input, output, cache.read}` series so
-  S-diff is exercised (e.g. two assistants with cr 1000 → 2000 → expected 1000 + their
-  in/out); keep ONE bytes/4 fallback case (assistant entries WITHOUT tokens but WITH
-  parts → bytes/4 wins); budget/none/read-fail cases keep their no-mass fixtures.
-  Recompute all expectations MACHINE-SCRIPTED (AGENTS.md Pattern 1).
-- `tests/context_recovery.smoke.mjs` #99 case 13 (~L274–316): fixture gains the token
-  series (S-diff expected value); case 14 (read-fail) unchanged.
-- `probes/handover_probe.mjs` S32 cases (285)–(288) (~L326–395): case 285/287 fixtures
-  gain the token series (S-diff values); if one case now needs the fallback path
-  covered, reuse an existing case rather than adding one — KEEP THE TOTAL COUNT (340).
-- COMPACT line format (`keep=Nm tok=<t> <source>`) + budget store: UNCHANGED.
+## Scope (files + bounded areas)
+- `.opencode/tools/block_transfer.ts` (673 lines) — L24-145 (rule comments +
+  matcher + errors + resolveRef), L253-270 (the description string: the REFS
+  section + the prefix-rule wording).
+- `.opencode/plugin/tests/block_transfer.smoke.mjs` (314 lines, `chk(` pattern,
+  temp-dir fixtures, `finish()` at end) — ≥ 4 new checks: (1) digit-string refs
+  give the same byte-exact result as the equivalent numeric call; (2) `"0"`
+  not-1-based + out-of-range digit-string, both byte-exact; (3) an indented
+  anchor matches its line + an all-whitespace anchor matches nothing; (4)
+  candidate-hint format byte-exact (one with candidates, one without = old
+  format). Existing 123 checks must stay green (re-pin in the same commit if a
+  byte-exact pin is affected).
+- `.opencode/plugin/tests/block_transfer.sandbox.smoke.mjs` (175 lines) —
+  re-pin ONLY if a pin is affected (expected: none).
+- `.opencode/plugin/probes/handover_probe.mjs` (7839 lines) — S15 section
+  L3523-3817: re-pin any existing check whose pinned string changes (known
+  not-found pins at ~L3732 and ~L7018 — they stay green iff no line shares ≥1
+  char with the anchored prefix; re-pin in the same commit if not), add ≤ 4
+  new S15 checks for (a)/(b)/(c); update the S15 header count (L3523) + the
+  section-sum annotation (~L940) in the SAME commit.
 
-## Definition of done
-- `node .opencode/plugin/probes/handover_probe.mjs` → 340/340 (count unchanged).
-- `node .opencode/plugin/tests/compact_memory.smoke.mjs` → green (report count).
-- `node .opencode/plugin/tests/context_recovery.smoke.mjs` → green (report count).
-- pytest 459+1w, ruff F=0 (no python touched — run + report measured).
-- Checkpoint commit(s) per verified unit (code only); TODO #99 close-note UPDATE
-  ("metric v2: S-diff provider-true primary, bytes/4 fallback") + handover in the
-  FINAL commit.
+## Definition of done (measured, in your handover)
+- block_transfer smokes: 123 + n green (report n and the total); sandbox smoke
+  64/64 (or re-pinned total).
+- probe: 340 + m green (report m; the `PROBE handover: <t>/<t> PASS` line
+  agrees with the updated annotation).
+- gate: `./.venv/Scripts/python.exe -m pytest -q` → 459 passed + 1 warning;
+  `./.venv/Scripts/ruff.exe check --select F .` → F=0 (FST code untouched).
+- The five untouched error strings above remain byte-identical (smoke/probe
+  pins prove it).
+- Live-channel acceptance PENDING the maintainer's next restart (unit-level
+  green is this DoD — the established convention, cf. #102).
+- Checkpoint commits per verified unit (code only); `TODO.md` (append
+  discrepancies only — no new entry expected) + `handover_task_to_planner.md`
+  ride the FINAL commit (carrying the code commits' hashes, never its own —
+  the hash is recorded in the planner's bookkeeping commit).
 
-## DO-NOT-TOUCH
-- `.opencode/maintainer/**`, `opencode.jsonc`, `.opencode/tools/dev_get_tool_context_contents.ts`
-  (maintainer's live files, modified in the tree — never stage/edit them).
-- Everything else in compaction_core.ts / context_recovery.ts / compact_memory.ts
-  (summarizer pair, budget store, cap resolver, dump writer, COMPACT-line writer).
-- Named-path commits only — the working tree carries uncommitted maintainer changes.
+## DO-NOT-touch
+FST code (`*.py` at repo root + `tests/`), `.opencode/maintainer/**`,
+`opencode.jsonc`, the NAP / loop folder, `.opencode/agent/prompts/**` (edit-
+deny anyway), probe sections other than S15 + the annotation line, smoke files
+other than the two named, other custom tools, `AGENTS.md`.
+
+## Design forks
+If a chosen reading of (a)/(b)/(c) seems to clash with an existing pinned
+byte-exact behavior, the pin WINS — note the clash in the handover, do not
+silently re-pin. A different candidate metric is NOT approved — keep the
+spec's common-prefix rule.

@@ -53,11 +53,15 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 - Pending the maintainer (non-blocking): #98 self-compact→idle cycle
   (natural), the section-anchor schema call, the #99 follow-up research
   (config-knob ruling), #103 on GO, #86 DEFERRED (queue tail).
-- NEXT (next session/iteration): the #92 implementation — stage the spec from
-  the entry's acceptance + launch worker_Q3S_245K_slow; then the queue. (His
-  2026-09-27 fork-session ruling "do not start a worker again" is scoped to
-  #103 in the entry; #92 is explicitly approved as the next unit — confirm at
-  launch if it reads otherwise.)
+- NEXT: plan25 bt anchor fix IN FLIGHT (spec committed + worker
+  worker_Q3S_245K_slow launched this session, post-compaction) — on return:
+  verify from files (git log + handover + targeted smoke/probe spot, no full
+  gate re-run — his 2026-09-23_00-12 ruling), plan25 bookkeeping +
+  plan25_summary.md + loop_log -RETURN-/DONE lines, then the queue: #92 build
+  (dump BOTH md + raw JSON) → #99 research (flexible per-dispatch keepToken;
+  source `home\AppData\Local\Temp\opencode\opencode-dev`, dev
+  branch 1.18.32). (The fork-session ruling "do not start a worker again" is
+  scoped to #103 only — #92 stays approved as the post-plan25 unit.)
 - Maintainer's LIVE priority.md additions (2026-09-27, unmarked — absorbed as
   behavior rules, NAP-only per observation triage; persisted as MEM-0110): in
   a direct session NO delegation without prior explicit OK (this session
@@ -85,14 +89,26 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 - **plan25 IN FLIGHT (this session, direct→autorun on his `<|Autorun|>`
   2026-09-27):** the bt anchor fix is the FIRST unit (his GO "start with the
   bt fix"; he's afk) — (a) type-aware integer line refs, (b) explicit trim
-  rule + pinned, (c) candidate-hint not-found error; NO fuzzy resolution.
-  Maintenance pass (N=25, N%5==0) done light: todo_inbox empty; knowledge
-  inbox 1 item → curated as a one-line spec bullet into
-  agent_readme_task_spec.md; stale approved/ proposals re-flagged
-  (unchanged — his adoption flow). #99 research source AVAILABLE:
-  `home\AppData\Local\Temp\opencode\opencode-dev` (dev branch =
-  default, 1.18.32 — his copy, inside the scratchpad). Order: bt fix → #92
-  build → #99 research.
+   rule + pinned, (c) candidate-hint not-found error; NO fuzzy resolution.
+   Maintenance pass (N=25, N%5==0) done light: todo_inbox empty; knowledge
+   inbox 1 item → curated as a one-line spec bullet into
+   agent_readme_task_spec.md; stale approved/ proposals re-flagged
+   (unchanged — his adoption flow). #99 research source AVAILABLE:
+   `home\AppData\Local\Temp\opencode\opencode-dev` (dev branch =
+   default, 1.18.32 — his copy, inside the scratchpad). Order: bt fix → #92
+   build → #99 research.
+- plan25 SPEC COMMITTED + worker launched (post-compaction this session).
+   Root causes MEASURED live today (2026-09-27): (a) the host's constrained
+   decoding of the `anyOf: [string, integer]` ref schema stringifies
+   integers in the live channel (`startMarker: 2` → "Start marker '2' not
+   found") — the type-aware `resolveRef` number branch is dead live; (b)
+   `matchAnchorLines` trims the line's leading whitespace but never the
+   anchor's → an anchor typed with the line's indentation can never match;
+   (c) `notFoundError` carries no candidate hints. Spec design: (a) accept
+   all-digits refs (number OR digit-string) as 1-based line numbers (schema
+   unchanged), (b) trim both sides + all-whitespace anchor matches nothing,
+   (c) deterministic common-prefix top-5 candidate hints in the not-found
+   error only (resolution stays fail-closed; no fuzzy).
 
 ## Compressed archive (one line each
   - 2026-09-26 autorun (ses_f21359d77ffe2pviXZoIavxweh, planner-24, Qwen3.8-27B-Q3S-245K-slow) — plan24: loop_log-v2 LANDED+verified (worker-24: aa5a411/006a137/320d09f/b9d57c9 + S16 re-pin b1d122c; gates probe 340/340 + loop_log smoke 69/69 + all smokes + pytest 459+1w + F=0) + spec staged against the verified state (the proposal's 09-15 verdict line STALE) + proposal → implemented/ + prompt/doc bookkeeping — details: loop folder plan24_summary.md + git 68da83d..de31cdf

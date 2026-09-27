@@ -229,6 +229,13 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 ## Standing
+- **AGENTS.md protocol (his clarification 2026-09-27):** always edit a COPY
+  (repo root, `AGENTS_pending_<date>.md`) — he checks + applies it himself.
+  NEVER commit the live AGENTS.md directly: opencode WATCHES the file and an
+  update RELOADS the current session with it = a COMPLETE context refill on
+  each save (normally triggered by the git add + commit). Pending changes
+  ride the copy + this NAP's pending list. (Full entry: knowledge_inbox.md
+  2026-09-27_23-40.)
 - Baselines (re-verified 2026-09-27 by the planner, post-plan26 #92):
     probe **345** (344 + check 345 post-plan26 #92 json naming; the S14
     dump section is now (8); check 108's enum pin carries the 11 bt

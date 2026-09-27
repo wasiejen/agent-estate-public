@@ -15,12 +15,16 @@ the repo's own plugins (`\.opencode/plugin/*.ts`, `.opencode/tools/*.ts`,
 upstream fetch: opencode.ai/docs/plugins (last updated Sep 25, 2026) — those
 lines are marked "upstream (not installed-verified)".
 
-Version caveat (carried, not re-measured): the live host binary is 1.18.31 while
-the vendored `.opencode/node_modules` packages are 1.18.29 — both v1-generation
+Version caveat: the live host binary is **1.18.32** (measured 2026-09-27:
+npm `opencode-ai` platform package `opencode-windows-x64` version — the
+"1.18.31" reading of 2026-09-21 is stale); the vendored
+`.opencode/node_modules` packages are 1.18.29 — both v1-generation
 clients; the discrepancy is documented in `auto-resume-unit1-surface-report.md`
 (2026-09-21). The static `.d.ts` below describes 1.18.29; where live behavior
 differs from static types, the live probe wins (the "live-more-than-static"
-pattern, established 2026-09-21).
+pattern, established 2026-09-21). Source copy of the installed build:
+`home\AppData\Local\Temp\opencode\opencode-dev` (plain copy, v1.18.32,
+provenance spot-verified against the published v1.18.32 tag 2026-09-27).
 
 ## 1. SDK surface (v1 client)
 
@@ -321,6 +325,21 @@ Our installed/live path (2026-09-26 unless noted):
   ~55k); `keep.messages` does NOT control retention (count is cosmetic); dev-
   branch host source `session/compaction.ts`: `preserve_recent_tokens ??
   clamp(0.25*usable, 2k..15k)` + optional `tail_turns` — no message-count knob.
+- **Keep-source trace RESOLVED (2026-09-27, planner-27 — full doc
+  `2026-09-27_summarize-keep-source-trace.md`):** the installed build (1.18.32)
+  has NO per-call keep input — `SummarizePayload = {providerID, modelID, auto?}`
+  (opencode-dev `groups/session.ts` L65-69, byte-identical to the published
+  v1.18.32 tag), the handler passes only model + auto
+  (`handlers/session.ts` L273-294), and the budget reads CONFIG only
+  (`compaction.ts` L115-120: `preserve_recent_tokens ?? clamp(0.25*usable,
+  2k..15k)`). Legacy `compaction.keep.tokens` → `preserve_recent_tokens` +
+  `compaction.buffer` → `reserved` via `v2-compat.ts` normalizeCompaction
+  (L163-184, preferLegacy L425-437). Budget consumed whole-turn under an
+  estimated-token metric (`select` L223-269, `Token.estimate(JSON.stringify(
+  model messages))`); other knobs: `tail_turns` (L228-233), `prune`
+  (L273-317), `auto` (overflow.ts L28). Our body `keep.*` fields are dead but
+  harmless (ignored, live-verified) — the config `keep.tokens` is the ONLY
+  retention control; the computed keepTokens stays advisory (COMPACT `tok=`).
 - **Summarizer model:** root `agent.compaction.model` is CURRENTLY COMMENTED
   OUT (correction 2026-09-24, knowledge_plugins.md) → the default summarizer is
   the session's OWN model. Resolution: context_recovery = config pair (JSONC-

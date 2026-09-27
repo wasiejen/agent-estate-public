@@ -4,41 +4,51 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## Current session — autorun, 2026-09-27 (ses_f1d4258efffeFUXLn6PTolcHsB, planner-26, Qwen3.8-27B-Q3S-245K-slow)
-- plan26 (unit-4 restart branch after planner-25 `action: restart`): the
-  **#92 build** per the plan25 NEXT — spec staged + committed (spec = the
-  entry's acceptance: the pre-compaction dump saves BOTH the lossless md AND
-  a raw `--json` snapshot; scope: `preCompactionDump` in compact_memory.ts
-  L183 + call site L380 + the line formats + the return shape + the smoke
-  re-pin + probe S14 re-pins + new check 345 (344→345; smoke 76→78)),
-  worker_Q3S_245K_slow launched.
-- **plan26 LANDED + verified (worker-26 `worker_Q3S_245K_slow`
-  ses_f1d2ea77fffet94z6jtoZUD7z1):** `11f4a12` (code: the two-artifact dump —
-  the lossless md first + the raw `--json` snapshot, each INDEPENDENTLY with
-  the #78 attempt→retry→fail diagnostics + 120 s budget; the DUMP-RETRY=/
-  DUMP-FAIL lines gain the artifact relFile; the hook returns `{ ok, files,
-  error }`; the 3-arg name calls byte-identical) / `5a6e842` (probe S14
-  re-pins 104-107 + NEW check 345, 344→345) / `e2a1a52` (smoke +2, 76→78) /
-  `86bda25` (TODO #92 LANDED + handover + friction entry). Planner-verified
-  by own re-run: probe 345/345 + compact_memory smoke 78/78 (exit 0), commit
-  scope clean (3 task files + bookkeeping).
-- LIVE acceptance pending (natural): the next real compaction must show
-  BOTH artifacts in `.opencode/archive/sessions/compaction_dumps/` + the
-  two DUMP-OK lines in ctx.log.
+## Current session — autorun, 2026-09-27 (ses_f1d198b41ffeJA3a3By7tu3TfD, planner-27, Qwen3.8-27B-Q3S-245K-slow)
+- plan27 (unit-4 restart branch after planner-26 `action: restart`): the
+  **#99 follow-up research — DONE planner-direct** (80 % of the findings were
+  in hand at plan26 close; the remaining checks were bounded greps + one
+  provenance fetch — a serial delegation round-trip wasn't worth it).
+  Findings: installed host = **1.18.32** (measured: npm platform package
+  `opencode-windows-x64` — the host-map's "1.18.31" reading is stale) and the
+  scratchpad `opencode-dev` tree IS that build (provenance spot-verified vs
+  the published v1.18.32 tag); **NO per-call keep input exists**
+  (`SummarizePayload = {providerID, modelID, auto?}` — groups/session.ts
+  L65-69; the handler passes only model + auto — handlers/session.ts
+  L273-294; the budget reads CONFIG only — session/compaction.ts L115-120);
+  the legacy `compaction.keep.tokens` → `preserve_recent_tokens` (+
+  `buffer` → `reserved`) compat mapping (config/v2-compat.ts L163-184)
+  explains the config-wins live series; the budget is consumed whole-turn
+  under an estimated-token metric (`select` L223-269); the no-tail floor =
+  system + summary only (matches the measured 25.8k). **Fallback ruling
+  confirmed: the config `compaction.keep.tokens` (his file) is the ONLY
+  retention control; the computed keepTokens stays advisory (the COMPACT
+  `tok=`).** No code change (the body `keep.*` fields are dead but harmless).
+  Deliverables: research doc
+  `knowledge/opencode-plugins/2026-09-27_summarize-keep-source-trace.md` +
+  host-map §compaction gap resolved + version note fixed + TODO #99 close
+  note.
+- RESIDUAL (maintainer, live, on 1.18.32): the **N=10 discriminator**
+  (count-vs-budget retention semantics — the 2026-09-26 fork observation of
+  the FULL 30-message tail retained despite a 30k budget CONTRADICTS
+  1.18.32's `select()`; version drift 1.18.31→1.18.32 is the candidate
+  explanation the test resolves) + the summarize-scope probe — protocol in
+  the research doc.
+- Unmarked maintainer observation (priority.md uncommitted line
+  2026-09-27: "no delegation in a direct session without prior explicit ok")
+  — already codified as MEM-0110 (ff94000); NAP-only per observation triage.
 - Pending the maintainer (non-blocking, carried from plan25 — full list in
   plan25_nap.md): #104 (S31 anchor-trim equivalence — his call), #103 on GO
   (worker launch deferred by his ruling), the plan25 live-channel acceptance
   + the #92 live acceptance (his next restart), #86 DEFERRED (queue tail),
   the section-anchor schema call, the #98 natural cycle.
-- NEXT (next session/iteration): the **#99 follow-up research** — the
-  flexible per-dispatch keepTokens (trace where the installed host reads
-  `preserve_recent_tokens` — config vs per-call body; source
-  `home\AppData\Local\Temp\opencode\opencode-dev`, dev branch
-  1.18.32; the N=10 discriminator + the summarize-scope probe ride it; his
-  fork-test matrix = the decider; wire it if found, the config knob the
-  fallback). Then #104 (maintainer call), #103 on GO, #86 tail.
+- NEXT (next session/iteration): no clear build work without maintainer
+  input (#104/#103 are his calls, #86 deferred tail) → idle-initiative lane
+  per the standing `--maintainer` block (proposals always allowed, research,
+  bookkeeping-reducing tools, prompt improvements, maintenance at iter 30).
 
 ## Compressed archive (one line each
+  - 2026-09-27 autorun (ses_f1d4258efffeFUXLn6PTolcHsB, planner-26, Qwen3.8-27B-Q3S-245K-slow) — plan26: #92 build LANDED+verified (worker-26: 11f4a12 two-artifact dump / 5a6e842 probe S14 re-pins + check 345 / e2a1a52 smoke 76→78 / 86bda25 bookkeeping; planner re-run probe 345/345 + compact smoke 78/78; live acceptance = next real compaction shows both artifacts + two DUMP-OK lines) — details: loop folder plan26_summary.md + git 77f93fc
   - 2026-09-27 direct→autorun (ses_f20d1b39dffefE8ge0hH7jbgAn, planner-25, Qwen3.8-27B-Q3S-245K-slow) — plan25: maintainer rulings recorded (#92 YES→next unit, #74/#83/#93 CLOSED, #56 rework pending, #99 live tests complete + follow-up research APPROVED, #83 threshold 0.85 confirmed, bt anchor fix GO) + bt anchor fix LANDED+verified (worker-25: 2b50fee/b2e3963/6616689/7ddae1d; smoke 131/131, sandbox 64/64, probe 344/344, 459+1w, F=0; #104 filed) + dev_get_tool_context_contents fix (bda3584) + MEM-0110 (direct-session delegation ruling) — details: loop folder plan25_summary.md + plan25_nap.md + git fafdee8..50591f0
   - 2026-09-26 autorun (ses_f21359d77ffe2pviXZoIavxweh, planner-24, Qwen3.8-27B-Q3S-245K-slow) — plan24: loop_log-v2 LANDED+verified (worker-24: aa5a411/006a137/320d09f/b9d57c9 + S16 re-pin b1d122c; gates probe 340/340 + loop_log smoke 69/69 + all smokes + pytest 459+1w + F=0) + spec staged against the verified state (the proposal's 09-15 verdict line STALE) + proposal → implemented/ + prompt/doc bookkeeping — details: loop folder plan24_summary.md + git 68da83d..de31cdf
   - 2026-09-26/27 direct fork (ses_f20b3bf14ffedWHp2HGajHmGLN, planner-24 fork, Qwen3.8-27B-Q3S-245K-slow) — #99 live fork test RUN (dispatch PASS keep=30m tok=15916 computed ≈ independent DB 15,903; host side: the full 30-message tail retained RAW ≈ 37-40k tokens — no token-budget truncation observed, retention = count semantics) + keepTokens metric rework ×2 delegated (v1 bytes/4 b95d532, v2 S-diff provider-true primary dcad3d1 — pins machine-recomputed, gate green) + #103 filed (gauge lag structural; worker launch deferred per his ruling) + his compaction_tests.md series (body keep NOT honored — config compaction.keep.tokens wins; floor 25.8k) — details: plan24_nap.md (fork excess) + git 89902ef..8865b8c + .opencode/maintainer/draft/compaction_guide/compaction_tests.md

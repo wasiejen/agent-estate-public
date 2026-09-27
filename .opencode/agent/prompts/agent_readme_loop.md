@@ -15,7 +15,15 @@ not here.
 ## Action line
 - The states (the planner references AGENTS.md §Interaction-contract, same
   vocabulary):
-  - `restart` — fresh planner launch (the default; missing/unclear → restart)
+   - `restart` — fresh planner launch (the default; missing/unclear → restart).
+     **Lineage-depth cap (#90 part A, measured 2026-09-27):** a session at
+     depth ≥ 2 (two generations of plugin spawns from a user session) does
+     NOT auto-spawn a successor — the plugin logs `skip= depth sid=… depth=2`
+     in `auto_resume.log` and nothing else (no trigger file, no sticky state
+     — by design). Continue by resuming the session (a maintainer autorun
+     one-liner works) or starting a fresh user session (depth 0); the depth
+     is RESTORED from `auto_resume.log` on host restart (#90 part C) — a
+     restart never resets the chain.
   - `resume` — resume the same sub-agent session via `task_id`
   - `ask_maintainer: <q>` — pause the loop until the maintainer answers
   - `stop` — goal reached / unrecoverable

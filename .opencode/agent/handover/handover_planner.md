@@ -41,6 +41,16 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
    smoke; lag wording updated in role prompts / repo docs / ctx_gauge
    description — AGENTS.md + the compaction guide stay his paste). One
    routine self-compaction mid-unit (81 % → 33 %).
+- **Direct Q&A (post part-2 close, same session):** why NO successor spawn
+   after my 2nd `action: restart` (nor the 1st) — root cause = the #90
+   LINEAGE-DEPTH CAP: my depth = 2 (user planner-25 → spawned planner-26 →
+   me); the plugin logged `skip= depth sid=… depth=2` for BOTH restarts
+   (auto_resume.log 13:08:00Z + 13:55:46Z) — no spawn was ever attempted, so
+   the maintainer's interrupted "planner-28" left no plugin state (his
+   hypothesis disproven from the log); the depth is restored from
+   auto_resume.log on host restart (#90 part C) — a restart never resets
+   the chain. Codified: knowledge_inbox entry + agent_readme_loop.md
+   `restart` bullet.
 - RESIDUAL (maintainer, live, on 1.18.32): the **N=10 discriminator**
    (count-vs-budget retention semantics — the 2026-09-26 fork observation of
    the FULL 30-message tail retained despite a 30k budget CONTRADICTS

@@ -608,3 +608,6 @@ plan25 spec said "TODO.md no new entry expected", but fix (b) genuinely created 
 ### 2026-09-27_14-00 planner_Q3S_245K_slow ses_f20d1b39dffefE8ge0hH7jbgAn
 Host "2 consecutive tool errors / your previous approach is incorrect — retry with fundamentally different arguments" warning false-alarmed during deliberate error-path measurement (live root-cause probes of KNOWN-failing block_transfer behavior — the error WAS the expected measurement); it pushed toward abandoning a valid measurement sequence; consider relaxing/suppressing it when the session shows intentional error probing (e.g. the agent stated the probe purpose first).
 
+### 2026-09-27_14-39 worker_Q3S_245K_slow ses_f1d2ea77fffet94z6jtoZUD7z1
+glob tool silently skips gitignored paths (found no *.smoke.mjs under .opencode/ while the files exist) — fell back to bash ls; note in the worker prompt or the tool description would save the detour.
+

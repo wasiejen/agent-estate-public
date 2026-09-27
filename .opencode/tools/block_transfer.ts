@@ -103,14 +103,14 @@ function resolveAnchorOrError(fileRef: string, label: string, fileText: string, 
 // ===== LINE-NUMBER REFS + ASSEMBLY (approved proposal 2026-09-25_block_transfer-v2, Parts B+C) =====
 //
 // Part B: EVERY ref side (startMarker / endMarker / targetMarker, and each
-// item of the Part C 'refs' lists) is a marker string OR an integer line
-// number (1-based, absolute). The disambiguation is at the SCHEMA level
-// (poka-yoke): the schema carries string | integer, so the runtime reads
-// the TYPE — no string sniffing (the string "42" is a prefix MARKER that
-// must match a line beginning with "42"; the number 42 is line 42, full
-// stop). A numeric ref resolves to that exact line of the PRE-call file
-// state (no marker lookup); beyond the file's line count -> the S1
-// ref-out-of-range error (with the count).
+// item of the Part C 'refs' lists) is a marker string OR a line number
+// (1-based, absolute). The disambiguation is by VALUE (plan25 fix,
+// 2026-09-27): the host's constrained decoding of the string | integer
+// schema stringifies integers in the LIVE channel, so a type branch alone
+// was dead there — an ALL-DIGIT ref (a number, or a digit-string like
+// "42") is a 1-based LINE NUMBER resolved against the PRE-call file state
+// (no marker lookup); any OTHER string is a prefix MARKER. Beyond the
+// file's line count -> the S1 ref-out-of-range error (with the count).
 type Ref = string | number;
 
 // The presence test for a ref: absent = null / undefined / "" (the S1 falsy
@@ -130,16 +130,21 @@ export function countLines(fileText: string): number {
 }
 
 // The single routing entry for a REF (marker string OR line number): a
-// number resolves directly (range-checked against the PRE-call state), a
-// string routes through the S1 anchor rule (resolveAnchor — untouched).
+// number or a digit-string (/^\d+$/) resolves directly as a 1-based line
+// number (range-checked against the PRE-call state); any other string
+// routes through the S1 anchor rule (resolveAnchor — untouched).
 export function resolveRef(fileRef: string, label: string, fileText: string, ref: Ref): AnchorResolution {
-  if (typeof ref === "number") {
-    if (!Number.isInteger(ref) || ref < 1) {
-      return { error: `Error: ${label} ${ref} is not a 1-based line number in ${fileRef}.` };
+  // plan25 (a): the live channel's constrained decoding stringifies schema
+  // integers, so a digit-string ref is what it actually hits — treat an
+  // all-digit ref (number or digit-string) as a 1-based line number.
+  if (typeof ref === "number" || (typeof ref === "string" && /^\d+$/.test(ref))) {
+    const lineNo = typeof ref === "number" ? ref : parseInt(ref, 10);
+    if (!Number.isInteger(lineNo) || lineNo < 1) {
+      return { error: `Error: ${label} ${lineNo} is not a 1-based line number in ${fileRef}.` };
     }
     const lineCount = countLines(fileText);
-    if (ref > lineCount) return { error: refOutOfRangeError(fileRef, ref, lineCount) };
-    return { line: ref };
+    if (lineNo > lineCount) return { error: refOutOfRangeError(fileRef, lineNo, lineCount) };
+    return { line: lineNo };
   }
   return resolveAnchorOrError(fileRef, label, fileText, ref);
 }
@@ -258,7 +263,7 @@ WHEN-NOT — a small exact string replacement inside one file: use 'edit' — it
 
 MODES — MOVE: immediate cut-and-paste, extracts a block from srcFile and inserts it into dstFile in one call. COPY: extract a block from srcFile into a buffer, leaving the source untouched — input forms: a single-ref pair (startMarker..endMarker), a 'refs' LIST, or a 'text' key (direct text -> buffer); the buffer is REPLACED (never appended). APPEND: append to the named buffer, created if absent — the SAME input forms as COPY (stepwise assembly, no flags). CUT: extract into a buffer AND delete from the source. PASTE: write a buffer into dstFile. REPLACE: replace the line-anchored span (startMarker..endMarker inclusive) of dstFile with the contents of a named buffer — edit-like region replacement WITHOUT an exact oldString match (REPLACE never creates a file). WRITE: replace a line-anchored region of dstFile with direct text (bufferless — no DELETE + extra write call): one 'text' into a single span (startMarker..endMarker) or into a 'regions' LIST (each { start, end }, ALL resolved against the PRE-call file state, applied HIGHEST LINE first — no shifting; overlapping spans are rejected with the actual line numbers); the file is created if absent. Every WRITE auto-stores its 'text' in the buffer 'last_write' (overwritten per WRITE — automatic, no parameter): reuse it directly when an anchor resolution fails. PEEK: a bounded preview of a buffer — NEVER the full content: default = the line count + 3 head + 3 tail lines (each echoed capped ~40 chars, blank lines skipped when picking); or a 'from'+'count' window (capped at 25 lines). Full content: PASTE it to a file and read. MAP: a buffer structure at a glance — the line count + 3 head + 3 tail lines + a HEADING SKELETON (max 10, then '+N more'); lines echoed VERBATIM WITH line numbers (no cap, blank lines kept). Headings = '^#{1,6} ' at column 0 (markdown H1-H6; indented '#' EXCLUDED) — no file-type sniffing: a '#' comment in a code buffer is self-evident from the verbatim echo. DELETE: extract a block and discard it (purge without outputting). CLEAR: empty a buffer. Use MOVE for a single direct transfer; use COPY/APPEND + PASTE/REPLACE for multi-buffer work across files (one buffer can be pasted several times); use REPLACE to swap a region in place (PASTE inserts, it does not replace); use WRITE for a direct text -> region write; use PEEK/MAP to inspect a buffer without pasting it out.
 
-REFS — every ref (startMarker / endMarker / targetMarker, each item of a COPY/APPEND 'refs' list, and each start/end of a WRITE 'regions' item) is a marker string OR an integer line number (1-based, absolute, resolved against the PRE-call file state). The TYPE decides (schema poka-yoke — no string sniffing: the string "42" is a prefix MARKER, the number 42 is line 42). A line number beyond the file's line count returns the ref-out-of-range error (with the count).
+REFS — every ref (startMarker / endMarker / targetMarker, each item of a COPY/APPEND 'refs' list, and each start/end of a WRITE 'regions' item) is a line number or a marker string: an ALL-DIGIT ref (a number, or a digit-string like "42") is a 1-based line number (absolute, resolved against the PRE-call file state); any OTHER string is a prefix MARKER. A line number beyond the file's line count returns the ref-out-of-range error (with the count).
 
 ANCHORS — a marker ref is a short UNIQUE line prefix; the block spans the start line through the end line INCLUSIVE. For MOVE/PASTE, an optional targetMarker (marker or line number in dstFile) sets the insertion point right after that line; omit it to append at EOF. For REPLACE, startMarker/endMarker are the span in dstFile itself (no targetMarker). For WRITE, the single span (or each 'regions' item) is the span in dstFile itself.
 
@@ -276,15 +281,15 @@ EDGE — a non-unique anchor (the error carries the match count + the first matc
     mode: tool.schema.enum(["MOVE", "COPY", "APPEND", "CUT", "PASTE", "REPLACE", "WRITE", "PEEK", "MAP", "DELETE", "CLEAR"]).describe("Operation mode: MOVE (immediate cut-and-paste), COPY (yank to buffer — single-ref pair, 'refs' list, or 'text'), APPEND (append to the named buffer, created if absent — the same forms as COPY), CUT (yank to buffer and delete from source), PASTE (write buffer to target), REPLACE (replace the line-anchored span of dstFile with a named buffer), WRITE (replace a line-anchored region of dstFile with direct 'text' — a single span or a 'regions' list; creates the file if absent; auto-stores the text in the 'last_write' buffer), PEEK (bounded buffer preview — head/tail or a from/count window), MAP (buffer structure at a glance — line count + head/tail + a heading skeleton, lines verbatim with line numbers), DELETE (cut to null), CLEAR (empty buffer)."),
     srcFile: tool.schema.string().optional().describe("Source file path. Required for MOVE, CUT, DELETE, and the single-ref and 'refs' forms of COPY/APPEND."),
     dstFile: tool.schema.string().optional().describe("Destination file path. Required for MOVE, PASTE, REPLACE, or WRITE. For REPLACE the file must exist (REPLACE never creates a file); for WRITE the file is created if absent."),
-    startMarker: tool.schema.union([tool.schema.string(), tool.schema.number().int()]).optional().describe("Block start: a marker string (short UNIQUE line prefix) OR an integer line number (1-based, absolute) — the type decides (no string sniffing). Required for the single-ref form (MOVE, COPY, CUT, DELETE; for REPLACE: the span start in dstFile; for WRITE: the single-span start in dstFile)."),
-    endMarker: tool.schema.union([tool.schema.string(), tool.schema.number().int()]).optional().describe("Block end: a marker string (short UNIQUE line prefix) OR an integer line number (1-based, absolute) — the type decides (no string sniffing). Required for the single-ref form (MOVE, COPY, CUT, DELETE; for REPLACE: the span end in dstFile; for WRITE: the single-span end in dstFile)."),
-    targetMarker: tool.schema.union([tool.schema.string(), tool.schema.number().int()]).optional().describe("Insertion point in dstFile: a marker string (short UNIQUE line prefix) OR an integer line number (1-based, absolute); the block goes right after that line. If omitted in MOVE or PASTE, appends to EOF."),
-    refs: tool.schema.array(tool.schema.union([tool.schema.string(), tool.schema.number().int()])).optional().describe("COPY/APPEND list form: a LIST of refs (marker string or integer line number each); each ref selects ONE line of srcFile, and the sections go into the buffer joined by EXACTLY ONE \\n. Mutually exclusive with 'text' and the markers."),
+    startMarker: tool.schema.union([tool.schema.string(), tool.schema.number().int()]).optional().describe("Block start: a marker string (short UNIQUE line prefix) OR a line number (1-based, absolute) — an all-digit ref (a number, or a digit-string like \"42\") is a line number; any other string is a prefix marker. Required for the single-ref form (MOVE, COPY, CUT, DELETE; for REPLACE: the span start in dstFile; for WRITE: the single-span start in dstFile)."),
+    endMarker: tool.schema.union([tool.schema.string(), tool.schema.number().int()]).optional().describe("Block end: a marker string (short UNIQUE line prefix) OR a line number (1-based, absolute) — an all-digit ref (a number, or a digit-string like \"42\") is a line number; any other string is a prefix marker. Required for the single-ref form (MOVE, COPY, CUT, DELETE; for REPLACE: the span end in dstFile; for WRITE: the single-span end in dstFile)."),
+    targetMarker: tool.schema.union([tool.schema.string(), tool.schema.number().int()]).optional().describe("Insertion point in dstFile: a marker string (short UNIQUE line prefix) OR a line number (1-based, absolute); an all-digit ref (a number, or a digit-string like \"42\") is a line number; any other string is a prefix marker. The block goes right after that line. If omitted in MOVE or PASTE, appends to EOF."),
+    refs: tool.schema.array(tool.schema.union([tool.schema.string(), tool.schema.number().int()])).optional().describe("COPY/APPEND list form: a LIST of refs (each a marker string or a line number — an all-digit ref (a number, or a digit-string) is a line number; any other string is a prefix marker); each ref selects ONE line of srcFile, and the sections go into the buffer joined by EXACTLY ONE \\n. Mutually exclusive with 'text' and the markers."),
     text: tool.schema.string().optional().describe("COPY/APPEND direct-text form: the text goes into the buffer (split into lines; a trailing newline adds no blank line). Mutually exclusive with 'refs' and the markers. For WRITE: the direct text that replaces the span (required)."),
     regions: tool.schema.array(tool.schema.object({
       start: tool.schema.union([tool.schema.string(), tool.schema.number().int()]),
       end: tool.schema.union([tool.schema.string(), tool.schema.number().int()])
-    })).optional().describe("WRITE list form: a LIST of regions, each an object { start, end } (each ref a marker string or integer line number); ALL regions resolve against the PRE-call file state and are applied HIGHEST LINE first (no shifting). Mutually exclusive with the single startMarker/endMarker pair."),
+    })).optional().describe("WRITE list form: a LIST of regions, each an object { start, end } (each ref a marker string or a line number — an all-digit ref is a line number; any other string is a prefix marker); ALL regions resolve against the PRE-call file state and are applied HIGHEST LINE first (no shifting). Mutually exclusive with the single startMarker/endMarker pair."),
     from: tool.schema.number().int().optional().describe("PEEK window start: a 1-based line number in the buffer. Given together with 'count' (both or neither)."),
     count: tool.schema.number().int().optional().describe("PEEK window length in lines (capped at 25). Given together with 'from' (both or neither)."),
     bufferName: tool.schema.string().optional().describe("Name of the clipboard buffer (defaults to 'default'). Allows managing multiple clipboards. Note: the buffer 'last_write' is auto-filled by every WRITE (overwritten per WRITE) — no parameter to request it.")

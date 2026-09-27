@@ -309,6 +309,16 @@ chk("F: DELETE feedback: exact Part F line (resolved range + first-line echo)", 
 const rCl = await t.execute({ mode: "CLEAR", bufferName: "cutb" }, ctx);
 chk("F: CLEAR feedback: exact Part F line (the buffer count AFTER the op = 0)", rCl === "Cleared buffer 'cutb' - buffer: 0 lines.");
 
+// ---- Part B2: the plan25 anchor fixes (2026-09-27, spec fafdee8):
+// (a) digit-string line refs, (b) anchor-side trim, (c) candidate hints.
+// numFile = 5 lines (restored at the Part C setup, untouched since).
+const rNS1 = await t.execute({ mode: "COPY", srcFile: numFile, startMarker: "2", endMarker: "4", bufferName: "ns1" }, ctx);
+chk("B2(a): a digit-string ref pair resolves as line numbers — the SAME byte-exact result as the numeric call (the live channel stringifies schema integers)", rNS1 === "Copied 3 lines from 'bt_num.txt' into buffer 'ns1' (lines 2..4, first: 'line1') - buffer: 3 lines.");
+const rNS2 = await t.execute({ mode: "COPY", srcFile: numFile, startMarker: "0", endMarker: "4", bufferName: "ns2" }, ctx);
+chk("B2(a): the digit-string '0' -> the byte-exact not-1-based error (same wording as the number 0)", rNS2 === "Error: Start marker 0 is not a 1-based line number in bt_num.txt.");
+const rNS3 = await t.execute({ mode: "COPY", srcFile: numFile, startMarker: "6", endMarker: "4", bufferName: "ns3" }, ctx);
+chk("B2(a): an out-of-range digit-string -> the byte-exact ref-out-of-range error (with the count)", rNS3 === "Error: line 6 is out of range in bt_num.txt (the file has 5 lines).");
+
 fs.rmSync(dir, { recursive: true, force: true });
 
 finish();

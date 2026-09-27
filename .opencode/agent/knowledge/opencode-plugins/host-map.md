@@ -225,6 +225,36 @@ rows).
   — knowledge_plugins.md "Stored tool-call args are POST-mutation".
 - Live event `message.updated` carries `properties.sessionID` (more than the
   static types) — unit1 surface report UNIT 2 supplement (2026-09-21).
+- **Token-forensics reference (verified 2026-09-26/27 — fork compaction test
+  + planner-27; from knowledge_inbox 2026-09-26_22-33 + 2026-09-27_00-23):**
+  (1) SHAPES: DB `message.data` IS the info object — `tokens` at TOP LEVEL
+  (no `.info` wrapper); part type lives inside `part.data` JSON (no `type`
+  column). In the client SDK the same object is `entry.info` — a spec that
+  names a shape must say WHICH side (the 2026-09-27_00-15 nesting-ambiguity
+  lesson). (2) FIELDS — all in PROVIDER TOKENS (no byte conversion):
+  `input` = new (non-cached) prefill of THAT call; `cache.read` = cached
+  share; `input + cache.read` = full input context at that call; `output` =
+  that call's generation; `reasoning` = thinking tokens (0 on this host);
+  `cache.write` = 0 here. (3) ATTACHMENT: usage recorded on ASSISTANT rows
+  only; USER rows all-zero; some rows all-zero despite real content (sparse
+  recording — treat as missing, fail-open). (4) CONTINUITY (the key fact):
+  S = input+output+cache.read per assistant call = the CUMULATIVE context
+  size after that call (S[i] ≈ cr[next assistant], drift ±1 token on ~90 %
+  of rows; cache evictions drift 1–2.3k on a few). Forks/restarts do NOT
+  break S (the cache resets — whole context moves into `input` as refilled
+  prefill — but S continues; measured across a fork: 150,482 ≈ 150,481).
+  (5) COMPACTION BOUNDARY: a user message carrying a `compaction`-type part;
+  the summarizer's step = an assistant row with agent=compaction/mode=
+  compaction (its recorded input = the summarize request size — far below
+  the full context: the summarize body excludes system prompt + tool
+  outputs). (6) RETENTION is NOT visible in DB rows (all rows persist) —
+  measure it from the first post-compaction assistant call's recorded input
+  (the prefill). (Gauge note post-#103, 2026-09-27: the ctx gauge readout =
+  TOTAL in+out+cr of the last FINISHED step — it lags the live context by
+  ONE generated turn; the pre-#103 "input+cache.read, ≈2 tool calls" wording
+  is stale.)
+  - **Keys:** token forensics, message.data, part.data, sparse tokens,
+    S-continuity, compaction boundary, post-compaction prefill.
 
 ## 4. Permission / external_directory mechanics
 

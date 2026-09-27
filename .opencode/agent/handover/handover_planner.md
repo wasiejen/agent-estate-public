@@ -4,7 +4,31 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## Current session — autorun, 2026-09-27 (ses_f1d198b41ffeJA3a3By7tu3TfD, planner-27, Qwen3.8-27B-Q3S-245K-slow)
+## Current session — autorun, 2026-09-28 (ses_f1b04ea20ffeo9jTAs1IEvAGjg, planner-28, Qwen3.8-27B-Q3S-245K-slow)
+- plan28 (iter 28, unit-4 restart branch after planner-27 `action: restart`
+  + host restart): **MAINTENANCE PASS done (catch-up — the iter-25 pass was
+  missed)**: knowledge_inbox cured (4 entries → host-map token-forensics
+  block + knowledge_plugins lineage-cap + knowledge_tools AGENTS.md-watch +
+  ctx-gauge post-#103 wording fix); behavioral guidelines → destill memory
+  (own section — MEM-0110 now the canonical home per his 2026-09-28
+  instruction); TODO: header → #106, #95 CLOSED (→ todo_records),
+  #106-#112 filed (feedback review + ideas.md scan triage); prompt friction
+  fixes (task-spec 4 lines, todo_inbox root-path ×3, close-down-rides-a-
+  commit ×2); ideas.md scan triaged (4 ideas submitted to agent_ideas.md;
+  2 maintainer-backend items = NAP-only: the parallel-slot/262k idea + the
+  cache-invalidation backend experiment); feedback 579 verified PARTIALLY
+  STALE on his request (1.5 corrected by the plan23 live acceptance — the
+  bt startMarker pair channel works live; 1.3 stands — read.offset schema-
+  shadowed; his escape evidence = the pre-#100 removal window, last live
+  kind=escape line 2026-09-26_02-27 vs removal commit 02:35:47); 585/594/
+  603 stale (plan25 digit-refs / bda3584 / plan25 fixes).
+- NEXT: #105 part (b) — the keepTokens fork-effort research spec (committed
+  before the explorer launch).
+- Maintainer in-session messages (2026-09-28): the proposals folder was
+  restored by his commit d535e31 (verified) + the 579 verification request
+  (answered with the evidence above).
+
+## Previous session — autorun, 2026-09-27 (ses_f1d198b41ffeJA3a3By7tu3TfD, planner-27, Qwen3.8-27B-Q3S-245K-slow)
 - plan27 (unit-4 restart branch after planner-26 `action: restart`): the
   **#99 follow-up research — DONE planner-direct** (80 % of the findings were
   in hand at plan26 close; the remaining checks were bounded greps + one

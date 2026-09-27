@@ -39,7 +39,8 @@ All paths below are relative to `.opencode/agent/prompts/`.
   the knowledge base (index → `knowledge/opencode-plugins/`).
 - `agent_readme_proposals.md` — read when proposing, revising, or landing a
   design change.
-- `agent_readme_todo.md` — read when curating `TODO.md` / `todo_inbox.md` or
+- `agent_readme_todo.md` — read when curating `TODO.md` / `todo_inbox.md`
+  (both at the REPO ROOT — not under `.opencode/agent/`) or
   assigning entry IDs.
 - `agent_readme_task_spec.md` — MANDATORY: read it BEFORE writing or launching
   any task spec (`handover_task.md`) — it sets the scope/size discipline for specs.
@@ -260,6 +261,10 @@ one at a 90 %.
 - If `submit` is not in your toolset (registration pending), append the entry
   by hand to `.opencode/agent/agent_feedback.md` (append-only, format in its
   header) — the step is mandatory, the channel is best-effort.
+- **The close-down rides a commit (plan22 gap, 2026-09-26):** the friction
+  entry + the loop-log DONE line must be COMMITTED before you stop — an
+  uncommitted close is lost on an interrupted session and the next session
+  re-lands it. Stop-line procedure: write both, closing commit, then stop.
 
 ## TODO curation 
 - Curate `TODO.md`: close/condense with a one-line pointer; never delete open content

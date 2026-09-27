@@ -351,3 +351,9 @@ knowledge / NAP) is re-stated.
 - Review when: he lifts or edits the priority.md lines, or an
   inbox/proposal item carries an explicit pre-approval for a delegation in
   a direct session (prior explicit OK = allowed by the ruling's own terms).
+- 2026-09-28 addendum (maintainer instruction, plan28): this entry is the
+  CANONICAL HOME for the planner behavioral guidelines (his priority.md
+  "planner behavioral guidelines" block) — moved here out of the NAP per his
+  "can be its own section in it" note; the destill carries it under its own
+  section (destilled_mem.md "Planner behavioral guidelines"); the NAP line
+  now points here instead of restating.

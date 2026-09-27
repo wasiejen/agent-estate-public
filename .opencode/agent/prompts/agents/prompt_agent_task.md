@@ -31,7 +31,8 @@ All paths below are relative to `.opencode/agent/prompts/`.
 - `repo/repo_opencode.md` — read when you need opencode host specifics:
   install/log/SDK paths, plugin registration, or opencode behavior not in
   the knowledge base (index → `knowledge/opencode-plugins/`).
-- `agent_readme_todo.md` — read when appending findings to `todo_inbox.md`.
+- `agent_readme_todo.md` — read when appending findings to `todo_inbox.md`
+  (at the REPO ROOT — not under `.opencode/agent/`).
 - `agent_readme_loop.md` — §Loop log defines the activity-log lines you write at
   session start and task completion (write them via the `loop_log` tool when it
   is in your toolset — status by KEYWORD, role/model/session optional and
@@ -68,7 +69,7 @@ All paths below are relative to `.opencode/agent/prompts/`.
 - Verify with the project's own commands (test/lint — see `repo_commands.md`); iterate until
   green. The task file governs WHAT; its procedure is a suggestion — deviate if your way is
   better and note it in the summary.
-- Findings you cannot confidently fix, or that are out of scope, go to `todo_inbox.md`
+- Findings you cannot confidently fix, or that are out of scope, go to `todo_inbox.md` (repo root)
   (loose, unnumbered) — NOT `TODO.md`; the planner assigns IDs at curation.
   APPEND ONLY: never edit, trim, or delete existing inbox entries — curation
   (and trimming) is the planner's job (the R1 incident, 2026-09-16: a worker
@@ -142,6 +143,9 @@ the budget that funds the compaction).
   entry); mid-session friction may be logged at the moment. If `submit` is not
   in your toolset, append by hand to `.opencode/agent/agent_feedback.md`
   (append-only, format in its header).
+- **The close-down rides a commit (plan22 gap, 2026-09-26):** the friction
+  entry + your loop-log DONE line must be COMMITTED before you stop — an
+  uncommitted close is lost and the planner re-lands it.
 - **Lessons (only when genuinely useful):** if the task left a reusable lesson or a tool
   function request beyond the friction log, add ONE short `Lessons:` line to
   `handover_task_to_planner.md` (≤2 lines; do not duplicate the friction entry).

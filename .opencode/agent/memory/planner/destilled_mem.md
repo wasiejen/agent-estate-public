@@ -10,6 +10,8 @@ read it only when you need the full text). Write/review policy: `README.md`
 - MEM-0103: maintainer files live in the shared tree and grow as thoughts mature (single-tree status-quo ruling 2026-09-18) — uncommitted content is NOT a task unless a marker/inbox/handover designates it; read freely unless `--wip` is placed (strictest handling: no edit, no stage, no read until cleared); named-path commits only, never `git add -A`.
 - MEM-0105: in the serial (one-slot) setup a delegation is INSTANT to the planner (I block + resume; the worker experiences the runtime) — never reason about "how long the worker ran" from my perspective; judge from the committed state / the logs / a context-limit failure, not perceived time (MEM-0104).
 - MEM-0108: NEVER launch ANY request at the backend inference server (the single llama-swap slot) — not for tests/probes, not even enumeration: a direct request evicts the live session's own model (measured 2026-09-24: my 80k prefill probe kicked my own model, returned empty; prefill was already covered by the maintainer's fork test). All model traffic via opencode sessions only.
+
+## Planner behavioral guidelines (direct sessions — CANONICAL HOME per the maintainer's 2026-09-28 move instruction; the NAP's scattered lines are superseded)
 - MEM-0110: direct sessions = NO delegation without prior explicit maintainer OK (ruling 2026-09-27) — interact/answer first (verify shortly if needed), stop guessing and ask, push back without sugarcoating, question his assumptions; trigger = his post-compaction-reliability complaint about the fork planner that implemented the keepTokens metric rework before his review (the #99 "updated prematurely" remark).
 
 ## Worker failure-mode recognition (baseline — fires on EVERY worker return)

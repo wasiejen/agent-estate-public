@@ -220,15 +220,18 @@ instructions/protocol — facts that save lookups. Format per the README:
   block + `compact_budget.json`). Factual source: `maintainer/draft/
   compaction_guide/full_guide.md` §12 Corrections.
 
-## ctx_gauge / `ctx:` lines lag ~2 tool calls — plan with margin
+## ctx_gauge / `ctx:` lines lag ONE generated turn — plan with margin
 - **Do:** treat any gauge readout as a LOWER bound of real usage — plan
   with ~5k margin; trust the freshest reading plus your own tool-call
   count since it. More tool calls (low thinking) between readouts = a more
   exact value.
-- **Why (evidence):** maintainer-measured 2026-09-15 (priority.md # 9):
-  `ctx_gauge` and the inline `ctx:` replay lag a large context increase by
-  ~2 tool calls — planner and worker consistently misjudge how close they
-  are to the window end.
+- **Why (evidence):** pre-#103, maintainer-measured 2026-09-15
+  (priority.md # 9): the readout (input+cache.read, `output` excluded)
+  lagged the live context by ~2 tool calls. POST-#103 (`fcc0fc8`,
+  2026-09-27): the readout = TOTAL (in+out+cr) of the last FINISHED step —
+  the structural 2-turn lag is GONE; the readout now lags the live context
+  by ONE generated turn (the in-flight step's output, not yet in the DB).
+  The ~5k margin still applies (that in-flight output).
 - **After a compaction:** the FIRST gauge readout reflects the COMPACTING
   model's own context fill, not the compacted session's new fill
   (measured 2026-09-22: readout 57570/35% right after a compaction of a
@@ -472,3 +475,30 @@ instructions/protocol — facts that save lookups. Format per the README:
 - **Ref:** plan18 handover (910e767); commit bc374b2.
 - **Keys:** block_transfer, DELETE, CUT, line-prefix, oldString,
   transcription risk, large removal.
+
+## The host WATCHES AGENTS.md — an update RELOADS the current session (complete context refill)
+- **Do:** NEVER commit changes to the live AGENTS.md directly — always edit a
+  COPY (`AGENTS_pending_<date>.md` at the repo root); the maintainer checks
+  the copy and applies it himself. Pending changes ride the copy + the NAP's
+  pending list.
+- **Why (evidence):** maintainer clarification 2026-09-27 (direct session,
+  knowledge_inbox 2026-09-27_23-40): opencode watches AGENTS.md — on update
+  the CURRENT session reloads with it = a COMPLETE context refill on each
+  save (normally triggered by the git add + commit that lands the change).
+  Two stated reasons: he wants to see exactly what each agent receives as
+  basic instruction, and the refill behavior makes a direct commit a
+  session-killing act. (The AGENTS.md "Editing this file" line already says
+  edit-a-copy — this entry carries the WHY.)
+- **Keys:** AGENTS.md, watch, reload, refill, AGENTS_pending, commit,
+  copy protocol.
+
+## The built-in `glob` tool returns NO matches under dot-directories (e.g. `.opencode/`)
+- **Do:** for files under a dot-prefixed directory (notably
+  `.opencode/**`), use `bash ls` / `find` instead of the `glob` tool —
+  glob silently returns "No files found".
+- **Why (evidence):** verified twice — worker-22 friction 2026-09-27
+  ("found no *.smoke.mjs under .opencode/ while the files exist") and
+  planner-28 2026-09-28 (`.opencode/plugin/tests/*.smoke.mjs` → "No files
+  found"; `plugin/tests/*.smoke.mjs` also empty — the dot-directory is the
+  discriminator, `.gitignore` does NOT list `.opencode`).
+- **Keys:** glob, dot-directory, hidden, .opencode, no files found, ls.

@@ -34,6 +34,24 @@
   settles a multi-item build.
 - **Claims in a spec are the planner's verified facts** (measured at spec
   time), not assignments for the worker to re-derive.
+- **Full repo-relative paths for file references:** name proposal / spec /
+  knowledge files by their FULL repo-relative path (`.opencode/proposals/
+  approved/…`, not `proposals/approved/…`) — a bare name costs the worker a
+  find/glob call (2026-09-26/27 frictions).
+- **Probe line refs point at the CODE block, re-verified at authoring:**
+  when the spec cites a probe case by line range, point at the case's code
+  block (never the header annotation) and re-verify the range + the
+  baseline counts against the probe's header tally at spec time (28-line-
+  short ranges + a stale baseline count cost worker calls, 2026-09-26/27).
+- **Live-acceptance specs open with a cheap build canary:** before the
+  acceptance battery, trigger one known current-behavior line and confirm
+  it appears in intercept.log — the live process can LAG HEAD after a mid-
+  incident restart (the 2026-09-26_14-26 case burned ~12 attempts); the
+  planner re-verifies the live process state after ANY mid-incident
+  restart, not just at session start.
+- **No "no new TODO entry expected" DoD assumptions:** state the expectation,
+  never promise it — a fix may legitimately surface a doc/code discrepancy
+  that gets filed (plan25 friction, 2026-09-27).
 - **Commit hash in the DoD (codified 2026-09-22 after two worker stumbles):**
   a worker's commit can NEVER contain its own hash — the hash exists only
   AFTER the commit, and the TODO/handover files ride in that same commit.

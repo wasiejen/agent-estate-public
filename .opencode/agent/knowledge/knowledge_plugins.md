@@ -305,3 +305,23 @@ Gained, verified knowledge for opencode plugins. Format per the README:
   L7689+); `proposals/implemented/2026-09-26_compaction-unification.md`.
 - **Keys:** compaction_core, shared core, context_recovery, no-resume,
   summarizer-pair, session-own modelID, S32 equivalence, T5, drift-guard.
+
+## auto_resume: the LINEAGE-DEPTH CAP (verified 2026-09-27, from knowledge_inbox 2026-09-27_16-15)
+- **Do:** a session at depth ≥ N (generations of plugin spawns from a user
+  session) does NOT auto-spawn a successor on `action: restart` — the plugin
+  logs `skip= depth sid=… depth=N` and NOTHING else (no `route=`, no trigger
+  file, no sticky state; a failed/interrupted spawn sets no state either).
+  The cap is LIVE-CONFIGURABLE: `.opencode/temp/lineage_max_depth` (one
+  integer; -1 = unbounded; missing/unparseable → default 10 — raised from 2
+  by the 2026-09-27 maintainer ruling, the autorun loop should never stall).
+  The depth is RESTORED from `auto_resume.log` on host restart
+  (`restoreLineageFromLog` pairs `route=`/`spawn=` lines) — a host restart
+  NEVER resets the chain.
+- **Why (evidence):** auto_resume.log + auto_resume.ts, verified 2026-09-27
+  (planner-27): the depth-2 `skip=` lines for the plan26/27 restarts (before
+  the 2→10 raise); the raise re-pinned smoke #90 (iv) (depth-2 now spawns) +
+  #96 (c) 10-pair trim-restore fixture (the depth-10 boundary).
+- **Diagnostic:** `grep -E "spawn=|route=|skip=|deactivate="
+  .opencode/temp/auto_resume.log | tail`.
+- **Keys:** lineage, depth cap, skip= depth, lineage_max_depth, restore,
+  restart, spawn chain.

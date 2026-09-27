@@ -82,7 +82,10 @@ const ra = mod.resolveAnchor;
 chk("resolveAnchor is exported (pure fn)", typeof ra === "function");
 chk("resolveAnchor: 1-based line number of the EXACT ONE prefix match", ra("one\nTWO line\nthree", "TWO") === 2);
 chk("resolveAnchor: leading spaces/tabs on the line are trimmed before the prefix match", ra("\tTWO indented\nx", "TWO indented") === 1);
-chk("resolveAnchor: an anchor WITH leading whitespace never matches (used as typed)", ra("TWO x\n   TWO y", " TWO") === null);
+// re-labeled per plan25 (b): the anchor is trimmed before the match, so
+// " TWO" now matches BOTH lines — the value (null) is unchanged, the
+// reason is non-uniqueness (the assertion below still pins null).
+chk("resolveAnchor: an anchor WITH leading whitespace is trimmed before the match (here: BOTH lines match -> null via non-unique)", ra("TWO x\n   TWO y", " TWO") === null);
 chk("resolveAnchor: case-sensitive (no case fold)", ra("TWO line\nx", "two") === null && ra("TWO line\nx", "TWO") === 1);
 chk("resolveAnchor: CRLF-tolerant (a trailing \\r on the line is ignored for matching)", ra("TWO cr\r\nrest", "TWO cr") === 1);
 chk("resolveAnchor: a LONGER line still matches (the prefix — the remainder is irrelevant)", ra("TWO prefix and more\nx", "TWO") === 1);
@@ -318,6 +321,12 @@ const rNS2 = await t.execute({ mode: "COPY", srcFile: numFile, startMarker: "0",
 chk("B2(a): the digit-string '0' -> the byte-exact not-1-based error (same wording as the number 0)", rNS2 === "Error: Start marker 0 is not a 1-based line number in bt_num.txt.");
 const rNS3 = await t.execute({ mode: "COPY", srcFile: numFile, startMarker: "6", endMarker: "4", bufferName: "ns3" }, ctx);
 chk("B2(a): an out-of-range digit-string -> the byte-exact ref-out-of-range error (with the count)", rNS3 === "Error: line 6 is out of range in bt_num.txt (the file has 5 lines).");
+const indFile = "bt_ind.txt";
+fs.writeFileSync(path.join(dir, indFile), "one\n   ind line\ntwo");
+const rIN1 = await t.execute({ mode: "COPY", srcFile: indFile, startMarker: "   ind line", endMarker: "   ind line", bufferName: "ind" }, ctx);
+chk("B2(b): an anchor typed WITH the line's leading whitespace now MATCHES its line (the anchor is trimmed before the startsWith; the echo keeps the original indentation)", rIN1 === "Copied 1 line from 'bt_ind.txt' into buffer 'ind' (lines 2..2, first: '   ind line') - buffer: 1 line.");
+const rIN2 = await t.execute({ mode: "COPY", srcFile: indFile, startMarker: " \t ", endMarker: "two", bufferName: "ind2" }, ctx);
+chk("B2(b): an all-whitespace anchor matches NO line (never match-all) -> the byte-identical OLD not-found format (no candidate hint)", rIN2 === "Error: Start marker ' \t ' not found in bt_ind.txt.");
 
 fs.rmSync(dir, { recursive: true, force: true });
 

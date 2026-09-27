@@ -32,25 +32,32 @@ function sandboxCheck(cwd: string, givenPath: string): string | null {
 // swapping the general behavior (prefix -> substring / case-insensitive /
 // fuzzy) is a change in this one place, not in the modes.
 //
-// Rule (exactly as approved, Part A):
+// Rule (exactly as approved, Part A; the anchor-side trim added by the
+// plan25 fix, 2026-09-27):
 //   - the file is split into lines on `\n`; a trailing `\r` on a line is
 //     ignored for matching (CRLF-tolerant);
 //   - an anchor A matches line L if L, after removing LEADING spaces/tabs,
-//     BEGINS with A verbatim (case-sensitive; A is used as typed — no
-//     trimming of the anchor itself);
+//     BEGINS with A verbatim (case-sensitive); A is ITSELF stripped of
+//     LEADING spaces/tabs before the match — an anchor typed with the
+//     line's indentation now matches;
+//   - an anchor that is empty AFTER trimming (all whitespace) matches NO
+//     line (never match-all);
 //   - the line's remainder after A is irrelevant (a longer line still
 //     matches — that's the prefix);
 //   - the anchor must match EXACTLY ONE line.
 
 // The 1-based line numbers of ALL matching lines (empty array = no match).
 export function matchAnchorLines(fileText: string, anchor: string): number[] {
-  if (!anchor) return [];
+  // plan25 (b): strip LEADING spaces/tabs from the ANCHOR as well — an
+  // all-whitespace anchor is empty after trimming and matches nothing.
+  const trimmed = anchor.replace(/^[ \t]+/, "");
+  if (!trimmed) return [];
   const out: number[] = [];
   const lines = fileText.split("\n");
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
     if (line.endsWith("\r")) line = line.slice(0, -1);
-    if (line.replace(/^[ \t]+/, "").startsWith(anchor)) out.push(i + 1);
+    if (line.replace(/^[ \t]+/, "").startsWith(trimmed)) out.push(i + 1);
   }
   return out;
 }
@@ -265,7 +272,7 @@ MODES — MOVE: immediate cut-and-paste, extracts a block from srcFile and inser
 
 REFS — every ref (startMarker / endMarker / targetMarker, each item of a COPY/APPEND 'refs' list, and each start/end of a WRITE 'regions' item) is a line number or a marker string: an ALL-DIGIT ref (a number, or a digit-string like "42") is a 1-based line number (absolute, resolved against the PRE-call file state); any OTHER string is a prefix MARKER. A line number beyond the file's line count returns the ref-out-of-range error (with the count).
 
-ANCHORS — a marker ref is a short UNIQUE line prefix; the block spans the start line through the end line INCLUSIVE. For MOVE/PASTE, an optional targetMarker (marker or line number in dstFile) sets the insertion point right after that line; omit it to append at EOF. For REPLACE, startMarker/endMarker are the span in dstFile itself (no targetMarker). For WRITE, the single span (or each 'regions' item) is the span in dstFile itself.
+ANCHORS — a marker ref is a short UNIQUE line prefix (leading spaces/tabs on the ANCHOR are ignored — an anchor typed with the line's indentation matches; an all-whitespace anchor matches nothing); the block spans the start line through the end line INCLUSIVE. For MOVE/PASTE, an optional targetMarker (marker or line number in dstFile) sets the insertion point right after that line; omit it to append at EOF. For REPLACE, startMarker/endMarker are the span in dstFile itself (no targetMarker). For WRITE, the single span (or each 'regions' item) is the span in dstFile itself.
 
 ASSEMBLY — COPY 'refs' LIST form: each ref selects ONE line of srcFile; the sections go into the buffer joined by EXACTLY ONE \\n (documented default — no parameter). COPY 'text' form: the text is split into lines (a trailing newline adds no blank line). COPY keeps the REPLACE-into-buffer semantics (the buffer is replaced, never appended); APPEND appends (creates the buffer if absent). Feedback for COPY/APPEND: one line — resolved line range + line count + truncated first-line echo (~40 chars, '...' when cut) — plus the buffer's line count AFTER the op.
 

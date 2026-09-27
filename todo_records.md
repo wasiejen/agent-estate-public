@@ -1642,3 +1642,66 @@ smokes, pytest 459+1w, ruff F=0).
   growth — 264.4MB at worker run) trimmed to ~2MB with the `log-trim=`
   line — then close.
 - **Closed:** 2026-09-25 (planner-17) — live-verified post-restart this session: the init trim fired (`log-trim= old=293026007 new=2097152`, 12:50:57Z — 293MB → 2MB) and zero `message.part.delta` lines were appended after the trim (last delta line 24391 < trim line 24434; the new build's ~2.7k lines are delta-free) — acceptance met, closed.
+
+## #93. (closed 2026-09-27, direct session ses_f20d1b39… — live-verified by his repeated overflow tests 2026-09-26/27: the recovery fires on overflow, compacts, and does NOT resume (the unification Part B behavior — correct), the session continues; budget counter 1 increment (Gemma ses_f20e63e08); the event-hook port LANDED 2026-09-25; the one-plugin integration follow-up LANDED 2026-09-26 plan23 unification) — Emergency compact backstop: port context_recovery.ts to the `event` hook
+
+- **Problem / evidence:** context_recovery.ts (the T5 emergency overflow recovery — the backstop for when the agent fails to self-compact in time) registers a `"session.error"` plugin hook that does NOT exist in the current `@opencode-ai/plugin` SDK (zero matches in the node_modules d.ts) → the hook never fires (silent). Live fork test 2026-09-23 (ses_f2fee1f3fffej3GlGz8jJ5iGwb "compaction agent and context limit testing", fork of planner-13, Qwen3.8-27B-Compaction): 4× overflow errors `request (148149 tokens) exceeds the available context size (131072 tokens)` reached the event stream with `emergencyRecovery: true` ON + the plugin loaded — no COMPACT line, no budget increment, the session died at the wall (`MessageAbortedError`).
+- **Outcome:** the backstop fires on an overflow session.error (compact with the configured keep → COMPACT line → reload directive → `{handled:true, action:"retry"}`) + a diagnostic line on EVERY fire (so a future silent failure is visible in one file).
+- **Acceptance:** live overflow on a driven/forked session → COMPACT line + budget increment + the session retries and continues (log evidence); smoke pin for the event-hook path (extend the existing probe's faked client to the event shape); standard gate green.
+- **Scope:** `.opencode/plugin/deactivated/context_recovery.ts` → `event` hook (`event.properties.sessionID` — capital D — + the `ContextOverflowError` union); flag/budget/keep/COMPACT/directive logic unchanged; move back to `.opencode/plugin/` at landing. PRESTEP to the maintainer's planned integration of context_recovery + compact_memory into ONE plugin (shared compaction functionality) — the integration itself is a separate follow-up task.
+- **Status:** LANDED 2026-09-25 (worker, `worker_Q3S_170K`): the event-hook port lives at `.opencode/plugin/context_recovery.ts` (the deactivated copy is removed) — `event` hook (no `"session.error":` key — that hook does not exist in the current SDK), capital-D `sessionID`, the overflow markers, the v1 summarize path with the config-resolved pair (self-contained local copies — no runtime import from compact_memory.ts), the v2 budget gate (normal / emergency-1 / exhausted CLEAN FAIL), the once-per-overflow guard (cleared on EventSessionIdle), the COMPACT line per the current tool's writer (messages-only + the ` emergency` suffix), and the spec-2+11 post-compaction directive via promptAsync (the retry vehicle — the hook returns void, so the old `{handled, action:"retry"}` return is gone). Smoke re-pinned 15/15, probe S11 re-pinned (11 checks: 76-81 + 257-261) — probe 257/257, gate green (commit hash recorded in the planner's follow-up bookkeeping commit — no self-reference). REMAINING (maintainer domain, verbatim): (1) the host restart (plugin activation), (2) the live overflow acceptance on a driven/forked session as the 2026-09-23 fork test (expect: ONE COMPACT line + the budget increment + the session survives/continues — the flag is already `true` in the budget file, no flag work needed). FOLLOW-UP (out of scope): the context_recovery + compact_memory ONE-plugin integration is the next candidate. Architecture ruling: host auto-compaction stays DEACTIVATED by design (`"auto": false` — it fired uncontrollably, `buffer` never worked); the host `compaction` config only supplies defaults (model + keep); the agent-driven compaction stays primary; the emergency compact is the remaining piece. Keep-values (CLARIFIED 2026-09-24 — no drift, by design): our plugins (compact_memory + the emergency backstop) read `compact_budget.json` (keepMessages 12); the host MANUAL compact (usable on any session any time, independent of `auto`) reads the opencode.json `compaction` block (keep.messages 18) — each system its own store; tokens agree (30000).
+## #83. (closed 2026-09-27, direct session ses_f20d1b39… — his autoCompact question answered: the `autoCompact`/`saturationThreshold`/`outputReserve` keys currently gate ONLY the passive nudge suffix (auto_resume.ts onToolAfterNudge — no promptAsync, no compaction dispatch); raising the threshold would only push the nudge back; the ACTUAL auto-compaction backstop = context_recovery, live-verified by his overflow tests (the #93 close above, same evidence); the threshold knob stays in compact_budget.json (= 0.85, the nudge position)) — unit-2 backstop: catch the ACTUAL context-limit hit cleanly (revive context_recovery.ts)
+
+- **Problem + evidence:** the pre-emptive trigger (now configurable, default
+  0.95 via the #82-adjacent change) still fires BEFORE the limit, so a
+  chunk of the window is never used. He wants to "use as much of the
+  context window as possible" → move the threshold toward ~0.98 and rely
+  on a CLEAN catch of the real limit hit. That mechanism ALREADY EXISTS
+  (verified 2026-09-22): `.opencode/plugin/deactivated/context_recovery.ts`
+  (324 lines, T5 approved design 2026-09-11, built on the maintainer's
+  prototype) — a hook firing on the overflow `session.error` (activation
+  flag `emergencyRecovery: true` in opencode.jsonc, read per fire; only
+  `true` enables it), which compacts with an informed keep (30k tokens /
+  12 messages), appends its COMPACT line to ctx.log, injects the
+  re-application directive, and returns `{handled:true, action:"retry"}` —
+  a SINGLE clean retry that replaces the slow "opencode removes the tail
+  (last message in generation) and retries 5-6 times" loop. Over budget →
+  CLEAN FAIL (returns unhandled, the error propagates). Budget: the SAME
+  `compact_budget.json`, ≤2 per session id (self + emergency combined).
+  A smoke test exists: `tests/context_recovery.smoke.mjs`. It is
+  currently DEACTIVATED.
+- **Desired outcome:** the pre-emptive threshold can be raised toward ~0.98
+  (configurable) because the actual limit hit is caught cleanly (one
+  compact + single retry) instead of the slow tail-removal loop; and an
+  over-budget session gets a clean STOP (no runaway retries).
+- **Acceptance criteria:** `emergencyRecovery: true` activates it; on an
+  overflow `session.error` it compacts + returns a single retry (not 5-6
+  tail loops); over budget → clean fail (error propagates; the -WARNING is
+  the looprunner's/protocol's job); the shared ≤2/session budget is
+  respected (re-read-then-write, no await between); smoke green.
+- **Suggested scope:** re-activate + adapt
+  `.opencode/plugin/deactivated/context_recovery.ts` to the CURRENT
+  compact_memory summarize path (v1-generation client, config-resolved
+  summarizer); wire the `emergencyRecovery` flag. KEY UNCERTAINTY: the
+  host must actually CALL this hook on overflow — needs a LIVE
+  verification (the prototype was working at build time, but the build
+  changed since). Effort MEDIUM (the code exists but predates the current
+  compact_memory design and is deactivated).
+- **Status:** the paired configurable-threshold change LANDED
+  (2026-09-22, worker: `saturationThreshold` (0 < t < 1, default 0.95) +
+  `outputReserve` (>= 0, default 20_000) as per-tick fail-open keys in the
+  budget file; smoke 89/89 + full gate green; commit hash recorded in the
+   planner's follow-up bookkeeping). The BACKSTOP part remains open —
+   maintainer call (needs his flag in the live opencode.jsonc + the live
+   host-call verification). This is the enabler for raising the threshold
+   to ~0.98. NOTE (2026-09-22, #84): the `emergencyRecovery` flag now lives
+   in the shared compact_budget.json (not opencode.jsonc) — the live-flag
+   part of this entry must be set there.
+
+## #74. (closed 2026-09-27, direct session ses_f20d1b39… — maintainer: the backend no longer runs on ik_llama and the offending PR was reverted in the fork — non-issue, can be closed) — Write tool fails on long content payloads on this host
+
+**Problem / evidence:** JSON parse errors ("Text: {." / "Expected '}'"), once even on a 3-line file — logged by four worker sessions (2026-09-19 long multi-paragraph args; 2026-09-20 Deep-Dive B run #4; 2026-09-21 run #6 "write failed for every payload"; 2026-09-21 run #7_1 three long-content failures). His --info note pointed at the fuzzy_numword intercept path-resolution — CORRECTED same day by him: the intercept is actually live, and two extra test rounds (his handover-file overwrite runs, direct-message specs writing other files) show the write still failing WITH the intercept deactivated; no opencode changes made; the problem predates the new model set (surfaced in Deep-Dive B run 2 with the old models) — so the intercept is NOT the root cause and this is a host-side issue independent of our models; 2026-09-21 (planner direct session): the SAME signature ("JSON parsing failed: Text: {.") hit a GREP tool call — scope extends beyond write; machine check: both error strings are embedded in the installed `opencode.exe` (v1.18.31: "JSON parsing failed: Text" x8, "Invalid input for tool" x2) → the failing parse is inside the opencode server, upstream of every plugin hook (intercept is log-only and sees already-parsed args); candidate captures: provider-side raw response log (maintainer) + `opencode --log-level DEBUG --print-logs` stderr capture (agent-side, flags verified); HIS HYPOTHESIS (2026-09-21, direct): the truncation began after his llama.cpp update — his bit-drift-countermeasure fork `ik_llama` — and OTHER PEOPLE report the same issue → suspected fork-side (provider) bug; isolation test = direct-to-server long-JSON probe bypassing opencode; SECOND LIVE DATA POINT same session: a webfetch call with SHORT args failed with the identical signature → the signature is "assistant response stream cut mid tool-call JSON", long payload is a risk factor, not the sole cause; fork identified as `ikawrakow/ik_llama.cpp` (issue #380 "Drop at the start of generation" confirms known fork-side streaming bugs); ROOT-CAUSE CANDIDATE (his link 2026-09-21): issue #2492 "Truncated tool calls on qwen3.8-flash-next" (opened 2026-09-20, open) — regression attributed to PR #2470; its raw SSE dump shows the tool-call arguments JSON closed MID-VALUE (finish_reason=tool_calls on an incomplete JSON) = exactly our signature; his timeline caveat: PR ~18h old vs his problem ~48h old → "might be not connected"; BISECTION POINT (this session): 4 live failures pre-reload (grep, webfetch, two writes — incl. the short-arg webfetch — all served under the buggy build); after his unload + fresh reload to the old ik_llama: 2 short writes clean + byte-verified (scratchpad flaky_t1/t2.txt); CONSTRAINT (his): agents never send direct requests to the inference server — single slot unloads the session's model (also logged in knowledge_tools.md single-slot section). POST-RELOAD RESULTS (old ik_llama, same session — natural A/B against the 4 pre-reload failures): 70B write clean, 156B write clean, 10,095B write clean (101 lines, tail-verified — far past the 4k acceptance bar; caveat: repetitive filler content — a non-repetitive variant + cross-model coverage remain). NEXT: optional — one non-repetitive ~10k write + one run on another model, then the entry can move toward close pending the fork's #2470 fix.
+**Outcome:** host-side fix (maintainer domain); if not fixed, codify the workaround (create via bash printf/heredoc, then small write/edit append batches — see knowledge_tools.md) in the repo docs so runs don't re-discover it.
+**Acceptance:** a ~4k+ char write payload succeeds without parse errors (tested across models), OR the workaround is documented and the next long-file run completes with no write-tool failure.
+**Suggested scope:** opencode host (maintainer) + repo docs/prompts (agent-side).
+**Status:** open; root cause CONFIRMED per timeline (his 2026-09-21: PR #2470 merged ~4 days ago ≈ his ~48h onset; #2492 = same signature) — old ik_llama in place, workaround stays until the fork patches #2470; his update discipline: never adopt a fresh ik_llama build immediately — let it rest so others find the bugs first.

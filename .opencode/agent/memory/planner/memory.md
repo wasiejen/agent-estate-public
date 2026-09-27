@@ -324,3 +324,30 @@ knowledge / NAP) is re-stated.
   prefill alone exceeds the window) — then distinguish the two signatures by
   file state (the dump's message count: ~2 for a failed start vs. many for a
   ran-and-died session), never by the message alone.
+
+## MEM-0110 — Direct sessions: NO delegation without prior explicit maintainer OK; interact first, stop guessing and ask, push back without sugarcoating
+
+- Ruling (maintainer, 2026-09-27, live priority.md additions in direct
+  session ses_f20d1b39…): "in general in a direct sesson there should not be
+  started a delegation without prior explicit ok from the maintainer" +
+  "answer/interact first (verify shortly if needed but never start a task
+  with a worker without confirmation on what we actually want to implement).
+  stop guessing and ask." + "push back, do not sugarcoat. question my
+  assumptions. ... questions are a sign of maturity — jumping to conclusions
+  without using the resources available is dump behavior." Trigger context:
+  his complaint that the post-compaction planner (fork session ses_f20b3bf14…)
+  "acted really unreliable and implemented without giving the chance for
+  interaction and clarification" — the keepTokens metric rework landed before
+  his test verdict (his #99 remark: "another planner updated prematurely the
+  calc method").
+- Evidence: his live priority.md additions (2026-09-27, uncommitted, his
+  domain — read, not edited) + the fork-session metric commits (30b81d9/
+  b95d532/922463e/dcad3d1) preceding his compaction_tests.md verdict.
+- Verified: 2026-09-27 (his live file; this session honored the ruling — #92
+  staged as the NEXT unit, not launched).
+- Related: the planner prompt's direct-session design-exchange rule (this
+  ruling tightens it: the delegation ban is explicit, not just a
+  "design-exchange" preference); MEM-0103 (his live files).
+- Review when: he lifts or edits the priority.md lines, or an
+  inbox/proposal item carries an explicit pre-approval for a delegation in
+  a direct session (prior explicit OK = allowed by the ruling's own terms).

@@ -60,11 +60,19 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 - Unmarked maintainer observation (priority.md uncommitted line
    2026-09-27: "no delegation in a direct session without prior explicit ok")
    — already codified as MEM-0110 (ff94000); NAP-only per observation triage.
+- **#92 LIVE-ACCEPTED (this session, 2026-09-27):** the part-2 self-compact
+   was the first real compaction under the #92 build — TWO DUMP-OK lines
+   (md ms=49 + json ms=50, ctx.log 15-42) + COMPACT line (keep=12m
+   tok=29498 computed); both artifacts verified on disk in
+   `.opencode/archive/sessions/compaction_dumps/` (md 616,987 B correct
+   header; json 1,216,263 B valid, `session/messages/orphan_parts`).
+   TODO #92 closed with the live evidence.
 - Pending the maintainer (non-blocking, carried from plan25 — full list in
-   plan25_nap.md): the AGENTS.md / compaction-guide gauge-lag wording paste
-   (the #103 doc tail — his files, NOT edited), the plan25 live-channel
-   acceptance + the #92 live acceptance (his next restart), #86 DEFERRED
-   (queue tail), the section-anchor schema call, the #98 natural cycle.
+  plan25_nap.md): the AGENTS.md / compaction-guide gauge-lag wording paste
+  (the #103 doc tail — his files, NOT edited), #86 DEFERRED (queue tail),
+  the section-anchor schema call, the #98 natural cycle. (The plan25
+  live-channel acceptance + the #92 live acceptance are both DONE —
+  part 2 + the note above.)
 - NEXT (next session/iteration): no clear build work without maintainer
    input (#86 deferred tail) → idle-initiative lane per the standing
    `--maintainer` block (proposals always allowed, research,

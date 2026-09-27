@@ -1,84 +1,71 @@
-# HANDOVER — worker-26 (plan26): TODO #92 — the pre-compaction dump saves BOTH artifacts (md + raw json)
+# handover_task_to_planner.md — #105 part (b): keepTokens fork-effort research (explorer-28, plan28)
 
-## What changed (per the spec, all pre-approved)
-1. `.opencode/plugin/compact_memory.ts` (commit 11f4a12):
-   - `preCompactionDumpName(sessionID, count, stamp, format = "md")` — the 4th arg
-     ("md" | "json"); the 3-arg calls stay BYTE-IDENTICAL (probe 101/102 green).
-   - `preCompactionDump(root, sessionID, count)` now returns
-     `{ ok, files, error }`: ok = BOTH landed; files = the landed paths, md first
-     (0/1/2 entries); error = `<md|json>: <detail>` per failed artifact, joined by
-     " | " when both failed. The no-overwrite stamp is STILL decided by the MD base
-     existence; both artifacts share the stamped base. Each artifact runs the SAME
-     #78 pattern independently (one attempt → DUMP-RETRY=1 → one retry → DUMP-FAIL)
-     via a new `dumpOneArtifact` helper — one's failure does not skip the other.
-   - The json spawn passes the extra `--json` flag:
-     `[scriptPath, sessionID, "--out", jsonName, "--json"]` (jsonName = the json
-     form from the name fn — the dump script's verbatim-extension rel rule, no
-     script change).
-   - `runDumpSpawn` gained an `extraArgs: string[] = []` param — the
-     `execFileSync(resolveNodeExe(), …)` shape kept (smoke source pin L563-574
-     green).
-   - DUMP-RETRY= / DUMP-FAIL lines gain the artifact relFile right after `<sid>`:
-     `<stamp> DUMP-RETRY=1 <sid> <relFile> ms=<ms> err=<…>`,
-     `<stamp> DUMP-FAIL <sid> <relFile> <detail>`. The DUMP-OK format is UNCHANGED
-     (two lines per dump: the .md line first, then the .json line).
-   - The dispatch call site (L380-381) is UNCHANGED — it reads only `dump.ok` /
-     `dump.error`.
-2. `.opencode/plugin/probes/handover_probe.mjs` (commit 5a6e842):
-   - S14 checks 104/105/106/107 RE-PINNED: 104 = exactly two DUMP-RETRY=1 + two
-     DUMP-FAIL lines (one per rel, counted by full rel substring), `r.ok === false`,
-     `r.error` names BOTH artifacts ("md:" + "json:"); 105 = both files created with
-     the marker content, `r.files` = [md, json] paths; 106 = BOTH basenames match
-     the stamp regex (the shared stamped base); 107 = BOTH file #1s byte-identical
-     (md + json).
-   - NEW check **345** (appended in the S14 block): the json naming byte-exact —
-     `preCompactionDumpName("ses_pc_name", 0, null, "json") ===
-     "compaction_dumps/ses_pc_name_c0.json"` and the stamped c3 case.
-   - Header self-annotated: S14 (7)→(8) (section header + the EXPECTED block),
-     `S14=7`→`S14=8` + total `344/344`→`345/345`, the EXTENDED list gains the #92
-     line, the S14 header mentions (345). S25 check 255 UNCHANGED (the md line is
-     written first — the `.find` still returns the md line).
-3. `.opencode/plugin/tests/compact_memory.smoke.mjs` (commit e2a1a52):
-   - EXACTLY two new checks in the self case (after the md DUMP-OK pin): (a)
-     `compaction_dumps/ses_sm_self_c0.json` exists; (b) the json DUMP-OK line
-     byte-exact `^<DT> DUMP-OK ses_sm_self compaction_dumps/ses_sm_self_c0.json ms=<ms>`
-     (matched by the anchored regex itself — only the json rel can satisfy it).
-   - Header comments (L21 + the stub block) updated to state the two-artifact
-     behavior (#92 pointer); the FAKE_DUMP stub is UNCHANGED (rel-driven, ignores
-     --json → serves both artifacts).
-   - The md DUMP-OK pin stays (its `.find` returns the first = md line).
+Date: 2026-09-28. Research-only run — NO code changed, no build, no install, no npm touch,
+no backend-server contact.
 
-## Measured verification (final gate, post-all-commits)
-- **probe 345/345 PASS** (344 + 1 new check 345; header self-annotated 345/345) —
-  `node .opencode/plugin/probes/handover_probe.mjs`, exit 0.
-- **compact_memory smoke 78/78** (76 + 2).
-- All other smokes green: auto_resume 139/139, block_transfer.sandbox 64/64,
-  block_transfer 131/131, context_recovery 17/17, ctx_gauge 3/3, gauge_core
-  ALL PASS, intercept_observer 77/77, loop_log 69/69, submit 20/20.
-- **pytest 459 passed, 1 warning** (the known #10 coroutine warning).
-- **ruff F=0** ("All checks passed!").
+## Deliverable
+`.opencode/agent/research/2026-09-28_keeptokens-fork-effort.md` — the one-line change set,
+phased estimate, fork/install strategy, risks, recommendation (the #105 acceptance form).
+Every file/line reference in it was grep-verified against the 1.18.32 dev tree at writing
+time (the #99 refs all re-verified: `SummarizePayload` groups/session.ts L65-69 ✓, handler
+handlers/session.ts L273-294 / create-call L282-290 ✓, `preserveRecentBudget`
+compaction.ts L115-120 + call site L230 ✓, v2-compat shim L164-185 (keep at L172-177) ✓).
 
-## Commits (per verified unit, code only)
-- `11f4a12` — plugin code (compact_memory.ts, the two-artifact dump)
-- `5a6e842` — probe S14 re-pins + check 345 + header annotations
-- `e2a1a52` — smoke +2 + header comments
-- FINAL commit: this handover + TODO.md #92 status → LANDED (the commit hash is
-  recorded by the planner in the follow-up bookkeeping — no self-reference).
+## Change-set tally (fork = honoring a per-call `keep.tokens`)
+**6 files, ~11 lines** (server side):
+1. `groups/session.ts` L65-69 — `SummarizePayload` + optional `keep.tokens` field (+2)
+2. `handlers/session.ts` L282-290 — handler pass-through to `compactSvc.create` (+1)
+3. `compaction.ts` `create` L559-565 + part write L574-581 — carry + store `keepTokens` (+2)
+4. `compaction.ts` `processCompaction` L319-325 + `select` call L367-371 — forward it (+2)
+5. `compaction.ts` `select` L223-230 — the override: `budget = keepTokens ?? preserveRecentBudget(...)` (+2)
+6. `packages/schema/src/v1/session.ts` L195-201 — `CompactionPart` + optional `keepTokens` (+1)
+7. `prompt.ts` L1150-1156 — task loop passes `task.keepTokens` (+1)
+   (numbered 7 rows / 6 distinct files — compaction.ts carries rows 3-5.)
+Client side: **0 lines for our plugins** — `callSummarize` (compaction_core.ts L591-602)
+already sends the `keep` body field with `client: any` and a retry-without-keep fallback.
+Optional cosmetic: 4 lines in the two SDK gen type files (v1 gen is hand-maintained/stale —
+it's even missing `auto`; v2 gen is codegen'd).
 
-## TODO entries
-- #92 status → LANDED (no commit hash in the entry — planner records it).
-- No discrepancies found; nothing appended to todo_inbox.md.
+## Phase estimates (assumptions: maintainer builds/swaps; bun present; first build)
+- **Phase 1** — server wire + rebuild + swap: **~1.5-2.5 h wall** (diff itself < 1 h).
+  Build: `bun install` → `bun run --cwd packages/opencode build --single`
+  (`packages/opencode/script/build.ts`, bun-windows-x64 compile, smoke `--version` built in)
+  → overwrite `opencode-ai\bin\opencode.exe` (+ the platform-package twins so
+  postinstall can't restore upstream) → restart.
+- **Phase 2** — client-type alignment: **~0 h required** (≤0.5 h optional hygiene).
+- **Phase 3** — acceptance: **~1-2 h** — the #99 N=10 discriminator
+  (keepMessages=10, gauge-measured post-compaction prefill: ~44k count-like vs ~29-30k budget).
+- **Total ~3-5 h, one session.**
 
-## Deliberately NOT done (per the spec's DO-NOT-TOUCH)
-- `.opencode/agent/scripts/db/dump_session.cjs` (its `--json` mode already exists —
-  unchanged), `compaction_core.ts`, `context_recovery.ts`, `auto_resume.ts`, all
-  other plugins, the FST code, `.opencode/maintainer/**` (note: `.opencode/maintainer/
-  priority.md` showed a pre-existing maintainer modification in git status — NOT
-  touched by me, NOT committed), the live `opencode.jsonc`. Stayed on
-  `opencode_test` (no branch switch).
+## Fork/install strategy + overwrite risk
+Build pipeline located and cited in the doc (root bun workspace; `build.ts` flags
+`--single` / `--skip-install` / `--skip-embed-web-ui`; output
+`dist/opencode-windows-x64/bin/opencode.exe` + platform package.json manifest — the npm
+platform-package layout is reproduced locally without publishing). **Overwrite risk:**
+any `npm update opencode-ai` silently replaces the fork (manifests stay 1.18.32) —
+mitigated by pinning discipline + a version bump for traceability; the plugin degrades
+gracefully (retry note) if the fork dies. Other risks: live-host restart (one-time
+maintainer action), no DB migration (optional field), upstream divergence (re-land ~11
+lines per rebase), wait-for-upstream **undecidable from the pinned tree** (no keep field
+on either SDK surface as of 1.18.32 — the tree carries no commitment signal).
 
-## Notes
-- The dispatch WARNING text is UNCHANGED (`dumpWarning` reads only ok/error) — a
-  partial failure (e.g. md landed, json failed) now reports `ok: false` with an
-  error naming only the failed artifact; both DUMP-OK/DUMP-FAIL lines land in the
-  ctx.log regardless.
+## Recommendation (one line)
+**Fork (b) now**, scoped Phase 1-3 — the diff is ~11 lines / 6 files, plugin-side work is
+zero, and the acceptance test is already specified; config-only (c) permanently caps
+retention at session-wide, wait (a) is undecidable. Fall back to (c) only if the maintainer
+refuses the build.
+
+## DO-NOT-TOUCH compliance
+No edits to the dev tree, the live `opencode.exe`, `opencode.jsonc`, `.opencode/plugin/**`,
+`AGENTS.md`, `.opencode/agent/prompts/**`, `.opencode/maintainer/**`; no npm/build/
+install; no request at the backend inference server. Writes: the research doc, this
+handover, one append to TODO.md (#105 part (b) status line), the loop log.
+
+## Files touched
+- NEW `.opencode/agent/research/2026-09-28_keeptokens-fork-effort.md`
+- MOD `TODO.md` (#105 status: part (b) DONE line appended — entry stays OPEN for (c)-(e))
+- MOD this handover file
+
+## Commit
+Commit hash: **LANDED — recorded in the planner's follow-up bookkeeping** (per the spec,
+never in the same commit). The commit carries exactly the three files above (no code).

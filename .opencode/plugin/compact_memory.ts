@@ -108,12 +108,13 @@ function dumpStamp(): string {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}T${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
-// The pure dump-file NAME (no clock inside): `compaction_dumps/<sid>_c<count>.md`,
-// or `compaction_dumps/<sid>_c<count>_<stamp>.md` when a stamp is supplied (the
-// no-overwrite fallback). Exported for the probe (byte-exact pinning).
-export function preCompactionDumpName(sessionID: string, count: number, stamp: string | null): string {
+// The pure dump-file NAME (no clock inside): `compaction_dumps/<sid>_c<count>.<format>`
+// (format "md" default / "json" #92), or `compaction_dumps/<sid>_c<count>_<stamp>.<format>`
+// when a stamp is supplied (the no-overwrite fallback). Exported for the probe
+// (byte-exact pinning) — the 3-arg calls stay byte-identical (the "md" default).
+export function preCompactionDumpName(sessionID: string, count: number, stamp: string | null, format: "md" | "json" = "md"): string {
   const core = `compaction_dumps/${sessionID}_c${count}`;
-  return stamp != null ? `${core}_${stamp}.md` : `${core}.md`;
+  return stamp != null ? `${core}_${stamp}.${format}` : `${core}.${format}`;
 }
 
 // Best-effort append of a DUMP-OK line to the ctx log (unit A, 2026-09-21;
@@ -135,28 +136,32 @@ function appendDumpOkLine(root: string, sessionID: string, relFile: string, ms: 
 // Best-effort append of a DUMP-RETRY= line to the ctx log (#78: the ONE dump
 // retry — the first attempt failed, a second spawn is tried): same local-
 // stamp prefix style —
-// `<stamp> DUMP-RETRY=1 <sid> ms=<ms> err=<one-line error>`. Never throws.
-function appendDumpRetryLine(root: string, sessionID: string, ms: number, error: string): void {
+// `<stamp> DUMP-RETRY=1 <sid> <relFile> ms=<ms> err=<one-line error>`
+// (#92: the artifact relFile distinguishes the two per-artifact lines).
+// Never throws.
+function appendDumpRetryLine(root: string, sessionID: string, relFile: string, ms: number, error: string): void {
   try {
     const dir = tempDir(root);
     mkdirSync(dir, { recursive: true });
     const p = path.join(dir, "ctx.log");
     const oneLine = String(error).replace(/\s+/g, " ").trim();
-    appendFileSync(p, `${localStamp()} DUMP-RETRY=1 ${sessionID} ms=${ms} err=${oneLine}\n`, "utf8");
+    appendFileSync(p, `${localStamp()} DUMP-RETRY=1 ${sessionID} ${relFile} ms=${ms} err=${oneLine}\n`, "utf8");
   } catch {
     // best effort — never break the tool over a write failure
   }
 }
 
 // Best-effort append of a DUMP-FAIL line to the ctx log (same append style as
-// appendCompactLine — never throws).
-function appendDumpFailLine(root: string, sessionID: string, error: string): void {
+// appendCompactLine — never throws). #92: the artifact relFile distinguishes
+// the two per-artifact lines —
+// `<stamp> DUMP-FAIL <sid> <relFile> <detail>`.
+function appendDumpFailLine(root: string, sessionID: string, relFile: string, error: string): void {
   try {
     const dir = tempDir(root);
     mkdirSync(dir, { recursive: true });
     const p = path.join(dir, "ctx.log");
     const oneLine = String(error).replace(/\s+/g, " ").trim();
-    appendFileSync(p, `${localStamp()} DUMP-FAIL ${sessionID} ${oneLine}\n`, "utf8");
+    appendFileSync(p, `${localStamp()} DUMP-FAIL ${sessionID} ${relFile} ${oneLine}\n`, "utf8");
   } catch {
     // best effort — never break the tool over a write failure
   }
@@ -173,36 +178,70 @@ export function resolveNodeExe(execPath: string = process.execPath): string {
   return base.startsWith("node") ? execPath : "node";
 }
 
-// The hook: run the dump script for the target session. Returns { ok, file } on
-// success or { ok:false, error } on ANY failure (NEVER throws, NEVER blocks).
-// The no-overwrite rule: if the base-name target already exists on disk, the
-// name is STAMPED so this dump lands in a fresh file. #78: 120 s spawn budget
-// (was 60 s), `stdio: "pipe"` stderr capture (was "ignore"), and ONE retry —
-// the live DUMP-FAIL ETIMEDOUT was a spawn-level stall (measured dump
-// wall-times 64–87 ms), so the retry + the captured stderr trace the root cause.
-export function preCompactionDump(root: string, sessionID: string, count: number): { ok: boolean; file?: string; error?: string } {
+// The hook: run the dump script for the target session, BOTH artifacts (#92:
+// the lossless full markdown AND the raw JSON snapshot — the lossless master)
+// — each INDEPENDENTLY: one's failure does not skip the other. Returns
+// { ok, files, error }: ok = BOTH landed; files = the landed paths, md first
+// (0/1/2 entries); error = `<md|json>: <detail>` per failed artifact, joined
+// by " | " when both failed (NEVER throws, NEVER blocks).
+// The no-overwrite rule: if the MD base-name target already exists on disk,
+// the name is STAMPED so this dump lands in a fresh file (UNCHANGED — the
+// stamp is STILL decided by the MD base existence; both artifacts share the
+// stamped base). #78: 120 s spawn budget (was 60 s), `stdio: "pipe"` stderr
+// capture (was "ignore"), and ONE retry per artifact — the live DUMP-FAIL
+// ETIMEDOUT was a spawn-level stall (measured dump wall-times 64–87 ms), so
+// the retry + the captured stderr trace the root cause.
+export function preCompactionDump(root: string, sessionID: string, count: number): { ok: boolean; files: string[]; error?: string } {
   const scriptPath = path.join(root, ".opencode", "agent", "scripts", "db", "dump_session.cjs");
   const archiveDir = path.join(root, ".opencode", "archive", "sessions");
-  const baseName = preCompactionDumpName(sessionID, count, null);
-  const baseTarget = path.join(archiveDir, baseName);
+  const baseTarget = path.join(archiveDir, preCompactionDumpName(sessionID, count, null));
   const stamp = existsSync(baseTarget) ? dumpStamp() : null;
-  const name = preCompactionDumpName(sessionID, count, stamp);
-  const target = path.join(archiveDir, name);
-  const first = runDumpSpawn(scriptPath, sessionID, name);
+  const files: string[] = [];
+  const errors: string[] = [];
+  for (const format of ["md", "json"] as const) {
+    const name = preCompactionDumpName(sessionID, count, stamp, format);
+    const target = path.join(archiveDir, name);
+    const one = dumpOneArtifact(scriptPath, root, sessionID, name, format);
+    if (one.ok) {
+      files.push(target);
+    } else {
+      errors.push(`${format}: ${one.error}`);
+    }
+  }
+  const ok = files.length === 2;
+  return errors.length > 0
+    ? { ok, files, error: errors.join(" | ") }
+    : { ok, files };
+}
+
+// One artifact's dump: the same #78 pattern per artifact — one attempt →
+// DUMP-RETRY=1 (with the artifact relFile) → one retry → DUMP-FAIL. The json
+// artifact's spawn carries the extra `--json` flag (dump_session.cjs's raw
+// mode, #78): `--out <jsonName> --json` (the rel already carries the .json
+// extension — the script uses it VERBATIM).
+function dumpOneArtifact(
+  scriptPath: string,
+  root: string,
+  sessionID: string,
+  name: string,
+  format: "md" | "json",
+): { ok: boolean; error?: string } {
+  const extra = format === "json" ? ["--json"] : [];
+  const first = runDumpSpawn(scriptPath, sessionID, name, extra);
   if (first.error == null) {
     appendDumpOkLine(root, sessionID, name, first.ms);
-    return { ok: true, file: target };
+    return { ok: true };
   }
   // #78: ONE retry — the DUMP-RETRY= line records the first failure, then the
   // second spawn gets a full budget of its own.
-  appendDumpRetryLine(root, sessionID, first.ms, first.error);
-  const second = runDumpSpawn(scriptPath, sessionID, name);
+  appendDumpRetryLine(root, sessionID, name, first.ms, first.error);
+  const second = runDumpSpawn(scriptPath, sessionID, name, extra);
   if (second.error == null) {
     appendDumpOkLine(root, sessionID, name, second.ms);
-    return { ok: true, file: target };
+    return { ok: true };
   }
   const detail = dumpFailDetail(second);
-  appendDumpFailLine(root, sessionID, detail);
+  appendDumpFailLine(root, sessionID, name, detail);
   return { ok: false, error: detail };
 }
 
@@ -216,10 +255,11 @@ const DUMP_SPAWN_TIMEOUT_MS = 120_000;
 // writes one stdout line + repo files, so no pipe-buffer risk at the
 // measured tens-of-ms dump cost). NEVER throws: returns the elapsed ms, and
 // on failure the error text + the captured stderr.
-function runDumpSpawn(scriptPath: string, sessionID: string, name: string): { ms: number; error?: string; stderr?: string } {
+function runDumpSpawn(scriptPath: string, sessionID: string, name: string, extraArgs: string[] = []): { ms: number; error?: string; stderr?: string } {
   const t0 = Date.now();
   try {
-    execFileSync(resolveNodeExe(), [scriptPath, sessionID, "--out", name], { timeout: DUMP_SPAWN_TIMEOUT_MS, stdio: "pipe" });
+    // #92: the json artifact passes the extra `--json` flag (see dumpOneArtifact)
+    execFileSync(resolveNodeExe(), [scriptPath, sessionID, "--out", name, ...extraArgs], { timeout: DUMP_SPAWN_TIMEOUT_MS, stdio: "pipe" });
     return { ms: Date.now() - t0 };
   } catch (err: any) {
     const stderr = err?.stderr != null ? String(err.stderr) : "";

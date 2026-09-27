@@ -18,7 +18,7 @@
 //     body + logged on the COMPACT line; keepMessages still drives the
 //     computation; item 10: the `emergency` arg — the once-per-session
 //     emergency compaction on top of the model cap).
-//   - the sandbox carries a stub dump_session.cjs so the pre-compaction dump hook (4512fe6) succeeds silently (a dump failure would append a WARNING line and break the byte-exact checks) — mirrors the probe S13 preamble.
+//   - the sandbox carries a stub dump_session.cjs so the pre-compaction dump hook (4512fe6) succeeds silently (a dump failure would append a WARNING line and break the byte-exact checks) — mirrors the probe S13 preamble (#92 2026-09-27: the hook saves BOTH artifacts — the md + the raw json — the rel-driven stub serves both unchanged).
 // Idempotent re-runs: the sandbox is a FRESH scratchpad subdir each run.
 // Run: node .opencode/plugin/tests/compact_memory.smoke.mjs (plain node, exit 0 iff green).
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -29,11 +29,13 @@ const SANDBOX = freshSandbox("compact_memory");
 mkdirSync(path.join(SANDBOX, ".opencode", "temp"), { recursive: true });
 const { chk, finish } = makeChecker("COMPACT_MEMORY_SMOKE");
 
-// The pre-compaction dump hook (4512fe6, TODO #152) fires on EVERY dispatch
-// and spawns <SANDBOX>/.opencode/agent/scripts/db/dump_session.cjs. The stub
-// below (mirrors the probe S13 preamble) makes every dump SUCCEED, so the
-// hook appends nothing to the byte-exact response checks (a missing script
-// would append a WARNING line and break them).
+// The pre-compaction dump hook (4512fe6, TODO #152; #92 2026-09-27: BOTH
+// artifacts — the md + the raw json, each independently) fires on EVERY
+// dispatch and spawns <SANDBOX>/.opencode/agent/scripts/db/dump_session.cjs.
+// The stub below (mirrors the probe S13 preamble) makes every dump SUCCEED,
+// so the hook appends nothing to the byte-exact response checks (a missing
+// script would append a WARNING line and break them). The stub is rel-driven
+// (ignores --json) → it serves BOTH artifacts unchanged.
 const FAKE_DUMP = `// probe fake dump — mimics dump_session.cjs's __dirname OUT_DIR + --out
 "use strict";
 const fs = require("node:fs");
@@ -198,15 +200,26 @@ const withClient = async (spec = {}) => {
   chk("budget increment-on-verified-success (count 1 after drain)", st.sessions.ses_sm_self?.count === 1, JSON.stringify(st.sessions.ses_sm_self));
   const line = readLog().trim().split("\n").find((l) => l.includes("COMPACT ses_sm_self"));
   chk("COMPACT line written with model field + keep args (#99: resolved keepTokens + source — none here)", line != null && / COMPACT ses_sm_self keep=7m tok=- none$/.test(line) && line.includes("Qwen3.8-27B-IQ4KT-120K"), JSON.stringify(line));
-  const dumpFile = path.join(SANDBOX, ".opencode", "archive", "sessions", "compaction_dumps", "ses_sm_self_c0.md");
-  chk("dump hook fired on the tool path: compaction_dumps/ses_sm_self_c0.md exists (the stub dump, no WARNING appended)", existsSync(dumpFile), dumpFile);
-  const DT = "\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}";
-  const dumpOk = readLog().trim().split("\n").find((l) => l.includes("DUMP-OK ses_sm_self"));
-  // #78 re-pin: the elapsed-ms field gained the `ms=` prefix (was bare `<ms>`)
-  chk("DUMP-OK line on success: `<stamp> DUMP-OK ses_sm_self compaction_dumps/ses_sm_self_c0.md ms=<ms>`",
-    dumpOk != null && new RegExp(`^${DT} DUMP-OK ses_sm_self compaction_dumps/ses_sm_self_c0\\.md ms=\\d+$`).test(dumpOk),
-    JSON.stringify(dumpOk));
-}
+   const dumpFile = path.join(SANDBOX, ".opencode", "archive", "sessions", "compaction_dumps", "ses_sm_self_c0.md");
+   chk("dump hook fired on the tool path: compaction_dumps/ses_sm_self_c0.md exists (the stub dump, no WARNING appended)", existsSync(dumpFile), dumpFile);
+   const DT = "\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}";
+   const dumpOk = readLog().trim().split("\n").find((l) => l.includes("DUMP-OK ses_sm_self"));
+   // #78 re-pin: the elapsed-ms field gained the `ms=` prefix (was bare `<ms>`)
+   chk("DUMP-OK line on success: `<stamp> DUMP-OK ses_sm_self compaction_dumps/ses_sm_self_c0.md ms=<ms>`",
+     dumpOk != null && new RegExp(`^${DT} DUMP-OK ses_sm_self compaction_dumps/ses_sm_self_c0\\.md ms=\\d+$`).test(dumpOk),
+     JSON.stringify(dumpOk));
+   // #92 (2026-09-27): the pre-compaction dump saves BOTH artifacts — the md
+   // (above) AND the raw JSON snapshot (the lossless master). The md DUMP-OK
+   // line is written first, so the `.find` above still returns the md line —
+   // the json line is matched byte-exact (the anchored regex only the json
+   // rel can satisfy).
+   const dumpJsonFile = path.join(SANDBOX, ".opencode", "archive", "sessions", "compaction_dumps", "ses_sm_self_c0.json");
+   chk("dump hook fired on the tool path (#92): compaction_dumps/ses_sm_self_c0.json exists (the json artifact, the stub dump)", existsSync(dumpJsonFile), dumpJsonFile);
+   const dumpOkJson = readLog().trim().split("\n").find((l) => new RegExp(`^${DT} DUMP-OK ses_sm_self compaction_dumps/ses_sm_self_c0\\.json ms=\\d+$`).test(l));
+   chk("DUMP-OK line on success (#92): `<stamp> DUMP-OK ses_sm_self compaction_dumps/ses_sm_self_c0.json ms=<ms>` (the json artifact line)",
+     dumpOkJson != null,
+     JSON.stringify(dumpOkJson));
+ }
 
 // ---- keep rejected once -> retried without keep (the note is console.log'd)
 {

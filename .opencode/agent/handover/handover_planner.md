@@ -12,15 +12,31 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   L183 + call site L380 + the line formats + the return shape + the smoke
   re-pin + probe S14 re-pins + new check 345 (344→345; smoke 76→78)),
   worker_Q3S_245K_slow launched.
-- (worker result fills in on its return)
+- **plan26 LANDED + verified (worker-26 `worker_Q3S_245K_slow`
+  ses_f1d2ea77fffet94z6jtoZUD7z1):** `11f4a12` (code: the two-artifact dump —
+  the lossless md first + the raw `--json` snapshot, each INDEPENDENTLY with
+  the #78 attempt→retry→fail diagnostics + 120 s budget; the DUMP-RETRY=/
+  DUMP-FAIL lines gain the artifact relFile; the hook returns `{ ok, files,
+  error }`; the 3-arg name calls byte-identical) / `5a6e842` (probe S14
+  re-pins 104-107 + NEW check 345, 344→345) / `e2a1a52` (smoke +2, 76→78) /
+  `86bda25` (TODO #92 LANDED + handover + friction entry). Planner-verified
+  by own re-run: probe 345/345 + compact_memory smoke 78/78 (exit 0), commit
+  scope clean (3 task files + bookkeeping).
+- LIVE acceptance pending (natural): the next real compaction must show
+  BOTH artifacts in `.opencode/archive/sessions/compaction_dumps/` + the
+  two DUMP-OK lines in ctx.log.
 - Pending the maintainer (non-blocking, carried from plan25 — full list in
   plan25_nap.md): #104 (S31 anchor-trim equivalence — his call), #103 on GO
   (worker launch deferred by his ruling), the plan25 live-channel acceptance
-  + the #92 live acceptance (his next restart), the #99 follow-up research
-  (APPROVED — the post-#92 queue item; source
+  + the #92 live acceptance (his next restart), #86 DEFERRED (queue tail),
+  the section-anchor schema call, the #98 natural cycle.
+- NEXT (next session/iteration): the **#99 follow-up research** — the
+  flexible per-dispatch keepTokens (trace where the installed host reads
+  `preserve_recent_tokens` — config vs per-call body; source
   `home\AppData\Local\Temp\opencode\opencode-dev`, dev branch
-  1.18.32), #86 DEFERRED (queue tail), the section-anchor schema call, the
-  #98 natural cycle.
+  1.18.32; the N=10 discriminator + the summarize-scope probe ride it; his
+  fork-test matrix = the decider; wire it if found, the config knob the
+  fallback). Then #104 (maintainer call), #103 on GO, #86 tail.
 
 ## Compressed archive (one line each
   - 2026-09-27 direct→autorun (ses_f20d1b39dffefE8ge0hH7jbgAn, planner-25, Qwen3.8-27B-Q3S-245K-slow) — plan25: maintainer rulings recorded (#92 YES→next unit, #74/#83/#93 CLOSED, #56 rework pending, #99 live tests complete + follow-up research APPROVED, #83 threshold 0.85 confirmed, bt anchor fix GO) + bt anchor fix LANDED+verified (worker-25: 2b50fee/b2e3963/6616689/7ddae1d; smoke 131/131, sandbox 64/64, probe 344/344, 459+1w, F=0; #104 filed) + dev_get_tool_context_contents fix (bda3584) + MEM-0110 (direct-session delegation ruling) — details: loop folder plan25_summary.md + plan25_nap.md + git fafdee8..50591f0
@@ -122,12 +138,14 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 ## Standing
-- Baselines (re-verified 2026-09-26 by the planner, post-unification):
-   probe **344** (340 + 4 new S15, post-plan25 bt anchor fix; check 108's
-   enum pin carries the 11 bt modes post-S4); smokes **all green**
-    (context_recovery 17/17 (post-unification Part B re-pins),
-   compact_memory 76/76 (post-metric-v2 dcad3d1, from 74/74 post-unification — the re-exports keep the smoke
-   import surface), auto_resume 139/139 (post-#98),
+- Baselines (re-verified 2026-09-27 by the planner, post-plan26 #92):
+    probe **345** (344 + check 345 post-plan26 #92 json naming; the S14
+    dump section is now (8); check 108's enum pin carries the 11 bt
+    modes post-S4); smokes **all green**
+     (context_recovery 17/17 (post-unification Part B re-pins),
+    compact_memory 78/78 (post-plan26 #92: 76 + 2 two-artifact checks — from
+    74/74 post-unification; the re-exports keep the smoke import surface),
+    auto_resume 139/139 (post-#98),
    intercept_observer 77/77 (post-R3: 68 + 9 channel checks),
    block_transfer 131/131 + 64/64 (post-plan25: 123+8 new checks),
    submit 20/20);

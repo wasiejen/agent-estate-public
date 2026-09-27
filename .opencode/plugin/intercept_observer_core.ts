@@ -1232,16 +1232,18 @@ export function resolveEditOldString(query: string, fileText: string, cap: numbe
 // (1) THE SECTION-ANCHOR RESOLVER (research §2.6): a named section anchor
 // (a short UNIQUE line prefix — the `block_transfer` marker convention)
 // resolves to the FIRST line number BEFORE the read executes. The anchor
-// matcher reuses the S1 block_transfer anchor rule (block_transfer.ts
-// `matchAnchorLines`, the unified `resolveAnchor` taxonomy, 0d85a8c):
-// split on `\n`, a trailing `\r` ignored (CRLF-tolerant), the line's
-// LEADING spaces/tabs removed, then a verbatim case-sensitive prefix
-// (`startsWith`; the anchor is used as typed — no trimming of the anchor
-// itself). EXACTLY-ONE match is the gate: 1 → the first match line; 0 or
-// >=2 → fail-closed (the match count is logged). The rule is
-// self-contained here (the core stays pure — no tool-module import); the
-// PROBE pins equivalence against the block_transfer tool's own
-// `matchAnchorLines` (the drift guard).
+ // matcher reuses the S1 block_transfer anchor rule (block_transfer.ts
+ // `matchAnchorLines`, the unified `resolveAnchor` taxonomy, 0d85a8c + the
+ // plan25 b anchor-side trim, b2e3963): split on `\n`, a trailing `\r`
+ // ignored (CRLF-tolerant), the line's LEADING spaces/tabs removed, and the
+ // ANCHOR ITSELF stripped of LEADING spaces/tabs before the match (an
+ // all-whitespace anchor is empty after trimming and matches NOTHING —
+ // #104, 2026-09-27: the core mirrors the tool's rule EXACTLY), then a
+ // verbatim case-sensitive prefix (`startsWith`). EXACTLY-ONE match is the
+ // gate: 1 → the first match line; 0 or >=2 → fail-closed (the match count
+ // is logged). The rule is self-contained here (the core stays pure — no
+ // tool-module import); the PROBE pins equivalence against the block_
+ // transfer tool's own `matchAnchorLines` (the drift guard).
 //
 // (2) THE QUOTED-SPAN SCANNER (the bash `command` string): the content
 // ranges of quoted spans — double-quoted (a backslash escapes the next
@@ -1253,16 +1255,19 @@ export function resolveEditOldString(query: string, fileText: string, cap: numbe
 // the UNQUOTED pairs (its ownership split is pinned in the probe).
 
 // The 1-based line numbers of ALL lines that start with the anchor after
-// removing LEADING spaces/tabs (CRLF-tolerant; the anchor verbatim,
-// case-sensitive) — the S1 block_transfer rule (matchAnchorLines).
+// removing LEADING spaces/tabs from BOTH the line and the ANCHOR (CRLF-
+// tolerant; an all-whitespace anchor is empty after trimming and matches
+// nothing; case-sensitive) — the S1 block_transfer rule (matchAnchorLines,
+// plan25 b anchor-side trim, #104).
 export function matchAnchorPrefixLines(fileText: string, anchor: string): number[] {
-  if (!anchor) return [];
+  const trimmed = anchor.replace(/^[ \t]+/, "");
+  if (!trimmed) return [];
   const out: number[] = [];
   const lines = String(fileText ?? "").split("\n");
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
     if (line.endsWith("\r")) line = line.slice(0, -1);
-    if (line.replace(/^[ \t]+/, "").startsWith(anchor)) out.push(i + 1);
+    if (line.replace(/^[ \t]+/, "").startsWith(trimmed)) out.push(i + 1);
   }
   return out;
 }

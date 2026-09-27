@@ -880,11 +880,15 @@
 //      SAME real factory + sandbox project dir (the S19 pf/ corpus; the
 //      anchor/bt fixtures join it):
 //      (317) matchAnchorPrefixLines: CRLF-tolerant + leading
-//          spaces/tabs stripped + verbatim case-sensitive prefix (a
-//          longer line still matches) + 1-based; empty anchor → [];
+//          spaces/tabs stripped from line AND anchor (#104: mirrors the
+//          tool's plan25 b trim) + verbatim case-sensitive prefix (a
+//          longer line still matches) + 1-based; empty/all-whitespace
+//          anchor → [];
 //      (318) drift guard: the core's matchAnchorPrefixLines /
 //          countFileLines EQUIVALENT to the block_transfer tool's own
-//          matchAnchorLines / countLines (the S1 unified rule, 0d85a8c);
+//          matchAnchorLines / countLines (the S1 unified rule, 0d85a8c +
+//          plan25 b trim — the anchor-trim dimension pinned via the
+//          "  Dup" fixture, #104);
 //      (319) resolveSectionAnchor: null file → absent; exactly-one →
 //          resolved (line + scanned total); 0 → rejected matches=0;
 //          >=2 → rejected matches=2 (FAIL-CLOSED);
@@ -7345,31 +7349,37 @@ n29++;
   let n31 = 317;
 
   // 317 — matchAnchorPrefixLines: CRLF-tolerant (a trailing \r ignored),
-  //      LEADING spaces/tabs stripped, verbatim case-sensitive prefix
-  //      (a longer line still matches — that's the prefix), 1-based; the
-  //      anchor is used as typed (no trimming of it); empty anchor → []
+  //      LEADING spaces/tabs stripped from the line AND the ANCHOR itself
+  //      (#104, 2026-09-27: mirrors the tool's plan25 b rule, b2e3963 — an
+  //      anchor typed with the line's indentation matches; an all-
+  //      whitespace anchor is empty after trimming), verbatim case-
+  //      sensitive prefix (a longer line still matches — that's the
+  //      prefix), 1-based; empty/all-whitespace anchor → []
   {
     const txt = "alpha\n  beta one\n\tbeta two\nALPHA three\r\nbetafour";
     const m = (a) => ioCore.matchAnchorPrefixLines(txt, a);
     check(
       String(n31),
       "S31",
-      "matchAnchorPrefixLines: CRLF-tolerant + leading spaces/tabs stripped + verbatim case-sensitive prefix (a longer line still matches) + 1-based; empty anchor → []",
+      "matchAnchorPrefixLines: CRLF-tolerant + leading spaces/tabs stripped from line AND anchor (#104) + verbatim case-sensitive prefix (a longer line still matches) + 1-based; empty/all-whitespace anchor → []",
       JSON.stringify(m("beta")) === JSON.stringify([2, 3, 5]) &&
         JSON.stringify(m("beta ")) === JSON.stringify([2, 3]) &&
         JSON.stringify(m("ALPHA")) === JSON.stringify([4]) &&
         JSON.stringify(m("alpha")) === JSON.stringify([1]) &&
-        JSON.stringify(m("  beta")) === JSON.stringify([]) &&
+        JSON.stringify(m("  beta")) === JSON.stringify([2, 3, 5]) &&
+        JSON.stringify(m("  \t ")) === JSON.stringify([]) &&
         JSON.stringify(m("")) === JSON.stringify([]),
-      JSON.stringify({ beta: m("beta"), "beta ": m("beta "), ALPHA: m("ALPHA"), alpha: m("alpha"), "  beta": m("  beta") }),
+      JSON.stringify({ beta: m("beta"), "beta ": m("beta "), ALPHA: m("ALPHA"), alpha: m("alpha"), "  beta": m("  beta"), "  \t ": m("  \t ") }),
     );
     n31++;
   }
 
   // 318 — DRIFT GUARD: the core's anchor matcher + line counter are
   //      EQUIVALENT to the block_transfer tool's OWN matchAnchorLines /
-  //      countLines (the S1 unified rule, 0d85a8c — the R3 re-scope note:
-  //      the drift fix already landed in S1; this pin guards it)
+  //      countLines (the S1 unified rule, 0d85a8c + the plan25 b anchor-
+  //      side trim, b2e3963 — #104: the "  Dup" fixture pins the trim
+  //      dimension, which pre-fix diverged) — the R3 re-scope note: the
+  //      drift fix already landed in S1; this pin guards it
   {
     const btCore = await import(pathToFileURL(BT_TOOL_TS).href); // the block_transfer tool module (the named core)
     const eqText = "h1\r\n  Dup A one\nDup B two\nplain\n";
@@ -7377,11 +7387,12 @@ n29++;
     check(
       String(n31),
       "S31",
-      "drift guard: the core's matchAnchorPrefixLines / countFileLines are EQUIVALENT to the block_transfer tool's own matchAnchorLines / countLines (the S1 unified rule, 0d85a8c)",
+      "drift guard: the core's matchAnchorPrefixLines / countFileLines are EQUIVALENT to the block_transfer tool's own matchAnchorLines / countLines (the S1 unified rule, 0d85a8c + plan25 b trim — the anchor-trim dimension pinned via the '  Dup' fixture, #104)",
       JSON.stringify(btCore.matchAnchorLines(eqText, "Dup")) === JSON.stringify(ioCore.matchAnchorPrefixLines(eqText, "Dup")) &&
+        JSON.stringify(btCore.matchAnchorLines(eqText, "  Dup")) === JSON.stringify(ioCore.matchAnchorPrefixLines(eqText, "  Dup")) &&
         JSON.stringify(btCore.matchAnchorLines(eqText, "h1")) === JSON.stringify(ioCore.matchAnchorPrefixLines(eqText, "h1")) &&
         eqFixtures.every((t) => btCore.countLines(t) === ioCore.countFileLines(t)),
-      JSON.stringify({ dup: ioCore.matchAnchorPrefixLines(eqText, "Dup"), h1: ioCore.matchAnchorPrefixLines(eqText, "h1"), counts: eqFixtures.map((t) => [btCore.countLines(t), ioCore.countFileLines(t)]) }),
+      JSON.stringify({ dup: ioCore.matchAnchorPrefixLines(eqText, "Dup"), "  Dup": ioCore.matchAnchorPrefixLines(eqText, "  Dup"), h1: ioCore.matchAnchorPrefixLines(eqText, "h1"), counts: eqFixtures.map((t) => [btCore.countLines(t), ioCore.countFileLines(t)]) }),
     );
     n31++;
   }

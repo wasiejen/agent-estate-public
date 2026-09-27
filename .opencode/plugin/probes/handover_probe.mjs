@@ -17,7 +17,9 @@
 // loads the tool) + EXTENDED 2026-09-15 (T4: the compact_memory
 // pre-compaction dump hook, TODO #152 — the new S14 section, checks 101-107;
 // the dump script's --out flag; the S13 preamble places a stub dump script so
-// the byte-exact dispatch responses stay clean) + EXTENDED 2026-09-16 (#60:
+// the byte-exact dispatch responses stay clean; #92 2026-09-27: BOTH
+// artifacts per dump — the md + the raw json — checks 104/105/106/107
+// re-pinned + the new check 345) + EXTENDED 2026-09-16 (#60:
 // the block_transfer + loop_log probe pins — the new S15 section, checks
 // 108-10.17, and the new S16 section, checks 10.18-123; both tool files
 // imported DIRECT, type-stripped, the S12/S13 load pattern) + EXTENDED
@@ -73,7 +75,14 @@
 // channel (the quoted-span ownership split + the mismatch fail-closed),
 // the block_transfer ANCHOR-MARKER channel (the R2 write-scope gate
 // branches: mutated / none-exist / both-exist / non-unique / fail-closed /
-// the targetMarker-dstFile ownership)): the
+// the targetMarker-dstFile ownership)) + EXTENDED 2026-09-27 (#92: the
+// pre-compaction dump saves BOTH artifacts — the lossless full markdown AND
+// the raw JSON snapshot (the lossless master) — each INDEPENDENTLY (the same
+// attempt → DUMP-RETRY=1 → one retry → DUMP-FAIL per artifact), the DUMP-
+// RETRY=/DUMP-FAIL lines gain the artifact relFile, the hook returns
+// { ok, files, error } (files = the landed paths, md first): the S14 checks
+// 104/105/106/107 re-pinned + the NEW check 345 (the json naming byte-exact)):
+// the
 // pre-rebuild
 // probe
 // (v2.2.1 era) targeted the DELETED handover.ts, the retired
@@ -392,26 +401,37 @@
 //          (288) keepTokens budget fallback (tool path): messages read
 //          FAILS + store keepTokens 30000 + model_budget cap 3 → body
 //          keep.tokens 30000 (budget) + the line `keep=4m tok=30000 budget`
-//   S14 compact_memory pre-compaction dump hook (7) — TODO #152 (approved
+//   S14 compact_memory pre-compaction dump hook (8) — TODO #152 (approved
 //      2026-09-15): BEFORE ANY dispatch the hook dumps the target session's
 //      full pre-compaction content into the corpus via the dump script
 //      (<root>/.opencode/agent/scripts/db/dump_session.cjs <sid> --out
-//      <relpath>); NO-OVERWRITE naming keyed on the budget count
-//      (compaction_dumps/<sid>_c<count>.md, a timestamp suffix when the name
-//      already exists); best-effort — a failure appends DUMP-FAIL to the
-//      ctx.log + a WARNING to the dispatch response (UNCHANGED on success):
-//      (101) preCompactionDumpName byte-exact (the normal c0/c7 case);
+//      <relpath>), BOTH artifacts (#92 2026-09-27: the md + the raw json —
+//      the json spawn carries --out <rel>.json --json), each INDEPENDENTLY
+//      (one's failure does not skip the other); NO-OVERWRITE naming keyed on
+//      the budget count (the MD base decides the stamp — both artifacts share
+//      the stamped base: compaction_dumps/<sid>_c<count>[<stamp>].{md,json});
+//      best-effort — a failure appends DUMP-FAIL to the ctx.log + a WARNING
+//      to the dispatch response (UNCHANGED on success):
+//      (101) preCompactionDumpName byte-exact (the normal c0/c7 case — the
+//          3-arg "md" default, byte-identical pre-#92);
 //      (102) preCompactionDumpName byte-exact (the stamped fallback, fixed
 //          stamp — NO clock inside the function);
 //      (103) preCompactionDump is a function (the exported hook);
-//      (104) sandbox root WITHOUT the script → no throw, {ok:false}, a
-//          DUMP-FAIL line appended to the sandbox ctx.log;
+//      (104) sandbox root WITHOUT the script → no throw, {ok:false}, EXACTLY
+//          two DUMP-RETRY=1 lines (one per rel) + two DUMP-FAIL lines (one per
+//          rel, the captured stderr detail) appended to the sandbox ctx.log —
+//          the error names BOTH artifacts;
 //      (105) the FAKE script (mimicking the real one's __dirname OUT_DIR +
-//          --out handling): hook call #1 (count 0) creates
-//          compaction_dumps/<sid>_c0.md with the marker content;
-//      (106) hook call #2 (same count) → the base name EXISTS now → the
-//          STAMPED name (<sid>_c0_<YYYYMMDDTHHmmss>.md) is created instead;
-//      (107) no-overwrite proof: file #1 is BYTE-IDENTICAL after call #2
+//          --out handling — rel-driven, serves BOTH artifacts): hook call #1
+//          (count 0) creates BOTH compaction_dumps/<sid>_c0.{md,json} with the
+//          marker content — {ok:true} + files = [md, json];
+//      (106) hook call #2 (same count) → the MD base EXISTS now → the STAMPED
+//          names (<sid>_c0_<YYYYMMDDTHHmmss>.{md,json}) are created instead —
+//          BOTH basenames match the stamp;
+//      (107) no-overwrite proof: BOTH file #1s are BYTE-IDENTICAL after
+//          call #2;
+//      (345) preCompactionDumpName byte-exact (the #92 json form: the c0 +
+//          the stamped c3 case)
 //   S15 block_transfer tool (12) — the #60 probe pin (part 1 of 2): the
 //      named-clipboard block mover (.opencode/tools/block_transfer.ts,
 //      post-#57) imported DIRECT (type-stripped, the S12/S13 load pattern);
@@ -937,7 +957,7 @@
 //          then clean-fails — NO prompt (Part B).
 //
 // EXPECTED OUTPUT:
-//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=6 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=7 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 hygiene=6  →  "PROBE handover: 344/344 PASS",
+//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=6 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=8 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 hygiene=6  →  "PROBE handover: 345/345 PASS",
 //   exit code 0. Anything else with THIS file = behavior drift or broken
 //   environment — read the failures, do not "fix" the plugin for the probe.
 //   On failure the sandbox root is KEPT (printed) for forensics.
@@ -3402,7 +3422,7 @@ writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
   writeFileSync(path.join(SANDBOX, ".opencode", "temp", "compact_budget.json"), JSON.stringify(st288b, null, 2) + "\n", "utf8");
 }
 
-// ------------------------------------------------------------------ S14 compact_memory pre-compaction dump hook (7) — TODO #152 (approved 2026-09-15): the no-overwrite corpus dump before ANY dispatch
+// ------------------------------------------------------------------ S14 compact_memory pre-compaction dump hook (8) — TODO #152 (approved 2026-09-15): the no-overwrite corpus dump before ANY dispatch (#92 2026-09-27: BOTH artifacts — the md + the raw json, each independently)
 //
 // Reuses S13's type-stripped plugin import (qcMod — the SAME import
 // mechanism, a fresh module instance of the real plugin file). The hook is
@@ -3411,6 +3431,8 @@ writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
 // the repo corpus is NEVER touched).
 let s14File1 = null;
 let s14Body1 = null;
+let s14File1Json = null;
+let s14Body1Json = null;
 
 // 101 — preCompactionDumpName BYTE-EXACT, the normal case (stamp = null):
 //      compaction_dumps/<sid>_c<count>.md
@@ -3450,11 +3472,13 @@ let s14Body1 = null;
 }
 
 // 104 — the no-script case: the S13 stub is REMOVED from the sandbox script
-//      path → the hook must NOT throw, returns { ok:false, error }, and
-//      appends a DUMP-RETRY= line (#78: the ONE retry) + a DUMP-FAIL line
-//      carrying the captured stderr to the sandbox ctx.log (best-effort
-//      logging) — RE-PINNED 2026-09-23 (#78: the retry is part of the
-//      failure shape now)
+//      path → the hook must NOT throw, returns { ok:false, error } (naming
+//      BOTH artifacts — #92), and appends EXACTLY two DUMP-RETRY=1 lines
+//      (one per rel, #78: the ONE retry per artifact) + two DUMP-FAIL lines
+//      (one per rel, the captured stderr detail) to the sandbox ctx.log
+//      (best-effort logging) — RE-PINNED 2026-09-23 (#78: the retry is part
+//      of the failure shape), RE-PINNED 2026-09-27 (#92: two artifacts → two
+//      lines per failure line type, each with its relFile)
 {
   rmSync(QC_DUMP_SCRIPT, { force: true });
   let r = null;
@@ -3465,58 +3489,82 @@ let s14Body1 = null;
     threw = true;
   }
   const ctxLog = readFileSync(path.join(SANDBOX, ".opencode", "temp", "ctx.log"), "utf8");
+  const retryMd = ctxLog.split("\n").filter((l) => l.includes("DUMP-RETRY=1 ses_pc_noscript compaction_dumps/ses_pc_noscript_c0.md")).length;
+  const retryJson = ctxLog.split("\n").filter((l) => l.includes("DUMP-RETRY=1 ses_pc_noscript compaction_dumps/ses_pc_noscript_c0.json")).length;
+  const failMd = ctxLog.split("\n").filter((l) => l.includes("DUMP-FAIL ses_pc_noscript compaction_dumps/ses_pc_noscript_c0.md")).length;
+  const failJson = ctxLog.split("\n").filter((l) => l.includes("DUMP-FAIL ses_pc_noscript compaction_dumps/ses_pc_noscript_c0.json")).length;
   check(
     "104",
     "S14",
-    "sandbox root WITHOUT the script → NO throw, {ok:false} with an error, a DUMP-RETRY= line (the #78 one-retry) + a DUMP-FAIL line (the captured stderr detail) appended to the sandbox ctx.log",
-    !threw && r != null && r.ok === false && r.error != null && /DUMP-RETRY=1 ses_pc_noscript/.test(ctxLog) && /DUMP-FAIL ses_pc_noscript/.test(ctxLog),
-    JSON.stringify({ threw, r, retryTail: ctxLog.split("\n").filter((l) => l.includes("DUMP-RETRY")).slice(-1), dumpFailTail: ctxLog.split("\n").filter((l) => l.includes("DUMP-FAIL")).slice(-1) }),
+    "sandbox root WITHOUT the script → NO throw, {ok:false}, EXACTLY two DUMP-RETRY=1 lines (one per rel) + two DUMP-FAIL lines (one per rel, the captured stderr detail) appended to the sandbox ctx.log — the error names BOTH artifacts",
+    !threw && r != null && r.ok === false && r.error != null && r.error.includes("md:") && r.error.includes("json:") && retryMd === 1 && retryJson === 1 && failMd === 1 && failJson === 1,
+    JSON.stringify({ threw, r, retryMd, retryJson, failMd, failJson }),
   );
 }
 
 // 105 — the FAKE dump script (mimicking the real one's __dirname-derived
-//      OUT_DIR + --out handling) is placed at the sandbox script path →
-//      hook call #1 (count 0): { ok:true } + compaction_dumps/ses_pc_ok_c0.md
-//      created WITH the marker content
+//      OUT_DIR + --out handling — rel-driven, ignores --json, so it serves
+//      BOTH artifacts) is placed at the sandbox script path → hook call #1
+//      (count 0): { ok:true } + BOTH artifacts created WITH the marker
+//      content (#92: files = [md, json])
 {
   writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
   const r1 = qcMod.preCompactionDump(SANDBOX, "ses_pc_ok", 0);
   s14File1 = path.join(SANDBOX, ".opencode", "archive", "sessions", "compaction_dumps", "ses_pc_ok_c0.md");
-  s14Body1 = existsSync(r1?.file ?? "") ? readFileSync(r1.file, "utf8") : null;
+  s14File1Json = path.join(SANDBOX, ".opencode", "archive", "sessions", "compaction_dumps", "ses_pc_ok_c0.json");
+  s14Body1 = existsSync(s14File1) ? readFileSync(s14File1, "utf8") : null;
+  s14Body1Json = existsSync(s14File1Json) ? readFileSync(s14File1Json, "utf8") : null;
   check(
     "105",
     "S14",
-    "FAKE script in place: hook call #1 (count 0) → {ok:true} + compaction_dumps/ses_pc_ok_c0.md created with the marker content",
-    r1.ok === true && r1.file === s14File1 && existsSync(s14File1) && s14Body1 === "FAKE DUMP of ses_pc_ok\n",
-    JSON.stringify({ r1, expected: s14File1, body1: s14Body1 }),
+    "FAKE script in place: hook call #1 (count 0) → {ok:true} + BOTH compaction_dumps/ses_pc_ok_c0.{md,json} created with the marker content (files = [md, json] paths)",
+    r1.ok === true && r1.files != null && r1.files.length === 2 && r1.files[0] === s14File1 && r1.files[1] === s14File1Json && existsSync(s14File1) && existsSync(s14File1Json) && s14Body1 === "FAKE DUMP of ses_pc_ok\n" && s14Body1Json === "FAKE DUMP of ses_pc_ok\n",
+    JSON.stringify({ r1, expected: [s14File1, s14File1Json], body1: s14Body1, body1Json: s14Body1Json }),
   );
 }
 
-// 106 — hook call #2 (SAME count 0): the base name EXISTS on disk now → the
-//      name is STAMPED → the hook creates a DIFFERENT file,
-//      ses_pc_ok_c0_<YYYYMMDDTHHmmss>.md
+// 106 — hook call #2 (SAME count 0): the MD base name EXISTS on disk now →
+//      the name is STAMPED → the hook creates DIFFERENT files — BOTH the md
+//      and the json basenames match the stamp (#92)
 {
   const r2 = qcMod.preCompactionDump(SANDBOX, "ses_pc_ok", 0);
-  const stampRe = /^ses_pc_ok_c0_\d{8}T\d{6}\.md$/;
+  const stampMd = /^ses_pc_ok_c0_\d{8}T\d{6}\.md$/;
+  const stampJson = /^ses_pc_ok_c0_\d{8}T\d{6}\.json$/;
   check(
     "106",
     "S14",
-    "hook call #2 (same count 0): base name exists → the STAMPED name ses_pc_ok_c0_<YYYYMMDDTHHmmss>.md is created (a different file)",
-    r2.ok === true && r2.file != null && r2.file !== s14File1 && stampRe.test(path.basename(r2.file)) && existsSync(r2.file),
+    "hook call #2 (same count 0): MD base name exists → the STAMPED names ses_pc_ok_c0_<YYYYMMDDTHHmmss>.{md,json} are created (BOTH basenames match the stamp)",
+    r2.ok === true && r2.files != null && r2.files.length === 2 && r2.files[0] !== s14File1 && stampMd.test(path.basename(r2.files[0])) && stampJson.test(path.basename(r2.files[1])) && existsSync(r2.files[0]) && existsSync(r2.files[1]),
     JSON.stringify({ r2, base: s14File1 }),
   );
 }
 
-// 107 — the NO-OVERWRITE proof: file #1 (ses_pc_ok_c0.md) is BYTE-IDENTICAL
-//      after the stamped call #2 — one dump never overwrites another
+// 107 — the NO-OVERWRITE proof: file #1 (ses_pc_ok_c0.md) AND the json file
+//      #1 (ses_pc_ok_c0.json) are BYTE-IDENTICAL after the stamped call #2 —
+//      one dump never overwrites another (#92: both artifacts)
 {
   const body1Now = existsSync(s14File1) ? readFileSync(s14File1, "utf8") : null;
+  const body1JsonNow = existsSync(s14File1Json) ? readFileSync(s14File1Json, "utf8") : null;
   check(
     "107",
     "S14",
-    "no-overwrite proof: file #1 (ses_pc_ok_c0.md) is BYTE-IDENTICAL after the stamped call #2",
-    body1Now !== null && body1Now === s14Body1 && s14Body1 === "FAKE DUMP of ses_pc_ok\n",
-    JSON.stringify({ now: body1Now, before: s14Body1 }),
+    "no-overwrite proof: BOTH file #1s (ses_pc_ok_c0.md + ses_pc_ok_c0.json) are BYTE-IDENTICAL after the stamped call #2",
+    body1Now !== null && body1Now === s14Body1 && s14Body1 === "FAKE DUMP of ses_pc_ok\n" && body1JsonNow !== null && body1JsonNow === s14Body1Json && s14Body1Json === "FAKE DUMP of ses_pc_ok\n",
+    JSON.stringify({ now: [body1Now, body1JsonNow], before: [s14Body1, s14Body1Json] }),
+  );
+}
+
+// 345 — preCompactionDumpName BYTE-EXACT, the #92 json form (2026-09-27):
+//      the 4th arg "json" — the raw JSON snapshot name (the no-overwrite
+//      stamp is SHARED with the md base — both artifacts stamped together)
+{
+  check(
+    "345",
+    "S14",
+    "preCompactionDumpName byte-exact (the #92 json form): c0 (stamp null) + the stamped c3 case",
+    qcMod.preCompactionDumpName("ses_pc_name", 0, null, "json") === "compaction_dumps/ses_pc_name_c0.json" &&
+      qcMod.preCompactionDumpName("ses_pc_name", 3, "20260915T131530", "json") === "compaction_dumps/ses_pc_name_c3_20260915T131530.json",
+    JSON.stringify([qcMod.preCompactionDumpName("ses_pc_name", 0, null, "json"), qcMod.preCompactionDumpName("ses_pc_name", 3, "20260915T131530", "json")]),
   );
 }
 

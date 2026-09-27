@@ -1,97 +1,88 @@
-# TASK — plan25: block_transfer anchor fix (integer refs + trim rule + candidate hints)
+# TASK SPEC — plan26: TODO #92 — the pre-compaction dump saves BOTH artifacts (md + raw json)
 
-Worker: `worker_Q3S_245K_slow`. Stay on the current checkout (`opencode_test`).
-Maintainer GO 2026-09-27 (direct session, round 2). NO fuzzy resolution —
-resolution stays fail-closed exactly-one-match; the fuzzy value lives in the
-ERROR MESSAGE only.
+Worker: `worker_Q3S_245K_slow`. Approval: PRE-APPROVED (maintainer ruling 2026-09-27
+direct, ses_f20d1b39…: "YES — save both" — the spec is the entry's acceptance criteria).
+No new maintainer call is needed.
 
-## Background (planner-verified facts, measured 2026-09-27 live + in code)
-1. The host's constrained decoding of the `anyOf: [string, integer]` ref schema
-   stringifies integers in the LIVE channel (measured: `startMarker: 2` →
-   `Error: Start marker '2' not found`). The type-aware `resolveRef` number
-   branch (block_transfer.ts L136-142) is therefore dead in the live channel.
-   Unit-level (direct `execute` with native numbers) it works — S15 pin 108.
-2. `matchAnchorLines` (L46-56) strips LEADING spaces/tabs from the LINE but
-   never from the anchor (the rule comment L38-40 says so) → an anchor typed
-   with the line's indentation can NEVER match (measured live: end-marker
-   `   indented line five` against a line with 3 leading spaces → not found;
-   the same anchor without the spaces → match).
-3. `notFoundError` (L76-78) carries no candidate hints.
+## Goal
+Every pre-compaction dump writes TWO artifacts — the lossless full markdown (current)
+AND a raw JSON snapshot (the lossless master) — each with the #78 diagnostics (120 s
+budget, stdio pipe, ONE retry, stderr on DUMP-FAIL), producing two DUMP-OK lines per dump.
 
-## The fix (WHAT — exact end states; HOW is your call inside the DoD)
-**(a) Digit-string line refs.** In `resolveRef` (and hence every ref side:
-`startMarker`/`endMarker`/`targetMarker`, `refs[]` items, `regions[].start/end`):
-a ref that is a NUMBER or a string matching `/^\d+$/` resolves as a 1-based
-line number against the PRE-call file state; any other string is a prefix
-marker (unchanged). Keep the existing number branch (unit/probe calls pass
-native numbers). Errors stay byte-identical to the current number path:
-`0` (or `"0"`) → `Error: ${label} 0 is not a 1-based line number in ${fileRef}.`;
-beyond the line count → the existing `refOutOfRangeError` (with the count).
-Update the Part B header comment (L103-113) and the description REFS section
-(L261) to the new rule: an all-digits ref (number or digit-string) is a line
-number; any other string is a prefix marker. Schema UNCHANGED.
-**(b) Anchor normalization.** `matchAnchorLines`: strip leading spaces/tabs
-from the ANCHOR as well, before the `startsWith` (line-side strip unchanged;
-case-sensitive verbatim otherwise). An anchor that is empty AFTER trimming
-(all-whitespace) matches NO line (never match-all). Update the rule comment
-(L35-43) + the description where the prefix rule is stated.
-**(c) Candidate hints in the not-found error.** `notFoundError` gains the
-file text and, when no line matches, appends ` Closest lines: ` + up to 5
-candidates, each `${lineNo}: '${first 40 chars of the line}'` (`...` appended
-when cut, the line's `\r` stripped, original indentation shown), joined by
-`", "`. "Closest" = deterministic: length of the longest common prefix of the
-trimmed anchor and each trimmed line; top 5 by that length descending, ties by
-ascending line number; only lines sharing ≥ 1 char qualify; when NO line
-qualifies the message stays byte-identical to today's. The non-unique,
-empty-buffer, ref-out-of-range, after-start-marker, and sandbox error strings
-are UNTOUCHED (pinned). The quoted anchor in the error stays AS GIVEN (not
-trimmed).
+## Verified current state (planner-measured 2026-09-27 — build on these; do NOT re-derive)
+- The hook lives ONLY in `.opencode/plugin/compact_memory.ts` (the tool entry point —
+  `compaction_core.ts` is the shared config/keepTokens module, `context_recovery.ts` has
+  NO dump). Call site L380-381 (the dispatch WARNING uses `dump.ok` / `dump.error` only).
+- `preCompactionDumpName(sessionID, count, stamp)` (L114) → `compaction_dumps/<sid>_c<n>[_stamp].md`.
+- `preCompactionDump` (L183-207): the no-overwrite stamp is decided by the MD base
+  existence (L188); one attempt → DUMP-RETRY=1 → one retry → DUMP-FAIL (L191-206).
+- `runDumpSpawn` (L219-230): `execFileSync(resolveNodeExe(), [scriptPath, sessionID, "--out", name],
+  { timeout: 120_000, stdio: "pipe" })`.
+- Line formats (L124-160): DUMP-OK `<stamp> DUMP-OK <sid> <relFile> ms=<ms>`; DUMP-RETRY=
+  `<stamp> DUMP-RETRY=1 <sid> ms=<ms> err=<one-line>`; DUMP-FAIL `<stamp> DUMP-FAIL <sid> <detail>`.
+- The dump script `.opencode/agent/scripts/db/dump_session.cjs` ALREADY has `--json` (raw
+  mode, #78): `--out <rel> --json` writes to `jsonOutRel(rel)` — a rel that ALREADY carries
+  an extension (e.g. `x_c0.json`) is used VERBATIM; a rel without an extension gets `.json`
+  appended. → the hook must pass the `.json` NAME itself (`--out compaction_dumps/<base>.json --json`).
+- The probe/smoke FAKE dump stubs (probe `QC_FAKE_DUMP` L2920-2935; smoke `FAKE_DUMP` L37-53)
+  are rel-driven (`--out <rel>` → writes OUT_DIR/rel) and ignore `--json` → they serve BOTH
+  artifacts UNCHANGED.
+- Pins in force: probe S14 checks 101-107 (L3415-3521) + S25 check 255 (L5974-5981, `.find`
+  the FIRST DUMP-OK line); smoke DUMP-OK pin (L201-208, `.find` the FIRST DUMP-OK line).
+- Counts: probe 344/344 (header annotation L940, `S14=7`); compact_memory smoke 76/76.
+- The probe's `qcMod` imports compact_memory.ts (`QC_PLUGIN_TS` L2868).
 
-## Scope (files + bounded areas)
-- `.opencode/tools/block_transfer.ts` (673 lines) — L24-145 (rule comments +
-  matcher + errors + resolveRef), L253-270 (the description string: the REFS
-  section + the prefix-rule wording).
-- `.opencode/plugin/tests/block_transfer.smoke.mjs` (314 lines, `chk(` pattern,
-  temp-dir fixtures, `finish()` at end) — ≥ 4 new checks: (1) digit-string refs
-  give the same byte-exact result as the equivalent numeric call; (2) `"0"`
-  not-1-based + out-of-range digit-string, both byte-exact; (3) an indented
-  anchor matches its line + an all-whitespace anchor matches nothing; (4)
-  candidate-hint format byte-exact (one with candidates, one without = old
-  format). Existing 123 checks must stay green (re-pin in the same commit if a
-  byte-exact pin is affected).
-- `.opencode/plugin/tests/block_transfer.sandbox.smoke.mjs` (175 lines) —
-  re-pin ONLY if a pin is affected (expected: none).
-- `.opencode/plugin/probes/handover_probe.mjs` (7839 lines) — S15 section
-  L3523-3817: re-pin any existing check whose pinned string changes (known
-  not-found pins at ~L3732 and ~L7018 — they stay green iff no line shares ≥1
-  char with the anchored prefix; re-pin in the same commit if not), add ≤ 4
-  new S15 checks for (a)/(b)/(c); update the S15 header count (L3523) + the
-  section-sum annotation (~L940) in the SAME commit.
+## Changes (WHAT — the HOW is yours inside the DoD)
+1. `preCompactionDumpName(sessionID, count, stamp, format = "md")` → `…<format>` — the
+   3-arg calls must stay BYTE-IDENTICAL (checks 101/102 stay green).
+2. `preCompactionDump(root, sessionID, count)` runs BOTH artifacts — md first, then json —
+   each INDEPENDENTLY (one's failure does not skip the other): the same attempt →
+   DUMP-RETRY=1 → one retry → DUMP-FAIL pattern per artifact; the json spawn passes
+   `[scriptPath, sessionID, "--out", jsonName, "--json"]` (jsonName = the json form from
+   #1). The no-overwrite stamp is STILL decided by the MD base existence (unchanged);
+   both artifacts share the stamped base.
+3. Line formats: the DUMP-OK format is UNCHANGED (the relfile already distinguishes — two
+   lines per dump: the `.md` line first, then the `.json` line); DUMP-RETRY= and DUMP-FAIL
+   gain the artifact relfile right after `<sid>`: `<stamp> DUMP-RETRY=1 <sid> <relFile>
+   ms=<ms> err=<…>`, `<stamp> DUMP-FAIL <sid> <relFile> <detail>` (the existing substring
+   pins stay green).
+4. Return shape: `{ ok, files, error }` — ok = BOTH landed; files = the landed paths, md
+   first (0/1/2 entries); error = `<md|json>: <detail>` per failed artifact, joined by
+   " | " when both failed. The dispatch call site keeps `dumpWarning` as-is (it reads
+   only ok/error — L380-381).
+5. `runDumpSpawn` keeps its `execFileSync(resolveNodeExe(), …)` shape (the smoke source
+   pin L563-574 stays green) — just extend its args.
 
-## Definition of done (measured, in your handover)
-- block_transfer smokes: 123 + n green (report n and the total); sandbox smoke
-  64/64 (or re-pinned total).
-- probe: 340 + m green (report m; the `PROBE handover: <t>/<t> PASS` line
-  agrees with the updated annotation).
-- gate: `./.venv/Scripts/python.exe -m pytest -q` → 459 passed + 1 warning;
-  `./.venv/Scripts/ruff.exe check --select F .` → F=0 (FST code untouched).
-- The five untouched error strings above remain byte-identical (smoke/probe
-  pins prove it).
-- Live-channel acceptance PENDING the maintainer's next restart (unit-level
-  green is this DoD — the established convention, cf. #102).
-- Checkpoint commits per verified unit (code only); `TODO.md` (append
-  discrepancies only — no new entry expected) + `handover_task_to_planner.md`
-  ride the FINAL commit (carrying the code commits' hashes, never its own —
-  the hash is recorded in the planner's bookkeeping commit).
+## Pins
+- Probe S14: RE-PIN 104 (no script: exactly two DUMP-RETRY=1 + two DUMP-FAIL lines for
+  `ses_pc_noscript`, one per rel; `r.ok === false`; `r.error` names BOTH artifacts), 105
+  (both files created with the marker content; `r.files` = the [md, json] paths), 106
+  (stamped: BOTH basenames match the stamp regex), 107 (no-overwrite: BOTH file #1s
+  byte-identical). NEW check **345** (appended in the S14 block): the json naming
+  byte-exact — `preCompactionDumpName("ses_pc_name", 0, null, "json") ===
+  "compaction_dumps/ses_pc_name_c0.json"` AND `("ses_pc_name", 3, "20260915T131530",
+  "json") === "compaction_dumps/ses_pc_name_c3_20260915T131530.json"`. Section header
+  `S14 (7)→(8)`; header annotation L940 `S14=7`→`S14=8` + total 344→345 (self-annotate
+  per the probe convention); the check-ID comment list gains (345).
+- Probe S25 check 255: NO change needed (the md line is written first — the pin stays green).
+- Smoke: add EXACTLY two checks in the self case (after L208): (a)
+  `compaction_dumps/ses_sm_self_c0.json` exists; (b) the json DUMP-OK line byte-exact
+  `^<DT> DUMP-OK ses_sm_self compaction_dumps/ses_sm_self_c0.json ms=<ms>`. The md
+  DUMP-OK pin stays (its `.find` returns the md line — the first). No other smoke changes
+  (the stubs serve both artifacts).
+- Header comments (smoke L21-34, probe L18-19 + L395-411): update to state the
+  two-artifact behavior (the #92 pointer).
 
-## DO-NOT-touch
-FST code (`*.py` at repo root + `tests/`), `.opencode/maintainer/**`,
-`opencode.jsonc`, the NAP / loop folder, `.opencode/agent/prompts/**` (edit-
-deny anyway), probe sections other than S15 + the annotation line, smoke files
-other than the two named, other custom tools, `AGENTS.md`.
+## DoD (measured end states)
+- probe **345/345** (344 + 1 new; header self-annotated); compact_memory smoke **78/78**
+  (76 + 2); all other smokes unchanged-green; pytest **459 passed + 1 warning** (the known
+  #10 coroutine warning); ruff **F=0**.
+- Checkpoint commits per verified unit (code only); TODO #92 status → `LANDED` (the commit
+  hash is recorded by the PLANNER in the follow-up bookkeeping — no self-reference) + the
+  worker handover `.opencode/agent/handover/handover_task_to_planner.md` in the FINAL
+  commit. Append any discrepancy to TODO.md per the commit routine.
 
-## Design forks
-If a chosen reading of (a)/(b)/(c) seems to clash with an existing pinned
-byte-exact behavior, the pin WINS — note the clash in the handover, do not
-silently re-pin. A different candidate metric is NOT approved — keep the
-spec's common-prefix rule.
+## DO-NOT-TOUCH
+- `.opencode/agent/scripts/db/dump_session.cjs` (its `--json` mode already exists — no
+  change needed), `compaction_core.ts`, `context_recovery.ts`, `auto_resume.ts`, all other
+  plugins/tools, the FST code, `.opencode/maintainer/**`, the live `opencode.jsonc`.

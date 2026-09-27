@@ -4,119 +4,26 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## Current session — direct, 2026-09-27 (ses_f20d1b39dffefE8ge0hH7jbgAn, planner, Qwen3.8-27B-Q3S-245K-slow)
-- Maintainer's rulings recorded (direct exchange — all committed this session):
-  - #92 YES — the pre-compaction dump saves BOTH md + raw JSON → NEXT unit
-    (spec = the entry's acceptance; scope: `preCompactionDump` in
-    compact_memory.ts L183 + call site L380 + smoke/probe re-pin).
-  - #74 CLOSED — the backend no longer runs on ik_llama, the offending PR
-    was reverted in the fork (full text → todo_records.md).
-  - #93 CLOSED — live-verified by his repeated overflow tests (recovery
-    fires on overflow, compacts, does NOT resume — the unification Part B
-    behavior is correct; the session continues; budget counter +1, Gemma
-    ses_f20e63e08) (full text → todo_records.md).
-  - #83 CLOSED — his autoCompact question answered from the code: the
-    `autoCompact`/`saturationThreshold`/`outputReserve` keys gate ONLY the
-    passive nudge suffix (auto_resume.ts onToolAfterNudge L580-616 — the ctx-
-    line suffix on the session's own tool returns; no promptAsync, no
-    compaction dispatch — his observation was correct); raising the threshold
-    would only push the nudge back; the actual backstop = context_recovery
-    (live-verified via #93); the threshold knob (0.85) stays in the budget
-    file = the nudge position (full text → todo_records.md).
-  - #56 still DEFERRED — rework note recorded (per-agent-type distill →
-    friction points + undocumented knowledge/memory into per-agent memories;
-    the gemma speedup is nullified by the per-delegation model-switch
-    prefill).
-  - #99 LIVE TESTS COMPLETE — the body keep.tokens is NOT honored by the
-    installed host; opencode.json `compaction.keep.tokens` (now 40000) is the
-    live knob; keep.messages ignored; floor 25.8-25.9k measured; metric v2
-    stands as the computed advisory (the COMPACT line `tok=`); the follow-up
-    "how to correctly input keep.token into the summarize function" →
-    deferred research (the N=10 discriminator + the summarize-scope probe
-    ride it).
-- `dev_get_tool_context_contents.ts` FIXED (his request, inline): root cause
-  = the old execute returned a string[] (ToolResult = string | {output...} —
-  the host reads `result.output` and calls `.split` on it → undefined → the
-  `c.split` failure on every call); now returns a plain JSON string + a
-  defensive dump (`messages` is not in the static ToolContext — never .slice
-  raw; circular-safe fallback). LIVE after his next restart.
-- Unnumbered items resolved: loop_log-v2 LIVE-confirmed by him; the
-  WRITE-on-absent-file semantic RESOLVED (WRITE creates the file if absent —
-  the current implementation, verified in code + description); the
-  section-anchor schema question explained to him (read.offset is integer-
-  typed → constrained decoding never delivers a string anchor — the live
-  channel is dormant, pinned only; his call: keep pinned-only / defer).
-- The fork session (ses_f20b3bf14…, planner-24 direct fork) excess appended to
-  plan24_nap.md before the compression; its uncommitted leftovers
-  (agent_feedback.md, knowledge_inbox.md, loop_log.md) ride this session's
-  bookkeeping commit.
-- Pending the maintainer (non-blocking): #98 self-compact→idle cycle
-  (natural), the section-anchor schema call, the #99 follow-up research
-  (config-knob ruling — now APPROVED as the post-#92 queue item), #103 on
-  GO, **#104** (S31 anchor-trim equivalence: correct the comment OR trim the
-  plugin core — an R3-gate behavior change), #86 DEFERRED (queue tail).
-  + plan25 live-channel acceptance (next restart).
-- NEXT (next session/iteration): the **#92 build** — stage the spec from the
-  entry's acceptance (the pre-compaction dump saves BOTH the lossless md dump
-  AND a raw `--json` snapshot; scope: `preCompactionDump` in
-  compact_memory.ts L183 + call site L380 + smoke/probe re-pin), commit it,
-  launch worker_Q3S_245K_slow. Then #99 research (flexible per-dispatch
-  keepToken; source `home\AppData\Local\Temp\opencode\opencode-
-  dev`, dev branch 1.18.32). (The fork-session ruling "do not start a worker
-  again" is scoped to #103 only — #92 stays approved.)
-- Maintainer's LIVE priority.md additions (2026-09-27, unmarked — absorbed as
-  behavior rules, NAP-only per observation triage; persisted as MEM-0110): in
-  a direct session NO delegation without prior explicit OK (this session
-  honored it — #92 staged as NEXT, not launched); answer/interact first, stop
-  guessing and ask; push back, do not sugarcoat, question his assumptions; his
-  post-compaction reliability complaint = the context of the #99 "updated
-  prematurely" remark (the fork session landed the metric rework before his
-  test verdict).
-- Rulings round 2 (same session): #99 — his ruling: PURSUE the flexible
-  per-dispatch keepToken (compact_memory must keep control over WHAT to keep,
-  not just WHEN) → the follow-up research APPROVED (trace where the installed
-  host reads `preserve_recent_tokens` — config vs per-call body; his fork-
-  test matrix = the decider; wire it if found, config knob the fallback);
-  host-map §compaction gap noted (it does not trace the source — the research
-  fills it). #83 — threshold confirmed at 0.85 (no change). block_transfer
-  anchor design (his question after my ref friction this session): my
-  recommendation = NO fuzzy resolution for the mutating paths (a near-miss =
-  wrong block surgery — the fail-closed exactly-one-match bar stands); instead
-  (a) fix the integer line refs (they get stringified — measured this
-  session), (b) pin the implicit trim behavior + smoke it, (c) enrich the
-  not-found error with the closest candidate lines (the fuzzy value lives in
-  the error message, not the resolution) — his GO pending; candidate unit
-  (small: block_transfer.ts + smoke + probe), queued behind #92 unless he
-  re-orders.
-- **plan25 IN FLIGHT (this session, direct→autorun on his `<|Autorun|>`
-  2026-09-27):** the bt anchor fix is the FIRST unit (his GO "start with the
-  bt fix"; he's afk) — (a) type-aware integer line refs, (b) explicit trim
-   rule + pinned, (c) candidate-hint not-found error; NO fuzzy resolution.
-   Maintenance pass (N=25, N%5==0) done light: todo_inbox empty; knowledge
-   inbox 1 item → curated as a one-line spec bullet into
-   agent_readme_task_spec.md; stale approved/ proposals re-flagged
-   (unchanged — his adoption flow). #99 research source AVAILABLE:
-   `home\AppData\Local\Temp\opencode\opencode-dev` (dev branch =
-   default, 1.18.32 — his copy, inside the scratchpad). Order: bt fix → #92
-   build → #99 research.
-- **plan25 LANDED + verified (this session, worker-25
-   `worker_Q3S_245K_slow` ses_f1d622087ffeGu1toSY7Xzt1fw):**
-   `2b50fee` (a: all-digit refs = 1-based line numbers, every ref side,
-   schema unchanged, the 5 `.describe()` strings updated) /
-   `b2e3963` (b: anchor-side trim + all-whitespace anchor matches nothing) /
-   `6616689` (c: common-prefix top-5 candidate hints in the not-found error,
-   byte-identical when no line qualifies; probe S15 +4 checks 341-344,
-   annotation 344/344 same commit) / `7ddae1d` (bookkeeping: TODO #104 +
-   handover). Measured: smoke 131/131 (123+8; planner re-ran), sandbox 64/64,
-   probe 344/344, pytest 459+1w, ruff F=0; NO re-pins needed (all six pinned
-   not-found pins use zero-qualifying anchors — the spec's prediction held).
-   Root causes were planner-measured live pre-spec: the host's constrained
-   decoding stringifies `anyOf: [string, integer]` refs in the live channel
-   (the number branch was dead live) + the anchor-side trim gap. Live-
-   channel acceptance pending his next restart (cf. #102). Details: loop
-   folder plan25_summary.md + spec fafdee8.
+## Current session — autorun, 2026-09-27 (ses_f1d4258efffeFUXLn6PTolcHsB, planner-26, Qwen3.8-27B-Q3S-245K-slow)
+- plan26 (unit-4 restart branch after planner-25 `action: restart`): the
+  **#92 build** per the plan25 NEXT — spec staged + committed (spec = the
+  entry's acceptance: the pre-compaction dump saves BOTH the lossless md AND
+  a raw `--json` snapshot; scope: `preCompactionDump` in compact_memory.ts
+  L183 + call site L380 + the line formats + the return shape + the smoke
+  re-pin + probe S14 re-pins + new check 345 (344→345; smoke 76→78)),
+  worker_Q3S_245K_slow launched.
+- (worker result fills in on its return)
+- Pending the maintainer (non-blocking, carried from plan25 — full list in
+  plan25_nap.md): #104 (S31 anchor-trim equivalence — his call), #103 on GO
+  (worker launch deferred by his ruling), the plan25 live-channel acceptance
+  + the #92 live acceptance (his next restart), the #99 follow-up research
+  (APPROVED — the post-#92 queue item; source
+  `home\AppData\Local\Temp\opencode\opencode-dev`, dev branch
+  1.18.32), #86 DEFERRED (queue tail), the section-anchor schema call, the
+  #98 natural cycle.
 
 ## Compressed archive (one line each
+  - 2026-09-27 direct→autorun (ses_f20d1b39dffefE8ge0hH7jbgAn, planner-25, Qwen3.8-27B-Q3S-245K-slow) — plan25: maintainer rulings recorded (#92 YES→next unit, #74/#83/#93 CLOSED, #56 rework pending, #99 live tests complete + follow-up research APPROVED, #83 threshold 0.85 confirmed, bt anchor fix GO) + bt anchor fix LANDED+verified (worker-25: 2b50fee/b2e3963/6616689/7ddae1d; smoke 131/131, sandbox 64/64, probe 344/344, 459+1w, F=0; #104 filed) + dev_get_tool_context_contents fix (bda3584) + MEM-0110 (direct-session delegation ruling) — details: loop folder plan25_summary.md + plan25_nap.md + git fafdee8..50591f0
   - 2026-09-26 autorun (ses_f21359d77ffe2pviXZoIavxweh, planner-24, Qwen3.8-27B-Q3S-245K-slow) — plan24: loop_log-v2 LANDED+verified (worker-24: aa5a411/006a137/320d09f/b9d57c9 + S16 re-pin b1d122c; gates probe 340/340 + loop_log smoke 69/69 + all smokes + pytest 459+1w + F=0) + spec staged against the verified state (the proposal's 09-15 verdict line STALE) + proposal → implemented/ + prompt/doc bookkeeping — details: loop folder plan24_summary.md + git 68da83d..de31cdf
   - 2026-09-26/27 direct fork (ses_f20b3bf14ffedWHp2HGajHmGLN, planner-24 fork, Qwen3.8-27B-Q3S-245K-slow) — #99 live fork test RUN (dispatch PASS keep=30m tok=15916 computed ≈ independent DB 15,903; host side: the full 30-message tail retained RAW ≈ 37-40k tokens — no token-budget truncation observed, retention = count semantics) + keepTokens metric rework ×2 delegated (v1 bytes/4 b95d532, v2 S-diff provider-true primary dcad3d1 — pins machine-recomputed, gate green) + #103 filed (gauge lag structural; worker launch deferred per his ruling) + his compaction_tests.md series (body keep NOT honored — config compaction.keep.tokens wins; floor 25.8k) — details: plan24_nap.md (fork excess) + git 89902ef..8865b8c + .opencode/maintainer/draft/compaction_guide/compaction_tests.md
   - 2026-09-26 autorun (ses_f219349ffffe1IL7z1xCByoX45, planner-23, Q3S-245K-slow) — plan23: compaction-unification LANDED+verified (worker-23: 218a2c1/d9d93f8/88f902f — shared compaction_core.ts + thin wrappers + S32 equivalence pins; gate 340/340 + 74/74 + 17/17 + 459+1w + F=0) + R3 (b) bt pair channel LIVE-ACCEPTED / (d) section-anchor stays schema-shadowed + plan22 leftovers committed — details: loop folder plan23_summary.md + git 8ea4b2b..54e8bd9

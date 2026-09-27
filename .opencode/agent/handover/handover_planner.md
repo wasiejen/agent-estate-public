@@ -67,6 +67,16 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
    `.opencode/archive/sessions/compaction_dumps/` (md 616,987 B correct
    header; json 1,216,263 B valid, `session/messages/orphan_parts`).
    TODO #92 closed with the live evidence.
+- **Direct continuation (2026-09-27, same session):** the maintainer's
+   depth-cap follow-up — **#92 LIVE-ACCEPTED** (2750f0f — above) +
+   **LINEAGE_MAX_DEPTH 2→10 LANDED** (his explicit ruling; auto_resume.ts
+   + smoke #90 (iv) re-pinned to depth-2-spawns + #96 (c) 10-pair fixture
+   pinning the depth-10 boundary; smoke 139/139 + probe 345/345). His new
+   standing direction (discussion ongoing, NOT yet built): the autorun
+   loop should NEVER stop (sleep instead of stop), Direct mode keeps
+   no-spawn, idle = maintenance incl. feedback review + proposals,
+   contemplations: bigger compaction budget, an `ideas` channel in the
+   submit tool, online-idea exploration.
 - Pending the maintainer (non-blocking, carried from plan25 — full list in
   plan25_nap.md): the AGENTS.md / compaction-guide gauge-lag wording paste
   (the #103 doc tail — his files, NOT edited), #86 DEFERRED (queue tail),

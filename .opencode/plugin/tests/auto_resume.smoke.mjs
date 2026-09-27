@@ -1551,11 +1551,13 @@ try {
       ok90c4 && c90Creates.length === 2 && c90Sends.length === 3,
       `create=${c90Creates.length} sends=${c90Sends.length}`);
 
-    // ---- (iv) the LINEAGE-DEPTH cap: a depth-0 user session spawns
-    // its depth-1 successor; the depth-1 successor spawns its depth-2
-    // successor; the depth-2 session at cap exhaustion is REFUSED
-    // (skip= depth — no spawn; the chain stalls visibly). The
-    // cap-exhaustion cadence is the #80 pattern: busy→idle ×3 → two
+    // ---- (iv) the LINEAGE-DEPTH cap (N=10, raised from 2 by the
+    // 2026-09-27 maintainer ruling — the autorun loop should never
+    // stall): a depth-0 user session spawns its depth-1 successor;
+    // the depth-1 successor spawns its depth-2 successor; the depth-2
+    // session at cap exhaustion now SPAWNS (the chain continues — the
+    // depth-10 boundary is pinned in the #96 (c) trim-restore test).
+    // The cap-exhaustion cadence is the #80 pattern: busy→idle ×3 → two
     // CONTINUEs, then the restart/cap-exhaustion branch.
     const T0 = "ses_90_t0";
     msgScript.set(T0, mkPairs([["user", MARK + "\nt0 task"], ["assistant", "Mid-unit, no closing line."]], WORKER_A));
@@ -1593,9 +1595,12 @@ try {
     const ok90d5 = await waitUntil(() => d2Cont(2), 12000);
     const cBeforeD2 = c90Creates.length;
     await fire(hooks90, D2, [statusEv(D2, "busy"), statusEv(D2, "idle")]);
-    const ok90d6 = await waitUntil(() => readLines().some((l) => l.includes("skip= depth sid=" + D2) && l.includes("depth=2")), 12000);
-    chk("#90 (iv): the depth-2 session at cap exhaustion is REFUSED (skip= depth, no spawn — the lineage chain stalls visibly)",
-      ok90d5a && ok90d5 && ok90d6 && c90Creates.length === cBeforeD2, `create=${c90Creates.length}`);
+    // cap 2→10 (2026-09-27): a depth-2 session SPAWNS its successor
+    // (the default create id "ses_90_spawn" — the queue is exhausted);
+    // the depth-10 boundary is pinned in the #96 (c) trim-restore test.
+    const ok90d6 = await waitUntil(() => readLines().some((l) => l.includes("route= restart spawn sid=" + D2)), 12000);
+    chk("#90 (iv): a depth-2 session at cap exhaustion now SPAWNS (cap 2→10, 2026-09-27 — the autorun loop never stalls; the depth-10 boundary is pinned in the #96 (c) test)",
+      ok90d5a && ok90d5 && ok90d6 && c90Creates.length === cBeforeD2 + 1, `create=${c90Creates.length}`);
 
     // ---- (v): a FAILED spawn (create throws) → NO deactivation of
     // the trigger — the trigger is still routed normally on the next
@@ -1610,7 +1615,7 @@ try {
       12000,
     );
     chk("#90 (v): a failed spawn (create throws) → route= restart spawn + spawn-fail=, NO deactivation of the trigger (no deactivate= line)",
-      ok90e && c90Creates.length === 4 && !readLines().some((l) => l.includes("deactivate= sid=" + FAIL)),
+      ok90e && c90Creates.length === 5 && !readLines().some((l) => l.includes("deactivate= sid=" + FAIL)), // 5 post-cap-raise: T0, D1, D2 (cap 2→10) + no create on the failed FAIL spawn
       `create=${c90Creates.length}`);
     c90CreateShouldThrow = false;
     msgScript.set(FAIL, mkPairs([["user", MARK + "\nfail task"], ["assistant", "Done.\naction: stop"]], PLANNER_A)); // #98 A: own-line action line
@@ -1674,26 +1679,28 @@ try {
     // process (the #90 restore is ONCE per process: this smoke process
     // already ran it on its FIRST factory call, with an empty log — so
     // the trim-then-restore ORDER is proven in a child process): the
-    // child seeds an oversized log whose TAIL carries two route=/spawn=
-    // pairs (trim_a→trim_b, trim_b→trim_c → c at depth 2), factories
-    // with small caps (trim BEFORE restore), and the restored state
-    // must be observable — trim_a (restored STICKY-deactivated) →
-    // skip= deactivated; trim_c (restored depth 2) → skip= depth
-    // depth=2 (a non-restored c would SPAWN — the restored depth is
-    // the discriminator).
+    // child seeds an oversized log whose TAIL carries TEN route=/spawn=
+    // pairs (trim_a→trim_b→…→trim_j→trim_k → k at depth 10 = the raised
+    // cap, 2026-09-27), factories with small caps (trim BEFORE restore),
+    // and the restored state must be observable — trim_a (restored
+    // STICKY-deactivated) → skip= deactivated; trim_k (restored depth
+    // 10) → skip= depth depth=10 (a non-restored k would SPAWN — the
+    // restored depth is the discriminator, and the cap boundary is
+    // pinned at 10).
     const childProj = path.join(base, "trim_child", "proj");
     const childScript = path.join(base, "trim_restore_child.mjs");
     fs.mkdirSync(childProj, { recursive: true });
     const childSrc = [
-      "// #96 (c) child — a FRESH node process: the plugin init order (the",
-      "// #96 trim BEFORE the #90 restore) runs on the first factory call",
-      "// of this process. The child seeds its own oversized log (a",
-      "// filler HEAD cut by the trim + the two route=/spawn= PAIRS at",
-      "// the TAIL: a→b, b→c → c at depth 2), factories with small caps,",
-      "// and proves the RESTORED state: trim_a (restored",
-      "// STICKY-deactivated) → skip= deactivated; trim_c (restored",
-      "// depth 2) → skip= depth depth=2 (a non-restored c would SPAWN —",
-      "// the restored depth is the discriminator).",
+       "// #96 (c) child — a FRESH node process: the plugin init order (the",
+       "// #96 trim BEFORE the #90 restore) runs on the first factory call",
+       "// of this process. The child seeds its own oversized log (a",
+       "// filler HEAD cut by the trim + the TEN route=/spawn= PAIRS at",
+       "// the TAIL: a→b→…→j→k → k at depth 10 = the raised cap),",
+       "// factories with small caps, and proves the RESTORED state:",
+       "// trim_a (restored STICKY-deactivated) → skip= deactivated;",
+       "// trim_k (restored depth 10) → skip= depth depth=10 (a",
+       "// non-restored k would SPAWN — the restored depth is the",
+       "// discriminator).",
       "",
       'import fs from "node:fs";',
       'import path from "node:path";',
@@ -1717,7 +1724,23 @@ try {
       '  "2026-01-01T00:00:00.000Z route= restart spawn sid=trim_a" + NL +',
       '  "2026-01-01T00:00:00.000Z spawn= sid=trim_b" + NL +',
       '  "2026-01-01T00:00:00.000Z route= restart spawn sid=trim_b" + NL +',
-      '  "2026-01-01T00:00:00.000Z spawn= sid=trim_c" + NL;',
+      '  "2026-01-01T00:00:00.000Z spawn= sid=trim_c" + NL +',
+      '  "2026-01-01T00:00:00.000Z route= restart spawn sid=trim_c" + NL +',
+      '  "2026-01-01T00:00:00.000Z spawn= sid=trim_d" + NL +',
+      '  "2026-01-01T00:00:00.000Z route= restart spawn sid=trim_d" + NL +',
+      '  "2026-01-01T00:00:00.000Z spawn= sid=trim_e" + NL +',
+      '  "2026-01-01T00:00:00.000Z route= restart spawn sid=trim_e" + NL +',
+      '  "2026-01-01T00:00:00.000Z spawn= sid=trim_f" + NL +',
+      '  "2026-01-01T00:00:00.000Z route= restart spawn sid=trim_f" + NL +',
+      '  "2026-01-01T00:00:00.000Z spawn= sid=trim_g" + NL +',
+      '  "2026-01-01T00:00:00.000Z route= restart spawn sid=trim_g" + NL +',
+      '  "2026-01-01T00:00:00.000Z spawn= sid=trim_h" + NL +',
+      '  "2026-01-01T00:00:00.000Z route= restart spawn sid=trim_h" + NL +',
+      '  "2026-01-01T00:00:00.000Z spawn= sid=trim_i" + NL +',
+      '  "2026-01-01T00:00:00.000Z route= restart spawn sid=trim_i" + NL +',
+      '  "2026-01-01T00:00:00.000Z spawn= sid=trim_j" + NL +',
+      '  "2026-01-01T00:00:00.000Z route= restart spawn sid=trim_j" + NL +',
+      '  "2026-01-01T00:00:00.000Z spawn= sid=trim_k" + NL;',
       "fs.mkdirSync(path.dirname(logPath), { recursive: true });",
       "fs.writeFileSync(logPath, head + pairs);",
       'const mod = await import(pathToFileURL(path.join(REPO, ".opencode/plugin/auto_resume.ts")).href);',
@@ -1726,11 +1749,11 @@ try {
       '  { info: { role: "user" }, parts: [{ type: "text", text: "plain ping, no toggle" }] },',
       '  { info: { role: "assistant" }, parts: [{ type: "text", text: "Done. action: restart" }] },',
       "];",
-    "const msgC = [",
-      '  { info: { role: "user", agent: PLANNER }, parts: [{ type: "text", text: "iteration 1, no toggle" }] },',
-      '  { info: { role: "assistant" }, parts: [{ type: "text", text: "Done.\\naction: restart" }] },', // #98 A: own-line action line (child-process pin)
-    "];",
-      "const scripted = { trim_a: msgA, trim_c: msgC };",
+     "const msgK = [",
+       '  { info: { role: "user", agent: PLANNER }, parts: [{ type: "text", text: "iteration 1, no toggle" }] },',
+       '  { info: { role: "assistant" }, parts: [{ type: "text", text: "Done.\\naction: restart" }] },', // #98 A: own-line action line (child-process pin)
+     "];",
+      "const scripted = { trim_a: msgA, trim_k: msgK };",
       "const client = {",
       "  session: {",
       "    prompt: function () {},",
@@ -1747,7 +1770,7 @@ try {
       "  },",
       "  app: {},",
       "};",
-      "const hooks = await mod.default({ directory: proj, tickMs: 300, maxLogBytes: 1024, logTailBytes: 512, client });",
+      "const hooks = await mod.default({ directory: proj, tickMs: 300, maxLogBytes: 2048, logTailBytes: 1200, client });",
       'const lines = () => fs.readFileSync(logPath, "utf-8").split(NL).filter((l) => l.length > 0);',
       "const fire = async (sid) => {",
       '  await hooks.event({ event: { type: "session.status", properties: { sessionID: sid, status: "busy" } } });',
@@ -1755,21 +1778,21 @@ try {
       "};",
       'await fire("trim_a");',
       'const okA = await waitUntil(() => lines().some((l) => l.includes("skip= deactivated sid=trim_a")), 12000);',
-      'await fire("trim_c");',
-      'const okC = await waitUntil(() => lines().some((l) => l.includes("skip= depth sid=trim_c depth=2")), 12000);',
-      'const okTrim = lines().some((l) => l.includes("log-trim=")) && lines().some((l) => l.includes("spawn= sid=trim_c"));',
-      "const ok = okA && okC && okTrim;",
-      'console.log("TRIM_RESTORE " + (ok ? "OK" : "FAIL a=" + okA + " c=" + okC + " trim=" + okTrim));',
+      'await fire("trim_k");',
+      'const okK = await waitUntil(() => lines().some((l) => l.includes("skip= depth sid=trim_k depth=10")), 12000);',
+      'const okTrim = lines().some((l) => l.includes("log-trim=")) && lines().some((l) => l.includes("spawn= sid=trim_b"));',
+      "const ok = okA && okK && okTrim;",
+      'console.log("TRIM_RESTORE " + (ok ? "OK" : "FAIL a=" + okA + " k=" + okK + " trim=" + okTrim));',
       "process.exit(ok ? 0 : 1);",
     ];
     fs.writeFileSync(childScript, childSrc.join("\n"));
     const childRes = spawnSync(process.execPath, [childScript, REPO_ROOT, childProj], { encoding: "utf-8", timeout: 90000 });
     const childLog = path.join(childProj, ".opencode", "temp", "auto_resume.log");
     const childLines = fs.existsSync(childLog) ? fs.readFileSync(childLog, "utf-8").split(/\r?\n/).filter((l) => l.length > 0) : [];
-    chk("#96 (c): a fresh-process init (trim BEFORE the #90 restore) still pairs the route=/spawn= lines surviving in the trimmed tail (trim_a skip= deactivated, trim_c skip= depth depth=2)",
+    chk("#96 (c): a fresh-process init (trim BEFORE the #90 restore) still pairs the route=/spawn= lines surviving in the trimmed tail (trim_a skip= deactivated, trim_k skip= depth depth=10 — the restored depth is the discriminator + the cap boundary pinned at 10)",
       childRes.status === 0 && childLines.some((l) => l.includes("log-trim=")) &&
         childLines.some((l) => l.includes("skip= deactivated sid=trim_a")) &&
-        childLines.some((l) => l.includes("skip= depth sid=trim_c depth=2")),
+        childLines.some((l) => l.includes("skip= depth sid=trim_k depth=10")),
       `status=${childRes.status} ${childRes.stdout ? childRes.stdout.trim().split("\n").pop() : ""}`);
 
     // ============================================================

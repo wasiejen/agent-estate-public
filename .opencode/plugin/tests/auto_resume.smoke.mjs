@@ -1795,6 +1795,104 @@ try {
         childLines.some((l) => l.includes("skip= depth sid=trim_k depth=10")),
       `status=${childRes.status} ${childRes.stdout ? childRes.stdout.trim().split("\n").pop() : ""}`);
 
+    // ---- LINEAGE-CAP CONFIG (2026-09-27 maintainer ruling): the cap is
+    // LIVE-READ from `.opencode/temp/lineage_max_depth` on every spawn
+    // decision (-1 = unbounded, missing file → default 10). Proven in a
+    // SECOND fresh child process (same 10-pair trim-restore fixture,
+    // pairs generated PROGRAMMATICALLY — the 19-vs-20-line lesson from
+    // the first re-pin): cap "-1" → the restored depth-10 session
+    // SPAWNS (the chain continues); the cap is then LIVE-changed to "0"
+    // → the spawned depth-11 successor is REFUSED (skip= depth depth=11).
+    const ccChildProj = path.join(base, "cap_config_child", "proj");
+    const ccChildScript = path.join(base, "cap_config_child.mjs");
+    fs.mkdirSync(ccChildProj, { recursive: true });
+    const ccChildSrc = [
+      "// cap-config child — a FRESH node process: the 10-pair trim-restore",
+      "// fixture (pairs generated programmatically) + the LIVE cap file",
+      "// (.opencode/temp/lineage_max_depth). cap=-1 → trim_k (restored",
+      "// depth 10) SPAWNS; cap=0 (written live, before the successor",
+      "// fires) → the depth-11 successor is REFUSED (skip= depth",
+      "// depth=11).",
+      "",
+      'import fs from "node:fs";',
+      'import path from "node:path";',
+      'import { pathToFileURL } from "node:url";',
+      "",
+      "const NL = String.fromCharCode(10);",
+      "const REPO = process.argv[2];",
+      "const proj = process.argv[3];",
+      'const logPath = path.join(proj, ".opencode", "temp", "auto_resume.log");',
+      'const capPath = path.join(proj, ".opencode", "temp", "lineage_max_depth");',
+      "const sleep = (ms) => new Promise((r) => setTimeout(r, ms));",
+      "const waitUntil = async (cond, ms = 8000) => {",
+      "  const t0 = Date.now();",
+      "  while (Date.now() - t0 < ms) {",
+      "    if (cond()) return true;",
+      "    await sleep(200);",
+      "  }",
+      "  return !!cond();",
+      "};",
+      'const head = Array.from({ length: 200 }, (_, i) => "2026-01-01T00:00:00.000Z filler-" + i + " (cut by the trim)" + NL).join("");',
+      "const L = (i) => String.fromCharCode(97 + i);",
+      "const pairs = Array.from({ length: 10 }, (_, i) =>",
+      '  "2026-01-01T00:00:00.000Z route= restart spawn sid=trim_" + L(i) + NL +',
+      '  "2026-01-01T00:00:00.000Z spawn= sid=trim_" + L(i + 1) + NL',
+      ').join("");',
+      "fs.mkdirSync(path.dirname(logPath), { recursive: true });",
+      'fs.writeFileSync(logPath, head + pairs);',
+      'fs.writeFileSync(capPath, "-1");',
+      'const mod = await import(pathToFileURL(path.join(REPO, ".opencode/plugin/auto_resume.ts")).href);',
+      'const PLANNER = "planner_Q3S_160K";',
+      "const msgDeep = [",
+      '  { info: { role: "user", agent: PLANNER }, parts: [{ type: "text", text: "iteration 1, no toggle" }] },',
+      '  { info: { role: "assistant" }, parts: [{ type: "text", text: "Done.\\naction: restart" }] },',
+      "];",
+      "const scripted = { trim_k: msgDeep, ses_cc_spawn: msgDeep };",
+      "const sends = [];",
+      "const client = {",
+      "  session: {",
+      "    prompt: function () {},",
+      '    promptAsync: async (args) => { sends.push(args); return { data: { id: "queued" } }; },',
+      "    abort: function () {},",
+      "    list: function () {},",
+      "    get: function () {},",
+      "    message: function () {},",
+      "    messages: async (args) => scripted[args?.path?.id] ?? [],",
+      "    todo: function () {},",
+      "    command: function () {},",
+      "    summarize: function () {},",
+      '    create: async () => ({ data: { id: "ses_cc_spawn" } }),',
+      "  },",
+      "  app: {},",
+      "};",
+      "const hooks = await mod.default({ directory: proj, tickMs: 300, maxLogBytes: 2048, logTailBytes: 1200, client });",
+      'const lines = () => fs.readFileSync(logPath, "utf-8").split(NL).filter((l) => l.length > 0);',
+      "const fire = async (sid) => {",
+      '  await hooks.event({ event: { type: "session.status", properties: { sessionID: sid, status: "busy" } } });',
+      '  await hooks.event({ event: { type: "session.status", properties: { sessionID: sid, status: "idle" } } });',
+      "};",
+      'await fire("trim_k");',
+      'const okSpawn = await waitUntil(() => lines().some((l) => l.includes("route= restart spawn sid=trim_k")) && lines().some((l) => l.includes("spawn= sid=ses_cc_spawn")), 12000);',
+      // live cap change: 0 → every plugin-spawned session is refused
+      'fs.writeFileSync(capPath, "0");',
+      'await fire("ses_cc_spawn");',
+      'const okDeny = await waitUntil(() => lines().some((l) => l.includes("skip= depth sid=ses_cc_spawn depth=11")), 12000);',
+      'const okSend = sends.some((c) => c.path?.id === "ses_cc_spawn");',
+      "const ok = okSpawn && okDeny && okSend;",
+      'console.log("CAP_CONFIG " + (ok ? "OK" : "FAIL spawn=" + okSpawn + " deny=" + okDeny + " send=" + okSend));',
+      "process.exit(ok ? 0 : 1);",
+    ];
+    fs.writeFileSync(ccChildScript, ccChildSrc.join("\n"));
+    const ccChildRes = spawnSync(process.execPath, [ccChildScript, REPO_ROOT, ccChildProj], { encoding: "utf-8", timeout: 90000 });
+    const ccChildLog = path.join(ccChildProj, ".opencode", "temp", "auto_resume.log");
+    const ccChildLines = fs.existsSync(ccChildLog) ? fs.readFileSync(ccChildLog, "utf-8").split(/\r?\n/).filter((l) => l.length > 0) : [];
+    chk("cap-config: the LIVE cap file (-1) lets the restored depth-10 session SPAWN; a live change to 0 then REFUSES its depth-11 successor (skip= depth depth=11)",
+      ccChildRes.status === 0 &&
+        ccChildLines.some((l) => l.includes("route= restart spawn sid=trim_k")) &&
+        ccChildLines.some((l) => l.includes("spawn= sid=ses_cc_spawn")) &&
+        ccChildLines.some((l) => l.includes("skip= depth sid=ses_cc_spawn depth=11")),
+      `status=${ccChildRes.status} ${ccChildRes.stdout ? ccChildRes.stdout.trim().split("\n").pop() : ""}`);
+
     // ============================================================
     // #98 (A) — the LINE-ANCHORED action-line regex: `action:` matches
     // ONLY at line start (after any leading whitespace); a PROSE-QUOTED

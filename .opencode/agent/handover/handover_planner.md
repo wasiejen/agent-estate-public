@@ -67,26 +67,46 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
    `.opencode/archive/sessions/compaction_dumps/` (md 616,987 B correct
    header; json 1,216,263 B valid, `session/messages/orphan_parts`).
    TODO #92 closed with the live evidence.
-- **Direct continuation (2026-09-27, same session):** the maintainer's
-   depth-cap follow-up — **#92 LIVE-ACCEPTED** (2750f0f — above) +
-   **LINEAGE_MAX_DEPTH 2→10 LANDED** (his explicit ruling; auto_resume.ts
-   + smoke #90 (iv) re-pinned to depth-2-spawns + #96 (c) 10-pair fixture
-   pinning the depth-10 boundary; smoke 139/139 + probe 345/345). His new
-   standing direction (discussion ongoing, NOT yet built): the autorun
-   loop should NEVER stop (sleep instead of stop), Direct mode keeps
-   no-spawn, idle = maintenance incl. feedback review + proposals,
-   contemplations: bigger compaction budget, an `ideas` channel in the
-   submit tool, online-idea exploration.
-- Pending the maintainer (non-blocking, carried from plan25 — full list in
-  plan25_nap.md): the AGENTS.md / compaction-guide gauge-lag wording paste
-  (the #103 doc tail — his files, NOT edited), #86 DEFERRED (queue tail),
-  the section-anchor schema call, the #98 natural cycle. (The plan25
-  live-channel acceptance + the #92 live acceptance are both DONE —
-  part 2 + the note above.)
-- NEXT (next session/iteration): no clear build work without maintainer
-   input (#86 deferred tail) → idle-initiative lane per the standing
-   `--maintainer` block (proposals always allowed, research,
-   bookkeeping-reducing tools, prompt improvements, maintenance at iter 30).
+ - **Direct continuation (2026-09-27, same session — the depth-cap
+    follow-up):** #92 LIVE-ACCEPTED (2750f0f — above) +
+    **LINEAGE_MAX_DEPTH 2→10 LANDED** (3914181 — auto_resume.ts + smoke
+    #90 (iv) re-pinned to depth-2-spawns + #96 (c) 10-pair fixture pinning
+    the depth-10 boundary; smoke 139/139 + probe 345/345) + his
+    always-active design direction LANDED in ONE follow-up commit (all his
+    explicit rulings): (1) `submit` **ideas channel** →
+    `.opencode/agent/agent_ideas.md` (the AGENT-SIDE inbox — his
+    `.opencode/maintainer/ideas/ideas.md` stays his personal stream,
+    READ-ONLY inspiration; submit smoke (G) pin); (2) **idle close
+    policy** — autorun idle = the maintenance scope (incl. feedback/ideas
+    inbox review) + close with `action: restart`, NEVER `stop` (stop =
+    unrecoverable or direct maintainer interaction in autorun) — loop-doc
+    restart bullet + maintenance scope item 6 + orientation idle lane +
+    planner-prompt line; (3) **LINEAGE cap LIVE-CONFIGURABLE** —
+    `.opencode/temp/lineage_max_depth` (one integer; -1 = unbounded;
+    missing/unparseable → default 10; read per spawn decision — raisable
+    while the autorun runs) + cap-config smoke child (cap -1 → restored
+    depth-10 SPAWNS; live change to 0 → its depth-11 successor REFUSED).
+    Gates: auto_resume smoke 140/140 + submit smoke + probe 345/345.
+    **TODO #105** = the next-maintenance-pass research bundle (ideas.md
+    scan + keepTokens fork effort + v2 main-branch identification /
+    hardening + compaction-summary customization). His BIT-ROT REFRAME
+    (the not-kept history is DROPPED, not compressed — the compaction model
+    only creates the summary; the real risks = a stale/diluted summary +
+    the skipped post-compaction read) → the "cap exists for bit-rot"
+    rationale in AGENTS.md / the compaction guide is now STALE → added to
+    his pending-paste list (his files).
+ - Pending the maintainer (non-blocking, carried from plan25 — full list in
+   plan25_nap.md): the AGENTS.md / compaction-guide gauge-lag wording paste
+   (the #103 doc tail — his files, NOT edited) + the **compaction
+   bit-rot-rationale update** (his 2026-09-27 reframe — see the direct
+   continuation above), #86 DEFERRED (queue tail), the section-anchor
+   schema call, the #98 natural cycle. (The plan25 live-channel acceptance
+   + the #92 live acceptance are both DONE — part 2 + the note above.)
+ - NEXT (next session/iteration): **the #105 research bundle at the next
+    maintenance pass** (the ideas.md scan + keepTokens fork effort + v2
+    branch/hardening + compaction-summary customization — explorer-shaped
+    parts (b)+(d)); otherwise the idle lane (now productive by the 2026-09-27
+    ruling — idle closes with `action: restart`), #86 deferred tail.
 
 ## Compressed archive (one line each
   - 2026-09-27 autorun (ses_f1d4258efffeFUXLn6PTolcHsB, planner-26, Qwen3.8-27B-Q3S-245K-slow) — plan26: #92 build LANDED+verified (worker-26: 11f4a12 two-artifact dump / 5a6e842 probe S14 re-pins + check 345 / e2a1a52 smoke 76→78 / 86bda25 bookkeeping; planner re-run probe 345/345 + compact smoke 78/78; live acceptance = next real compaction shows both artifacts + two DUMP-OK lines) — details: loop folder plan26_summary.md + git 77f93fc

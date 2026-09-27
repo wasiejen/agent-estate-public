@@ -28,9 +28,11 @@ const REL = {
   feedback: ".opencode/agent/agent_feedback.md",
   knowledge: ".opencode/agent/knowledge/knowledge_inbox.md",
   todo: "todo_inbox.md",
+  ideas: ".opencode/agent/agent_ideas.md",
 };
-const HDR = { feedback: "###", knowledge: "##", todo: "##" };
-const NO_PARAMS_ERR = "error: none of feedback/knowledge/todo provided — nothing written";
+const HDR = { feedback: "###", knowledge: "##", todo: "##", ideas: "###" };
+const NO_PARAMS_ERR = "error: none of feedback/knowledge/todo/ideas provided — nothing written";
+const CHANNEL_ORDER = ["feedback", "knowledge", "todo", "ideas"];
 const mkEntry = (key, stamp, role, session, text) => `${HDR[key]} ${stamp} ${role} ${session}\n${text}\n\n`;
 const mkBlock = (key, entry) => `${key}\ntarget: ${REL[key]}\nentry: ${entry}`;
 
@@ -52,8 +54,8 @@ try {
   chk("no stale 'name'/'parameters' keys", t != null && !("name" in t) && !("parameters" in t));
   chk("execute is async fn", t != null && typeof t.execute === "function" && t.execute.constructor.name === "AsyncFunction");
   chk(
-    "all 3 channel args optional at parse (feedback/knowledge/todo accept undefined) AND role/session are GONE from the schema (auto-filled from the context)",
-    t != null && ["feedback", "knowledge", "todo"].every((k) => t.args[k] != null && t.args[k].safeParse(undefined).success === true) && !("role" in t.args) && !("session" in t.args),
+    "all 4 channel args optional at parse (feedback/knowledge/todo/ideas accept undefined) AND role/session are GONE from the schema (auto-filled from the context)",
+    t != null && CHANNEL_ORDER.every((k) => t.args[k] != null && t.args[k].safeParse(undefined).success === true) && !("role" in t.args) && !("session" in t.args),
   );
 
   // ---- (A) feedback single-param, FALLBACK role/session: the context carries
@@ -112,9 +114,9 @@ try {
   const retD2 = await t.execute({ feedback: "", knowledge: "   ", todo: "" }, { directory: projD2 });
   chk("(D) empty/blank strings count as NOT provided -> same error, no file", retD2 === NO_PARAMS_ERR && !fs.existsSync(path.join(projD2, ".opencode")) && !fs.existsSync(fpath(projD2, "todo")), `got=${JSON.stringify(retD2)}`);
 
-  // ---- (E) multi-param: all three provided in ONE call — one shared stamp,
-  //      three files, the return = the three blocks in feedback/knowledge/
-  //      todo order
+  // ---- (E) multi-param: all FOUR provided in ONE call — one shared stamp,
+  //      four files, the return = the four blocks in feedback/knowledge/
+  //      todo/ideas order
   const projE = mkproj("E");
   const roleE = "probe-smoke";
   const sesE = "ses_TEST_72";
@@ -122,19 +124,36 @@ try {
     feedback: "multi: friction line",
     knowledge: "multi: knowledge line",
     todo: "multi: finding line",
+    ideas: "multi: idea line",
   };
   const tE1 = localStamp();
   const retE = await t.execute(argsE, { directory: projE, agent: roleE, sessionID: sesE });
   const tE2 = localStamp();
   const bodyE = (k) => { const f = fpath(projE, k); return fs.existsSync(f) ? fs.readFileSync(f, "utf-8") : null; };
-  const mkRetE = (s) => ["feedback", "knowledge", "todo"].map((k) => mkBlock(k, mkEntry(k, s, roleE, sesE, argsE[k]))).join("\n");
-  const okFilesE = (s) => ["feedback", "knowledge", "todo"].every((k) => bodyE(k) === mkEntry(k, s, roleE, sesE, argsE[k]));
-  chk("(E) multi-param: all three files created with byte-exact entries (minute-boundary-safe)", okFilesE(tE1) || okFilesE(tE2), JSON.stringify(["feedback", "knowledge", "todo"].map((k) => bodyE(k))));
+  const mkRetE = (s) => CHANNEL_ORDER.map((k) => mkBlock(k, mkEntry(k, s, roleE, sesE, argsE[k]))).join("\n");
+  const okFilesE = (s) => CHANNEL_ORDER.every((k) => bodyE(k) === mkEntry(k, s, roleE, sesE, argsE[k]));
+  chk("(E) multi-param: all four files created with byte-exact entries (minute-boundary-safe)", okFilesE(tE1) || okFilesE(tE2), JSON.stringify(CHANNEL_ORDER.map((k) => bodyE(k))));
   const okRetE = (s) => retE === mkRetE(s);
-  chk("(E) return = the three blocks in feedback/knowledge/todo order (byte-exact)", okRetE(tE1) || okRetE(tE2), `got=${JSON.stringify(retE)}`);
-  // explicit: the three entries in the three files carry the SAME stamp
-  const stampsE = ["feedback", "knowledge", "todo"].map((k) => (bodyE(k) ?? "").split("\n")[0].split(" ")[1]);
-  chk("(E) the three entries share ONE stamp (captured once per call)", stampsE.every((s) => /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}$/.test(s ?? "")) && new Set(stampsE).size === 1, JSON.stringify(stampsE));
+  chk("(E) return = the four blocks in feedback/knowledge/todo/ideas order (byte-exact)", okRetE(tE1) || okRetE(tE2), `got=${JSON.stringify(retE)}`);
+  // explicit: the four entries in the four files carry the SAME stamp
+  const stampsE = CHANNEL_ORDER.map((k) => (bodyE(k) ?? "").split("\n")[0].split(" ")[1]);
+  chk("(E) the four entries share ONE stamp (captured once per call)", stampsE.every((s) => /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}$/.test(s ?? "")) && new Set(stampsE).size === 1, JSON.stringify(stampsE));
+
+  // ---- (G) ideas single-param (2026-09-27 ruling): `### ` stamp into the
+  //      agent-side ideas inbox .opencode/agent/agent_ideas.md — the
+  //      MAINTAINER's ideas.md is NOT a target (read-only inspiration)
+  const projG = mkproj("G");
+  const argsG = { ideas: "idea: the maintenance pass should scan agent_ideas.md and the maintainer's ideas.md" };
+  const tG1 = localStamp();
+  const retG = await t.execute(argsG, { directory: projG, agent: "planner-27", sessionID: "ses_TEST_74" });
+  const tG2 = localStamp();
+  const fG = fpath(projG, "ideas");
+  const bodyG = fs.existsSync(fG) ? fs.readFileSync(fG, "utf-8") : null;
+  const okEntryG = (s) => bodyG === mkEntry("ideas", s, "planner-27", "ses_TEST_74", argsG.ideas);
+  chk("(G) ideas append: agent_ideas.md created with EXACTLY the entry (### stamp)", okEntryG(tG1) || okEntryG(tG2), `got=${JSON.stringify(bodyG)}`);
+  chk("(G) the maintainer-side ideas.md path is NOT touched (no .opencode/maintainer under the sandbox)", !fs.existsSync(path.join(projG, ".opencode", "maintainer")));
+  const okRetG = (s) => retG === mkBlock("ideas", mkEntry("ideas", s, "planner-27", "ses_TEST_74", argsG.ideas));
+  chk("(G) return = `ideas` + `target:` + `entry:`, byte-exact vs the file entry", okRetG(tG1) || okRetG(tG2), `got=${JSON.stringify(retG)}`);
 
   // ---- (F) never-read preservation: pre-seeded sentinel lines stay
   //      BYTE-EXACT before the appended entry; the other targets (not

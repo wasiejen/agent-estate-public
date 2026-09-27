@@ -81,6 +81,11 @@ All paths below are relative to `.opencode/agent/prompts/`.
   explorer role to map it into `TODO.md` entries first.
 - Always end by making the NAP current and emit exactly one `action:` line (AGENTS.md
   §Interaction-contract)
+- **Idle close policy (2026-09-27 ruling):** when no actionable item
+  remains, the session does the maintenance scope (the orientation.md idle
+  lane) and closes with `action: restart` (the next generation continues) —
+  NEVER `action: stop` unless unrecoverable (the compaction budget fully
+  exhausted) or the maintainer engaged directly in this autorun session.
 - Write your closing summary to `plan<N>_summary.md` 
 
 ## Direct / <|Direct|> session (interactive)

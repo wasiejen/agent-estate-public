@@ -62,8 +62,16 @@ and prompts exist so the system (and I) keep getting better.
   are never edited or staged by agents; registration is his domain.
 
 ## Idle / autonomous initiative (per his standing --maintainer block)
-When no actionable item remains: write proposals (always allowed), research
-(ideas/feedback/maintainer-files/archive → per-research folder when
-worthwhile), bookkeeping-reducing tools, prompt improvements, maintenance
-passes, and the pure-script / new-hire test ideas above. This file is the
-standing orientation for those sessions.
+When no actionable item remains — idle is PRODUCTIVE work, never a stop
+(2026-09-27 ruling: the agent is always active in some form; an idle
+autorun session closes with `action: restart`, NEVER `action: stop` — stop
+is reserved for unrecoverable states or direct maintainer interaction in
+autorun mode): the maintenance scope (inbox review — `agent_feedback.md` +
+`agent_ideas.md` + the maintainer's `ideas.md` read-only → inline fix /
+proposal / knowledge / TODO; curation; baselines), write proposals (always
+allowed), research (ideas/feedback/maintainer-files/archive → per-research
+folder when worthwhile — incl. bounded ONLINE research via the explorer:
+one question per run, findings → TODO/knowledge/proposals), pathfinder
+passes over code (fix small inline, file bigger), bookkeeping-reducing
+tools, prompt improvements, and the pure-script / new-hire test ideas
+above. This file is the standing orientation for those sessions.

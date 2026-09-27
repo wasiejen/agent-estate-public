@@ -16,14 +16,17 @@ not here.
 - The states (the planner references AGENTS.md §Interaction-contract, same
   vocabulary):
    - `restart` — fresh planner launch (the default; missing/unclear → restart).
-     **Lineage-depth cap (#90 part A; N raised 2→10 by the 2026-09-27
-     maintainer ruling — the autorun loop should never stall):** a session
-     at depth ≥ 10 (ten generations of plugin spawns from a user session)
-     does NOT auto-spawn a successor — the plugin logs
-     `skip= depth sid=… depth=10` in `auto_resume.log` and nothing else (no
-     trigger file, no sticky state — by design); shallower sessions spawn
-     normally. The depth is RESTORED from `auto_resume.log` on host restart
-     (#90 part C) — a restart never resets the chain.
+     **Lineage-depth cap (#90 part A; raised 2→10 and LIVE-CONFIGURABLE by
+     the 2026-09-27 maintainer ruling — the autorun loop should never
+     stall):** the cap is read LIVE from
+     `.opencode/temp/lineage_max_depth` (one integer; -1 = unbounded; file
+     missing/unparseable → default 10) on every spawn decision — the
+     maintainer can raise it while the autorun runs. A session at depth ≥
+     cap (ten generations by default) does NOT auto-spawn a successor —
+     the plugin logs `skip= depth sid=… depth=N` in `auto_resume.log` and
+     nothing else (no trigger file, no sticky state — by design); shallower
+     sessions spawn normally. The depth is RESTORED from `auto_resume.log`
+     on host restart (#90 part C) — a restart never resets the chain.
   - `resume` — resume the same sub-agent session via `task_id`
   - `ask_maintainer: <q>` — pause the loop until the maintainer answers
   - `stop` — goal reached / unrecoverable
@@ -133,7 +136,7 @@ not here.
   and BEFORE task selection. Never idle-triggered (idle detection is the
   ghost/unit-4 pathology zone) and not via the priority list (that channel
   is for urgent items).
-- Scope (bounded, ~10 tool calls total):
+- Scope (bounded, ~12 tool calls total):
   1. `knowledge_inbox.md` → curate into the area files (shrink the inbox);
   2. NAP archive compression check (closed sessions keep only their
      compressed one-liner);
@@ -143,7 +146,12 @@ not here.
   4. baselines in Standing: current against the last measured gate;
   5. stale proposals/drafts: `proposals/` root items or maintainer drafts
      untouched 14+ days → FLAG to the maintainer (summary/NAP) — NEVER
-     auto-delete.
+     auto-delete;
+  6. inbox review (2026-09-27 ruling — idle = maintenance incl. feedback
+     review): `agent_feedback.md` + `agent_ideas.md` (and the maintainer's
+     `ideas.md`, READ-ONLY) → for each entry: inline fix (pre-approved
+     category) / proposal file / knowledge / TODO — mark handled entries in
+     the summary/NAP (the files stay append-only; the maintainer cures them).
 - Precedence: a pending maintainer call wins — the pass defers to the next
   trigger; if the session starts above ~70% context, defer (record in the
   NAP).

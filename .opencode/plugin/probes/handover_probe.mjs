@@ -5747,13 +5747,14 @@ const SUB_FB = path.join(SANDBOX, "submit-fb"); // no-params error + the feedbac
 const SUB_KN = path.join(SANDBOX, "submit-kn"); // the knowledge append (check 234)
 const SUB_TODO = path.join(SANDBOX, "submit-todo"); // the todo append (check 235)
 const SUB_KEEP = path.join(SANDBOX, "submit-keep"); // the never-read preservation (check 238)
-const SUB_NO_PARAMS_ERR = "error: none of feedback/knowledge/todo provided — nothing written";
+const SUB_NO_PARAMS_ERR = "error: none of feedback/knowledge/todo/ideas provided — nothing written";
 const SUB_REL = {
   feedback: ".opencode/agent/agent_feedback.md",
   knowledge: ".opencode/agent/knowledge/knowledge_inbox.md",
   todo: "todo_inbox.md",
+  ideas: ".opencode/agent/agent_ideas.md",
 };
-const SUB_HDR = { feedback: "###", knowledge: "##", todo: "##" };
+const SUB_HDR = { feedback: "###", knowledge: "##", todo: "##", ideas: "###" };
 const subEntry = (k, s, role, ses, text) => `${SUB_HDR[k]} ${s} ${role} ${ses}\n${text}\n\n`;
 const subBlock = (k, entry) => `${k}\ntarget: ${SUB_REL[k]}\nentry: ${entry}`;
 const subStampNow = () => {
@@ -5776,9 +5777,9 @@ let subTool;
   check(
     String(++n22),
     "S23",
-    "submit tool file imports (type-stripped, direct) and exposes the tool() default export (description + args [feedback, knowledge, todo] + execute; role/session GONE from the schema)",
+    "submit tool file imports (type-stripped, direct) and exposes the tool() default export (description + args [feedback, knowledge, todo, ideas] + execute; role/session GONE from the schema)",
     subTool != null && typeof subTool.description === "string" && subTool.description.length > 0 &&
-      JSON.stringify(argKeys) === JSON.stringify(["feedback", "knowledge", "todo"]) &&
+      JSON.stringify(argKeys) === JSON.stringify(["feedback", "knowledge", "todo", "ideas"]) &&
       typeof subTool.execute === "function",
     JSON.stringify({ keys: argKeys, descType: typeof subTool?.description }),
   );
@@ -5807,9 +5808,10 @@ let subTool;
   );
 }
 
-// 233 — the arg schema: ALL 3 channel args are OPTIONAL (each accepts undefined
+// 233 — the arg schema: ALL 4 channel args are OPTIONAL (each accepts undefined
 //      AND a string — the at-least-one-required rule is a RUNTIME rule,
-//      not a schema constraint)
+//      not a schema constraint) — feedback/knowledge/todo + the 2026-09-27
+//      `ideas` channel (the agent-side ideas inbox, distinct from feedback)
 {
   const optAccept = (k) => {
     const s = subTool?.args?.[k];
@@ -5818,9 +5820,9 @@ let subTool;
   check(
     String(++n22),
     "S22",
-    "arg schema: all 3 channel args (feedback/knowledge/todo) optional-accept (undefined AND a string); role/session absent from the schema",
-    ["feedback", "knowledge", "todo"].every(optAccept) && !("role" in (subTool?.args ?? {})) && !("session" in (subTool?.args ?? {})),
-    JSON.stringify({ args: ["feedback", "knowledge", "todo"].map((k) => ({ k, ok: optAccept(k) })), roleIn: "role" in (subTool?.args ?? {}), sessionIn: "session" in (subTool?.args ?? {}) }),
+    "arg schema: all 4 channel args (feedback/knowledge/todo/ideas) optional-accept (undefined AND a string); role/session absent from the schema",
+    ["feedback", "knowledge", "todo", "ideas"].every(optAccept) && !("role" in (subTool?.args ?? {})) && !("session" in (subTool?.args ?? {})),
+    JSON.stringify({ args: ["feedback", "knowledge", "todo", "ideas"].map((k) => ({ k, ok: optAccept(k) })), roleIn: "role" in (subTool?.args ?? {}), sessionIn: "session" in (subTool?.args ?? {}) }),
   );
 }
 

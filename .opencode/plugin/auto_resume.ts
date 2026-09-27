@@ -159,9 +159,10 @@
 // SUCCESSOR CHECK (a
 // DIFFERENT sid tracked in a session.created event since the closed
 // session's lastActivityAt → `skip= successor`) else the
-// LINEAGE-DEPTH CAP (#90 part A; N raised 2→10 by the 2026-09-27
-// maintainer ruling — a session at depth >= 10 does not
-// spawn → `skip= depth sid=` line) else spawnPlanner with the RESTART
+// LINEAGE-DEPTH CAP (#90 part A; N raised 2→10 and made LIVE-CONFIGURABLE
+// by the 2026-09-27 maintainer ruling — `.opencode/temp/lineage_max_depth`
+// holds the cap, -1 = unbounded, default 10; a session at depth >= N does
+// not spawn → `skip= depth sid=` line) else spawnPlanner with the RESTART
 // prompt + `route= restart spawn` line. A SUCCESSFUL spawn records the
 // successor's lineage depth (trigger depth + 1) and STICKY-deactivates
 // the TRIGGER (part B: `deactivate= sid=` line — the trigger is never
@@ -264,12 +265,24 @@ const MAX_RECOVERY_ATTEMPTS = 2;
 // does NOT spawn its successor — N = 10 (raised from 2 by the
 // 2026-09-27 maintainer ruling: the autorun loop should NEVER stall —
 // the original 2 was the #87-era loop guard, whose root causes (#79
-// msgPairs, #87 stall) are fixed; a chain of cap-exhausted empty
-// sessions now stops at the 11th generation and stalls visibly for the
-// maintainer). A session never
+// msgPairs, #87 stall) are fixed). A session never
 // plugin-spawned (a user session, a file-trigger spawn) is absent from
 // the `spawned` map → depth 0.
-const LINEAGE_MAX_DEPTH = 10;
+const LINEAGE_DEFAULT_MAX_DEPTH = 10;
+// 2026-09-27 maintainer ruling: the cap is LIVE-READ on every spawn
+// decision — `.opencode/temp/lineage_max_depth` (one integer; -1 =
+// unbounded) can be changed while the autorun runs (e.g. a long
+// absence); a missing/unparseable file → the default 10.
+function lineageMaxDepth(): number {
+  try {
+    const raw = readFileSync(join(projectDir, ".opencode", "temp", "lineage_max_depth"), "utf-8").trim();
+    const n = Number.parseInt(raw, 10);
+    if (Number.isInteger(n)) return n;
+  } catch {
+    /* missing/unreadable → default */
+  }
+  return LINEAGE_DEFAULT_MAX_DEPTH;
+}
 // #98 part A: LINE-ANCHORED — `action:` matches ONLY at line start
 // (after any leading whitespace), never as a PROSE-QUOTED MID-LINE
 // mention (the 2026-09-23 20:14Z mis-route cause). The anchor group is
@@ -1340,13 +1353,15 @@ async function routeScopedIdle(sid: string, w: Watch) {
   }
   // #90 part A: the LINEAGE-DEPTH cap (the replacement of the #85
   // part-1 exclusion's loop-prevention role): a session at depth >=
-  // LINEAGE_MAX_DEPTH does NOT spawn its successor — the chain of
-  // cap-exhausted empty sessions stops at the 3rd generation and
+  // the LIVE cap (lineageMaxDepth() — .opencode/temp/lineage_max_depth,
+  // -1 = unbounded, default 10; 2026-09-27 maintainer ruling) does NOT
+  // spawn its successor — the chain of cap-exhausted empty sessions
   // stalls visibly for the maintainer. A session never plugin-spawned
   // (a user session, a file-trigger spawn) is absent from the map →
   // depth 0.
   const depth = spawned.get(sid) ?? 0;
-  if (depth >= LINEAGE_MAX_DEPTH) {
+  const cap = lineageMaxDepth();
+  if (cap >= 0 && depth >= cap) {
     log(`skip= depth sid=${sid} depth=${depth}`);
     return;
   }

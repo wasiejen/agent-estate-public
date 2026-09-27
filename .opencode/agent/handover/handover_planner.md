@@ -95,13 +95,33 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
     the skipped post-compaction read) → the "cap exists for bit-rot"
     rationale in AGENTS.md / the compaction guide is now STALE → added to
     his pending-paste list (his files).
+ - **His replies to the three open questions (2026-09-27, same session):**
+    (1) compaction budget STAYS 5+1 for now ("let it run and see") — his
+    backend work is in flight on the compaction WALL-TIME (gemma4: the
+    current session's context is recognized as valid for the compaction
+    agent → near-instant load; target ≈60s summary + 40-55s prefill of the
+    compacted session — unverified, his domain, NAP-only note);
+    (2) the `.opencode/submit/` folder idea DROPPED (the current inbox
+    placement stands); (3) the explorer/RESEARCHER MAKEOVER is NEEDED →
+    TODO #105 target (e) (researcher/information-finder/map-creator
+    prompt rework; he will tighten the explorer's write access in
+    opencode.jsonc himself — his domain; reuse the existing roles in
+    `agent/prompts/roles/`; the explorer prompt is a worker+explorer
+    combination — worker guidelines must not be repeated). He also asked
+    for the AGENTS.md copy with the pending changes (staged — see the
+    pending list above).
  - Pending the maintainer (non-blocking, carried from plan25 — full list in
-   plan25_nap.md): the AGENTS.md / compaction-guide gauge-lag wording paste
-   (the #103 doc tail — his files, NOT edited) + the **compaction
-   bit-rot-rationale update** (his 2026-09-27 reframe — see the direct
-   continuation above), #86 DEFERRED (queue tail), the section-anchor
-   schema call, the #98 natural cycle. (The plan25 live-channel acceptance
-   + the #92 live acceptance are both DONE — part 2 + the note above.)
+   plan25_nap.md): **the AGENTS.md replacement — copy staged at the repo
+   root `AGENTS_pending_2026-09-27.md`** (his 2026-09-27 request: the two
+   pending changes edited in — the #103 gauge-lag wording, TWO spots
+   (§Context budget + the Guardrails line), + the compaction
+   bit-rot-rationale reframe — plus ONE flagged addition: the `action:
+   stop` bullet now carries the autorun idle→restart policy; he drops it
+   if he disagrees; the compaction-guide (his draft) lag-wording +
+   bit-rot lines are STILL his own paste), #86 DEFERRED (queue tail), the
+   section-anchor schema call, the #98 natural cycle. (The plan25
+   live-channel acceptance + the #92 live acceptance are both DONE —
+   part 2 + the note above.)
  - NEXT (next session/iteration): **the #105 research bundle at the next
     maintenance pass** (the ideas.md scan + keepTokens fork effort + v2
     branch/hardening + compaction-summary customization — explorer-shaped

@@ -52,16 +52,18 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   bookkeeping commit.
 - Pending the maintainer (non-blocking): #98 self-compact→idle cycle
   (natural), the section-anchor schema call, the #99 follow-up research
-  (config-knob ruling), #103 on GO, #86 DEFERRED (queue tail).
-- NEXT: plan25 bt anchor fix IN FLIGHT (spec committed + worker
-  worker_Q3S_245K_slow launched this session, post-compaction) — on return:
-  verify from files (git log + handover + targeted smoke/probe spot, no full
-  gate re-run — his 2026-09-23_00-12 ruling), plan25 bookkeeping +
-  plan25_summary.md + loop_log -RETURN-/DONE lines, then the queue: #92 build
-  (dump BOTH md + raw JSON) → #99 research (flexible per-dispatch keepToken;
-  source `home\AppData\Local\Temp\opencode\opencode-dev`, dev
-  branch 1.18.32). (The fork-session ruling "do not start a worker again" is
-  scoped to #103 only — #92 stays approved as the post-plan25 unit.)
+  (config-knob ruling — now APPROVED as the post-#92 queue item), #103 on
+  GO, **#104** (S31 anchor-trim equivalence: correct the comment OR trim the
+  plugin core — an R3-gate behavior change), #86 DEFERRED (queue tail).
+  + plan25 live-channel acceptance (next restart).
+- NEXT (next session/iteration): the **#92 build** — stage the spec from the
+  entry's acceptance (the pre-compaction dump saves BOTH the lossless md dump
+  AND a raw `--json` snapshot; scope: `preCompactionDump` in
+  compact_memory.ts L183 + call site L380 + smoke/probe re-pin), commit it,
+  launch worker_Q3S_245K_slow. Then #99 research (flexible per-dispatch
+  keepToken; source `home\AppData\Local\Temp\opencode\opencode-
+  dev`, dev branch 1.18.32). (The fork-session ruling "do not start a worker
+  again" is scoped to #103 only — #92 stays approved.)
 - Maintainer's LIVE priority.md additions (2026-09-27, unmarked — absorbed as
   behavior rules, NAP-only per observation triage; persisted as MEM-0110): in
   a direct session NO delegation without prior explicit OK (this session
@@ -97,18 +99,22 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
    `home\AppData\Local\Temp\opencode\opencode-dev` (dev branch =
    default, 1.18.32 — his copy, inside the scratchpad). Order: bt fix → #92
    build → #99 research.
-- plan25 SPEC COMMITTED + worker launched (post-compaction this session).
-   Root causes MEASURED live today (2026-09-27): (a) the host's constrained
-   decoding of the `anyOf: [string, integer]` ref schema stringifies
-   integers in the live channel (`startMarker: 2` → "Start marker '2' not
-   found") — the type-aware `resolveRef` number branch is dead live; (b)
-   `matchAnchorLines` trims the line's leading whitespace but never the
-   anchor's → an anchor typed with the line's indentation can never match;
-   (c) `notFoundError` carries no candidate hints. Spec design: (a) accept
-   all-digits refs (number OR digit-string) as 1-based line numbers (schema
-   unchanged), (b) trim both sides + all-whitespace anchor matches nothing,
-   (c) deterministic common-prefix top-5 candidate hints in the not-found
-   error only (resolution stays fail-closed; no fuzzy).
+- **plan25 LANDED + verified (this session, worker-25
+   `worker_Q3S_245K_slow` ses_f1d622087ffeGu1toSY7Xzt1fw):**
+   `2b50fee` (a: all-digit refs = 1-based line numbers, every ref side,
+   schema unchanged, the 5 `.describe()` strings updated) /
+   `b2e3963` (b: anchor-side trim + all-whitespace anchor matches nothing) /
+   `6616689` (c: common-prefix top-5 candidate hints in the not-found error,
+   byte-identical when no line qualifies; probe S15 +4 checks 341-344,
+   annotation 344/344 same commit) / `7ddae1d` (bookkeeping: TODO #104 +
+   handover). Measured: smoke 131/131 (123+8; planner re-ran), sandbox 64/64,
+   probe 344/344, pytest 459+1w, ruff F=0; NO re-pins needed (all six pinned
+   not-found pins use zero-qualifying anchors — the spec's prediction held).
+   Root causes were planner-measured live pre-spec: the host's constrained
+   decoding stringifies `anyOf: [string, integer]` refs in the live channel
+   (the number branch was dead live) + the anchor-side trim gap. Live-
+   channel acceptance pending his next restart (cf. #102). Details: loop
+   folder plan25_summary.md + spec fafdee8.
 
 ## Compressed archive (one line each
   - 2026-09-26 autorun (ses_f21359d77ffe2pviXZoIavxweh, planner-24, Qwen3.8-27B-Q3S-245K-slow) — plan24: loop_log-v2 LANDED+verified (worker-24: aa5a411/006a137/320d09f/b9d57c9 + S16 re-pin b1d122c; gates probe 340/340 + loop_log smoke 69/69 + all smokes + pytest 459+1w + F=0) + spec staged against the verified state (the proposal's 09-15 verdict line STALE) + proposal → implemented/ + prompt/doc bookkeeping — details: loop folder plan24_summary.md + git 68da83d..de31cdf
@@ -210,13 +216,13 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 ## Standing
 - Baselines (re-verified 2026-09-26 by the planner, post-unification):
-   probe **340** (337 + S32×3, post-compaction-unification; check 108's
+   probe **344** (340 + 4 new S15, post-plan25 bt anchor fix; check 108's
    enum pin carries the 11 bt modes post-S4); smokes **all green**
     (context_recovery 17/17 (post-unification Part B re-pins),
    compact_memory 76/76 (post-metric-v2 dcad3d1, from 74/74 post-unification — the re-exports keep the smoke
    import surface), auto_resume 139/139 (post-#98),
    intercept_observer 77/77 (post-R3: 68 + 9 channel checks),
-   block_transfer 123/123 + 64/64 (post-S4),
+   block_transfer 131/131 + 64/64 (post-plan25: 123+8 new checks),
    submit 20/20);
   the per-suite counts are in each smoke's own readout — no total kept
   here); pytest **459 passed + 1 warning (the known #10 coroutine

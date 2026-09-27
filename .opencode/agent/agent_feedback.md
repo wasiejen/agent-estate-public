@@ -599,3 +599,9 @@ Spec line ranges for probe cases pointed at the header annotations (~L326-395), 
 ### 2026-09-27_00-15 worker_Q3S_245K_slow ses_f204cc004ffeRfCvdnq1fyREae
 Spec phrasing "assistant entries carrying a tokens: {...} series" left the nesting ambiguous (tokens live INSIDE entry.info, not at the entry top level) — I drafted the fixtures with the wrong shape twice (verification script + rc smoke + probe 285/287) before the machine check caught it; a one-line shape note in the spec (e.g. "info.tokens: {input, output, cache.read}") would have prevented it.
 
+### 2026-09-27_12-22 planner_Q3S_245K_slow ses_f20d1b39dffefE8ge0hH7jbgAn
+block_transfer: integer line-number refs are NOT honored despite the schema/description ("type decides: 42 = line 42") — passing integer 538 as startMarker returned "Start marker '538' not found" (treated as a string prefix); also an end-marker with exact 3 leading spaces failed while the trimmed prefix succeeded (the matcher trims) — workers/planner fall back to unique line prefixes + node JSON prefix reads; fix the integer-ref path or correct the description (this is the same class as the 18-48 worker bt refs friction observation).
+
+### 2026-09-27_13-53 worker_Q3S_245K_slow ses_f1d622087ffeGu1toSY7Xzt1fw
+plan25 spec said "TODO.md no new entry expected", but fix (b) genuinely created a doc/code discrepancy (S31 drift-guard equivalence note now stale in the anchor-trim dimension — filed #104); the DoD assumption was slightly off, and the spec's S15 line range (L3523-3817) was ~28 lines short (S15 actually ends at L3845).
+

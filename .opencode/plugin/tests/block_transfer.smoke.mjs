@@ -327,6 +327,19 @@ const rIN1 = await t.execute({ mode: "COPY", srcFile: indFile, startMarker: "   
 chk("B2(b): an anchor typed WITH the line's leading whitespace now MATCHES its line (the anchor is trimmed before the startsWith; the echo keeps the original indentation)", rIN1 === "Copied 1 line from 'bt_ind.txt' into buffer 'ind' (lines 2..2, first: '   ind line') - buffer: 1 line.");
 const rIN2 = await t.execute({ mode: "COPY", srcFile: indFile, startMarker: " \t ", endMarker: "two", bufferName: "ind2" }, ctx);
 chk("B2(b): an all-whitespace anchor matches NO line (never match-all) -> the byte-identical OLD not-found format (no candidate hint)", rIN2 === "Error: Start marker ' \t ' not found in bt_ind.txt.");
+const hintFile = "bt_hint.txt";
+fs.writeFileSync(path.join(dir, hintFile), "head\nAAA one\nAAA two\nfoot");
+const rHT1 = await t.execute({ mode: "COPY", srcFile: hintFile, startMarker: "ABX", endMarker: "foot", bufferName: "hint" }, ctx);
+chk("B2(c): a not-found anchor WITH qualifying lines -> the byte-exact candidate hint (common-prefix length desc, ties by line asc; the anchor quoted AS GIVEN)", rHT1 === "Error: Start marker 'ABX' not found in bt_hint.txt. Closest lines: 2: 'AAA one', 3: 'AAA two'");
+const nohintFile = "bt_nohint.txt";
+fs.writeFileSync(path.join(dir, nohintFile), "zzz\nqqq\nwww");
+const rHT2 = await t.execute({ mode: "COPY", srcFile: nohintFile, startMarker: "NOPE", endMarker: "qqq", bufferName: "nohint" }, ctx);
+chk("B2(c): a not-found anchor with NO qualifying line (no shared char) -> the byte-identical OLD format (no hint)", rHT2 === "Error: Start marker 'NOPE' not found in bt_nohint.txt.");
+const capFile = "bt_cap.txt";
+const capLong = "RX " + Array.from({ length: 26 }, (_, i) => String.fromCharCode(97 + i)).join(" ");
+fs.writeFileSync(path.join(dir, capFile), capLong + "\nRX short two\nRX short three\nRX short four\nRX short five\nRX short six");
+const rHT3 = await t.execute({ mode: "COPY", srcFile: capFile, startMarker: "RY", endMarker: "RX short six", bufferName: "cap" }, ctx);
+chk("B2(c): 6 qualifying lines -> EXACTLY 5 candidates (the cap, ties by line asc) + the >40-char line echoed capped at 40 chars ('...' appended, original indentation shown)", rHT3 === `Error: Start marker 'RY' not found in bt_cap.txt. Closest lines: 1: '${capLong.slice(0, 40)}...', 2: 'RX short two', 3: 'RX short three', 4: 'RX short four', 5: 'RX short five'`);
 
 fs.rmSync(dir, { recursive: true, force: true });
 

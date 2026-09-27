@@ -71,7 +71,9 @@ export function resolveAnchor(fileText: string, anchor: string): number | null {
 }
 
 // The teaching error taxonomy (Part A), one line each:
-//  - not-found: the anchor quoted (with the file);
+//  - not-found: the anchor quoted AS GIVEN (with the file) + the plan25
+//    ` Closest lines: ` candidate hint (up to 5; the message stays
+//    byte-identical to the pre-fix form when no line qualifies);
 //  - non-unique: the anchor quoted (with the file) + the match count + the
 //    first match line numbers (the v2 teaching format — S3, the S1-deferred
 //    switch; probes 115/263 + the smoke pins re-pinned in the same commit);
@@ -80,8 +82,42 @@ export function resolveAnchor(fileText: string, anchor: string): number | null {
 //    with the count.
 // Out-of-sandbox is NOT in this taxonomy — the intercept plugin handles it
 // upstream; sandboxCheck above stays the defense-in-depth backstop.
-function notFoundError(fileRef: string, label: string, anchor: string): string {
-  return `Error: ${label} '${anchor}' not found in ${fileRef}.`;
+// The plan25 candidate hint (2026-09-27): when no line matches, the error
+// appends ` Closest lines: ` + up to 5 candidates, each
+// `${lineNo}: '<first 40 chars of the line>'` ('...' appended when cut,
+// the line's trailing \r stripped, original indentation shown), joined by
+// ", ". "Closest" is deterministic: the length of the longest common
+// prefix of the TRIMMED anchor (leading spaces/tabs stripped) and the
+// TRIMMED line; top 5 by that length descending, ties by ascending line
+// number; only lines sharing >= 1 char qualify. When no line qualifies
+// the message stays byte-identical to the pre-fix form. The quoted
+// anchor stays AS GIVEN (not trimmed).
+function notFoundError(fileRef: string, label: string, anchor: string, fileText: string): string {
+  const base = `Error: ${label} '${anchor}' not found in ${fileRef}.`;
+  const trimmedAnchor = anchor.replace(/^[ \t]+/, "");
+  if (trimmedAnchor === "") return base;
+  const lines = fileText.split("\n");
+  const scored: { lineNo: number; len: number }[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    if (line.endsWith("\r")) line = line.slice(0, -1);
+    const trimmedLine = line.replace(/^[ \t]+/, "");
+    let common = 0;
+    while (common < trimmedAnchor.length && common < trimmedLine.length && trimmedAnchor[common] === trimmedLine[common]) common++;
+    if (common >= 1) scored.push({ lineNo: i + 1, len: common });
+  }
+  if (scored.length === 0) return base;
+  scored.sort((a, b) => b.len - a.len || a.lineNo - b.lineNo);
+  const hint = scored
+    .slice(0, 5)
+    .map((s) => {
+      let line = lines[s.lineNo - 1];
+      if (line.endsWith("\r")) line = line.slice(0, -1);
+      const echo = line.length > 40 ? line.slice(0, 40) + "..." : line;
+      return `${s.lineNo}: '${echo}'`;
+    })
+    .join(", ");
+  return `${base} Closest lines: ${hint}`;
 }
 // The v2 non-unique teaching format: the match count + the FIRST match line
 // numbers (up to 3 listed; " …" when more — the line stays bounded).
@@ -104,7 +140,7 @@ function resolveAnchorOrError(fileRef: string, label: string, fileText: string, 
   const line = resolveAnchor(fileText, anchor);
   if (line !== null) return { line };
   const matches = matchAnchorLines(fileText, anchor);
-  return { error: matches.length === 0 ? notFoundError(fileRef, label, anchor) : nonUniqueError(fileRef, label, anchor, matches) };
+  return { error: matches.length === 0 ? notFoundError(fileRef, label, anchor, fileText) : nonUniqueError(fileRef, label, anchor, matches) };
 }
 
 // ===== LINE-NUMBER REFS + ASSEMBLY (approved proposal 2026-09-25_block_transfer-v2, Parts B+C) =====

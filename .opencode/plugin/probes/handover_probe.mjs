@@ -937,7 +937,7 @@
 //          then clean-fails — NO prompt (Part B).
 //
 // EXPECTED OUTPUT:
-//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=6 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=7 S15=12 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 hygiene=6  →  "PROBE handover: 340/340 PASS",
+//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=6 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=7 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 hygiene=6  →  "PROBE handover: 344/344 PASS",
 //   exit code 0. Anything else with THIS file = behavior drift or broken
 //   environment — read the failures, do not "fix" the plugin for the probe.
 //   On failure the sandbox root is KEPT (printed) for forensics.
@@ -3520,7 +3520,7 @@ let s14Body1 = null;
   );
 }
 
-// ------------------------------------------------------------------ S15 block_transfer tool (12) — the #60 probe pin (part 1 of 2): the named-clipboard block mover
+// ------------------------------------------------------------------ S15 block_transfer tool (16) — the #60 probe pin (part 1 of 2): the named-clipboard block mover
 //
 // The custom tool at .opencode/tools/block_transfer.ts (post-#57: the MOVE
 // dstFile requirement is hoisted PRE-WRITE): imported DIRECT from the repo
@@ -3841,6 +3841,83 @@ let btTool;
     "REPLACE non-unique start anchor: 'DUP' matches 2 lines → byte-exact v2 teaching error `Error: Start marker 'DUP' is not unique in bt/bt-rep-nq.txt (2 matches: lines 2, 3).` + the dst byte-identical (no write)",
     res === "Error: Start marker 'DUP' is not unique in bt/bt-rep-nq.txt (2 matches: lines 2, 3)." && readFileSync(dst, "utf8") === before,
     JSON.stringify({ res, changed: readFileSync(dst, "utf8") !== before }),
+  );
+}
+
+// 341 — plan25 fix (a) (2026-09-27): a DIGIT-STRING ref resolves as a
+//      1-based line number (the host's constrained decoding stringifies
+//      schema integers in the LIVE channel — the type branch alone was
+//      dead there): the byte-exact SAME result as the numeric call + the
+//      digit-string "0" -> the not-1-based error + the out-of-range
+//      digit-string -> the ref-out-of-range error (with the count)
+{
+  const src = btWrite("bt-dig.txt", "d1\nd2\nd3\nd4");
+  const rStr = await btTool.execute({ mode: "COPY", srcFile: "bt/bt-dig.txt", startMarker: "2", endMarker: "3", bufferName: "btDig" }, BT_CTX);
+  const rNum = await btTool.execute({ mode: "COPY", srcFile: "bt/bt-dig.txt", startMarker: 2, endMarker: 3, bufferName: "btDigNum" }, BT_CTX);
+  const r0 = await btTool.execute({ mode: "COPY", srcFile: "bt/bt-dig.txt", startMarker: "0", endMarker: "3", bufferName: "btDig0" }, BT_CTX);
+  const r9 = await btTool.execute({ mode: "COPY", srcFile: "bt/bt-dig.txt", startMarker: "9", endMarker: "3", bufferName: "btDig9" }, BT_CTX);
+  check(
+    "341",
+    "S15",
+    "digit-string refs (plan25 a): '2'..'3' give the SAME byte-exact result as 2..3 (live-channel decoding) + '0' -> `Error: Start marker 0 is not a 1-based line number in bt/bt-dig.txt.` + '9' -> `Error: line 9 is out of range in bt/bt-dig.txt (the file has 4 lines).`",
+    rStr === "Copied 2 lines from 'bt/bt-dig.txt' into buffer 'btDig' (lines 2..3, first: 'd2') - buffer: 2 lines." &&
+      rNum === "Copied 2 lines from 'bt/bt-dig.txt' into buffer 'btDigNum' (lines 2..3, first: 'd2') - buffer: 2 lines." &&
+      r0 === "Error: Start marker 0 is not a 1-based line number in bt/bt-dig.txt." &&
+      r9 === "Error: line 9 is out of range in bt/bt-dig.txt (the file has 4 lines).",
+    JSON.stringify({ rStr, rNum, r0, r9 }),
+  );
+}
+
+// 342 — plan25 fix (b): the ANCHOR's leading spaces/tabs are stripped
+//      before the prefix match (an anchor typed with the line's
+//      indentation now matches) + an all-whitespace anchor matches NO
+//      line (never match-all) -> the byte-identical OLD not-found format
+//      (no candidate hint)
+{
+  const src = btWrite("bt-ind.txt", "i1\n   ind line\ni3");
+  const r1 = await btTool.execute({ mode: "COPY", srcFile: "bt/bt-ind.txt", startMarker: "   ind line", endMarker: "   ind line", bufferName: "btInd" }, BT_CTX);
+  const r2 = await btTool.execute({ mode: "COPY", srcFile: "bt/bt-ind.txt", startMarker: " \t ", endMarker: "i3", bufferName: "btInd2" }, BT_CTX);
+  check(
+    "342",
+    "S15",
+    "anchor-side trim (plan25 b): the indented anchor matches its line (the echo keeps the original indentation) + the all-whitespace anchor ' \\t ' matches NO line -> the byte-identical OLD not-found format (no candidate hint)",
+    r1 === "Copied 1 line from 'bt/bt-ind.txt' into buffer 'btInd' (lines 2..2, first: '   ind line') - buffer: 1 line." &&
+      r2 === "Error: Start marker ' \t ' not found in bt/bt-ind.txt.",
+    JSON.stringify({ r1, r2 }),
+  );
+}
+
+// 343 — plan25 fix (c): the candidate hint in the not-found error —
+//      deterministic "closest" = the length of the longest common prefix
+//      of the trimmed anchor and the trimmed line, top 5 by length DESC,
+//      ties by line number ASC, only lines sharing >= 1 char qualify;
+//      the anchor is quoted AS GIVEN (untrimmed)
+{
+  const src = btWrite("bt-ord.txt", "AB first\nABC second\nAB second");
+  const r1 = await btTool.execute({ mode: "COPY", srcFile: "bt/bt-ord.txt", startMarker: "ABCD", endMarker: "AB second", bufferName: "btOrd" }, BT_CTX);
+  check(
+    "343",
+    "S15",
+    "candidate hint (plan25 c): `Error: Start marker 'ABCD' not found in bt/bt-ord.txt. Closest lines: 2: 'ABC second', 1: 'AB first', 3: 'AB second'` (length desc, ties by line asc)",
+    r1 === "Error: Start marker 'ABCD' not found in bt/bt-ord.txt. Closest lines: 2: 'ABC second', 1: 'AB first', 3: 'AB second'",
+    JSON.stringify({ r1 }),
+  );
+}
+
+// 344 — plan25 fix (c), the hint bounds: up to 5 candidates (the cap —
+//      6 qualifying lines -> exactly 5, ties by line asc so line 6 is
+//      dropped) + each echoed capped at 40 chars ('...' appended when
+//      cut, the line's \r stripped, original indentation shown)
+{
+  const long = "  CX long line with more than forty characters here";
+  const src = btWrite("bt-cap.txt", long + "\nCX short two\nCX short three\nCX short four\nCX short five\nCX short six");
+  const r1 = await btTool.execute({ mode: "COPY", srcFile: "bt/bt-cap.txt", startMarker: "CY", endMarker: "CX short six", bufferName: "btCap" }, BT_CTX);
+  check(
+    "344",
+    "S15",
+    "candidate hint bounds (plan25 c): 6 qualifying lines -> EXACTLY 5 candidates (the cap) + the >40-char line echoed capped at 40 chars ('...' appended, original indentation shown)",
+    r1 === `Error: Start marker 'CY' not found in bt/bt-cap.txt. Closest lines: 1: '${long.slice(0, 40)}...', 2: 'CX short two', 3: 'CX short three', 4: 'CX short four', 5: 'CX short five'`,
+    JSON.stringify({ r1 }),
   );
 }
 

@@ -635,3 +635,6 @@ Session-start injected ctx said "CTX=notAvailable | 1 compaction left" while ctx
 ### 2026-09-28_03-42 planner_Q3S_245K_slow ses_f1a8a9671ffezAA9MrZmlE8YKV
 planner-30 friction: (1) committed git-mv'd proposal files BEFORE staging the verdict text appended after the mv — the verdicts missed the commit and rode a second one; rule: after git mv + in-file edit, re-check `git status` before the commit (the rename stages the OLD content). (2) the ready-made marker-sweep command + my self-added `head -30` truncated the output before `.opencode/proposals/` was reached (grep path sort order) — a second bounded sweep was needed; don't cap the ready-made sweep.
 
+### 2026-09-28_05-07 worker_Q3S_245K_slow ses_f1a200e9cffeI44wf8d7jjx8Cu
+#106 spec line forms didn't state that the DELIVERED after-hook hint keeps the raw multi-line oldString (real newlines) while the log line is flattened — probe 283 re-pin needed one extra probe run; one spec line would have saved it.
+

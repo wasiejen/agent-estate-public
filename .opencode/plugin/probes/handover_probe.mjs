@@ -751,19 +751,21 @@
 //      (269) journal block_transfer: one line in journal_edit.log (the tool
 //          field disambiguates; the anchors payload);
 //      (270) the journal paths are git-ignored (check-ignore, both files);
-//      (271) ((2) re-pin) absent oldString, single candidate d=1 → now
-//          MUTATES: fuzzy-edit line (byte-exact) + oldString mutated to the
-//          file's exact bytes (no after-hook hint);
+//      (271) ((2) + #106) absent oldString, single candidate d=1 → now
+//          MUTATES: fuzzy-edit applied line (byte-exact) + oldString
+//          mutated to the file's exact bytes (stored + delivered on the
+//          successful result — #106);
 //      (272) hint multiple exact: two occurrences → edit-ambiguous
-//          'hint lines=1,3' (UNCHANGED by (2));
+//          'hint rejected lines=1,3' (#106 token; shape unchanged);
 //      (273) hint no candidate: anchor absent → no-candidate
-//          'hint reason=no-anchor-line' (UNCHANGED by (2) — no candidate →
-//          no best-d);
+//          'hint rejected reason=no-anchor-line' (#106 token — no
+//          candidate → no best-d);
 //      (274) hint fuzzy ambiguous: two candidates, same d → edit-ambiguous
-//          'hint cands=1 1,2 1' (UNCHANGED by (2) — not exactly-one);
-//      (275) after-hook enrichment ((2) re-pin): c271 now a mutation (no
-//          hint stored) → re-point at the fail-closed c273 (no-candidate
-//          hint, consumed once; mutation / hint-less / non-edit untouched);
+//          'hint rejected cands=1 1,2 1' (#106 token — not exactly-one);
+//      (275) after-hook enrichment ((2) + #106 re-pin): c271 a mutation
+//          (the fuzzy-edit applied line delivered on the successful
+//          result) + the fail-closed c273 (the rejected no-candidate hint,
+//          consumed once; hint-less / non-edit untouched);
 //      (276) DoD machine check ((2) re-pin): the fail-closed c273's no-
 //          candidate line + journal payload (the journal's edit `old` = the
 //          ORIGINAL pre-mutation oldString); the write payload cp check
@@ -774,11 +776,12 @@
 //      resolves WITHOUT agent action (normalize-then-compare; d = the MAX
 //      Levenshtein over the scored line-pairs) — exactly-one candidate at
 //      d=0/d≤1 → oldString MUTATED to the file's exact unique bytes (the
-//      fuzzy-edit line; NO after-hook hint); else FAIL-CLOSED (the R6 hint
-//      verdict carrying the best-candidate d — directive a — the after-
-//      hook hint is stored); directive b: the feedback line is truncated
-//      (first 40 chars + ...), the journal carries the FULL original
-//      oldString:
+//      `fuzzy-edit applied` line; STORED + DELIVERED on the successful
+//      result — #106); else FAIL-CLOSED (the R6 hint verdict carrying the
+//      best-candidate d — directive a — the `hint rejected …` line — #106;
+//      the after-hook hint is stored); directive b: the feedback line is
+//      truncated (first 40 chars + ...), the journal carries the FULL
+//      original oldString:
 //      (277) CRLF-drift: 0 raw → d=0 → MUTATE (line + exact-unique
 //          substring);
 //      (278) trailing-ws drift: 0 raw → d=0 → MUTATE;
@@ -788,8 +791,9 @@
 //      (281) ambiguous: two candidates d<=1 → NOT mutated (edit-ambiguous);
 //      (282) directive (b): long oldString → the line is TRUNCATED (no full
 //          oldString), the journal carries the FULL original;
-//      (283) after-hook: mutate → no enrichment; fail → enrichment
-//          consumed once;
+//      (283) after-hook ((#106) re-pin): mutate → the fuzzy-edit applied
+//          line is DELIVERED on the successful result; fail → the
+//          rejected best-d hint is delivered (consumed once);
 //      (284) the fuzzy-edit line shape byte-exact (8 fields).
 //   S28 R8 the out-of-sandbox path redirect (12) — 2026-09-25 (TODO #97
 //      unit 1): an out-of-sandbox TYPED path span that maps EXACTLY ONCE to
@@ -5339,7 +5343,7 @@ let n20 = 195;
     "content-scope guard (edit): pair in oldString → log line ONLY, args byte-identical (+ the R6 hint line LAST — oldString absent from the file → fail-closed no-candidate)",
     JSON.stringify(c2) === c2Before && c2Lines.length === nL9 + 2 &&
       c2f[7] === "observed-redundancy-ok" && c2f[5] === "pair=[2:two] canon=2 dist=0" &&
-      c2h[7] === "no-candidate" && c2h[5] === "hint reason=no-anchor-line" && c2h[6] === "edit oldString",
+      c2h[7] === "no-candidate" && c2h[5] === "hint rejected reason=no-anchor-line" && c2h[6] === "edit oldString",
     JSON.stringify({ argsAfter: JSON.stringify(c2), n: c2Lines.length - nL9, f: c2f, h: c2h }),
   );
   n20++;
@@ -6099,9 +6103,11 @@ let subTool;
 // to journal_write.log / journal_edit.log — a SEPARATE file, never an
 // intercept line); (c) the EDIT HINT channel (edit only: exact-1 silent, >1
 // ambiguous with ALL lines, 0 → the locator — edit-hint / edit-ambiguous /
-// no-candidate verdicts); (d) the AFTER-HOOK enrichment (the hint is cached
-// per callID and appended to the failed result's output.output — consumed
-// once; live acceptance is restart-gated).
+// no-candidate verdicts); (d) the AFTER-HOOK enrichment (the hint is
+// cached per callID and appended to the result's output.output — the
+// rejected line on a failed edit + the fuzzy-edit applied line on a
+// SUCCESSFUL mutating edit (#106) — consumed once; live acceptance is
+// restart-gated).
 
 const ioAfter = ioHooks["tool.execute.after"];
 const ioHintDir = path.join(ioSandboxProj, "hfx");
@@ -6372,7 +6378,7 @@ let ioJeC273 = -1; // ((2) re-pin) the journal line index of the FAIL-closed c27
     "S26",
     "(2) re-pin: absent oldString, single candidate d=1 → now MUTATES — fuzzy-edit LAST line (byte-exact; context 'edit oldString') + h1.oldString mutated to the file's exact bytes — the dense date also fires an observation line",
     f4.length === 8 && f4[3] === "edit" && f4[7] === "fuzzy-edit" &&
-      f4[5] === "fuzzy-edit orig=alpha 20260915 betaa len=20 d=1 value=alpha 20260915 beta" && f4[6] === "edit oldString" &&
+      f4[5] === "fuzzy-edit applied orig=alpha 20260915 betaa len=20 d=1 value=alpha 20260915 beta" && f4[6] === "edit oldString" &&
       h1.oldString === "alpha 20260915 beta",
     JSON.stringify(f4),
   );
@@ -6389,9 +6395,9 @@ let ioJeC273 = -1; // ((2) re-pin) the journal line index of the FAIL-closed c27
   check(
     String(n26),
     "S26",
-    "hint multiple exact: two occurrences → edit-ambiguous LAST line 'hint lines=1,3'",
+    "hint multiple exact: two occurrences → edit-ambiguous LAST line 'hint rejected lines=1,3' (#106 token)",
     f5.length === 8 && f5[7] === "edit-ambiguous" &&
-      f5[5] === "hint lines=1,3" && f5[6] === "edit oldString",
+      f5[5] === "hint rejected lines=1,3" && f5[6] === "edit oldString",
     JSON.stringify(f5),
   );
   n26++;
@@ -6409,9 +6415,9 @@ let ioJeC273 = -1; // ((2) re-pin) the journal line index of the FAIL-closed c27
   check(
     String(n26),
     "S26",
-    "hint no candidate: anchor absent → no-candidate LAST line 'hint reason=no-anchor-line' (fail-closed)",
+    "hint no candidate: anchor absent → no-candidate LAST line 'hint rejected reason=no-anchor-line' (fail-closed; #106 token)",
     f6.length === 8 && f6[7] === "no-candidate" &&
-      f6[5] === "hint reason=no-anchor-line" && f6[6] === "edit oldString",
+      f6[5] === "hint rejected reason=no-anchor-line" && f6[6] === "edit oldString",
     JSON.stringify(f6),
   );
   n26++;
@@ -6427,23 +6433,24 @@ let ioJeC273 = -1; // ((2) re-pin) the journal line index of the FAIL-closed c27
   check(
     String(n26),
     "S26",
-    "hint fuzzy ambiguous: two candidates, same d → edit-ambiguous LAST line 'hint cands=1 1,2 1'",
+    "hint fuzzy ambiguous: two candidates, same d → edit-ambiguous LAST line 'hint rejected cands=1 1,2 1' (#106 token)",
     f7.length === 8 && f7[7] === "edit-ambiguous" &&
-      f7[5] === "hint cands=1 1,2 1" && f7[6] === "edit oldString",
+      f7[5] === "hint rejected cands=1 1,2 1" && f7[6] === "edit oldString",
     JSON.stringify(f7),
   );
   n26++;
 }
 
 // 275 — the AFTER-HOOK enrichment (live acceptance restart-gated) —
-//      ((2) re-pin): c271 is now a MUTATION (no hint stored) → re-point at
-//      the FAIL-closed c273 (no-candidate): the failed edit's output.output
-//      gains the no-candidate hint line — consumed once (a second call is a
-//      no-op); a mutation, a hint-less edit, and a non-edit call are
+//      ((2) + #106 re-pin): c271 is a MUTATION (the fuzzy-edit applied
+//      line IS stored → DELIVERED on the successful result) + the
+//      FAIL-closed c273 (no-candidate): the failed edit's output.output
+//      gains the rejected no-candidate hint line — consumed once (a
+//      second call is a no-op); a hint-less edit and a non-edit call are
 //      untouched
 {
   const outM = { title: "edit", output: "ok", metadata: {} };
-  await ioAfter({ tool: "edit", sessionID: "ses_fx_io3", callID: "c271" }, outM); // mutate → NO hint stored → untouched
+  await ioAfter({ tool: "edit", sessionID: "ses_fx_io3", callID: "c271" }, outM); // mutate → the fuzzy-edit applied line IS stored → DELIVERED
   const outR = { title: "edit", output: "Error: oldString not found", metadata: {} };
   await ioAfter({ tool: "edit", sessionID: "ses_fx_io3", callID: "c273" }, outR); // fail-closed → the hint IS stored
   const enriched = outR.output;
@@ -6455,9 +6462,9 @@ let ioJeC273 = -1; // ((2) re-pin) the journal line index of the FAIL-closed c27
   check(
     String(n26),
     "S26",
-    "after-hook enrichment ((2) re-pin): mutate (c271) → UNTOUCHED (no hint stored); fail-closed (c273 no-candidate) → gains the hint line (consumed once); a hint-less edit + a non-edit call are untouched",
-    outM.output === "ok" &&
-      enriched === "Error: oldString not found\nhint reason=no-anchor-line" &&
+    "after-hook enrichment ((2) + #106 re-pin): mutate (c271) → DELIVERS the fuzzy-edit applied line on the (successful) result; fail-closed (c273 no-candidate) → gains the rejected hint line (consumed once); a hint-less edit + a non-edit call are untouched",
+    outM.output === "ok\nfuzzy-edit applied orig=alpha 20260915 betaa len=20 d=1 value=alpha 20260915 beta" &&
+      enriched === "Error: oldString not found\nhint rejected reason=no-anchor-line" &&
       outR.output === enriched && outS.output === "ok" && outN.output === "ls",
     JSON.stringify({ m: outM.output, e: outR.output, s: outS.output, n: outN.output }),
   );
@@ -6482,7 +6489,7 @@ let ioJeC273 = -1; // ((2) re-pin) the journal line index of the FAIL-closed c27
     "S26",
     "DoD machine check ((2) re-pin): the fail-closed c273's no-candidate line + journal payload {filePath, old, new} name the exact intended edit (journal `old` = the ORIGINAL oldString); the write journal payload cp'd in place reproduces the intended file state (byte-identical)",
     doDJ !== null && doDJ.filePath === ioHintFiles.he && doDJ.old === "alpha 20260915 beta" && doDJ.new === "z" &&
-      ioReadLines().some((l) => l.endsWith("edit oldString | no-candidate") && l.includes("hint reason=no-anchor-line")) &&
+      ioReadLines().some((l) => l.endsWith("edit oldString | no-candidate") && l.includes("hint rejected reason=no-anchor-line")) &&
       cpBack === "part A | part B\npart C",
     JSON.stringify({ doDJ, cpBack }),
   );
@@ -6495,9 +6502,10 @@ let ioJeC273 = -1; // ((2) re-pin) the journal line index of the FAIL-closed c27
 // resolves WITHOUT agent action — normalize BOTH sides (CRLF/LF + per-line
 // trailing whitespace), d = the MAX Levenshtein over the scored line-pairs;
 // exactly-one candidate at d=0 or d≤1 → oldString MUTATED to the file's
-// exact unique bytes (the fuzzy-edit line; NO after-hook hint — the edit
-// succeeds); else FAIL-CLOSED (the R6 hint verdict carrying the best-
-// candidate d — directive a; the after-hook hint is stored). Directive b:
+// exact unique bytes (the `fuzzy-edit applied` line; STORED + DELIVERED
+// on the successful result — #106); else FAIL-CLOSED (the R6 hint verdict
+// carrying the best-candidate d — directive a — the `hint rejected …`
+// line — #106; the after-hook hint is stored). Directive b:
 // the feedback line is truncated (first 40 chars + ...), the journal
 // carries the FULL original oldString.
 
@@ -6545,7 +6553,7 @@ let ioF77 = null; // the c277 fuzzy-edit line (284 checks its byte-exact shape)
     h77.oldString === "alpha one\r\nbeta two\r\ngamma three" &&
       ioMutCount(readFileSync(ioF2.cf, "utf8"), h77.oldString) === 1 &&
       ioF77.length === 8 && ioF77[3] === "edit" && ioF77[7] === "fuzzy-edit" &&
-      ioF77[5] === "fuzzy-edit orig=alpha one beta two gamma three len=30 d=0 value=alpha one beta two gamma three" && ioF77[6] === "edit oldString",
+      ioF77[5] === "fuzzy-edit applied orig=alpha one beta two gamma three len=30 d=0 value=alpha one beta two gamma three" && ioF77[6] === "edit oldString",
     JSON.stringify(ioF77),
   );
   n27++;
@@ -6565,7 +6573,7 @@ let ioF77 = null; // the c277 fuzzy-edit line (284 checks its byte-exact shape)
     h78.oldString === "beta two" &&
       ioMutCount(readFileSync(ioF2.tw, "utf8"), h78.oldString) === 1 &&
       f78.length === 8 && f78[7] === "fuzzy-edit" &&
-      f78[5] === "fuzzy-edit orig=beta two    len=11 d=0 value=beta two" && f78[6] === "edit oldString",
+      f78[5] === "fuzzy-edit applied orig=beta two    len=11 d=0 value=beta two" && f78[6] === "edit oldString",
     JSON.stringify(f78),
   );
   n27++;
@@ -6585,7 +6593,7 @@ let ioF77 = null; // the c277 fuzzy-edit line (284 checks its byte-exact shape)
     h79.oldString === "alpha 20260915 beta" &&
       ioMutCount(readFileSync(ioF2.nm, "utf8"), h79.oldString) === 1 &&
       f79.length === 8 && f79[7] === "fuzzy-edit" &&
-      f79[5] === "fuzzy-edit orig=alpha 20260915 betaa len=20 d=1 value=alpha 20260915 beta" && f79[6] === "edit oldString",
+      f79[5] === "fuzzy-edit applied orig=alpha 20260915 betaa len=20 d=1 value=alpha 20260915 beta" && f79[6] === "edit oldString",
     JSON.stringify(f79),
   );
   n27++;
@@ -6605,7 +6613,7 @@ let ioF77 = null; // the c277 fuzzy-edit line (284 checks its byte-exact shape)
     "S27",
     "(2) fail-closed near-miss: best d=3 → NOT mutated (byte-identical) + no-candidate LAST line carries 'best-d=3' (directive a) — the dense date also fires an observation line",
     JSON.stringify(h80) === h80Before && f80.length === 8 && f80[7] === "no-candidate" &&
-      f80[5] === "hint reason=d-too-high best-d=3" && f80[6] === "edit oldString",
+      f80[5] === "hint rejected reason=d-too-high best-d=3" && f80[6] === "edit oldString",
     JSON.stringify(f80),
   );
   n27++;
@@ -6623,9 +6631,9 @@ let ioF77 = null; // the c277 fuzzy-edit line (284 checks its byte-exact shape)
   check(
     String(n27),
     "S27",
-    "(2) ambiguous: two candidates at d<=1 → NOT mutated (byte-identical) + edit-ambiguous LAST line 'hint cands=1 1,2 1' — the dense date also fires an observation line",
+    "(2) ambiguous: two candidates at d<=1 → NOT mutated (byte-identical) + edit-ambiguous LAST line 'hint rejected cands=1 1,2 1' (#106 token) — the dense date also fires an observation line",
     JSON.stringify(h81) === h81Before && f81.length === 8 && f81[7] === "edit-ambiguous" &&
-      f81[5] === "hint cands=1 1,2 1" && f81[6] === "edit oldString",
+      f81[5] === "hint rejected cands=1 1,2 1" && f81[6] === "edit oldString",
     JSON.stringify(f81),
   );
   n27++;
@@ -6651,7 +6659,7 @@ let ioF77 = null; // the c277 fuzzy-edit line (284 checks its byte-exact shape)
     "(2) directive (b): long oldString → the fuzzy-edit line is TRUNCATED (no full oldString in the line) + the journal's edit `old` = the FULL original oldString + the mutated oldString is an exact UNIQUE file substring",
     h82.oldString === ioLgLine && ioMutCount(readFileSync(ioF2.lg, "utf8"), h82.oldString) === 1 &&
       f82.length === 8 && f82[7] === "fuzzy-edit" &&
-      f82[5] === "fuzzy-edit orig=the quick brovn fox 20260915 jumps over ... len=70 d=1 value=the quick brown fox 20260915 jumps over ..." &&
+      f82[5] === "fuzzy-edit applied orig=the quick brovn fox 20260915 jumps over ... len=70 d=1 value=the quick brown fox 20260915 jumps over ..." &&
       !f82[5].includes("the lazy dog") &&
       j82P !== null && j82P.old === ioLgQuery && j82P.new === "z" && j82P.filePath === ioF2.lg,
     JSON.stringify({ f82, j82P, mutated: h82.oldString }),
@@ -6659,12 +6667,14 @@ let ioF77 = null; // the c277 fuzzy-edit line (284 checks its byte-exact shape)
   n27++;
 }
 
-// 283 — (2) the AFTER-HOOK: a mutate call → NO enrichment (no hint
-//      stored); a fail-closed call → enrichment (the fail line's hint,
-//      consumed once)
+// 283 — (2) the AFTER-HOOK ((#106) re-pin): a mutate call → enrichment
+//      (the fuzzy-edit applied line — #106 — the DELIVERED line carries
+//      the RAW multi-line oldString; the LOG line is the flattened one);
+//      a fail-closed call → enrichment (the rejected fail line's hint —
+//      #106; consumed once)
 {
   const outM = { title: "edit", output: "ok", metadata: {} };
-  await ioAfter({ tool: "edit", sessionID: "ses_fx_io3", callID: "c277" }, outM); // mutate → NO hint stored → untouched
+  await ioAfter({ tool: "edit", sessionID: "ses_fx_io3", callID: "c277" }, outM); // mutate → the fuzzy-edit applied line IS stored → DELIVERED
   const outR = { title: "edit", output: "Error: oldString not found", metadata: {} };
   await ioAfter({ tool: "edit", sessionID: "ses_fx_io3", callID: "c280" }, outR); // fail-closed → the hint IS stored
   const enriched = outR.output;
@@ -6672,9 +6682,9 @@ let ioF77 = null; // the c277 fuzzy-edit line (284 checks its byte-exact shape)
   check(
     String(n27),
     "S27",
-    "(2) after-hook: mutate (c277) → UNTOUCHED (no hint stored); fail-closed (c280 near-miss) → gains the best-d hint line (consumed once)",
-    outM.output === "ok" &&
-      enriched === "Error: oldString not found\nhint reason=d-too-high best-d=3" && outR.output === enriched,
+    "(2) after-hook ((#106) re-pin): mutate (c277) → DELIVERS the fuzzy-edit applied line on the (successful) result (RAW multi-line oldString — the log line is the flattened one); fail-closed (c280 near-miss) → gains the rejected best-d hint line (consumed once)",
+    outM.output === "ok\nfuzzy-edit applied orig=alpha one\nbeta two\ngamma three len=30 d=0 value=alpha one\r\nbeta two\r\ngamma three" &&
+      enriched === "Error: oldString not found\nhint rejected reason=d-too-high best-d=3" && outR.output === enriched,
     JSON.stringify({ m: outM.output, e: outR.output }),
   );
   n27++;
@@ -6690,7 +6700,7 @@ let ioF77 = null; // the c277 fuzzy-edit line (284 checks its byte-exact shape)
     "(2) fuzzy-edit line shape byte-exact (8 fields; the c277 mutate call)",
     ioF77 !== null && ioF77.length === 8 && ioStampRe.test(ioF77[0]) && ioF77[1] === "ses_fx_io3" &&
       ioF77[3] === "edit" &&
-      ioF77[5] === "fuzzy-edit orig=alpha one beta two gamma three len=30 d=0 value=alpha one beta two gamma three" &&
+      ioF77[5] === "fuzzy-edit applied orig=alpha one beta two gamma three len=30 d=0 value=alpha one beta two gamma three" &&
       ioF77[6] === "edit oldString" && ioF77[7] === "fuzzy-edit",
     JSON.stringify(ioF77),
   );

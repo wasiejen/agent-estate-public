@@ -13,9 +13,10 @@
 // (2) 2026-09-25 (#95 sub-item 2): the MUTATING edit-fuzzy oldString
 // channel (normalize-then-compare — CRLF/LF + trailing-ws + single-typo;
 // d=0/d≤1 exactly-one candidate → oldString mutated to the file's exact
-// bytes, the fuzzy-edit line, NO after-hook hint; else fail-closed → the
-// R6 hint verdict carrying the best-candidate d) + the journal's edit
-// `old` = the ORIGINAL pre-mutation oldString)
+// bytes, the `fuzzy-edit applied` line (STORED + DELIVERED on the
+// successful result — #106, 2026-09-28); else fail-closed → the R6 hint
+// verdict carrying the best-candidate d (`hint rejected …` — #106)) + the
+// journal's edit `old` = the ORIGINAL pre-mutation oldString)
 // (.opencode/plugin/intercept_observer.ts
 // + _core.ts). The plugin factory is called with a SCRATCHPAD sandbox
 // `directory` — the intercept.log lands in the sandbox
@@ -402,8 +403,9 @@ try {
    // (10e) (2) RE-PIN (was: hint d=1 → edit-hint): oldString ABSENT (raw), a
    //        single candidate at d=1 → NOW MUTATES: oldString → the file's
    //        EXACT bytes (an exact UNIQUE file substring) + the fuzzy-edit
-   //        line LAST (byte-exact: orig + len + d + value; context
-   //        'edit oldString'); NO after-hook hint stored
+   //        line LAST (byte-exact: applied + orig + len + d + value;
+   //        context 'edit oldString'); the after-hook STORES the line
+   //        (delivered on the successful result — #106)
    const argsHF = { filePath: htxt, oldString: "alpha 20260915 betaa", newString: "z" };
    const jeBeforeE = jRead(journalEditLog).length;
    const htxtBefore = fs.readFileSync(htxt, "utf-8");
@@ -415,7 +417,7 @@ try {
      argsHF.oldString === "alpha 20260915 beta" && htxtBefore.indexOf("alpha 20260915 beta") !== -1 &&
        mutCount(htxtBefore, argsHF.oldString) === 1 &&
        fHF.length === 8 && fHF[3] === "edit" && fHF[7] === "fuzzy-edit" &&
-       fHF[5] === "fuzzy-edit orig=alpha 20260915 betaa len=20 d=1 value=alpha 20260915 beta" && fHF[6] === "edit oldString",
+       fHF[5] === "fuzzy-edit applied orig=alpha 20260915 betaa len=20 d=1 value=alpha 20260915 beta" && fHF[6] === "edit oldString",
      JSON.stringify(fHF));
 
   // (10f) hint multiple exact → edit-ambiguous with ALL occurrence start lines
@@ -425,8 +427,8 @@ try {
   await before({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c10f" }, { args: argsHM });
   const lHM = readLines();
   const fHM = split8(lHM[lHM.length - 1]);
-  chk("hint multiple exact → edit-ambiguous LAST line 'hint lines=1,3' — the dense date + numword 'one' also fire observation lines",
-    fHM.length === 8 && fHM[7] === "edit-ambiguous" && fHM[5] === "hint lines=1,3" && fHM[6] === "edit oldString",
+  chk("hint multiple exact → edit-ambiguous LAST line 'hint rejected lines=1,3' — the dense date + numword 'one' also fire observation lines",
+    fHM.length === 8 && fHM[7] === "edit-ambiguous" && fHM[5] === "hint rejected lines=1,3" && fHM[6] === "edit oldString",
     JSON.stringify(fHM));
 
   // (10g) hint no candidate → fail-closed no-candidate
@@ -434,24 +436,46 @@ try {
   await before({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c10g" }, { args: argsHN });
   const lHN = readLines();
   const fHN = split8(lHN[lHN.length - 1]);
-  chk("hint no candidate → no-candidate LAST line 'hint reason=no-anchor-line' (fail-closed) — the dense date in oldString also fires an observation line",
-    fHN.length === 8 && fHN[7] === "no-candidate" && fHN[5] === "hint reason=no-anchor-line" && fHN[6] === "edit oldString",
+  chk("hint no candidate → no-candidate LAST line 'hint rejected reason=no-anchor-line' (fail-closed) — the dense date in oldString also fires an observation line",
+    fHN.length === 8 && fHN[7] === "no-candidate" && fHN[5] === "hint rejected reason=no-anchor-line" && fHN[6] === "edit oldString",
     JSON.stringify(fHN));
 
-  // (10h) the AFTER-HOOK enrichment: the failed edit's output.output gains
-  //        the hint line — consumed once (a second call is a no-op); a
-  //        hint-less edit is untouched
-   const outM = { title: "edit", output: "ok", metadata: {} };
-   await after({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c10e" }, outM); // (2) mutate → NO hint stored → untouched
-   const outR = { title: "edit", output: "Error: oldString not found", metadata: {} };
-   await after({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c10g" }, outR); // fail-closed → the hint IS stored
-   const enriched = outR.output;
-   await after({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c10g" }, outR); // consumed once
-   const outS = { title: "edit", output: "ok", metadata: {} };
-   await after({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c10d" }, outS); // exact-1 silent → nothing cached
-   chk("after-hook enrichment ((2) re-pin): mutate (c10e) → UNTOUCHED (no hint stored); fail-closed (c10g) → gains the no-candidate hint line (consumed once); exact-1 silent (c10d) → untouched",
-     outM.output === "ok" && enriched === "Error: oldString not found\nhint reason=no-anchor-line" && outR.output === enriched && outS.output === "ok",
-     JSON.stringify({ m: outM.output, e: outR.output, s: outS.output }));
+   // (10h) the AFTER-HOOK enrichment ((2) + #106 re-pin, 2026-09-28): the
+   //        failed edit's output.output gains the `hint rejected …` line,
+   //        the SUCCESSFUL mutating edit's output.output gains the
+   //        `fuzzy-edit applied` line — each consumed once (a second call
+   //        is a no-op); a hint-less edit is untouched
+    const outM = { title: "edit", output: "ok", metadata: {} };
+    await after({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c10e" }, outM); // (2) mutate → the fuzzy-edit applied line IS stored → DELIVERED
+    const outR = { title: "edit", output: "Error: oldString not found", metadata: {} };
+    await after({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c10g" }, outR); // fail-closed → the hint IS stored
+    const enriched = outR.output;
+    await after({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c10g" }, outR); // consumed once
+    const outS = { title: "edit", output: "ok", metadata: {} };
+    await after({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c10d" }, outS); // exact-1 silent → nothing cached
+    chk("after-hook enrichment ((2) + #106 re-pin): mutate (c10e) → DELIVERS the fuzzy-edit applied line on the (successful) result; fail-closed (c10g) → gains the rejected no-candidate hint line (consumed once); exact-1 silent (c10d) → untouched",
+      outM.output === "ok\nfuzzy-edit applied orig=alpha 20260915 betaa len=20 d=1 value=alpha 20260915 beta" &&
+        enriched === "Error: oldString not found\nhint rejected reason=no-anchor-line" &&
+        outR.output === enriched && outS.output === "ok",
+      JSON.stringify({ m: outM.output, e: outR.output, s: outS.output }));
+
+   // (10h2) NEW (#106, 2026-09-28): a mutating edit-fuzzy DELIVERS the
+   //        `fuzzy-edit applied` line on the (successful) tool result —
+   //        the delivered edit-hint line is no longer failure-only —
+   //        consumed once (a second call is a no-op)
+   const htxt2 = jdir + "\\ha.txt";
+   fs.writeFileSync(htxt2, "delta 20260918 zeta\n", "utf-8");
+   const argsHA = { filePath: htxt2, oldString: "delta 20260918 zetab", newString: "z" };
+   await before({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c10h2" }, { args: argsHA });
+   const outA = { title: "edit", output: "ok", metadata: {} };
+   await after({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c10h2" }, outA); // mutate → the line IS stored → DELIVERED
+   const outA2 = { title: "edit", output: "ok", metadata: {} };
+   await after({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c10h2" }, outA2); // consumed once
+   chk("(10h2) NEW (#106): a mutating edit-fuzzy DELIVERS the `fuzzy-edit applied` line on the (successful) tool result (consumed once)",
+     argsHA.oldString === "delta 20260918 zeta" &&
+       outA.output === "ok\nfuzzy-edit applied orig=delta 20260918 zetab len=20 d=1 value=delta 20260918 zeta" &&
+       outA2.output === "ok",
+     JSON.stringify({ a: outA.output, a2: outA2.output }));
 
   // (10i) the DoD machine check: the controlled FAILED EDIT (10e) produced
   //        the hint line AND a journal line whose payload names the exact
@@ -468,15 +492,17 @@ try {
        fs.readFileSync(wTarget, "utf-8") === argsJW.content,
      JSON.stringify({ doDP, mutated: argsHF.oldString, cp: fs.readFileSync(wTarget, "utf-8") }));
 
-   // ---- (11) (2) the MUTATING edit-fuzzy oldString channel (2026-09-25,
-   //      #95 sub-item 2 — normalize-then-compare): the 0-raw-occurrence
-   //      case resolves WITHOUT agent action — d=0 (CRLF/LF + trailing-ws)
-   //      and d=1 (single typo, outside the anchor) on exactly-one
-   //      candidate → oldString MUTATED to the file's exact bytes (the
-   //      fuzzy-edit line; NO after-hook hint); else FAIL-CLOSED (the R6
-   //      hint verdict carrying the best-candidate d; the after-hook hint
-   //      is stored). Directive b: the feedback line is truncated (first
-   //      40 chars + ...), the journal carries the FULL original oldString.
+    // ---- (11) (2) the MUTATING edit-fuzzy oldString channel (2026-09-25,
+    //      #95 sub-item 2 — normalize-then-compare): the 0-raw-occurrence
+    //      case resolves WITHOUT agent action — d=0 (CRLF/LF + trailing-ws)
+    //      and d=1 (single typo, outside the anchor) on exactly-one
+    //      candidate → oldString MUTATED to the file's exact bytes (the
+    //      `fuzzy-edit applied` line; STORED + DELIVERED on the successful
+    //      result — #106); else FAIL-CLOSED (the R6 hint verdict carrying
+    //      the best-candidate d — `hint rejected …` — #106; the after-hook
+    //      hint is stored). Directive b: the feedback line is truncated
+    //      (first 40 chars + ...), the journal carries the FULL original
+    //      oldString.
    const f2dir = path.join(proj, "f2");
    fs.mkdirSync(f2dir, { recursive: true });
    const cf = path.join(f2dir, "cf.txt"); // CRLF file (the LF query: 0 raw)
@@ -502,7 +528,7 @@ try {
      argsF1.oldString === "alpha one\r\nbeta two\r\ngamma three" &&
        mutCount(fs.readFileSync(cf, "utf-8"), argsF1.oldString) === 1 &&
        fF1.length === 8 && fF1[3] === "edit" && fF1[7] === "fuzzy-edit" &&
-       fF1[5] === "fuzzy-edit orig=alpha one beta two gamma three len=30 d=0 value=alpha one beta two gamma three" && fF1[6] === "edit oldString",
+        fF1[5] === "fuzzy-edit applied orig=alpha one beta two gamma three len=30 d=0 value=alpha one beta two gamma three" && fF1[6] === "edit oldString",
      JSON.stringify(fF1));
 
    // (11b) trailing-whitespace drift: oldString line has trailing ws, the
@@ -515,7 +541,7 @@ try {
      argsF2.oldString === "beta two" &&
        mutCount(fs.readFileSync(tw, "utf-8"), argsF2.oldString) === 1 &&
        fF2.length === 8 && fF2[7] === "fuzzy-edit" &&
-       fF2[5] === "fuzzy-edit orig=beta two    len=11 d=0 value=beta two" && fF2[6] === "edit oldString",
+        fF2[5] === "fuzzy-edit applied orig=beta two    len=11 d=0 value=beta two" && fF2[6] === "edit oldString",
      JSON.stringify(fF2));
 
    // (11c) single typo (outside the anchor — the line carries a dense
@@ -528,7 +554,7 @@ try {
      argsF3.oldString === "alpha 20260915 beta" &&
        mutCount(fs.readFileSync(nm, "utf-8"), argsF3.oldString) === 1 &&
        fF3.length === 8 && fF3[7] === "fuzzy-edit" &&
-       fF3[5] === "fuzzy-edit orig=alpha 20260915 betaa len=20 d=1 value=alpha 20260915 beta" && fF3[6] === "edit oldString",
+        fF3[5] === "fuzzy-edit applied orig=alpha 20260915 betaa len=20 d=1 value=alpha 20260915 beta" && fF3[6] === "edit oldString",
      JSON.stringify(fF3));
 
    // (11d) fail-closed near-miss: a single candidate at d=3 → NOT mutated;
@@ -541,7 +567,7 @@ try {
    const fF4 = split8(lF4[lF4.length - 1]);
    chk("(2) fail-closed near-miss: best d=3 → NOT mutated (byte-identical) + no-candidate LAST line carries 'best-d=3' (directive a) — the dense date also fires an observation line",
      JSON.stringify(argsF4) === argsF4Before && fF4.length === 8 && fF4[7] === "no-candidate" &&
-       fF4[5] === "hint reason=d-too-high best-d=3" && fF4[6] === "edit oldString",
+        fF4[5] === "hint rejected reason=d-too-high best-d=3" && fF4[6] === "edit oldString",
      JSON.stringify(fF4));
 
    // (11e) ambiguous: two candidates at d<=1 → NOT mutated → edit-ambiguous
@@ -551,9 +577,9 @@ try {
    await before({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c11e" }, { args: argsF5 });
    const lF5 = readLines();
    const fF5 = split8(lF5[lF5.length - 1]);
-   chk("(2) ambiguous: two candidates at d<=1 → NOT mutated (byte-identical) + edit-ambiguous LAST line 'hint cands=1 1,2 1' — the dense date also fires an observation line",
-     JSON.stringify(argsF5) === argsF5Before && fF5.length === 8 && fF5[7] === "edit-ambiguous" &&
-       fF5[5] === "hint cands=1 1,2 1" && fF5[6] === "edit oldString",
+    chk("(2) ambiguous: two candidates at d<=1 → NOT mutated (byte-identical) + edit-ambiguous LAST line 'hint rejected cands=1 1,2 1' — the dense date also fires an observation line",
+      JSON.stringify(argsF5) === argsF5Before && fF5.length === 8 && fF5[7] === "edit-ambiguous" &&
+        fF5[5] === "hint rejected cands=1 1,2 1" && fF5[6] === "edit oldString",
      JSON.stringify(fF5));
 
    // (11f) directive (b): a LONG oldString (> 40 chars) → the feedback line
@@ -571,7 +597,7 @@ try {
    chk("(2) directive (b): long oldString → the fuzzy-edit line is TRUNCATED (orig=first 40 + ... len=70 d=1 value=first 40 + ...; no full oldString in the line) + the journal's edit `old` = the FULL original oldString — and the mutated oldString is an exact UNIQUE file substring",
      argsF6.oldString === lgLine && mutCount(fs.readFileSync(lg, "utf-8"), argsF6.oldString) === 1 &&
        fF6.length === 8 && fF6[7] === "fuzzy-edit" &&
-       fF6[5] === "fuzzy-edit orig=the quick brovn fox 20260915 jumps over ... len=70 d=1 value=the quick brown fox 20260915 jumps over ..." &&
+        fF6[5] === "fuzzy-edit applied orig=the quick brovn fox 20260915 jumps over ... len=70 d=1 value=the quick brown fox 20260915 jumps over ..." &&
        !fF6[5].includes("the lazy dog") &&
        jF6P !== null && jF6P.old === lgQuery && jF6P.new === "z" && jF6P.filePath === lg,
      JSON.stringify({ fF6, jF6P, mutated: argsF6.oldString }));

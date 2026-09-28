@@ -650,3 +650,6 @@ plan32 unit1 spec: the "first ~40-60 lines" header assumption underestimates the
 ### 2026-09-28_06-28 explorer_Q3S_245K_slow ses_f19d3d34bffeDuzNz23350dZfk
 Loop-log DONE content format (`<CTX>%/<REM>K` per agent_readme_loop.md) requires inferring the mapping from the ctx_gauge full readout (`CTX=119906 (48%) REM=125094` → `48%/125K`) — a one-line note in the gauge tool description or the loop readme would remove the guess.
 
+### 2026-09-28_06-49 planner_Q3S_245K_slow ses_f19fdb571ffeb0aoqGGu62wbzo
+plan32 u3 spec: my fact-sources list named a root `package.json` without verifying it exists (there is none at the root — only the git-ignored `.opencode/package.json`); the explorer had to note the discrepancy. Spec path claims (file names in fact-source lists) should be verified against the tree before the spec is committed — one `ls` costs less than an explorer discrepancy note.
+

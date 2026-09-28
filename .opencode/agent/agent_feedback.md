@@ -656,3 +656,6 @@ plan32 u3 spec: my fact-sources list named a root `package.json` without verifyi
 ### 2026-09-28_07-26 worker_Q3S_245K_slow ses_f19a0aceaffeWtNhSbTEgiDKqG
 plan33 spec DoD baseline stale: intercept_observer listed 77/77, but the actual baseline at spec-time HEAD was already 78/78 (extended in #106 cbbebf8, an ancestor of spec HEAD 5f64052) — baselines in task specs should be re-verified against git log of the test file at spec time, not carried from the previous plan.
 
+### 2026-09-28_07-42 planner_Q3S_245K_slow ses_f19a6d8effferDMEYo31DsSXCF
+NAP Standing baselines drifted from the test suites: the plan31 bookkeeping did not update the intercept_observer baseline (77→78) when #106 extended its smoke, so the plan33 spec faithfully carried a stale number and the worker had to re-derive it (worker filed the spec-side entry). Rule for bookkeeping commits: whenever a landing changes a smoke/probe count, update the NAP Standing baseline IN THE SAME commit — a 10-second grep of the suite's own readout, cheaper than a worker discrepancy note.
+

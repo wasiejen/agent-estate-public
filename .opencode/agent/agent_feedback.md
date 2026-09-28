@@ -668,3 +668,6 @@ loop_log auto-fill fell back to context.agent for BOTH the role and model slots 
 ### 2026-09-28_08-49 planner_Q3S_245K_slow ses_f195309bfffe5xjWBwmaEEXva0
 block_transfer PASTE feedback "(lines 1..29, first: ...)" is ambiguous between the BUFFER range and the insertion POSITION in dstFile — one extra verification call was needed to confirm the EOF append (plan35, TODO.md→todo_records.md curation). Suggestion: the PASTE feedback should state the insertion position explicitly (e.g. "appended at EOF — file now N lines" / "inserted after line K"), since targetMarker-absent = append-at-EOF is the common case.
 
+### 2026-09-28_09-15 explorer_Q3S_245K_slow ses_f192da65effe5No7efgj5VFbb1
+plan36 spec ambiguity: "ONE checkpoint commit (doc only)" + "handover rides the FINAL commit, reference the doc commit's hash (never your own)" forces a 2-commit structure (doc commit, then handover commit) — not explicit; consider stating it.
+

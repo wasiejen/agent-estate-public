@@ -18,14 +18,24 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
     no live additions); proposals unchanged (2026-09-28_repo-split-
     phase1.md + 2026-09-28_submit-memory-channel.md at root awaiting his
     ruling; fst-rebind-repeat stays approved/ --deferred).
-  - Unit 1: context-erase/tail-trim research launched (explorer_Q3S_
-    245K_slow; spec = handover_task.md, loop-folder copy plan36_ho_task.md)
-    — the ONE question: does deleting a session's message/part rows from
-    the live DB change the next-turn model context (re-derived from the
-    DB) or not (in-memory/incremental assembly)?
+  - Unit 1: context-erase/tail-trim research LANDED (explorer-36
+    ses_f192da65effe5No7efgj5VFbb1, doc 4591cd0 + handover c32c5eb):
+    YES — the model context is re-derived from the DB at the top of every
+    loop step (prompt.ts:1092 filterCompactedEffect → fresh SQL select
+    message-v2.ts:433-446 → toModelMessagesEffect → llm.stream; no
+    in-memory history, no cached prompt). Row deletion is a VIABLE trim
+    channel with a narrow safe zone (complete finished old turns strictly
+    before the last user message, outside the compaction marker quartet);
+    CLEANER lever = the host's own in-place `tail_start_id` rewrite
+    (compaction.ts:461-466). Planner spot-verified all 4 key refs against
+    the opencode-dev source copy. Knowledge entry filed (opencode-
+    plugins/2026-09-28_context-erase-tail-trim.md). Follow-up (the
+    tail-trim tool) = MAINTAINER CALL (doc §effort/approval).
   - Iter-37 queue: the live-acceptance battery (#114/#106/#109/#115 —
     his restart); #113 venv (MAINTAINER CALL); repo-split (his domain);
-    the detector-dispatch part (his call); #116 capture (post-restart).
+    the detector-dispatch part (his call); #116 capture (post-restart);
+    the tail-trim tool (MAINTAINER CALL — research doc 2026-09-28_
+    context-erase-tail-trim.md §effort/approval).
 ## Compressed archive (one line each
   - 2026-09-28 autorun (ses_f195309bfffe5xjWBwmaEEXva0, planner-35, Qwen3.8-27B-Q3S-245K-slow) — plan35: MAINTENANCE PASS (iter-35 counter trigger: knowledge inbox fully cured — #109 detector internals → auto-resume-units-explainer; TODO #107/#108/#110/#111/#112 closed → todo_records.md + numbering from #116; NAP plan34 compressed) + #114/#115 5th live data point (live process still pre-fix, restart pending) + ideas triage (TODO #116 filed, submit-memory-channel proposal filed, (2) context-erase queued iter-36) — details: loop folder plan35_summary.md + git 31f48e8/6375709
   - 2026-09-28 autorun (ses_f1975f44cffeflRZdxIDJSvBEJ, planner-34, Qwen3.8-27B-Q3S-245K-slow) — plan34: #115 gauge window config-first LANDED+verified (worker-34 0c90abe — resolveWindow config-first from root opencode.jsonc limit.context, parseWindow fallback, 7 new pins (a)-(f); gauge_core ALL PASS, ctx_gauge 3/3, live byte-identity readout window=245000, probe 346, ruff F=0, pytest blocked #113) — LIVE: the host process still predates the build (no visible change until his restart — config 245000 == the name marker) — details: loop folder plan34_summary.md + git feafe37/373824c

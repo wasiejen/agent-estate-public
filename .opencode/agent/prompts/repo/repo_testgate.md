@@ -19,3 +19,7 @@ thin index pointing at the parts.
   a normal file and keep it green.
 - Suite size is a moving baseline — see `.opencode/agent/handover/handover_planner.md`
   for the current expected count. Do not hard-code test-count assumptions here.
+- **Cheap probe syntax check:** after each probe edit batch, run
+  `node --check .opencode/plugin/probes/handover_probe.mjs` BEFORE the gate
+  (plan28 feedback 2026-09-27: a probe-comment token slip survived to the
+  ~2-min gate run — `node --check` catches it in under a second).

@@ -134,6 +134,13 @@ the budget that funds the compaction).
 ## Checkpoint & handoff
 - Checkpoint each unit: after each verified change, commit (green) so a dead session loses at
   most one change (AGENTS.md §Discovery).
+- **Commit-message worked example:** subject = one-line imperative naming the main change;
+  >1 theme → up to ~3 short body lines, one per theme (AGENTS.md §Git conventions). A
+  commit can NEVER carry its own hash — the handover/TODO status line says `LANDED`
+  (hash recorded in the planner's follow-up bookkeeping commit — the spec doc's hash
+  DoD rule). Shape: `#104: core matchAnchorPrefixLines mirrors the tool's anchor-side
+  trim — S31 equivalence restored` + body lines (the re-pinned probe, the smoke
+  total, the deliberately-not-done pointer).
 - When done (or at the stop line): write the executive summary to
   `handover_task_to_planner.md` per AGENTS.md §Handover-files — what changed, measured
   verification, commit hash, TODO entries, what you deliberately did NOT do.

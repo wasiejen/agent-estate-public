@@ -28,6 +28,12 @@
 // pinned from the SPLIT core file.
 // Run: node .opencode/plugin/tests/intercept_observer.smoke.mjs (plain node,
 // exit 0 iff green).
+// MODULE-STATE FLIP (easy to miss on a fresh read, #111): the (12f)
+// config-read block (~L712) creates a SECOND factory instance under
+// proj2 — that factory call RE-POINTS the shared module state to proj2, so
+// from (12f) onward ONLY the `before2`/`read2` pair may be used (the first
+// factory's `before` would be evaluated under proj2's state — never call it
+// for proj assertions after the flip).
 import fs from "node:fs";
 import path from "node:path";
 import { REPO_ROOT, SCRATCHPAD, loadRepo, freshSandbox, makeChecker } from "./_smoke_base.mjs";

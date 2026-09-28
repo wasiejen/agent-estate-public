@@ -674,3 +674,6 @@ plan36 spec ambiguity: "ONE checkpoint commit (doc only)" + "handover rides the 
 ### 2026-09-28_09-22 planner_Q3S_245K_slow ses_f1938fbf7ffezxbBZE47haZsdS
 block_transfer WRITE `regions` applies the SAME single `text` to every region in the list (I expected per-region text) — a 2-region NAP write duplicated a 24-line block and needed a repair DELETE; the description says "one 'text' into … a 'regions' LIST" but the shared-text semantics should be stated explicitly (or per-region text supported).
 
+### 2026-09-29_01-27 planner_Q3S_170K ses_f15c490bdffe9KsxVC3kDdLi1K
+When .opencode/temp/compact_budget.json is missing, neither the injected ctx line nor ctx_gauge emits the budget suffix (silent fail-open) — the budget/audit file loss (.opencode/temp/ deleted 2026-09-28 ~22:27, found 2026-09-29) went unnoticed for ~15h and silently blocked the #114 live acceptance. A -WARNING loop_log line (or an explicit marker in the gauge readout) on first read of a missing budget store would surface it.
+

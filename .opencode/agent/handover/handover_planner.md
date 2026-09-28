@@ -4,47 +4,68 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## Current session — autorun, 2026-09-28 (ses_f1909eba8ffekWTqY0gYY2DK3l, planner-38, Qwen3.8-27B-Q3S-245K-slow)
-- plan38 (iter 38, unit-4 restart branch after planner-37 `action:
-  restart`): idle lane (queue all maintainer-blocked):
-  - #114/#115 8th live data point: fresh-session injected ctx line
-    "CTX=notAvailable | 1 compactions left" (live build) vs self-gauge
-    "CTX=66758 (27%) REM=178242 | 5 compactions left" (disk build) — the
-    live process still predates 12e3262 (the #114 fix) and 0c90abe (the
-    #115 fix); live acceptances for both still pending the maintainer's
-    restart.
-  - Unit 1 (#116 source-side research, planner-inline): the
-    `message.updated` event payload DOES carry the finished step's token
-    usage — `properties.info` = the full AssistantMessage (tokens
-    {input, output, reasoning, cache.read/write} + cost + finish),
-    emitted by `Session.updateMessage` (session.ts:629-633) on the
-    step-finish path (processor.ts:452-470: tokens REPLACED per step,
-    cost accumulated) + finalization (processor.ts:609-610); the CLI's
-    own run consumer corroborates (session-data.ts:825-850 reads
-    info.tokens/cost). Verdict leans (a): a real-time gauge readout is
-    feasible plugin-side (last `message.updated` per session → in+out+cr,
-    the #103 formula, no DB read). Dated evidence entry:
-    knowledge/opencode-plugins/2026-09-28_message_updated_payload.md.
-    The LIVE capture (3+ raw payloads — the #116 DoD) still requires his
-    restart + capture-plugin registration.
-  - Unit 2 (recurring friction → knowledge): the loop_log auto-fill
-    entry landed in knowledge_tools.md (role+model auto-fill falls back
-    to the AGENT ID for both slots — pass role/model explicitly; 3rd
-    occurrence per agent_feedback 2026-09-28_08-20); the glob dot-dir
-    quirk was ALREADY covered there (no duplicate filed).
-  - Channels: maintainer inbox empty; priority.md active list empty
-    (standing idle-lane block only); markers clean (plan38 sweep); the
-    3 root proposals unchanged (context-trim-tool / repo-split-phase1 /
-    submit-memory-channel — awaiting his ruling); fst-rebind-repeat
-    stays approved/ --deferred.
-  - Baselines: unchanged since the plan37 gate run (all smokes green,
-    probe 346 = 335 + 11 #113 env, ruff F=0, pytest UNRUNNABLE #113).
-  - Iter-39 queue (unchanged — all maintainer-blocked): the
-    live-acceptance battery (#114/#106/#109/#115 — his restart); #113
-    venv (MAINTAINER CALL); repo-split (his domain); the
-    detector-dispatch part (his call); #116 capture (post-restart); the
-    tail-trim tool (his ruling).
+## Current session — direct, 2026-09-29 (ses_f15c490bdffe9KsxVC3kDdLi1K, Qwen3.8-27B-Q3S-170K)
+- Post-restart direct session (opencode restarted — the live process now
+  matches the disk build; the 8-data-point live-lag saga ends):
+  - Loop 28→38 retrospective answered (no limit-deaths / incidents; the
+    recurring loop_log auto-fill quirk fired 3 CORRECT lines across
+    planner-33/34/35 — 3rd occurrence → knowledge entry; all landings
+    green + verified: #114 fix, #106, #109 detector, #115, #110/#112,
+    #116 research, tail-trim proposal, repo-split research + proposal).
+  - #115 LIVE-VERIFIED: the gauge window resolves from the root
+    opencode.jsonc config (this session's window = 170000 = limit.context
+    for Qwen3.8-27B-Q3S-170K). The fresh-session injected "notAvailable"
+    = expected (no finished step yet — repo_commands line 78-79).
+  - #114 live acceptance now blocked on a NEW fact:
+    `.opencode/temp/compact_budget.json` is GONE → no budget suffix on
+    the injected ctx line NOR the self-gauge (fail-open, consistent
+    both sides); the first verified compaction rewrites the file.
+  - `.opencode/temp/` disappearance forensics: last known present
+    2026-09-28 09:57 (plan38 self-gauge "5 compactions left"); folder
+    gone by 00:55 (the live host recreated it empty; logs start 01:00).
+    mtime cluster 2026-09-28 22:27 across .opencode/{.gitignore,
+    agent, archive, loop, plugin, proposals, tools} ⇒ something
+    recursive touched entry levels there ~22:27 (repo-split prep the
+    prime suspect; programmatic deletion bypasses the Recycle Bin —
+    consistent with his empty bin). Lost: compact_budget.json + old
+    ctx/intercept/auto_resume logs; the compaction DUMPS live in
+    `.opencode/archive/sessions/` (tracked) — SAFE.
+  - Venv forensics (#113): the venv was REPLACED, not repaired —
+    `.venv/pyvenv.cfg` `command` records a fresh `Python314\python.exe
+    -m venv` (3.14.3, measured working, 459 tests collect); the old
+    `..\python312` base dir is GONE from disk. CI pins 3.12
+    (`ci.yml:17`) + baselines are 3.12-era; `py -0` shows 3.12 installed
+    and 3.14 as the default (`*`) — the bare-python gotcha. Rec: rebuild
+    `py -3.12 -m venv .venv` + reinstall requirements → full-gate
+    re-baseline closes #113. (TODO #113 status updated in this commit.)
+  - Repo-split feedback given (his --comment 2026-09-29, no-sugarcoat):
+    direction = the research Option A (right); his `.opencode/agent`
+    md-scan observation is REAL (every .md under it becomes a Task-tool
+    agent type — ~90 phantom entries in the live agent list);
+    per-repo carve (TODO/handover/repo-docs) = plain folders, OK;
+    SUBMODULES = NO (inner-commit + pointer-bump ceremony lands in the
+    LIVE loop — the coupling the split removes); history carve =
+    filter-repo on each copy (medium, his domain; multi-theme commits
+    keep a copy of the remainder in each repo); the LIVE WORKSPACE
+    should be the AGENT repo (opencode auto-discovers opencode.jsonc at
+    the workspace root; FST accessed via references + external_directory).
+    His machine state: `Repos/Free-Snap-Tap` = clone synced @6d18fe4 +
+    GitHub origin; `Repos/Free-Snap-Tap - Copy` = deep copy @82eb4e0
+    (likely the intended the estate (former name)); the `the estate (former name)` reference
+    path is DEAD (no such folder) — references + external_directory need
+    fixing when it is placed/renamed.
+  - Untracked-runtime loss measured TWICE in a week (the venv break
+    09-28, .opencode/temp 09-29) → the split migration list must carry:
+    `.venv` (FST side) + `.opencode/node_modules`, `.opencode/temp/`,
+    `plugin.log` (agent side) — rebuild at the new locations.
+- Open (his ruling, ordered): (1) 3.12 venv rebuild (his domain) → then
+  the full-gate re-baseline (worker or next autorun) closes #113;
+  (2) what ran at ~22:27 09-28 + where the the estate (former name) folder went;
+  (3) the carve plan GO (filter-repo carve + no submodules + agent repo
+  as live workspace) → I prepare the read-only carve script + pin-sweep
+  list; execution his domain.
 ## Compressed archive (one line each
+  - 2026-09-28 autorun (ses_f1909eba8ffekWTqY0gYY2DK3l, planner-38, Qwen3.8-27B-Q3S-245K-slow) — plan38: idle lane (queue all maintainer-blocked) — #116 source-side research LANDED (the `message.updated` payload carries the finished step's tokens {in,out,reasoning,cache.r/w}+cost — a real-time gauge readout is feasible plugin-side; live capture still needs his restart + capture-plugin registration) + dated evidence entry + loop_log auto-fill knowledge entry (3rd occurrence) + #114/#115 8th live data point (live process still pre-12e3262/0c90abe) — details: loop folder plan38_summary.md + git e7610ac
   - 2026-09-28 autorun (ses_f191a6cb5ffeq4noDPvOTFNkxM, planner-37, Qwen3.8-27B-Q3S-245K-slow) — plan37: idle-lane pass (queue all maintainer-blocked) — the tail-trim tool PROPOSAL filed (2026-09-28_context-trim-tool.md: report + tail (tail_start_id rewrite, non-destructive + reversible) first, the destructive `turns` mode follow-up; the live-DB write tool = his call) + #114/#115 7th live data point (live process still pre-12e3262/0c90abe) + baseline re-verified (10 smokes green at baseline + probe 346 = 335 + 11 #113 env + ruff F=0) + friction entry (bt WRITE regions single-text semantics) — details: loop folder plan37_summary.md + git 79de802..8b81670
   - 2026-09-28 autorun (ses_f1938fbf7ffezxbBZE47haZsdS, planner-36, Qwen3.8-27B-Q3S-245K-slow) — plan36: context-erase/tail-trim research LANDED+verified (explorer-36 4591cd0/c32c5eb — context re-derived from DB per step, no in-memory history; the viable trim channels = old-turn row deletion (narrow safe zone) + the host's own `tail_start_id` rewrite (compaction.ts:461-466); follow-up tool = MAINTAINER CALL per doc §effort/approval) + #114/#115 6th live data point (live process still pre-12e3262/0c90abe, restart pending) + knowledge entry — details: loop folder plan36_summary.md + git 2143597..b3b3c7e
   - 2026-09-28 autorun (ses_f195309bfffe5xjWBwmaEEXva0, planner-35, Qwen3.8-27B-Q3S-245K-slow) — plan35: MAINTENANCE PASS (iter-35 counter trigger: knowledge inbox fully cured — #109 detector internals → auto-resume-units-explainer; TODO #107/#108/#110/#111/#112 closed → todo_records.md + numbering from #116; NAP plan34 compressed) + #114/#115 5th live data point (live process still pre-fix, restart pending) + ideas triage (TODO #116 filed, submit-memory-channel proposal filed, (2) context-erase queued iter-36) — details: loop folder plan35_summary.md + git 31f48e8/6375709
@@ -181,14 +202,15 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
       check; from post-R3 68 + 9 channel checks),
      block_transfer 131/131 + 64/64 (post-plan25: 123+8 new checks),
       submit 23/23 (corrected 2026-09-28 — the 20/20 was stale));
-   the per-suite counts are in each smoke's own readout — no total kept
-   here); pytest **459 passed + 1 warning (the known #10 coroutine
-   warning)**; ruff **F=0** — **ENVIRONMENT (2026-09-28, #113 —
-   MAINTAINER CALL):** the repo venv's python is broken (the base
-   interpreter at `C:\...\Free-Snap-Tap\python312` — one level above
-   the repo root — is absent) → the pytest half of the standard gate is
-   UNRUNNABLE + the probe's 11 numword-python checks (136-146) fail
-   environmentally (NOT regressions); re-baseline on the next green gate.
+    the per-suite counts are in each smoke's own readout — no total kept
+    here); pytest **459 passed + 1 warning (the known #10 coroutine
+    warning)**; ruff **F=0** — **ENVIRONMENT (2026-09-29 updated, #113):**
+    the venv was REPLACED by the maintainer with a fresh 3.14.3 build
+    (the old `..\python312` base is gone); pytest collects 459 under
+    3.14 (full run NOT yet done); CI pins 3.12 (`ci.yml:17`) + the
+    baselines above are 3.12-era → rebuild on 3.12 (`py -3.12 -m venv`)
+    + full-gate re-baseline, then the counts above re-establish (the 11
+    env-fail probe checks 136-146 included).
 - Cross-compaction (measured 2026-09-18 plan2; re-verified live 2026-09-22):
   `compact_memory` with a foreign sessionID — no model args in the tool
   schema; the summarizer model resolves per `agent.compaction.model` (set in

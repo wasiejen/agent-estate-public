@@ -18,14 +18,23 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
     my_todos `--wip`, the fst-rebind-repeat `--deferred`). Inbox empty.
     priority.md active list empty (the repo-split section stands — idle
     lane).
-  - Unit 1: #110 + #112 docs batch — spec committed,
-    worker_Q3S_245K_slow launching (plan32_ho_task.md).
-  - Queue after unit 1: #109 silent-limit-stop detector research
-    (explorer), then the repo-split research (explorer — his
-    priority.md section, "each research at least a single run"), then
-    close. Maintenance pass next at iter 35 (counter trigger) — the
-    LANDED-header one-liner condenses ride that pass. #105 (e) stays
-    open (his opencode.jsonc write-access tightening — his domain).
+  - Unit 1 LANDED + planner-verified (worker-32
+    ses_f19f14f77ffec3eM4B77xFC36Z): #110 (3a5de39 — 9 per-plugin/tool
+    READMEs next to their sources, 23-33 lines each + the two
+    folder-README "Per-file docs" indexes + the two minor-tool
+    one-liners) + #112 (f406a20 — the dated auto-resume units
+    explainer, 61 lines, all 14 real log tokens named from the code;
+    the compaction-handout inclusion stays the maintainer's paste).
+    Verification: wc -l in limits, hook-surface spot check (grep -c
+    match the worker's table), TODO #110/#112 → LANDED, git scope
+    clean (docs-only, no code touched).
+  - Unit 2: #109 silent-limit-stop detector research (explorer —
+    spec next). Then (if context allows) the repo-split research
+    (explorer — his priority.md section, "each research at least a
+    single run"), then close. Maintenance pass next at iter 35
+    (counter trigger) — the LANDED-header one-liner condenses ride
+    that pass. #105 (e) stays open (his opencode.jsonc write-access
+    tightening — his domain).
   - Baselines: probe 346 (335 pass + 11 #113 environmental 136-146);
     smokes per Standing; venv still broken (#113 MAINTAINER CALL).
 

@@ -239,69 +239,69 @@
     //     "load_workspace_tree": false
     //   }
     // },
-    // "planner_Q3S_170K": {
-    //   "description": "plans tasks and delegates to sub-agents: very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge",
-    //   "mode": "all",
-    //   "model": "llama-swap/Qwen3.8-27B-Q3S-170K",
-    //   "prompt": "{file:./.opencode/agent/prompts/agents/prompt_agent_planner.md}\n{file:.opencode/agent/memory/planner/destilled_mem.md}",
-    //   // "prompt": "{file:./prompts/base.txt}\n{file:./prompts/rules.txt}\n{file:./prompts/examples.txt}"
-    //   "temperature": 1.0,
-    //   "permission": {
-    //     "task": "allow",
-    //     "edit": {
-    //       "*": "allow",
-    //       ".git/**": "deny",
-    //       ".github/**": "deny"
-    //     },
-    //     "bash": "allow",
-    //     "webfetch": "allow"
-    //   },
-    //   "color": "accent"
-    // },
-    // "worker_Q3S_170K": {
-    //   "description": "very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge: best for very complex coding and code review work",
-    //   "mode": "all",
-    //   "model": "llama-swap/Qwen3.8-27B-Q3S-170K",
-    //   "prompt": "{file:./.opencode/agent/prompts/agents/prompt_agent_task.md}",
-    //   "temperature": 1.0,
-    //   "permission": {
-    //     "task": "allow",
-    //     "edit": {
-    //       "*": "allow",
-    //       "home/AppData/Local/Temp/opencode" : "allow",
-    //       "AGENTS.md": "deny",
-    //       ".opencode/agent/prompts/**": "deny",
-    //       ".opencode/agent/handover/handover_planner.md": "deny",
-    //       ".git/**": "deny",
-    //       ".github/**": "deny"
-    //     },
-    //     "bash": "allow",
-    //     "webfetch": "allow"
-    //   },
-    //   "color": "accent"
-    // },
-    // "explorer_Q3S_170K": {
-    //   "description": "very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge: best for very complex coding and code review work",
-    //   "mode": "all",
-    //   "model": "llama-swap/Qwen3.8-27B-Q3S-170K",
-    //   "prompt": "{file:./.opencode/agent/prompts/agents/prompt_agent_explorer.md}",
-    //   "temperature": 1.0,
-    //   "permission": {
-    //     "task": "allow",
-    //     "edit": {
-    //       "*": "allow",
-    //       "home/AppData/Local/Temp/opencode" : "allow",
-    //       "AGENTS.md": "deny",
-    //       ".opencode/agent/prompts/**": "deny",
-    //       ".opencode/agent/handover/handover_planner.md": "deny",
-    //       ".git/**": "deny",
-    //       ".github/**": "deny"
-    //     },
-    //     "bash": "allow",
-    //     "webfetch": "allow"
-    //   },
-    //   "color": "accent"
-    // },
+    "planner_Q3S_170K": {
+      "description": "plans tasks and delegates to sub-agents: very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge",
+      "mode": "all",
+      "model": "llama-swap/Qwen3.8-27B-Q3S-170K",
+      "prompt": "{file:./.opencode/agent/prompts/agents/prompt_agent_planner.md}\n{file:.opencode/agent/memory/planner/destilled_mem.md}",
+      // "prompt": "{file:./prompts/base.txt}\n{file:./prompts/rules.txt}\n{file:./prompts/examples.txt}"
+      "temperature": 1.0,
+      "permission": {
+        "task": "allow",
+        "edit": {
+          "*": "allow",
+          ".git/**": "deny",
+          ".github/**": "deny"
+        },
+        "bash": "allow",
+        "webfetch": "allow"
+      },
+      "color": "accent"
+    },
+    "worker_Q3S_170K": {
+      "description": "very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge: best for very complex coding and code review work",
+      "mode": "all",
+      "model": "llama-swap/Qwen3.8-27B-Q3S-170K",
+      "prompt": "{file:./.opencode/agent/prompts/agents/prompt_agent_task.md}",
+      "temperature": 1.0,
+      "permission": {
+        "task": "allow",
+        "edit": {
+          "*": "allow",
+          "home/AppData/Local/Temp/opencode" : "allow",
+          "AGENTS.md": "deny",
+          ".opencode/agent/prompts/**": "deny",
+          ".opencode/agent/handover/handover_planner.md": "deny",
+          ".git/**": "deny",
+          ".github/**": "deny"
+        },
+        "bash": "allow",
+        "webfetch": "allow"
+      },
+      "color": "accent"
+    },
+    "explorer_Q3S_170K": {
+      "description": "very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge: best for very complex coding and code review work",
+      "mode": "all",
+      "model": "llama-swap/Qwen3.8-27B-Q3S-170K",
+      "prompt": "{file:./.opencode/agent/prompts/agents/prompt_agent_explorer.md}",
+      "temperature": 1.0,
+      "permission": {
+        "task": "allow",
+        "edit": {
+          "*": "allow",
+          "home/AppData/Local/Temp/opencode" : "allow",
+          "AGENTS.md": "deny",
+          ".opencode/agent/prompts/**": "deny",
+          ".opencode/agent/handover/handover_planner.md": "deny",
+          ".git/**": "deny",
+          ".github/**": "deny"
+        },
+        "bash": "allow",
+        "webfetch": "allow"
+      },
+      "color": "accent"
+    },
     // "agent_Q3S_170K": {
     //   "description": "very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge: best for very complex coding and code review work",
     //   "mode": "all",

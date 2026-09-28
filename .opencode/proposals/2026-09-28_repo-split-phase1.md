@@ -43,3 +43,32 @@ inert.
   config (doc risk 4).
 - Doc pins #16 (`repo_commands.md:36`, `repo_opencode.md:8`) + layout wording
   in `AGENTS.md`/`repo_overview.md` update ONLY if the physical move happens.
+
+--comment:
+I added the 2 new paths to opencode.json:
+  "references": {
+    "the estate (former name)": {
+      "path": "repo-root",
+      "description": "New Repo for our opencode agent - Deep Copy of Free-Snap-Tap"
+    },
+    "Free-Snap-Tap": {
+      "path": "home/Repos/Free-Snap-Tap",
+      "description": "clone of current Repo in new location"
+    },
+
+- "the estate (former name)" is the new home for our agents a completely new and seperate repo with the copied history of Free-Snap-Tap.
+- "Free-Snap-Tap" is a clone of this copy in the new location
+  - idea is that you can change whatever needs changing before the move
+  - I would also like to then move all the folder that are not opencode native in .opencode into the root folder
+    - so .opencode only contrains folder node_modules, plugin, tools and files package.json, package-lock.json and of course .gitignore (might not be complete this list)
+    - one reason is that every md file in agent folder is added as new agent to be started in opencode
+    - we also have then to think about how to organize the TODO and handover and repo prompts on a per repo basis (like the seperate folder "Free-Snap-Tap") because other repos will be added and worked on in the future.
+      - should we use git submodules on a per repo basis to manage the repo specific files??
+
+- goal is to strip "Free-Snap-Tap" of all opencode related parts abd verse versa to strop
+"the estate (former name)" of all Free-Snap-Tap parts.
+- inclusive the history
+- the now opencode_test branch on "Free-Snap-Tap" will then be the dev channel in which changes land.
+
+--comment:
+- so i ask for feedback to this in general (remember no sugarcoat - this is a best guess of mine but i have no prior experience in setting up sth like this)

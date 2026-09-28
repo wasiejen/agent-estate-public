@@ -167,13 +167,16 @@
 //      non-string) / parseModelId (JSON id / plain / malformed / empty) /
 //      setDbPath+getDbPath global plumbing with explicit-path override
 //   S6b item 3 (2026-09-24): the "N compactions left" budget suffix on the
-//      readout line (6): the 3 states (count < cap → plural ` | N
+//      readout line (7): the 3 states (count < cap → plural ` | N
 //      compactions left` / count === cap + key ABSENT → ` | 1 compaction
 //      left` (the fail-open default-1 emergency — NOT 0) / count > cap →
 //      ` | 0 compactions left`) + the emergency_budget-0 explicit case +
 //      the fail-open no-suffix form (the probe default budget path is a
 //      never-created sandbox file → every pre-existing readout pin stays
-//      byte-identical) + the no-total entry-model fallback
+//      byte-identical) + the no-total SESSION-ROW-model cap (#114, 2026-09-28
+//      — the row model resolves the cap, path-discriminating vs the entry
+//      model) + the no-total model-nowhere default-1 fallback (row model
+//      NULL + no budget entry)
 //   S7 backend chain (11) — the #37 chain IS contract: each backend is
 //      FORCED via setBackends([...]) and verified against the sandbox
 //      fixtures (the list is cleared/restored between sections):
@@ -961,7 +964,7 @@
 //          then clean-fails — NO prompt (Part B).
 //
 // EXPECTED OUTPUT:
-//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=6 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=8 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 hygiene=6  →  "PROBE handover: 345/345 PASS",
+//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=7 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=8 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 hygiene=6  →  "PROBE handover: 346/346 PASS",
 //   exit code 0. Anything else with THIS file = behavior drift or broken
 //   environment — read the failures, do not "fix" the plugin for the probe.
 //   On failure the sandbox root is KEPT (printed) for forensics.
@@ -1098,6 +1101,10 @@ const FX_NOTAL = path.join(SANDBOX, "fx_notal.db");
 buildFixtureDb(FX_NOTAL, [
   { id: "ses_fx_empty", time_updated: 3000, model: JSON.stringify({ id: "probe-model-120K_MTP", providerID: "fx" }),
     messages: [ { time_created: 20, data: INFLIGHT } ] },
+  // #114 (2026-09-28): the model-NOWHERE fixture — the session-row model is
+  // NULL and there is no finished step (a lower time_updated keeps the
+  // newest-session default read on ses_fx_empty).
+  { id: "ses_fx_nomodel", time_updated: 2000, model: null },
 ]);
 const MISSING_DB = path.join(SANDBOX, "missing_fx.db"); // never created — the db-error shape
 
@@ -1397,13 +1404,15 @@ check("12", "S3", "final mirror state byte-identical to the pre-filled sentinel"
 }
 
 // 23 — notAvailable: no finished step in the newest session → no-total
+//      (#114, 2026-09-28: the no-total read now carries the SESSION ROW's
+//      model — the session-row fallback)
 {
   const r = await readGauge(FX_NOTAL);
   check(
     "23",
     "S6",
-    "notAvailable (no finished step): formatGauge byte-exact, kind no-total, sid carried, modelId empty (no step row)",
-    formatGauge(r) === "SESSION=ses_fx_empty CTX=notAvailable" && r.ok === false && r.kind === "no-total" && r.sid === "ses_fx_empty" && r.modelId === "",
+    "notAvailable (no finished step): formatGauge byte-exact, kind no-total, sid carried, modelId = the session-row model (no step row)",
+    formatGauge(r) === "SESSION=ses_fx_empty CTX=notAvailable" && r.ok === false && r.kind === "no-total" && r.sid === "ses_fx_empty" && r.modelId === "probe-model-120K_MTP",
     JSON.stringify(r),
   );
 }
@@ -1467,7 +1476,7 @@ check(
 }
 
 // ------------------------------------------------------------------ S6b item 3 (2026-09-24): the "N compactions
-// left" budget suffix on the readout line (6) — the formatGauge extension:
+// left" budget suffix on the readout line (7) — the formatGauge extension:
 // remaining = max(0, cap - count) PLUS 1 iff the once-per-session emergency
 // compaction is still available (count === cap && the effective
 // emergency_budget >= 1 — the key read LENIENTLY: absent → the fail-open
@@ -1558,18 +1567,46 @@ const FX_OK_LINE = "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655";
   );
 }
 
-// 28.6 — no-total read (no finished step → modelId ""): the cap falls back
-//      to the session entry's `model` (the model at the last increment) —
-//      the suffix still resolves (count 0 < cap 3 → 3)
+// 28.6 — no-total read (#114, 2026-09-28): the cap resolves from the
+//      SESSION ROW's model — the row model probe-model-120K_MTP (cap 3)
+//      wins over the budget entry's model probe-model-256K_MTP (cap 2 — the
+//      pre-#114 entry-model fallback would have read "2 compactions left")
+//      and over the default 1. The dedicated budget fixture carries BOTH
+//      models with DIFFERENT caps so the pin is path-discriminating.
 {
-  setBudgetFx(0, undefined, "ses_fx_empty");
+  const BUDGET_NOTAL = path.join(SANDBOX, "budget_fx_notal.json");
+  writeFileSync(BUDGET_NOTAL, JSON.stringify({
+    model_budget: { "probe-model-120K_MTP": 3, "probe-model-256K_MTP": 2, default: 1 },
+    sessions: { ses_fx_empty: { count: 0, updated: "fx", model: "probe-model-256K_MTP" } },
+  }), "utf-8");
+  setBudgetFileForTest(BUDGET_NOTAL);
   const r = await readGauge(FX_NOTAL);
   check(
     "28.6",
     "S6b",
-    "no-total read (modelId '' → entry-model fallback): `SESSION=ses_fx_empty CTX=notAvailable | 3 compactions left`",
-    formatGauge(r) === "SESSION=ses_fx_empty CTX=notAvailable | 3 compactions left",
-    JSON.stringify(formatGauge(r)),
+    "no-total read (#114): the session-row model resolves the cap — `SESSION=ses_fx_empty CTX=notAvailable | 3 compactions left` (row-model cap 3 — NOT the entry-model cap 2, NOT the default 1)",
+    r.ok === false && r.kind === "no-total" && r.sid === "ses_fx_empty" && r.modelId === "probe-model-120K_MTP" && formatGauge(r) === "SESSION=ses_fx_empty CTX=notAvailable | 3 compactions left",
+    JSON.stringify({ r, line: formatGauge(r) }),
+  );
+}
+
+// 28.7 — the OLD fallback still holds: no-total + model NOWHERE (the
+//      session-row model is NULL + no budget entry for the session) →
+//      model_budget.default (1) → ` | 1 compaction left`
+{
+  const BUDGET_NOMODEL = path.join(SANDBOX, "budget_fx_nomodel.json");
+  writeFileSync(BUDGET_NOMODEL, JSON.stringify({
+    model_budget: { "probe-model-120K_MTP": 3, "probe-model-256K_MTP": 2, default: 1 },
+    sessions: {},
+  }), "utf-8");
+  setBudgetFileForTest(BUDGET_NOMODEL);
+  const r = await readGauge(FX_NOTAL, "ses_fx_nomodel");
+  check(
+    "28.7",
+    "S6b",
+    "no-total + model nowhere (row model NULL, no budget entry): modelId '' → the default cap 1 — `SESSION=ses_fx_nomodel CTX=notAvailable | 1 compaction left`",
+    r.ok === false && r.kind === "no-total" && r.sid === "ses_fx_nomodel" && r.modelId === "" && formatGauge(r) === "SESSION=ses_fx_nomodel CTX=notAvailable | 1 compaction left",
+    JSON.stringify({ r, line: formatGauge(r) }),
   );
 }
 
@@ -1729,8 +1766,8 @@ const MOCK_LOG = [];
   check(
     "36",
     "S7",
-    "spawn-sqlite3: FX_NOTAL no-total byte-identical (M row absent via the real exe)",
-    r.ok === false && r.kind === "no-total" && r.sid === "ses_fx_empty" && formatGauge(r) === "SESSION=ses_fx_empty CTX=notAvailable",
+    "spawn-sqlite3: FX_NOTAL no-total byte-identical (M row absent; the S row carries the session-row model via the real exe — #114)",
+    r.ok === false && r.kind === "no-total" && r.sid === "ses_fx_empty" && r.modelId === "probe-model-120K_MTP" && formatGauge(r) === "SESSION=ses_fx_empty CTX=notAvailable",
     JSON.stringify(r),
   );
 }
@@ -7064,7 +7101,7 @@ n29++;
   const postLog = POST["plugin.log"] ?? "";
   const monotonic = postLog.length >= preLog.length && (preLog === "" || postLog.startsWith(preLog));
   const newLines = monotonic ? postLog.slice(preLog.length).split("\n").filter((l) => l.length > 0) : [];
-  const FINGERPRINT = ["s1", "s2", "s3", "c1", "c2", "c3", "c4", "c5", "c6", "d1", "d2", "d3", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8", "e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8", "e9", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f13", "f14", "ses_fx_ok", "ses_fx_unk", "ses_fx_empty", "ses_fx_old", "ses_other", "ses_lad_0", "ses_lad_1", "ses_lad_2", "ses_lad_3", "ses_lad_4", "ses_lad_5", "ses_lad_6", "ses_lad_7", "ses_ro_k", "ses_ro_u", "ses_ro_nom", "ses_ro_empty", "ses_ro_absent", "ses_ro_n1", "ses_ro_n2", "ses_ro_n3", "ses_ro_n4", "ses_ro_n5", "ses_cm_1", "ses_cm_fb", "ses_cm_line", "ses_cm_bare", "ses_cm_budget", "ses_cm_fail", "ses_cm_ptr", "ses_rc_off", "ses_rc_ok", "ses_rc_exh", "ses_rc_non", "ses_rc_keep", "ses_rc_cfg", "ses_rc_nomodel", "ses_qc_self", "ses_qc_retry", "ses_qc_flat", "ses_qc_nocli", "ses_qc_gate", "ses_qc_cpu", "ses_qc_fail", "ses_qc_msg", "ses_qc_cross", "ses_qc_rpc", "ses_qc_pair", "ses_qc_emg", "ses_qc_emg0", "ses_qc_emgdf", "ses_pc_noscript", "ses_pc_ok", "ses_qc_dumpok", "ses_qc_cfgbody", "ses_rc_tokcomp", "ses_rc_tokbud", "ses_qc_tokcomp"];
+  const FINGERPRINT = ["s1", "s2", "s3", "c1", "c2", "c3", "c4", "c5", "c6", "d1", "d2", "d3", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8", "e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8", "e9", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f13", "f14", "ses_fx_ok", "ses_fx_unk", "ses_fx_empty", "ses_fx_old", "ses_fx_nomodel", "ses_other", "ses_lad_0", "ses_lad_1", "ses_lad_2", "ses_lad_3", "ses_lad_4", "ses_lad_5", "ses_lad_6", "ses_lad_7", "ses_ro_k", "ses_ro_u", "ses_ro_nom", "ses_ro_empty", "ses_ro_absent", "ses_ro_n1", "ses_ro_n2", "ses_ro_n3", "ses_ro_n4", "ses_ro_n5", "ses_cm_1", "ses_cm_fb", "ses_cm_line", "ses_cm_bare", "ses_cm_budget", "ses_cm_fail", "ses_cm_ptr", "ses_rc_off", "ses_rc_ok", "ses_rc_exh", "ses_rc_non", "ses_rc_keep", "ses_rc_cfg", "ses_rc_nomodel", "ses_qc_self", "ses_qc_retry", "ses_qc_flat", "ses_qc_nocli", "ses_qc_gate", "ses_qc_cpu", "ses_qc_fail", "ses_qc_msg", "ses_qc_cross", "ses_qc_rpc", "ses_qc_pair", "ses_qc_emg", "ses_qc_emg0", "ses_qc_emgdf", "ses_pc_noscript", "ses_pc_ok", "ses_qc_dumpok", "ses_qc_cfgbody", "ses_rc_tokcomp", "ses_rc_tokbud", "ses_qc_tokcomp"];
   const probeWroteLive = newLines.some((l) => FINGERPRINT.some((fid) => l.includes(`"session":"${fid}"`) || l.includes(`"call":"${fid}"`) || l.includes(`"sess":"${fid}"`)));
   check(
     "43",

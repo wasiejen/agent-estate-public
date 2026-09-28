@@ -77,7 +77,7 @@
 //
 // QUERIES — two single-row reads per read (json_extract in SQL — the message
 // `data` JSON is never fetched or JS-parsed):
-//   1. newest session:  SELECT id FROM session ORDER BY time_updated DESC LIMIT 1
+//   1. newest session:  SELECT id, model FROM session ORDER BY time_updated DESC LIMIT 1
 //   2. finished step:   the newest session's latest message row whose `data`
 //      carries the `"finish"` marker (json_extract of tokens.total/output;
 //      the in-flight step has no "finish" field, user rows no tokens at all)
@@ -284,9 +284,11 @@ export function parseModelId(raw) {
 // the auto_resume budgetExhausted helper): the CPU safety invariant FIRST
 // (cap 0), then the model_budget map's EXACT bare-model-id key, else
 // model_budget.default, else 1. The model is the read's modelId (the
-// session's CURRENT model — the bare id, the map's key form); no-total reads
-// carry none, so the session entry's `model` (the model at the last
-// increment) is the fallback. File missing / unreadable / unparseable /
+// session's CURRENT model — the bare id, the map's key form; a no-total
+// read carries the SESSION ROW's model when the row has one — the #114
+// session-row fallback, 2026-09-28), so the session entry's `model` (the
+// model at the last increment) is the fallback only when neither carries a
+// model. File missing / unreadable / unparseable /
 // root-not-an-object / sid "unknown" (a db-error read) → NO suffix
 // (fail-open). NEVER throws.
 export function compactionsLeftSuffix(sid, modelId) {
@@ -347,7 +349,7 @@ export function formatGauge(r) {
 
 // The two single-row reads (see the header). json_extract never fetches the
 // `data` JSON into JS; a missing/NULL token field reads as null.
-const SQL_NEWEST_SESSION = "SELECT id FROM session ORDER BY time_updated DESC LIMIT 1";
+const SQL_NEWEST_SESSION = "SELECT id, model FROM session ORDER BY time_updated DESC LIMIT 1";
 const SQL_FINISHED_STEP =
   "SELECT s.id AS sid, s.model AS model, " +
   "json_extract(m.data, '$.tokens.total') AS total, " +
@@ -364,14 +366,14 @@ const GAUGE_SQL_MARKER =
   "FROM message m JOIN session s ON s.id = m.session_id " +
   "WHERE s.id = (SELECT id FROM session ORDER BY time_updated DESC LIMIT 1) " +
   "AND m.data LIKE '%\"finish\"%' ORDER BY m.time_created DESC LIMIT 1; " +
-  "SELECT 'S', id FROM session ORDER BY time_updated DESC LIMIT 1;";
+  "SELECT 'S', id, model FROM session ORDER BY time_updated DESC LIMIT 1;";
 
 // v2.6 — the PER-SESSION query forms (the ladder's blind-spot-free read; see
 // the header block). Same column list and LIKE marker as the newest-session
 // forms; the session is pinned by id (in-process: bound parameter; spawn:
 // literal with single-quote escaping — opencode session ids are `ses_…`, the
 // escape is belt-and-braces, not a quoting surface for user input).
-const SQL_SESSION_BY_ID = "SELECT id FROM session WHERE id = ?";
+const SQL_SESSION_BY_ID = "SELECT id, model FROM session WHERE id = ?";
 const SQL_FINISHED_STEP_SESSION =
   "SELECT s.id AS sid, s.model AS model, " +
   "json_extract(m.data, '$.tokens.total') AS total, " +
@@ -385,7 +387,7 @@ const sqlMarkerForSession = (sid) => {
     "SELECT 'M', s.id, s.model, json_extract(m.data, '$.tokens.total'), json_extract(m.data, '$.tokens.output') " +
     "FROM message m JOIN session s ON s.id = m.session_id " +
     `WHERE s.id = ${q} AND m.data LIKE '%"finish"%' ORDER BY m.time_created DESC LIMIT 1; ` +
-    `SELECT 'S', ${q};`
+    `SELECT 'S', id, model FROM session WHERE id = ${q};`
   );
 };
 
@@ -413,7 +415,7 @@ function readApiDb(openFn, target) {
           : db.prepare(SQL_FINISHED_STEP).get();
       return {
         sid: typeof newest?.id === "string" && newest.id !== "" ? newest.id : undefined,
-        model: step != null && typeof step.model === "string" ? step.model : null,
+        model: step != null && typeof step.model === "string" ? step.model : (typeof newest?.model === "string" ? newest.model : null),
         total: step?.total == null ? null : Number(step.total),
         output: step?.output == null ? null : Number(step.output),
       };
@@ -497,10 +499,21 @@ async function readSpawnSqlite3(p, target) {
   let model = null;
   let total = null;
   let output = null;
-  for (const line of String(res.stdout).split(/\r?\n/)) {
-    if (line.startsWith("S|")) {
-      sid = line.slice(2) || undefined;
-    } else if (line.startsWith("M|")) {
+    for (const line of String(res.stdout).split(/\r?\n/)) {
+      if (line.startsWith("S|")) {
+        // sid | model... — sid is the FIRST field; the rest of the line is the
+        // session-row model (a model id containing '|' is still safe — the
+        // split is only on the first bar, like the M row).
+        const rest = line.slice(2);
+        const bar = rest.indexOf("|");
+        const s = bar === -1 ? rest : rest.slice(0, bar);
+        const sm = bar === -1 ? "" : rest.slice(bar + 1);
+        sid = s || undefined;
+        // The M row prints FIRST and is the precedence winner — the S-row
+        // model only fills in when the read still carries no model (the
+        // no-total case, the #114 session-row fallback).
+        if (model === null && sm !== "" && sm !== "NULL") model = sm;
+      } else if (line.startsWith("M|")) {
       const parts = line.slice(2).split("|");
       // sid | model... | total | output — total/output are the LAST two
       // fields (a model id containing '|' is then still safe).

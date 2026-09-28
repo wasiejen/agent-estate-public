@@ -77,6 +77,16 @@ wb(0);
   if (!ok) fail++;
   console.log(`${ok ? "PASS" : "FAIL"} no-total (modelId '' → entry-model fallback): ${got} (want ${want})`);
 }
+// #114 (2026-09-28): a no-total read now carries the SESSION ROW's model as
+// its modelId — the suffix uses it (count 0 < cap 3 → 3), ahead of the
+// entry-model fallback.
+{
+  const got = m.formatGauge({ ok: false, kind: "no-total", sid: "ses_fx_ok", modelId: "probe-model-256K_MTP" });
+  const want = "SESSION=ses_fx_ok CTX=notAvailable | 3 compactions left";
+  const ok = got === want;
+  if (!ok) fail++;
+  console.log(`${ok ? "PASS" : "FAIL"} no-total (modelId = session-row model → model_budget key): ${got} (want ${want})`);
+}
 fs.rmSync(tmpB, { recursive: true, force: true });
 
 console.log(fail === 0 ? "GAUGE_CORE_SMOKE: ALL PASS" : `GAUGE_CORE_SMOKE: ${fail} FAILURES`);

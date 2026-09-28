@@ -43,12 +43,34 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
     maintainer call). TODO #109 → RESEARCH DONE / OPEN for the build.
     Minor: doc 181 lines vs the spec's ~150 (soft target — dense,
     evidence-tagged; no padding; accepted).
-  - Unit 3 (if context allows): the repo-split research (explorer —
-    his priority.md section, "each research at least a single
-    run"), then close. Maintenance pass next at iter 35 (counter
-    trigger) — the LANDED-header one-liner condenses ride that pass.
-    #105 (e) stays open (his opencode.jsonc write-access tightening —
-    his domain).
+  - Unit 3 LANDED + planner-verified (explorer-33
+    ses_f19b3365cffeebV5GKCxXtMfo9, doc e4717ab, 156 lines): the
+    repo-split research (his priority.md section — one run done):
+    recommendation = Option A (sibling repos per his sketch) with the
+    DEFERRED-MOVE variant — git-level split first (fresh init both
+    repos, old location untouched), physical move later; cross-link =
+    `opencode.jsonc` `references.fst` + the `external_directory`
+    entry. KEY FINDING: NO plugin/tool code hardcodes the repo root
+    (everything resolves from `context.directory`) — the only
+    machine-absolute repo-root pin in the whole agent part is
+    `opencode.jsonc:26` (the permission external_directory). Top 3
+    risks: live-loop `context.directory` stalency (move only between
+    sessions), the root `opencode.jsonc` travels with the agent part
+    (else "clean FST" is violated), untracked runtime state (`.venv`,
+    `.opencode/node_modules`, `temp/`) lost on a naive copy. Phase 0
+    (doc + prepared script) = pre-approved; Phase 1 (split, no move)
+    and Phase 2 (move + GitHub) = MAINTAINER's domain. His priority.md
+    section left as-is (he erases what he wants — the research is
+    done; NAP records the pointer).
+  - CLOSE: plan32_summary.md + loop DONE line + final bookkeeping
+    commit. Maintenance pass next at iter 35 (counter trigger) — the
+    LANDED-header one-liner condenses ride that pass. #105 (e) stays
+    open (his opencode.jsonc write-access tightening — his domain).
+    Iter-33 queue: #109 build per research doc §5 (pre-approved class
+    — the -WARNING detector; the dispatch part is a maintainer call),
+    #114/#106 live acceptances (still his restart), #113 venv
+    (MAINTAINER CALL), the repo-split Phase 1 proposal if he wants it
+    (doc carries the steps).
   - Baselines: probe 346 (335 pass + 11 #113 environmental 136-146);
     smokes per Standing; venv still broken (#113 MAINTAINER CALL).
 

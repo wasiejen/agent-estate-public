@@ -97,3 +97,10 @@ post-compaction state was never re-routed — unit 4 never saw it.
 
 --comment
 approved A, B and C
+## Verdict (moved to implemented/ 2026-09-28, plan30 maintenance pass)
+LANDED 2026-09-25 (worker-16, plan16): Part A 4f90218 (ACTION_RE line-anchored)
++ Part B cf7e6f5 (the 5s tick re-arms watched sids on NEW ctx.log COMPACT lines);
+Part C not applicable (the Work State dump form was removed in the 2026-09-24
+rework). Gate: smoke 139/139, probe 291/291, pytest 459+1w, ruff F=0. Live
+acceptance = the next self-compact → idle cycle (TODO #98 status — PENDING live
+observation).

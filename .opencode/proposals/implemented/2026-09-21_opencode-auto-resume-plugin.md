@@ -150,3 +150,12 @@ APPROVED 2026-09-21 (maintainer moved this file to `approved/`). Units are
 independently approvable and strictly ordered (each leaves the repo green);
 Unit 1 is launched in looprun `autorun-2026-09-21_15-33` (plan1, task spec
 `plan1_ho_task.md` in the loop folder).
+## Verdict (moved to implemented/ 2026-09-28, plan30 maintenance pass)
+LANDED 2026-09-21 → 2026-09-23 (looprun autorun-2026-09-21_15-33): Unit 1 d322927
+(live-accepted plan1) + Unit 2 d90973b (live shape fix 4b1a965) + Unit 3 ee75861
+(spawn naming 2240d00) + Unit 4 8e4778 (smoke 53/53); follow-on hardening #85
+parts 1-3 (part 2 b038b92, part 3 ded7245 + 5992f38) + #88 smoke wall cut 532ddbc.
+Live acceptance complete (plan10/plan13, build v=7d2e6207): #89 first named spawn,
+#79 route= restart spawn on both builds, #90 full live acceptance (spawn +
+deactivate + own-line toggle). Standard gate green at every landing. Full unit
+history: TODO #75 (todo_records.md).

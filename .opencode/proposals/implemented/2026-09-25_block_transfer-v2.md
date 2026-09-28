@@ -148,3 +148,11 @@ REPLACE, PEEK, MAP, DELETE, CLEAR.
 2. Part D — confirmed per your comment (WRITE file-creation, in line
    with the write tool).
 3. Part H — confirmed: the buffer name is `last_write`.
+## Verdict (moved to implemented/ 2026-09-28, plan30 maintenance pass)
+LANDED 2026-09-26 as the S1-S4 wave (each planner-verified): S1 0d85a8c (unified
+resolveAnchor + error taxonomy), S2 f5f888c (line-number refs + assembly),
+S3 8cc8819 (WRITE + PEEK + feedback redesign, probe +11 checks), S4 37c2479
+(MAP + last_write + Part I description rework). Gate at S4: probe 316/316 (later
+345 post-plan25/26/27 fixes), smokes 123+64 (later 131+64). LIVE: NEW-HIRE 11/11
+PASS + HELD-OUT exact 9-line (plan22, 2026-09-26); bt anchor-fix live acceptance
+3/3 (plan27 part 2, 2026-09-27).

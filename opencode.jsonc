@@ -28,14 +28,29 @@
       "home/.local/share/opencode/log": "allow",
       "home/AppData/Roaming/npm": "allow",
       "home/AppData/Roaming/npm/**": "allow",
-      "home/AppData/Roaming/npm/node_modules/opencode-ai/**": "allow"
+      "home/AppData/Roaming/npm/node_modules/opencode-ai/**": "allow",
       // db path still to add or better in watcher ignore?
+      "home/Repos/autorun": "allow",
+      "home/Repos/Free-Snap-Tap": "allow",
+      "home/Repos/opencode_autorun": "allow"
     }
   },
   "references": {
     "scratchpad": {
       "path": "home/AppData/Local/Temp/opencode",
       "description": "Local windows temporary directory for intermediate agent outputs"
+    },
+    "autorun": {
+      "path": "home/Repos/autorun",
+      "description": "New Repo for our opencode agent - Deep Copy of Free-Snap-Tap"
+    },
+    "Free-Snap-Tap": {
+      "path": "home/Repos/Free-Snap-Tap",
+      "description": "clone of current Repo in new location"
+    },
+    "opencode_autorun": {
+      "path": "home/Repos/opencode_autorun",
+      "description": "forked opencode"
     }
   },
   // test to see if this is still triggering a rejection

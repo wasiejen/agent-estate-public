@@ -45,6 +45,12 @@
 // own log (part C, once per process). #98 (A): the action: line is
 // OWN-LINE (line-start) — a prose-quoted MID-LINE mention no longer
 // matches (the scripted closing texts are own-line accordingly).
+// #109: the SILENT LIMIT-STOP detector — a watched session that DIED at
+// the context wall (finish=length + tokens at the window), was never
+// compacted, and went silent gets ONE `-WARNING` line per episode in
+// the current looprun's loop_log.md (+ one `limit-stop=` attribution
+// line in auto_resume.log) on the tick (the 60 s silence gate is tested
+// with a GLOBAL Date.now offset — no real 60 s waits).
 // The plugin factory is called with a SCRATCHPAD sandbox `directory` —
 // auto_resume.log lands in the sandbox (.opencode/temp/auto_resume.log
 // under the sandbox project), NEVER the live .opencode/temp/. Run:
@@ -1986,6 +1992,137 @@ try {
       okP98B && !readLines().some((l) => l.includes("rearm= compact sid=ses_p98_unwatched")) &&
         !readLines().some((l) => l.includes("sid=ses_p98_unwatched") && (l.includes("route=") || l.includes("recovery=") || l.includes("scope="))), "");
 
+    // ============================================================
+    // #109 — the SILENT LIMIT-STOP detector (the tick leg): a watched
+    // session that DIED at the context wall (finish=length + tokens at
+    // the window), was never compacted, and went silent gets ONE
+    // `-WARNING` line per episode in the current looprun's loop_log.md
+    // (+ one `limit-stop=` line in auto_resume.log). NO action on the
+    // session (no send, no spawn). The 60 s silence gate is tested with
+    // a GLOBAL Date.now offset (a real 60 s wait would bloat the smoke;
+    // the offset shifts the plugin's clock and every smoke timer
+    // consistently). Module state is shared across re-factories — the
+    // fresh spying client is the funnel.
+    // ============================================================
+    const LS_MODEL_ID = "model_x";
+    const LS_AT_WALL = 99100; // >= 0.99 * CONTEXT (100000) — the (2) threshold
+    const lsSends = [];
+    const lsCreates = [];
+    const lsScript = new Map();
+    const lsSession = {
+      prompt: function () {},
+      promptAsync: async (args) => { lsSends.push(args); return { data: { id: "queued" } }; },
+      abort: function () {},
+      list: function () {},
+      get: function () {},
+      message: function () {},
+      messages: async (args) => lsScript.get(args?.path?.id) ?? [],
+      todo: function () {},
+      command: function () {},
+      summarize: function () {},
+      create: async () => { lsCreates.push({}); return { data: { id: "ses_ls_spawn" } }; },
+    };
+    const hooksLS = await factory({ directory: proj, client: { session: lsSession, provider: { list: providerList }, app: { log: () => "log" } } });
+    // The sandbox loop folder — the -WARNING line destination (the
+    // plugin resolves it via the shared currentLoopFolder logic).
+    const lsLoopDir = path.join(proj, ".opencode", "loop", "autorun-2026-09-28_09-00");
+    fs.mkdirSync(lsLoopDir, { recursive: true });
+    const lsLoopLog = path.join(lsLoopDir, "loop_log.md");
+    fs.writeFileSync(lsLoopLog, "2026-09-28_09-00 -->START  planner-5 ses_planner_smoke Qwen3.8-27B-Q3S-170K smoke looprun\n", "utf-8");
+    const lsLoopLines = () => fs.readFileSync(lsLoopLog, "utf-8").split(/\r?\n/).filter((l) => l.length > 0);
+    const lsWarn = (sid) => lsLoopLines().filter((l) => l.includes(`-WARNING auto_resume ${sid}`));
+    // The global clock offset (restored before each settled assertion).
+    const realNow = Date.now;
+    const warp = (ms) => { Date.now = () => realNow() + ms; };
+    // A death episode: the first user agent (arm-time capture), busy,
+    // the cutting step (finish=length + tokens, the LIVE top-level
+    // model shape), idle.
+    const deathEp = (sid, agent, total) => [
+      { event: { type: "message.updated", properties: { sessionID: sid, message: { role: "user", agent } } } },
+      statusEv(sid, "busy"),
+      { event: { type: "message.updated", properties: { sessionID: sid, message: { role: "assistant", finish: "length", tokens: { total }, providerID: "prov_x", modelID: "model_x" } } } },
+      statusEv(sid, "idle"),
+    ];
+
+    // ---- pin 1: finish:length@window + 60 s silence + idle + no
+    // COMPACT → exactly ONE -WARNING line (assert the loop_log.md FILE
+    // content, not only the log line)
+    await fire(hooksLS, "ses_ls_fire", deathEp("ses_ls_fire", "worker_ls", LS_AT_WALL));
+    await tickWait(); // the first routing settles (the scope resolves; NO send)
+    warp(70000); // 60 s past the death step (clock offset, not a real wait)
+    const okLs1 = await waitUntil(() => lsWarn("ses_ls_fire").length === 1, 5000);
+    await tickWait();
+    const w1 = lsWarn("ses_ls_fire")[0] ?? "";
+    chk("#109 (1): finish:length@window + 60 s silence + idle + no COMPACT → exactly ONE -WARNING line in loop_log.md (the FILE, the 8-char form with auto_resume in the role slot) + the auto_resume.log attribution line",
+      okLs1 && lsWarn("ses_ls_fire").length === 1 &&
+        w1.includes(`auto_resume ses_ls_fire ${LS_MODEL_ID}`) &&
+        w1.includes(`silent limit-stop: finish=length total=${LS_AT_WALL} window=${CONTEXT} no-COMPACT`) &&
+        readLines().some((l) => l.includes(`limit-stop= sid=ses_ls_fire total=${LS_AT_WALL}`)),
+      w1);
+
+    // ---- pin 2: a NEW ctx.log COMPACT line after the death step → no
+    // fire (the rearm leg runs BEFORE the limit-stop leg on the same
+    // tick — the `rearm=` line is the discriminator that the order
+    // held; the silence gate itself passed)
+    await fire(hooksLS, "ses_ls_compact", deathEp("ses_ls_compact", "worker_lsc", LS_AT_WALL));
+    await tickWait();
+    const lsCtxLogPath = path.join(proj, ".opencode", "temp", "ctx.log");
+    fs.appendFileSync(lsCtxLogPath, `2026-09-28_10-00 ${LS_MODEL_ID} COMPACT ses_ls_compact keep=5m tok=12000 computed\n`, "utf-8");
+    warp(70000);
+    const okLs2 = await waitUntil(() => readLines().some((l) => l.includes("rearm= compact sid=ses_ls_compact")), 5000);
+    await tickWait(); // settle: the rearm tick's limit-stop leg + one more tick
+    Date.now = realNow;
+    chk("#109 (2): a NEW ctx.log COMPACT line after the death step → no fire (the silence gate passed — the (4) no-COMPACT-since-death gate held, the rearm discriminator present)",
+      okLs2 && lsWarn("ses_ls_compact").length === 0 &&
+        !readLines().some((l) => l.includes("limit-stop= sid=ses_ls_compact")),
+      `rearm=${okLs2} warn=${lsWarn("ses_ls_compact").length}`);
+
+    // ---- pin 3: finish:length with total < 0.99*window → no fire
+    await fire(hooksLS, "ses_ls_low", deathEp("ses_ls_low", "worker_lsl", 50000));
+    await tickWait();
+    warp(70000);
+    await tickWait(); // a full tick UNDER the silence condition — the (2) token gate must hold it back
+    Date.now = realNow;
+    chk("#109 (3): finish:length with total < 0.99*window (50000 < 99000) → no fire (the (2) token gate)",
+      lsWarn("ses_ls_low").length === 0 && !readLines().some((l) => l.includes("limit-stop= sid=ses_ls_low")),
+      `warn=${lsWarn("ses_ls_low").length}`);
+
+    // ---- pin 4: a non-role first agent + scope "none" → no fire (the
+    // (5) in-scope gate — the routing resolves the scope BEFORE the
+    // silent tick is warped)
+    await fire(hooksLS, "ses_ls_direct", deathEp("ses_ls_direct", "direct_chat", LS_AT_WALL));
+    const okLs4scope = await waitUntil(() => readLines().some((l) => l.includes("scope= none sid=ses_ls_direct")), 8000);
+    warp(70000);
+    await tickWait();
+    Date.now = realNow;
+    chk("#109 (4): first agent with NO role prefix + scope \"none\" (routing-resolved) → no fire (the (5) in-scope gate — Task-tool workers all carry scope \"none\")",
+      okLs4scope && lsWarn("ses_ls_direct").length === 0 &&
+        !readLines().some((l) => l.includes("limit-stop= sid=ses_ls_direct")),
+      `scope=${okLs4scope} warn=${lsWarn("ses_ls_direct").length}`);
+
+    // ---- pin 5: the per-episode latch — an unchanged second tick (the
+    // silence gate passes again under the deeper offset) → NO second line
+    warp(140000);
+    await tickWait(); // one full tick, state unchanged
+    chk("#109 (5): the per-episode latch — an unchanged second tick (silence still >= 60 s) → NO second -WARNING line",
+      lsWarn("ses_ls_fire").length === 1 && readLines().filter((l) => l.includes("limit-stop= sid=ses_ls_fire")).length === 1,
+      `warn=${lsWarn("ses_ls_fire").length}`);
+
+    // ---- pin 6: a FRESH busy after firing clears the latch → the later
+    // episode fires again (exactly TWO lines for the sid)
+    await fire(hooksLS, "ses_ls_fire", [
+      statusEv("ses_ls_fire", "busy"),
+      { event: { type: "message.updated", properties: { sessionID: "ses_ls_fire", message: { role: "assistant", finish: "length", tokens: { total: LS_AT_WALL }, providerID: "prov_x", modelID: "model_x" } } } },
+      statusEv("ses_ls_fire", "idle"),
+    ]);
+    warp(210000); // another 70 s past the NEW death step (cumulative offset)
+    const okLs6 = await waitUntil(() => lsWarn("ses_ls_fire").length === 2, 5000);
+    await tickWait();
+    Date.now = realNow; // restore the clock (no further pins run warped)
+    chk("#109 (6): a fresh busy after firing clears the latch — the later episode fires again (exactly TWO lines; NO send/spawn on the detector path)",
+      okLs6 && lsWarn("ses_ls_fire").length === 2 && lsSends.length === 0 && lsCreates.length === 0,
+      `warn=${lsWarn("ses_ls_fire").length} sends=${lsSends.length} creates=${lsCreates.length}`);
+
     // ---- the live log received NO smoke line. The LIVE plugin instance
   // (this host) keeps appending ITS OWN live-session lines in real time
   // while the smoke runs, so the live size may legitimately grow — the
@@ -2001,7 +2138,7 @@ try {
   } else if (liveBefore === null && liveSizeNow > 0) {
     appended = fs.readFileSync(LIVE_LOG, "utf-8"); // did not exist before — all new
   }
-  const smokeSids = ["ses_smoke_ar1", "ses_throwing", "ses_u2_sat", "ses_u2_low", "ses_u2_over", "ses_u2_nomodel", "ses_u2_noprov",     "ses_u2_sendfail", "ses_u2_noprov2", "ses_u2_str", "ses_u2_tgnof", "ses_u2_tgoff", "ses_u2_tgon", "ses_u2_tgmal", "ses_u3_new", "ses_u3_chk2", "ses_u4_stop", "ses_u4_ask", "ses_u4_restart", "ses_u4_sux", "ses_u4_succ", "ses_u4_noline", "ses_u4_plain", "ses_u4_wrap", "ses_u4_throw", "ses_u4_spawn", "ses_u4_cap", "ses_u4_relay", "ses_u4_exh", "ses_u4_emg", "ses_u2_agnet", "ses_u2_agnone", "ses_u4_worker", "ses_u4_worker_on", "ses_u4_pb", "ses_u4_lastoff", "ses_u4_mid", "ses_p2_cur", "ses_p2_rs", "ses_p2_fb", "ses_p2_dm", "ses_p2_spawn", "ses_u2_hi98", "ses_u2_two", "ses_u2_direct", "ses_u2_stale", "ses_u2_cfa_low", "ses_u2_cfa_hi", "ses_u2_cfb_edit", "ses_u2_cfb_fire", "ses_u2_cfb_no", "ses_u2_cfc_fire", "ses_u2_cfc_no", "ses_u2_cfd_low", "ses_u2_cfd_hi", "ses_p3_pldirect", "ses_90_worker", "ses_90_spawn", "ses_90_trig", "ses_90_t0", "ses_90_d1", "ses_90_d2", "ses_90_fail", "ses_90_file", "ses_p98_prose", "ses_p98_own", "ses_p98_spawn", "ses_p98_compact", "ses_p98_unwatched"];
+  const smokeSids = ["ses_smoke_ar1", "ses_throwing", "ses_u2_sat", "ses_u2_low", "ses_u2_over", "ses_u2_nomodel", "ses_u2_noprov",     "ses_u2_sendfail", "ses_u2_noprov2", "ses_u2_str", "ses_u2_tgnof", "ses_u2_tgoff", "ses_u2_tgon", "ses_u2_tgmal", "ses_u3_new", "ses_u3_chk2", "ses_u4_stop", "ses_u4_ask", "ses_u4_restart", "ses_u4_sux", "ses_u4_succ", "ses_u4_noline", "ses_u4_plain", "ses_u4_wrap", "ses_u4_throw", "ses_u4_spawn", "ses_u4_cap", "ses_u4_relay", "ses_u4_exh", "ses_u4_emg", "ses_u2_agnet", "ses_u2_agnone", "ses_u4_worker", "ses_u4_worker_on", "ses_u4_pb", "ses_u4_lastoff", "ses_u4_mid", "ses_p2_cur", "ses_p2_rs", "ses_p2_fb", "ses_p2_dm", "ses_p2_spawn", "ses_u2_hi98", "ses_u2_two", "ses_u2_direct", "ses_u2_stale", "ses_u2_cfa_low", "ses_u2_cfa_hi", "ses_u2_cfb_edit", "ses_u2_cfb_fire", "ses_u2_cfb_no", "ses_u2_cfc_fire", "ses_u2_cfc_no", "ses_u2_cfd_low", "ses_u2_cfd_hi", "ses_p3_pldirect", "ses_90_worker", "ses_90_spawn", "ses_90_trig", "ses_90_t0", "ses_90_d1", "ses_90_d2", "ses_90_fail", "ses_90_file", "ses_p98_prose", "ses_p98_own", "ses_p98_spawn", "ses_p98_compact", "ses_p98_unwatched", "ses_ls_fire", "ses_ls_compact", "ses_ls_low", "ses_ls_direct", "ses_ls_spawn"];
   chk("LIVE .opencode/temp/auto_resume.log received no smoke line (sandbox got every smoke line)",
     liveBefore === liveSizeNow || !smokeSids.some((s) => appended.includes(s)), `before=${liveBefore} after=${liveSizeNow}`);
   chk("sandbox log path is under the sandbox", sandboxLog.startsWith(base), sandboxLog);

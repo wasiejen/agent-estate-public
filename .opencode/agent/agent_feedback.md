@@ -632,3 +632,6 @@ Stale line-number anchor near-miss (planner-28, 2026-09-28): a block_transfer DE
 ### 2026-09-28_03-37 explorer_Q3S_245K_slow ses_f1a71461cffeRhiNycx30zfxKd
 Session-start injected ctx said "CTX=notAvailable | 1 compaction left" while ctx_gauge reported 24% / 5 compactions left — the injected nudge was stale/unreadable and contradicted the gauge (source of truth); also, the GitHub `contents` API returned full base64 content when only an existence check was intended — a stat-only path (or git/trees for listings) would be cheaper for this class of probe.
 
+### 2026-09-28_03-42 planner_Q3S_245K_slow ses_f1a8a9671ffezAA9MrZmlE8YKV
+planner-30 friction: (1) committed git-mv'd proposal files BEFORE staging the verdict text appended after the mv — the verdicts missed the commit and rode a second one; rule: after git mv + in-file edit, re-check `git status` before the commit (the rename stages the OLD content). (2) the ready-made marker-sweep command + my self-added `head -30` truncated the output before `.opencode/proposals/` was reached (grep path sort order) — a second bounded sweep was needed; don't cap the ready-made sweep.
+

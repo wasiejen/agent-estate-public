@@ -208,6 +208,25 @@ export function getBudgetFile() {
   return budgetFile;
 }
 
+// #115 (2026-09-28): the window is CONFIG-FIRST — the root opencode.jsonc's
+// `provider.<pid>.models.<mid>.limit.context` (a finite number > 0) beats
+// the name-marker parse (resolveWindow below — parseWindow is the
+// fallback). The live config is JSONC (comments + trailing commas; a `//`
+// INSIDE a string literal is NOT a comment — the strip is string-aware).
+// Resolved RELATIVE to this file (.opencode/plugin/scripts → ../.. = repo
+// root), preferring opencode.jsonc and falling back to opencode.json when
+// absent. READ per resolveWindow call (small file — same precedent as the
+// budget-store read in compactionsLeftSuffix); NEVER throws (missing /
+// unparseable / no entry → the parseWindow fallback stands).
+export const DEFAULT_CONFIG_FILE = join(THIS_DIR, "..", "..", "opencode.jsonc");
+let configOverride = null; // test hook: an explicit config path (the setBudgetFileForTest pattern)
+export function setConfigFileForTest(p) {
+  configOverride = p;
+}
+export function getConfigFile() {
+  return configOverride ?? DEFAULT_CONFIG_FILE;
+}
+
 // Probe-only test hooks (the production host never calls these):
 export function setImportForTest(spec, moduleValue) {
   importCache.set(spec, moduleValue);
@@ -237,8 +256,11 @@ function importModule(spec) {
   return pr;
 }
 
-// Model id -> window. The ONLY parser — LAST marker wins, no fallback (see
-// the WINDOW RULE header block).
+// Model id -> window. The NAME-MARKER parser — LAST marker wins (see the
+// WINDOW RULE header block). Since #115 (2026-09-28) it is the FALLBACK of
+// resolveWindow (config-first: the root opencode.jsonc limit.context); it
+// stands alone for no-provider-prefix ids, non-strings, and every config
+// miss.
 export function parseWindow(modelId) {
   if (typeof modelId !== "string") return undefined;
   const re = /[-_](\d+(?:\.\d+)?)(K|M)(?![0-9])/g;
@@ -262,6 +284,101 @@ export function parseModelId(raw) {
     }
   }
   return raw;
+}
+
+// #115 (2026-09-28): the JSONC → strict-JSON strip — REPLICATED from
+// auto_resume.ts's parseJsonc (string-aware: a `//` inside a string
+// literal is NOT a comment; trailing commas stripped before `}`/`]`;
+// THROWS on parse failure — the caller swallows). Replicated, not
+// imported: gauge.mjs is plain .mjs (no TS import possible).
+function parseJsonc(text) {
+  let out = "";
+  let i = 0;
+  let inStr = false;
+  while (i < text.length) {
+    const ch = text[i];
+    if (inStr) {
+      out += ch;
+      if (ch === "\\" && i + 1 < text.length) {
+        i += 1;
+        out += text[i];
+      } else if (ch === '"') {
+        inStr = false;
+      }
+      i += 1;
+      continue;
+    }
+    if (ch === '"') {
+      inStr = true;
+      out += ch;
+      i += 1;
+      continue;
+    }
+    if (ch === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i += 1;
+      continue;
+    }
+    if (ch === "/" && text[i + 1] === "*") {
+      i += 2;
+      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i += 1;
+      i += 2;
+      continue;
+    }
+    if (ch === "}" || ch === "]") {
+      while (out.endsWith(" ") || out.endsWith("\n") || out.endsWith("\t")) out = out.slice(0, -1);
+      if (out.endsWith(",")) out = out.slice(0, -1);
+    }
+    out += ch;
+    i += 1;
+  }
+  return JSON.parse(out);
+}
+
+// The root config, parsed (see the DEFAULT_CONFIG_FILE block): the explicit
+// test override is used AS-IS; the default prefers opencode.jsonc, falling
+// back to opencode.json in the repo root. null on missing / unreadable /
+// malformed / non-object root (the caller falls back — NEVER throws).
+function readWindowConfig() {
+  const p =
+    configOverride ??
+    (existsSync(DEFAULT_CONFIG_FILE) ? DEFAULT_CONFIG_FILE : join(THIS_DIR, "..", "..", "opencode.json"));
+  if (!existsSync(p)) return null;
+  let text;
+  try {
+    text = readFileSync(p, "utf-8");
+  } catch {
+    return null;
+  }
+  try {
+    const data = parseJsonc(text);
+    return data != null && typeof data === "object" && !Array.isArray(data) ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+// #115 (2026-09-28): the window is CONFIG-FIRST — a modelId of the
+// `providerID/modelID` form first walks the root config's
+// `provider[providerID].models[modelID].limit.context`: a finite number > 0
+// is the window. Everything else (no "/" prefix, config missing /
+// unparseable / no entry / non-finite / <= 0) falls back to the name-marker
+// parseWindow (UNCHANGED — it is the fallback). Never throws.
+export function resolveWindow(modelId) {
+  if (typeof modelId !== "string") return undefined;
+  const slash = modelId.indexOf("/");
+  if (slash > 0) {
+    const providerID = modelId.slice(0, slash);
+    const modelID = modelId.slice(slash + 1);
+    const data = readWindowConfig();
+    const provider = data != null && typeof data === "object" && !Array.isArray(data) ? data["provider"] : undefined;
+    const entry = provider != null && typeof provider === "object" && !Array.isArray(provider) ? provider[providerID] : undefined;
+    const models = entry != null && typeof entry === "object" && !Array.isArray(entry) ? entry["models"] : undefined;
+    const model = models != null && typeof models === "object" && !Array.isArray(models) ? models[modelID] : undefined;
+    const limit = model != null && typeof model === "object" && !Array.isArray(model) ? model["limit"] : undefined;
+    const context = limit != null && typeof limit === "object" && !Array.isArray(limit) ? limit["context"] : undefined;
+    if (typeof context === "number" && Number.isFinite(context) && context > 0) return context;
+  }
+  return parseWindow(modelId);
 }
 
 // Result shapes (one implementation shared by plugin + CLI + probe —
@@ -561,7 +678,7 @@ function gaugeFromRaw(raw) {
     total,
     output, // evidence field — kept in the shape, NOT subtracted (#103)
     ctx: total, // #103: in+out+cr — the context at the start of the NEXT turn
-    window: parseWindow(modelId),
+    window: resolveWindow(modelId), // #115: config-first, name-marker fallback
   };
 }
 

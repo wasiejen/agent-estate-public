@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { loadRepo } from "./_smoke_base.mjs";
+import { loadRepo, freshSandbox } from "./_smoke_base.mjs";
 
 const m = await loadRepo(".opencode/plugin/scripts/gauge.mjs");
 const cases = [
@@ -34,6 +34,65 @@ for (const [inp, want] of cases) {
 console.log("parseModelId JSON:", m.parseModelId('{"id":"Qwen3.8-27B-IQ4KT-100K","providerID":"llama-swap"}'));
 console.log("parseModelId plain:", m.parseModelId("plain-id"));
 console.log("parseModelId bad:", JSON.stringify(m.parseModelId("{not-json")));
+
+// ---- #115 (2026-09-28): resolveWindow — the window is CONFIG-FIRST.
+// The fixture is a real JSONC file (line + block comments, trailing
+// commas, a `//` INSIDE a string literal — a broken string-aware strip
+// would break the parse → the fallback → the pins below fail), steered
+// via setConfigFileForTest (the setBudgetFileForTest pattern). Pins:
+// (a) config hit beats the name marker; (b) no-marker model + config →
+// the config value; (c) model not in the config → the name parse;
+// (d) config file missing → the name parse; (e) the JSONC config (comments
+// incl. a `//` inside a string) parses; (f) no provider prefix → the
+// name-parse fallback.
+const tmpC = freshSandbox("gauge_window_config");
+const cfx = path.join(tmpC, "opencode.jsonc");
+fs.writeFileSync(
+  cfx,
+  [
+    "// fixture JSONC config (real comments + trailing commas)",
+    "{",
+    "  /* a block comment */",
+    '  "provider": {',
+    '    "fx": {',
+    '      "name": "fx provider",',
+    '      "options": {',
+    '        "baseURL": "http://127.0.0.1:8033/v1" // a // INSIDE a string literal',
+    "      },",
+    '      "models": {',
+    '        "x-256K": {',
+    '          "limit": { "context": 999999 },',
+    "        },",
+    '        "no-marker": {',
+    '          "limit": { "context": 123456 },',
+    "        },",
+    '        "tricky-100K": {',
+    '          "limit": { "context": 777777 } // tail comment',
+    "        },",
+    "      },",
+    "    },",
+    "  },",
+    "}",
+  ].join("\n"),
+  "utf-8",
+);
+m.setConfigFileForTest(cfx);
+const chkW = (label, inp, want) => {
+  const got = m.resolveWindow(inp);
+  const ok = got === want;
+  if (!ok) fail++;
+  console.log(`${ok ? "PASS" : "FAIL"} resolveWindow(${JSON.stringify(inp)}) = ${got} (want ${want}) // ${label}`);
+};
+chkW("(a) config hit beats the name marker", "fx/x-256K", 999999);
+chkW("(b) no-marker model + config → the config value", "fx/no-marker", 123456);
+chkW("(e) JSONC config with comments (incl. a // inside a string) parses", "fx/tricky-100K", 777777);
+chkW("(c) model not in the config → the name parse", "fx/other-256K", 256000);
+m.setConfigFileForTest(path.join(tmpC, "absent.jsonc")); // never created
+chkW("(d) config file missing → the name parse", "fx/x-256K", 256000);
+m.setConfigFileForTest(cfx);
+chkW("(f) no provider prefix → the name-parse fallback", "x-256K", 256000);
+chkW("non-string → undefined (the parseWindow contract)", null, undefined);
+fs.rmSync(tmpC, { recursive: true, force: true });
 
 // ---- item 3 (2026-09-24): the "N compactions left" budget suffix — the 3
 // states + fail-open. remaining = max(0, cap - count) + 1 iff the emergency

@@ -36,3 +36,8 @@ is the source, no duplicated moving number); `deactivated/` — retired plugins
 (frozen); `dev/` —
 development copies. Program files: changes activate at host restart; the probe
 gate must stay green after any plugin change.
+
+Per-file docs: `auto_resume.md` · `compact_memory.md` (incl.
+`compaction_core.ts`) · `context_recovery.md` · `intercept_observer.md`
+(incl. `intercept_observer_core.ts`) · `ctx_watchdog.md` (incl.
+`scripts/gauge.mjs` + `scripts/peek.mjs`).

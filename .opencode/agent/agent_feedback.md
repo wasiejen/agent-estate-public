@@ -644,3 +644,6 @@ Stale spec baseline: the plan31 #114 spec DoD quoted `submit 20/20` from the sta
 ### 2026-09-28_05-13 planner_Q3S_245K_slow ses_f1a4f121cffepXvNl2sCuSaM51
 Glob tool quirk: `glob` with pattern `.opencode/plugin/*` returned "No files found" while the directory clearly has files (grep found them) — dot-folder top-level patterns may need a different form (e.g. `.opencode/plugin/**/*` or a path param); cost one extra call to fall back to grep/bash ls.
 
+### 2026-09-28_05-54 worker_Q3S_245K_slow ses_f19f14f77ffec3eM4B77xFC36Z
+plan32 unit1 spec: the "first ~40-60 lines" header assumption underestimates the two longest plugin headers (ctx_watchdog.ts header runs to ~L188, intercept_observer.ts to ~L170) — covering v2.8/R3/R8 required reads well past line 80.
+

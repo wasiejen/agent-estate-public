@@ -1,116 +1,102 @@
-# Worker summary — plan31 unit 2: TODO #106 — edit-hint / edit-fuzzy outcome tokens (worker-31)
+# Worker handover — worker-32 (plan32 unit 1: TODO #110 + #112, the plugin-docs batch)
 
-## What changed
+## What changed (docs-only, pre-approved)
 
-One verified unit (code + pins — the probe can only be green with both),
-all in this session's final commit (hash recorded in the planner's
-follow-up bookkeeping commit, per the spec):
+**Goal A (TODO #110) — committed in `3a5de39` (unit-A checkpoint):**
+- 9 new per-plugin/per-tool READMEs, each next to its source, each ≤ 60 lines
+  (`wc -l` measured):
+  - `.opencode/plugin/auto_resume.md` (30) — units 1-4: event log, passive
+    nudge suffix, spawn helper, liveness watchdog + scope toggle
+  - `.opencode/plugin/compact_memory.md` (31) — the tool + what
+    `compaction_core.ts` is and who imports it (tool + hook, T5 constraint)
+  - `.opencode/plugin/context_recovery.md` (29) — the event-hook backstop +
+    the `emergencyRecovery` flag in compact_budget.json
+  - `.opencode/plugin/intercept_observer.md` (33) — the observer + core;
+    channels one line each (observe, pair R1/R2, fuzzy, git refs, edit R6 +
+    edit-fuzzy, R3 arg-scope, R8 redirect, journal, after-hook)
+  - `.opencode/plugin/ctx_watchdog.md` (29) — the gauge/ctx-nudge family:
+    v2.8 readout trio, the nudge ladder, the chat.message ctx: line, gauge.mjs
+    + peek.mjs
+  - `.opencode/tools/block_transfer.md` (25) — 11 modes + the unified anchor
+    rule (one line + pointer to the knowledge notes)
+  - `.opencode/tools/loop_log.md` (25) — the 8-char status tokens + auto-fill
+    slots
+  - `.opencode/tools/submit.md` (29) — the 4 inbox channels + stamping
+  - `.opencode/tools/ctx_gauge.md` (23) — the readout form, the #103 lag
+    semantics, the #114 budget suffix
+- `.opencode/plugin/README.md` + `.opencode/tools/README.md` each gain a short
+  "Per-file docs:" index line-list (existing content untouched); the tools
+  README also carries the two minor-tool one-liners (`session_info.ts`,
+  `dev_get_tool_context_contents.ts` — "minor host-bridge tool, see its
+  header").
 
-1. **`.opencode/plugin/intercept_observer.ts`** (the settled design, no
-   re-derivation — the evidence strings are the single source; the log
-   line and the delivered hint share them):
-   - **APPLIED**: the mutating edit-fuzzy evidence is now
-     `fuzzy-edit applied orig=<t40> len=<n> d=<0|1> value=<t40>` (the
-     token right after `fuzzy-edit`), and the after-hook now STORES +
-     DELIVERS this line on the (successful) tool result — the delivered
-     edit-hint line is no longer failure-only (the old
-     `hint.verdict !== "fuzzy-edit"` store gate at the former
-     L1457-1459 is gone — every hint outcome is stored).
-   - **REJECTED**: every fail-closed / ambiguous hint evidence now
-     carries `rejected` right after `hint` (same shape otherwise):
-     `hint rejected lines=<starts…>`, `hint rejected line=<n> d=0
-     gap=inf snippet=<…>`, `hint rejected line=<n> d=<d>
-     gap=<g|inf> snippet=<…>`, `hint rejected lines=<n1,…>`,
-     `hint rejected cands=<…>`, `hint rejected reason=<…>[ best-d=<d>]`.
-   - Header doc block (5) + (6) + the `runEditFuzzy` / `onToolAfter` /
-     `onToolBefore` comment blocks updated (doc-only).
-   - NO verdict-table change (the core `VERDICTS` list + counts stay —
-     the `fuzzy-edit` VERDICT is unchanged; the token is evidence-only).
-     `locateContent` / `resolveEditOldString` untouched.
-   - `intercept_observer_core.ts` untouched (the hint construction lives
-     in the wrapper's `runEditFuzzy` — the spec's core-file mention did
-     not apply; see "spec/code disagreement" below).
+**Goal B (TODO #112) — in this final commit:**
+- NEW `.opencode/agent/knowledge/opencode-plugins/2026-09-28_auto-resume-
+  units-explainer.md` (61 lines ≤ ~80) — per-unit what/trigger/log-lines
+  table + the unit-4 routing itemization; all 14 real log tokens named from
+  the code (`arm= scope= nudge= rearm= route= recovery= relay= skip= spawn=
+  spawn-fail= deactivate= budget= send-fail= err=`); pointer-only to the
+  surface report, deep-dives A/B/C, auto-resume-map, host-map; the
+  compaction-handout inclusion is noted as the MAINTAINER's paste (NOT done
+  here — his draft file).
 
-2. **`.opencode/plugin/tests/intercept_observer.smoke.mjs`**: the
-   R6/edit-fuzzy pins re-pinned ((10e)/(10f)/(10g)/(10h) + (11a)–(11f));
-   **ONE new check (10h2)**: a mutating edit-fuzzy delivers the
-   `fuzzy-edit applied` line on the (successful) tool result (consumed
-   once). Smoke total 77 → 78.
+## Hook-surface spot check (spec DoD — the table)
 
-3. **`.opencode/plugin/probes/handover_probe.mjs`**: re-pinned byte-exact
-   — S26 checks 271–276, S27 checks 277–284, plus S20 check 203 (the
-   content-scope-guard edit pin OUTSIDE the S26/S27 sections — it also
-   carries a `hint …` line and was found by the spec's grep scope).
-   Check count UNCHANGED → the header tally stays 346 (re-pins only, no
-   new checks). S26/S27 section headers + the header summary shape lines
-   updated (doc-only).
+Raw `grep -c` per named string in the named source file (counts include
+header/comment mentions; the live hook keys were also verified in each file's
+hooks object, e.g. auto_resume.ts L1729-1734):
 
-## Measured verification (gate green)
+| README | hook / entry-point string named | source file | grep -c |
+|---|---|---|---|
+| auto_resume.md | `tool.execute.after` | auto_resume.ts | 3 |
+| auto_resume.md | `event:` (the hooks key) | auto_resume.ts | 2 |
+| compact_memory.md | `tool({` (tool registration) | compact_memory.ts | 1 |
+| compact_memory.md | `export function` (the core's named surface) | compaction_core.ts | 15 |
+| context_recovery.md | `event:` (the hooks key) | context_recovery.ts | 3 |
+| intercept_observer.md | `tool.execute.before` | intercept_observer.ts | 2 |
+| intercept_observer.md | `tool.execute.after` | intercept_observer.ts | 2 |
+| ctx_watchdog.md | `tool.execute.before` | ctx_watchdog.ts | 4 |
+| ctx_watchdog.md | `tool.execute.after` | ctx_watchdog.ts | 11 |
+| ctx_watchdog.md | `chat.message` | ctx_watchdog.ts | 9 |
+| ctx_watchdog.md | `event:` (the hooks key) | ctx_watchdog.ts | 1 |
+| block_transfer.md | `export default tool` | block_transfer.ts | 1 |
+| loop_log.md | `export default tool` | loop_log.ts | 1 |
+| submit.md | `export default tool` | submit.ts | 1 |
+| ctx_gauge.md | `export default tool` | ctx_gauge.ts | 1 |
 
-- intercept_observer smoke: **ALL PASS (78/78)** (77 baseline + 1 new check).
-- Full probe run: **346 checks = 335 PASS + 11 FAIL** — the 11 are the
-  pre-existing ENVIRONMENTAL numword-python failures 136–146 (#113:
-  missing `python312` interpreter), NOT regressions. The probe
-  self-annotation agrees (346).
-- All other smokes unchanged: auto_resume 140/140, compact_memory 78/78,
-  context_recovery 17/17, block_transfer 131/131 + sandbox 64/64,
-  gauge_core ALL PASS, ctx_gauge 3/3, loop_log 69/69, submit 23/23.
-- ruff F=0 (`./.venv/Scripts/ruff.exe check --select F .` → "All checks
-  passed!").
-- pytest UNRUNNABLE (#113) — not attempted, per the spec.
+No zero-count claims. No README contradicted the code (headers read as the
+contract; no stale hook names found) — no discrepancy todo filed.
 
-## Spec/code disagreement (recorded per the contract)
+## Verification (measured)
 
-None on behavior — but one scope note: the spec/TODO suggested scope
-names `intercept_observer_core.ts` "the hint construction"; the hint
-evidence strings are actually built in `intercept_observer.ts`
-(`runEditFuzzy`), and the core file needed no change (the verdict table
-and locators are untouched by design). The spec's own change list
-agrees — the core file was not touched.
-
-## Edge case (per the spec — recorded, not hidden)
-
-A stored fail-closed hint + a SUCCESSFUL edit can only co-occur on a
-between-hooks file race (fail-closed ⟺ 0 raw occurrences at before-hook
-time). If it happens, the delivered `hint rejected …` line next to a
-success is the VISIBLE race signal (exactly the #106 pain, now
-detectable) — no special-casing was added.
-
-## Observed detail worth knowing (not a defect)
-
-The DELIVERED hint carries the RAW evidence string: for a MULTI-LINE
-oldString the delivered `fuzzy-edit applied` line contains real
-newlines/CRLF (pinned byte-exact in probe 283:
-`orig=alpha one\nbeta two\ngamma three … value=alpha one\r\nbeta two\r\ngamma three`).
-The LOG line of the same call is the FLATTENED one (newlines → spaces —
-pinned in probe 277/284). Both derive from the same evidence string;
-flattening happens at log-write time. Any future multi-line pin must be
-taken from the actually delivered output.
-
-## Live acceptance / canary caveat
-
-Standard caveat: the tokens are observable in intercept.log + on tool
-results of any later edit, but the RUNNING opencode process loaded the
-plugin at startup — the new line forms take effect from the next
-process restart (no other restart dependency). The smoke/probe pins
-exercise the module directly and are the machine-verified evidence.
+- `wc -l`: all 9 A-READMEs ≤ 60 (23-33); the B entry = 61 ≤ 80.
+- `git status` after the unit-A commit: only the 9 READMEs + 2 folder READMEs
+  (+ the loop log). After this final commit: + the B entry, `TODO.md`, this
+  handover, the loop log. NO `.ts`/`.mjs`/`.py`/`.jsonc` file changed (checked
+  per commit; the DO-NOT-touch list was respected).
+- No gate run — docs-only per the spec (no probes/smokes/pytest run).
 
 ## TODO entries
 
-- `TODO.md` #106 → LANDED (status line updated; the commit hash is
-  recorded in the planner's follow-up bookkeeping commit — a worker
-  commit cannot carry its own hash, per the spec).
+- #110 → `LANDED`, #112 → `LANDED` (status text updated; hashes recorded in
+  the planner's follow-up bookkeeping commit — unit A = `3a5de39`, unit B =
+  this handover's commit).
 
 ## Deliberately NOT done
 
-- The pair/fuzzy/segment channels, the R8 redirect notes, the journal,
-  `locateContent` / `resolveEditOldString` internals, auto_resume,
-  compact_memory, the gauge family, the FST code, `.opencode/maintainer/**`,
-  the #114 gauge.mjs change (12e3262) — all untouched per the DO-NOT-touch
-  list.
-- pytest not attempted (#113).
+- The `knowledge/opencode-plugins/README.md` was LEFT UNCHANGED: it is not a
+  file list (a descriptive paragraph whose named files are all copied-repo
+  derivations; our dated explainer is derived from our own code) — per the
+  spec's conditional, no line added. Flagged for the planner if a line is
+  wanted anyway.
+- The compaction-handout paste — the maintainer's domain (noted in the B
+  entry).
+- No `todo_inbox.md` entries — nothing found that is a real doc/code bug
+  (the headers are current).
 
-Lessons: the delivered after-hook hint preserves the RAW (unflattened)
-evidence string while the log line is flattened at write time — byte-pins
-for multi-line oldStrings must be taken from the actually delivered
-output (probe 283 re-pin).
+## Lessons
+
+- The spec's "first ~40-60 lines" header assumption underestimates the two
+  longest headers (ctx_watchdog.ts runs to ~L188, intercept_observer.ts to
+  ~L170) — a docs task over them needs reads past 80 lines to cover v2.8 /
+  R3 / R8. (Also fired to the feedback channel.)

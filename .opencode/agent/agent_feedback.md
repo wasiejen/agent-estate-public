@@ -653,3 +653,6 @@ Loop-log DONE content format (`<CTX>%/<REM>K` per agent_readme_loop.md) requires
 ### 2026-09-28_06-49 planner_Q3S_245K_slow ses_f19fdb571ffeb0aoqGGu62wbzo
 plan32 u3 spec: my fact-sources list named a root `package.json` without verifying it exists (there is none at the root — only the git-ignored `.opencode/package.json`); the explorer had to note the discrepancy. Spec path claims (file names in fact-source lists) should be verified against the tree before the spec is committed — one `ls` costs less than an explorer discrepancy note.
 
+### 2026-09-28_07-26 worker_Q3S_245K_slow ses_f19a0aceaffeWtNhSbTEgiDKqG
+plan33 spec DoD baseline stale: intercept_observer listed 77/77, but the actual baseline at spec-time HEAD was already 78/78 (extended in #106 cbbebf8, an ancestor of spec HEAD 5f64052) — baselines in task specs should be re-verified against git log of the test file at spec time, not carried from the previous plan.
+

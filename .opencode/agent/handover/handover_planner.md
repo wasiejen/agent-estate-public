@@ -4,62 +4,51 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## Current session — autorun, 2026-09-28 (ses_f1a8a9671ffezAA9MrZmlE8YKV, planner-30, Qwen3.8-27B-Q3S-245K-slow)
-- plan30 (iter 30, unit-4 restart branch after planner-29 `action:
-  restart`): **MAINTENANCE PASS (iter-30 counter trigger, runs first)** —
-  knowledge inbox: all 4 pending entries already cured by plan28 (verified
-  in the area files — host-map token forensics L256, knowledge_plugins
-  lineage cap L309, knowledge_tools AGENTS.md-watch L479 — nothing new to
-  cure, the inbox keeps entries + curation log per the APPEND-ONLY header);
-  TODO stale headers cured (#67/#70/#78/#97 — full text → todo_records.md,
-  one-liners in place; #67 added: its 2 pending R3 channels were resolved by
-  the plan23 re-test 2026-09-26); proposals: the 3 IMPLEMENTED ones moved
-  approved/ → implemented/ with verdicts (auto-resume-plugin,
-  unit4-compaction-resume, block_transfer-v2) — CORRECTION to the plan29
-  NAP: the 4th (fst-rebind-repeat) is NOT implemented — it carries a live
-  `--deferred` marker (until the repo split) and STAYS in approved/;
-  priority.md: the fully-handled "planner behavioral guidelines" section
-  removed (plan28 moved it to the destill memory — MEM-0110) + reply in
-  _past_priorities.md; knowledge: new knowledge_tools entry (block_transfer
-  digit line refs go stale after same-file edits — the 2026-09-28_02-03
-  feedback lesson); feedback/ideas inbox review: #114 FILED (injected-line
-  vs ctx_gauge budget-suffix discrepancy — 1 vs 5, research first), the
-  loop_log role auto-fill entry is documented (agent_readme_loop.md
-  L81-87 — no action), the venv break = #113 (existing).
-- Baselines: UNCHANGED — the venv is still broken (re-verified this
-  session: `./.venv/Scripts/python.exe` fails, #113 MAINTAINER CALL) —
-  the last FULL gate is still plan26/27 (2026-09-27); the probe's 11
-  numword-python failures (136-146) remain environmental.
-- Marker sweep: no new live maintainer markers (the standing blocks in
-  priority.md + the `--deferred` in fst-rebind-repeat + the `--wip` in
-  my_todos/ideas are standing, all already handled/known).
-- **#105 (c)+(d) DONE (explorer-30, 98bcaf7/c81f6c1/ba2a240 —
-  planner-verified from files):** (d) compaction-summary customization:
-  the 1.18.32 summarize takes NO body/env prompt override — influenceable
-  surfaces = the config `agent.compaction.prompt`/`system` (maintainer
-  file) + our plugin hooks (`experimental.session.compacting`,
-  `messages.transform`, `system.transform`, `text.complete`) — BOTH his
-  ideas reachable without a fork; recommendation: phased plugin-side (soft
-  context injection first, ~0.5-1 day). (c) v2 hardening: mainline = the
-  default branch `dev`, latest tag v2.0.18, npm `latest` is still 1.18.32
-  (v2 only on the npm `dev` tag); v2 summarize has NO per-call keep
-  (ConfigV2 unchanged — one open gap: the v2 `/api/compact` payload,
-  follow-up path specified); risks concentrated in event-payload shapes /
-  the gauge DB schema / v1-format config fields; recommendation: do NOT
-  switch now. The "~2000 branches" claim unverified (honestly reported).
-- CLOSE: plan30_summary.md + loop DONE line + final bookkeeping commit;
-  action: restart.
-- Queue for iter 31: #106 (edit-fuzzy APPLIED/REJECTED hint — worker),
-  #110 (per-plugin READMEs), #112 (auto-resume explainer), #114 (budget-
-  suffix research — now with TWO live data points: planner-29 + explorer-30
-  both observed the 1-vs-5 discrepancy), the repo-split research (his
-  priority.md section — idle lane), the remaining LANDED-header TODO
-  one-liner condenses (#84/#88/#90/#92/#94/#96/#98/#100/#102/#103/#104 —
-  deferred to the iter-35 pass); #105 (e) stays open (the maintainer's
-  opencode.jsonc write-access tightening pending — his domain).
+## Current session — autorun, 2026-09-28 (ses_f1a4f121cffepXvNl2sCuSaM51, planner-31, Qwen3.8-27B-Q3S-245K-slow)
+- plan31 (iter 31, unit-4 restart branch after planner-30 `action:
+  restart`):
+  - **#114 ROOT CAUSE identified + measured (planner-direct — the 3rd
+    live data point):** my own session's injected ctx: line read
+    "1 compaction left" at session start while the ctx_gauge self-read
+    showed "5 compactions left" (same session, no compaction between).
+    Root cause: `gauge.mjs` no-total reads (no finished step yet — a fresh
+    session) resolve the model to "" (the model comes only from the
+    finished-step row; the session row's own `model` column is never read)
+    → `model_budget.default` (=1) instead of the session's cap (5). Both
+    surfaces share the SAME gauge core — one code path read at two times.
+    Knowledge entry committed (`knowledge_plugins.md`, last entry).
+  - **#114 FIX LANDED + planner-verified (worker-31
+    ses_f1a403aecffeP658IC4yNdEFdr, 12e3262):** the session-row model as
+    the no-total fallback (SQL forms + `readApiDb` + the spawn S row —
+    `compactionsLeftSuffix` logic untouched); probe **346** (335 pass +
+    the 11 environmental 136-146, #113), pins 23/28.6/28.7/36 (28.7 NEW:
+    model-nowhere → default 1; `ses_fx_nomodel` fixture), gauge_core smoke
+    ALL PASS (planner re-run); bookkeeping 2c04582/4870630. LIVE
+    acceptance PENDING the maintainer's host restart (a fresh session's
+    injected line should then read "5 compactions left").
+  - **#106 spec committed (ea730f9) + worker launched:** `applied`/
+    `rejected` outcome tokens on the edit-fuzzy/edit-hint feedback lines +
+    the `fuzzy-edit applied` line delivered on the SUCCESSFUL tool result
+    (the mutation was invisible to the agent before — the hint was
+    deliberately not stored).
+  - Baselines: probe 346 (post-#114); venv still broken (#113 MAINTAINER
+    CALL — pytest half unrunnable, the 11 numword-python failures
+    environmental); the submit smoke baseline corrected 20/20 → 23/23
+    (stale in the plan31 spec DoD — todo_inbox 2026-09-28_04-25, curated
+    here, no action needed).
+  - Marker sweep: clean (only the known standing markers). Inbox empty.
+  - Queue for iter 32: #110 (per-plugin READMEs), #112 (auto-resume
+    explainer), #109 (silent context-limit-stop detector — research
+    first), #114 live acceptance (post-restart), the repo-split research
+    (his priority.md section — idle lane), the remaining LANDED-header
+    TODO one-liner condenses (#84/#88/#90/#92/#94/#96/#98/#100/#102/#103/
+    #104 — deferred to the iter-35 pass); #105 (e) stays open (the
+    maintainer's opencode.jsonc write-access tightening pending — his
+    domain).
 
 
 ## Compressed archive (one line each
+  - 2026-09-28 autorun (ses_f1a8a9671ffezAA9MrZmlE8YKV, planner-30, Qwen3.8-27B-Q3S-245K-slow) — plan30: MAINTENANCE PASS (iter-30 counter trigger: knowledge inbox verified already-cured, stale TODO headers #67/#70/#78/#97 cured, 3 implemented proposals → implemented/ + verdicts, fst-rebind-repeat STAYS approved/ — live --deferred, priority.md guidelines section removed, knowledge entry + #114 filed) + #105 (c)+(d) research DONE via explorer-30 (v2 hardening: do NOT switch now; compaction-summary customization: phased plugin-side, no fork needed) — details: loop folder plan30_summary.md + git 3101ef9..d1debcc
   - 2026-09-28 autorun (ses_f1aacd085ffeRONA7LZvTViDgw, planner-29, Qwen3.8-27B-Q3S-245K-slow) — plan29: PRE-APPROVED FRICTION BATCH LANDED (#107 7c91ecc / #108 c0f96b8 / #111 03a1fc6) + #113 FILED (venv python312 base break — MAINTAINER CALL; the pytest half of the standard gate unrunnable) + auto_resume baseline 139→140 (the 3914181 cap-config check) — details: loop folder plan29_summary.md + git 9a12594..f1918dc
   - 2026-09-28 autorun (ses_f1b04ea20ffeo9jTAs1IEvAGjg, planner-28, Qwen3.8-27B-Q3S-245K-slow) — plan28: MAINTENANCE PASS (catch-up — iter-25 missed: knowledge inbox cured 4 entries + behavioral guidelines → destill memory (MEM-0110 = canonical home) + TODO header/#95 close/#106-#112 filed + prompt/spec friction fixes + feedback 579 verified PARTIALLY STALE + agent_ideas scan 4 submitted) + #105 (a) ideas.md scan triaged + #105 (b) keepTokens fork-effort research (explorer-28 — FORK NOW recommendation, plugin side = 0 lines; the fork build+swap + N=10 acceptance are maintainer domain) — details: loop folder plan28_summary.md + git e2b1cf8/d963e51/aaa1dfa/3ab8a5f
   - 2026-09-27 autorun (ses_f1d198b41ffeJA3a3By7tu3TfD, planner-27, Qwen3.8-27B-Q3S-245K-slow) — plan27: #99 follow-up research DONE (host 1.18.32 = the scratchpad dev tree; NO per-call keep input — the config `compaction.keep.tokens` (via the v2-compat shim) is the ONLY retention control; the budget is consumed whole-turn under an estimated-token metric; RESIDUAL = the N=10 discriminator + the summarize-scope probe — maintainer live) + bt live acceptance 3/3 PASS + #104 (e57f8a3) + #103 (fcc0fc8) LANDED + his in-session design directions LANDED (the submit ideas channel, the idle close policy, the LINEAGE_MAX_DEPTH 2→10 live-configurable 3914181, the explorer/researcher makeover → #105 (e)) + #92 LIVE-ACCEPTED (2750f0f) + the depth-cap direct Q&A codified — details: loop folder plan27_summary.md + git e57f8a3/fcc0fc8/3914181/2750f0f/ff94000 + `AGENTS_pending_2026-09-27.md` staged at the repo root (his pending paste)
@@ -170,11 +159,12 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   each save (normally triggered by the git add + commit). Pending changes
   ride the copy + this NAP's pending list. (Full entry: knowledge_inbox.md
   2026-09-27_23-40.)
-- Baselines (re-verified 2026-09-28 by the planner, post-plan29 friction
-   batch — compact smoke 78/78 + auto_resume smoke 140/140 + probe all
-   green except the #113 environmental failures; the last FULL gate was
-   plan26/27, 2026-09-27):
-     probe **345** (344 + check 345 post-plan26 #92 json naming; the S14
+- Baselines (re-verified 2026-09-28 — post-plan31 #114 fix: probe 346
+    (335 pass + the 11 #113 environmental 136-146), gauge_core smoke ALL
+    PASS (planner re-run), smokes as below; the last FULL gate was
+    plan26/27, 2026-09-27; the venv is broken — #113 MAINTAINER CALL):
+      probe **346** (345 + check 28.7 post-plan31 #114 the model-nowhere
+      default-1 pin; check 345 post-plan26 #92 json naming; the S14
      dump section is now (8); check 108's enum pin carries the 11 bt
      modes post-S4); smokes **all green**
       (context_recovery 17/17 (post-unification Part B re-pins),
@@ -183,7 +173,7 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
      auto_resume **140/140** (139 + the 3914181 cap-config check),
      intercept_observer 77/77 (post-R3: 68 + 9 channel checks),
      block_transfer 131/131 + 64/64 (post-plan25: 123+8 new checks),
-     submit 20/20);
+      submit 23/23 (corrected 2026-09-28 — the 20/20 was stale));
    the per-suite counts are in each smoke's own readout — no total kept
    here); pytest **459 passed + 1 warning (the known #10 coroutine
    warning)**; ruff **F=0** — **ENVIRONMENT (2026-09-28, #113 —

@@ -659,3 +659,6 @@ plan33 spec DoD baseline stale: intercept_observer listed 77/77, but the actual 
 ### 2026-09-28_07-42 planner_Q3S_245K_slow ses_f19a6d8effferDMEYo31DsSXCF
 NAP Standing baselines drifted from the test suites: the plan31 bookkeeping did not update the intercept_observer baseline (77→78) when #106 extended its smoke, so the plan33 spec faithfully carried a stale number and the worker had to re-derive it (worker filed the spec-side entry). Rule for bookkeeping commits: whenever a landing changes a smoke/probe count, update the NAP Standing baseline IN THE SAME commit — a 10-second grep of the suite's own readout, cheaper than a worker discrepancy note.
 
+### 2026-09-28_08-14 worker_Q3S_245K_slow ses_f19678e4affewDsm1KbWh7ZyNj
+glob tool silently returns "No files found" for patterns under .opencode/plugin/ (e.g. .opencode/plugin/**/*.mjs) though the files exist — bash ls/grep with an explicit dir is the working fallback (worker-34, #115).
+

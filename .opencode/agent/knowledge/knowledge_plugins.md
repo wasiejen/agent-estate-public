@@ -362,3 +362,23 @@ Gained, verified knowledge for opencode plugins. Format per the README:
   sessions[sid].count).
 - **Keys:** gauge, compactionsLeftSuffix, no-total, session-row model,
   model_budget default, injected ctx line, session start, #114.
+
+## Gauge window is CONFIG-FIRST: root opencode.jsonc `limit.context` beats the name marker (verified 2026-09-28, worker-34 — #115)
+- **Do:** the gauge's context window resolves CONFIG-FIRST: the root
+  `opencode.jsonc` `provider.<pid>.models.<mid>.limit.context` (a finite
+  number > 0) wins; the name-marker `parseWindow` is the FALLBACK (no
+  provider prefix / config missing / unparseable / no entry / non-finite /
+  <= 0 → the name parse, never a throw). A model rename (no K/M marker) is
+  free as long as the config entry keeps its `limit.context` — the readout
+  no longer loses `(pct%)/REM`.
+- **Why (evidence):** #115 smoke pins green (config hit beats the name
+  marker, no-marker + config, not-in-config, missing config, a JSONC config
+  with comments incl. a `//` inside a string literal, no-prefix fallback);
+  standard gate green (probe 335 PASS + the 11 pre-existing #113
+  environmental numword-python failures 136-146, all other smokes at
+  baseline, ruff F=0; pytest blocked by #113 — reported, not fixed).
+- **Ref:** `.opencode/plugin/scripts/gauge.mjs` (`resolveWindow` +
+  `parseJsonc` + `setConfigFileForTest`); `.opencode/plugin/tests/
+  gauge_core.smoke.mjs` (#115 section); TODO #115.
+- **Keys:** resolveWindow, limit.context, opencode.jsonc, JSONC, parseJsonc,
+  name-marker fallback, gauge window, model rename, #115.

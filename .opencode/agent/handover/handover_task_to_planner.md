@@ -1,115 +1,100 @@
-# Worker summary — plan33 unit 1 (worker-33): TODO #109 silent limit-stop detector (build)
+# Worker summary — #115 gauge window config-first (worker-34)
 
-SESSION ses_f19a0aceaffeWtNhSbTEgiDKqG · model Qwen3.8-27B-Q3S-245K-slow · 2026-09-28
+SESSION ses_f19678e4affewDsm1KbWh7ZyNj · model Qwen3.8-27B-Q3S-245K-slow · 2026-09-28
 
 ## Executive summary
-TODO #109 is LANDED: a SILENT context-limit stop is now visible. A new
-zero-IO `limitStopCheck()` leg in the auto_resume 5 s tick (`.opencode/
-plugin/auto_resume.ts` only, per the research doc `2026-09-28_silent-
-limit-stop-detector.md` §2/§4/§5) fires, once per episode, ONE `-WARNING`
-line into the current looprun's `loop_log.md` (+ ONE `limit-stop= sid=…
-total=…` line in `auto_resume.log`) when a watched role session died at
-the context wall (`finish=length`, tokens ≥ 0.99 × window), was never
-compacted since the death step, and has been silent + idle ≥ 60 s. NO
-action on the session (no compaction dispatch / send / resume — that
-part is the maintainer call, deliberately not built).
+TODO #115 is LANDED: the gauge's context window now resolves CONFIG-FIRST —
+the root `opencode.jsonc` `provider.<pid>.models.<mid>.limit.context`
+(finite > 0) wins, the name-marker `parseWindow` is the fallback. A model
+rename (no K/M marker) no longer degrades the readout. ONE change in the
+shared core `.opencode/plugin/scripts/gauge.mjs` covers all three surfaces
+(the ctx_watchdog injected line, the intercept_observer note, the
+ctx_gauge tool) — no plugin/tool code changed.
 
 ## What changed
-- **Unit A — plugin (`aa47335`, 151 ins / 15 del, `auto_resume.ts` only):**
-  - 5 new `Watch` fields: `lastFinish`, `lastFinishAt`, `lastCompactAt`,
-    `firstAgent`, `limitWarned` (interface + `getWatch` init).
-  - `armEvent` `message.updated`: first user `info.agent` captured at arm
-    time (first non-empty string wins); the assistant step's `finish`
-    (top-level sibling of the same info object, per doc [E1]) captured
-    with event time; a NEW assistant update clears the per-episode
-    latch. The busy branch also clears the latch.
-  - `tailCompactRearm`: sets `lastCompactAt` on a NEW `COMPACT <sid>`
-    line (event time).
-  - New `limitStopCheck()` leg in `tick()` — AFTER `tailCompactRearm`
-    (a same-tick COMPACT is therefore visible to clause (4)), BEFORE the
-    routing loop, own try/catch (the tick never throws). The 5-clause
-    conjunction verbatim from doc §2; per-model window via the CACHED
-    `getModelLimits(...).context` (null/unresolvable → NO fire,
-    fail-open).
-  - New `fireLimitStop()`: the `-WARNING` line (`<stamp> -WARNING
-    auto_resume <sid> <model> silent limit-stop: finish=length
-    total=<n> window=<n> no-COMPACT` — the 8-char loop-log form, machine-
-    stamped `YYYY-MM-DD_HH-MM` local, `auto_resume` in the role slot) is
-    appended to the looprun's `loop_log.md` by the plugin itself
-    (`mkdir -p` + append; the file is created if absent); no resolvable
-    folder → the `auto_resume.log` line only.
-  - Refactor: `spawnTitleFor()`'s folder resolution factored into a
-    shared `currentLoopFolder()` (spawn-title behavior unchanged — the
-    existing 140 checks pass).
-- **Unit B — smoke (`a570d9c`, 138 ins / 1 del,
-  `tests/auto_resume.smoke.mjs` only):** 6 pins (140 → 146), the
-  existing fake-timer / tickMs pattern + a GLOBAL `Date.now` warp for
-  the 60 s silence gate (no real 60 s waits; the offset is cumulative
-  across pins). Pin 1 asserts the loop_log.md FILE content (not only
-  the log line); pin 2 discriminates via the `rearm=` line (the leg
-  order); pin 6 asserts zero sends/spawns on the detector path. New
-  sids added to the live-log guard list.
+- **Code commit `0c90abe` (2 files, 180 ins / 4 del):**
+  - `gauge.mjs`:
+    - `parseJsonc` (replicated from auto_resume.ts's string-aware
+      JSONC→JSON strip — a `//` inside a string literal is NOT a comment;
+      trailing commas stripped; throws on parse failure, the caller
+      swallows). Replicated, not imported (plain .mjs — no TS import
+      possible).
+    - `DEFAULT_CONFIG_FILE` = repo-root `opencode.jsonc` (the
+      `join(THIS_DIR, "..", "..")` pattern of `DEFAULT_BUDGET_FILE`),
+      falling back to `opencode.json` when absent; `setConfigFileForTest` /
+      `getConfigFile` hooks (the `setBudgetFileForTest` pattern).
+    - new exported `resolveWindow(modelId)`: non-string → undefined;
+      first-`/` split → providerID/modelID (no `/` → skip the config path);
+      per-call config read (small file — the budget-store precedent) →
+      walk `provider[pid].models[mid].limit.context` — finite > 0 → the
+      window; every miss → `parseWindow(modelId)` (unchanged). Never throws.
+    - `gaugeFromRaw`: `window: resolveWindow(modelId)` (was parseWindow).
+    - the `parseWindow` header comment updated (it is now the FALLBACK of
+      resolveWindow — the rule itself is unchanged).
+  - `gauge_core.smoke.mjs`: 7 NEW resolveWindow pins — (a) config hit beats
+    the name marker (fx/x-256K → 999999), (b) no-marker model + config →
+    the config value (123456), (c) model not in the config → the name
+    parse (256000), (d) config file missing → the name parse, (e) a JSONC
+    fixture with line + block comments, trailing commas AND a `//` inside
+    a string literal parses (tricky-100K → 777777), (f) no provider prefix
+    → the name-parse fallback — + the non-string contract pin (undefined).
+    The fixture is a real JSONC file under the scratchpad, steered via
+    `setConfigFileForTest`. The existing 11 parseWindow pins + the item-3
+    budget-suffix pins are UNCHANGED (byte-identical).
+- **Bookkeeping (FINAL commit):** this handover, TODO.md #115 → LANDED,
+  the knowledge one-liner, the loop log DONE line.
 
-## Measured verification (all on HEAD a570d9c)
-- `node .opencode/plugin/tests/auto_resume.smoke.mjs` → **146/146 ALL
-  PASS** (exit 0); pre-change baseline was 140/140, post-Unit-A still
-  140/140. The fired line (measured): `2026-09-28_07-21 -WARNING
-  auto_resume ses_ls_fire model_x silent limit-stop: finish=length
-  total=99100 window=100000 no-COMPACT`.
-- Every other smoke at baseline UNCHANGED: block_transfer **131/131** +
-  sandbox **64/64**; intercept_observer **78/78**; compact_memory
-  **78/78**; context_recovery **17/17**; submit **23/23** (all exit 0).
-- Probe `node .opencode/plugin/probes/handover_probe.mjs` → **346 = 335
-  pass + 11 ENVIRONMENTAL #113 failures 136-146** (`No Python at
-  '…\python312\python.exe'`) — NOT regressions; the venv was not fixed
-  (per spec: maintainer call).
-- ruff `check --select F .` → **All checks passed** (F=0).
-- **The pytest half of the standard gate is BLOCKED by #113** (MAINTAINER
-  CALL, per spec DoD): `./.venv/Scripts/python.exe -m pytest -q` →
-  exit 103, `No Python at '"…\python312\python.exe'` — the venv's
-  interpreter is missing. Reported, NOT fixed.
-- `git status` clean except: the live loop log (`.opencode/loop/
-  autorun-2026-09-21_15-33/loop_log.md` — my START/DONE lines, rides the
-  planner's bookkeeping, as established) + the two submit-tool inbox
-  files (`agent_feedback.md` + `knowledge/knowledge_inbox.md` — my
-  friction/knowledge entries, committed by the planner in their
-  bookkeeping per established history).
+## Measured verification (all measured this session)
+- `gauge_core.smoke.mjs`: ALL PASS — 11 parseWindow pins (unchanged) + 1
+  parseModelId trio + 7 resolveWindow pins + 7 item-3 pins.
+- `ctx_gauge.smoke.mjs`: 3/3 — UNCHANGED, no re-pin needed (its live fixture
+  resolves identically: the live model's config value 245000 === its
+  name-marker parse).
+- `handover_probe.mjs`: 346 checks = **335 PASS** + the **11 pre-existing
+  environmental numword-python failures (136-146, #113 — NOT regressions)**
+  — identical to the documented baseline (TODO #106 close note). Zero
+  gauge-section failures; no probe re-pin / header change needed (the
+  synthetic `probe-model-256K_MTP`-style ids carry no provider prefix →
+  the config path is skipped — verified by running).
+- Other smokes at baseline: auto_resume 146/146, intercept_observer 78/78,
+  compact_memory 78/78, context_recovery 17/17, block_transfer 131/131 +
+  64/64, loop_log 69/69, submit 23/23.
+- ruff `--select F .`: **F=0** (all checks passed).
+- Live spot-check: `resolveWindow('llama-swap/Qwen3.8-27B-Q3S-245K-slow')`
+  = 245000 (config hit), no-prefix / unknown-provider / non-string ids fall
+  back as designed.
+- **pytest: BLOCKED by #113 (the broken venv)** — measured this session:
+  `./.venv/Scripts/python.exe -m pytest -q` exits 103 with `No Python at
+  'C:\...\python312\python.exe'` (the venv launcher points at a missing
+  `python312\python.exe`). Reported, NOT fixed (per spec). NOTE: this is
+  the SAME root cause as the 11 probe env failures (the probe spawns the
+  same venv python for the S17 python-twin checks).
 
 ## TODO entries
-- TODO.md **#109 status → LANDED** (the full status note rides this
-  final commit; commit hashes recorded by you in the follow-up
-  bookkeeping commit — the final TODO+handover commit hash is the one
-  this summary lands in, plus `aa47335` + `a570d9c`).
-- Nothing appended to `todo_inbox.md` (no out-of-scope findings).
+- #115 → **LANDED** (status flipped in TODO.md; the code commit's hash —
+  `0c90abe` — recorded in the planner's follow-up bookkeeping commit, not
+  in mine).
+- NO new TODO entry appended — no doc/code discrepancy found in scope.
+  (Stated, not promised: a legitimate one would have gone to
+  `todo_inbox.md`.)
 
-## Deliberately NOT done
-- No compaction dispatch / send / resume on detection (maintainer call,
-  per doc §5 approval boundary + spec).
-- No probe pin (the probe does not cover this plugin; per spec I flag
-  it here instead: if a probe pin is ever wanted, the detector's
-  -WARNING fire is the natural candidate — the smoke already covers
-  it).
-- The #113 venv (blocked pytest half) — NOT fixed, per spec.
-- Live acceptance (one worker dying at the wall → the `-WARNING` line
-  in `loop_log.md` within ~65 s) — PENDING the maintainer's host
-  restart; not mine to run.
-- No edits to `.opencode/maintainer/**`, root `opencode.jsonc`, live
-  `AGENTS.md`, the NAP, the loop folder contents, other plugins/tools,
-  the probe, `.opencode/agent/prompts/**`.
+## What was deliberately NOT done
+- `opencode.jsonc` — READ-ONLY (untouched; verified git status clean for it).
+- `auto_resume.ts` (`getModelLimits` / the tick legs) — the provider.list()
+  path is separate (untouched).
+- `formatGauge`'s output format — unchanged (existing fixture bytes
+  identical; the item-3 pins prove it).
+- `parseWindow` / `parseModelId` themselves — kept + exported (they are
+  the fallback); only the `parseWindow` header comment was updated to say
+  so.
+- The budget-store read (compact_budget.json) — separate concern (untouched).
+- The pytest/venv block (#113) — reported, not rebuilt.
+- The 11 probe env failures — pre-existing baseline, not touched.
 
-## Discrepancies / notes
-- **Spec DoD baseline stale:** intercept_observer was listed 77/77, but
-  the actual baseline at spec-time HEAD (5f64052) was already **78/78**
-  (extended in #106 `cbbebf8`, an ancestor of the spec HEAD — verified
-  via `git merge-base --is-ancestor`). "UNCHANGED from baseline" holds
-  at 78/78. Feedback entry filed (agent_feedback.md).
-- All seven verified anchors held at the spec'd line numbers (no
-  drift; no re-anchoring needed).
-- One interpretation note: "capture `firstAgent` at arm time" —
-  implemented as the zero-IO user-`message.updated` event-payload
-  capture (`info.agent ?? props.agent`, first non-empty string wins),
-  consistent with the doc §2 "all event-time captured" design (NOT a
-  messages()-fetch at arm time — there is no such call site).
-- Effort: ~150 plugin + ~135 smoke lines (the spec's 90-130 estimate
-  undershot the comment density the file's style demands — same code,
-  heavier documentation).
+## Friction
+- (submit fired separately — one line on the glob-tool anomaly.)
+
+## Lessons
+- `glob` silently misses files under `.opencode/plugin/` on this host
+  (a `.opencode/plugin/**/*.mjs` pattern returned nothing while the files
+  exist) — `bash ls` / `grep` with an explicit dir worked.

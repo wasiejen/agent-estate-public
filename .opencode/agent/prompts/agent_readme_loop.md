@@ -78,6 +78,13 @@ not here.
   with the accepted keywords named (nothing is written). The line-format
   description below stays the FALLBACK for when the tool is not registered
   (hand-append in that case, in the exact form below).
+- **Role/model slots and the `role-N` format:** the tool's auto-fill puts the
+  host AGENT ID in BOTH the role and the model slots (e.g.
+  `planner_Q3S_245K_slow`) — the iteration token can NEVER be auto-filled
+  (it exists only in the launch message / task spec). To keep the
+  documented `role-N` format, pass `role` (e.g. `planner-28`) and `model`
+  (your model id verbatim) explicitly. An auto-filled line is still a valid
+  log line (the agent attribution is preserved).
 - One line per event:
   `date_time <STATUS> <role>[-<iteration>] <session_id> <agent_model> <content>`
   - `<STATUS>` is exactly one of these 8-char tokens: `-->START`, `DONE<---`,
@@ -93,11 +100,14 @@ not here.
       task spec - before planning or heavy tool calls, because an interrupted
       delegation does not return the task_id and the log is the only way to
       find the session); content = the task oneliner.
-    - `DONE<---` — every agent WITH loop-folder write access (planner, worker)
+    -     `DONE<---` — every agent WITH loop-folder write access (planner, worker)
       writes one on task completion; content = the final gauge readout
       `<CTX>%/<REM>K` — verbatim from the gauge command, never guessed.
-      (The explorer has no loop-folder write access — its completion rides the
-      planner's `-RETURN-` line.)
+      (The explorer's completion normally rides the planner's `-RETURN-`
+      line — under the CURRENT pre-tightening permissions the explorer ALSO
+      has loop-folder write access and writes its own DONE line; the
+      maintainer's write-access tightening is pending, #105 (e) — once it
+      lands, the explorer's completion rides the `-RETURN-` line again.)
     - `-RETURN-` — the planner writes one when a sub-agent
       returns; content = the returned agent's `role-N session_id model`.
     - `-WARNING` — the supervising agent writes one when a sub-agent task FAILS

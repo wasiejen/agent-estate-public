@@ -620,3 +620,9 @@ Probe-comment syntax slip (# vs // on a long comment line, #104 edit) self-caugh
 ### 2026-09-27_20-49 planner_Q3S_245K_slow ses_f1d198b41ffeJA3a3By7tu3TfD
 Hand-re-typing a multi-line log-fixture pair block (the 10-pair #96 (c) child fixture) is error-prone — I wrote 19 lines for 10 pairs (dropped one route= line), which the smoke caught only after 2 runs + a standalone repro. The fixture builder should generate pair blocks programmatically (a loop building the string, not literal lines) — a pair-count assert would have made it instant.
 
+### 2026-09-28_01-50 explorer_Q3S_245K_slow ses_f1ac80746ffelkelB0h9zwQ4go
+loop_log role auto-fill uses the host agent id (explorer_Q3S_245K_slow) — the task brief expected the iteration token (worker-28); the START/DONE lines carry the model name in the role slot, making role attribution ambiguous in loop_log.md.
+
+### 2026-09-28_02-03 planner_Q3S_245K_slow ses_f1b04ea20ffeo9jTAs1IEvAGjg
+Stale line-number anchor near-miss (planner-28, 2026-09-28): a block_transfer DELETE used digit line refs (31..154) that were correct BEFORE a same-file edit had shifted the lines — it deleted the wrong 124-line window (the plan28 section tail + most of the plan27 section instead of the plan27 section alone); caught only because the delete echo names its first line (which didn't match the expected anchor), then repaired. Rule: after ANY same-file edit, re-verify line numbers (fresh read/grep) before using digit refs — or use unique string anchors instead of line numbers for block ops on files edited this session.
+

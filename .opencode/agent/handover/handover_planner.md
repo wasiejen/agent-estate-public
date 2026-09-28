@@ -22,137 +22,29 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   shadowed; his escape evidence = the pre-#100 removal window, last live
   kind=escape line 2026-09-26_02-27 vs removal commit 02:35:47); 585/594/
   603 stale (plan25 digit-refs / bda3584 / plan25 fixes).
-- NEXT: #105 part (b) — the keepTokens fork-effort research spec (committed
-  before the explorer launch).
-- Maintainer in-session messages (2026-09-28): the proposals folder was
+- #105 part (b) DONE (explorer-28, ses_f1ac80746ffelkelB0h9zwQ4go, commit
+  aaa1dfa): research doc `.opencode/agent/research/2026-09-28_keeptokens-
+  fork-effort.md` — change set ~11 lines / 6 files (all grep-verified
+  against the 1.18.32 dev tree), phased estimate ~3-5 h wall,
+  recommendation = FORK NOW (plugin side = 0 lines — `callSummarize`
+  already sends the `keep` field + degrades gracefully on a non-forked
+  build). The fork build+swap + the N=10 discriminator acceptance are
+  maintainer domain (doc §3/§5). Remaining #105: (c) v2 branch/hardening,
+  (d) compaction-summary customization, (e) explorer/researcher makeover
+  (his opencode.jsonc write-access tightening pending).
+ - Unmarked explorer finding (todo_inbox 2026-09-28_01-50): the self-
+  reference barrel-export quirk in `packages/core/src/v1/session.ts`
+  (opencode-dev tree) — NAP-only per observation triage (no action; the
+  canonical CompactionPart def = `packages/schema/src/v1/session.ts` L195 —
+  relevant only if the maintainer forks the tree).
+ - Maintainer in-session messages (2026-09-28): the proposals folder was
   restored by his commit d535e31 (verified) + the 579 verification request
   (answered with the evidence above).
-
-## Previous session — autorun, 2026-09-27 (ses_f1d198b41ffeJA3a3By7tu3TfD, planner-27, Qwen3.8-27B-Q3S-245K-slow)
-- plan27 (unit-4 restart branch after planner-26 `action: restart`): the
-  **#99 follow-up research — DONE planner-direct** (80 % of the findings were
-  in hand at plan26 close; the remaining checks were bounded greps + one
-  provenance fetch — a serial delegation round-trip wasn't worth it).
-  Findings: installed host = **1.18.32** (measured: npm platform package
-  `opencode-windows-x64` — the host-map's "1.18.31" reading is stale) and the
-  scratchpad `opencode-dev` tree IS that build (provenance spot-verified vs
-  the published v1.18.32 tag); **NO per-call keep input exists**
-  (`SummarizePayload = {providerID, modelID, auto?}` — groups/session.ts
-  L65-69; the handler passes only model + auto — handlers/session.ts
-  L273-294; the budget reads CONFIG only — session/compaction.ts L115-120);
-  the legacy `compaction.keep.tokens` → `preserve_recent_tokens` (+
-  `buffer` → `reserved`) compat mapping (config/v2-compat.ts L163-184)
-  explains the config-wins live series; the budget is consumed whole-turn
-  under an estimated-token metric (`select` L223-269); the no-tail floor =
-  system + summary only (matches the measured 25.8k). **Fallback ruling
-  confirmed: the config `compaction.keep.tokens` (his file) is the ONLY
-  retention control; the computed keepTokens stays advisory (the COMPACT
-  `tok=`).** No code change (the body `keep.*` fields are dead but harmless).
-  Deliverables: research doc
-  `knowledge/opencode-plugins/2026-09-27_summarize-keep-source-trace.md` +
-  host-map §compaction gap resolved + version note fixed + TODO #99 close
-  note.
-- **plan27 part 2** (maintainer in-session GO after the part-1 close — same
-   session, same iteration): **bt live acceptance ALL 3 PASS** (digit-string
-   refs, indented-anchor trim, candidate-hint not-found error — live tool
-   calls, scratch fixture created + deleted) + his **approval-boundary
-   ruling** (recorded in Standing) + **#104 LANDED planner-direct**
-   (e57f8a3 — the core now MIRRORS the tool's plan25-b anchor trim exactly;
-   probe 317/318 re-pinned; probe 345/345 + io 77/77) + **#103 LANDED
-   planner-direct** (fcc0fc8 — gauge readout = TOTAL in+out+cr of the last
-   FINISHED step; the structural 2-turn lag is gone, now one generated
-   turn; probe S6/S7/S12 re-pins + S8/S9 fixtures rebuilt + gauge_core
-   smoke; lag wording updated in role prompts / repo docs / ctx_gauge
-   description — AGENTS.md + the compaction guide stay his paste). One
-   routine self-compaction mid-unit (81 % → 33 %).
-- **Direct Q&A (post part-2 close, same session):** why NO successor spawn
-   after my 2nd `action: restart` (nor the 1st) — root cause = the #90
-   LINEAGE-DEPTH CAP: my depth = 2 (user planner-25 → spawned planner-26 →
-   me); the plugin logged `skip= depth sid=… depth=2` for BOTH restarts
-   (auto_resume.log 13:08:00Z + 13:55:46Z) — no spawn was ever attempted, so
-   the maintainer's interrupted "planner-28" left no plugin state (his
-   hypothesis disproven from the log); the depth is restored from
-   auto_resume.log on host restart (#90 part C) — a restart never resets
-   the chain. Codified: knowledge_inbox entry + agent_readme_loop.md
-   `restart` bullet.
-- RESIDUAL (maintainer, live, on 1.18.32): the **N=10 discriminator**
-   (count-vs-budget retention semantics — the 2026-09-26 fork observation of
-   the FULL 30-message tail retained despite a 30k budget CONTRADICTS
-   1.18.32's `select()`; version drift 1.18.31→1.18.32 is the candidate
-   explanation the test resolves) + the summarize-scope probe — protocol in
-   the research doc.
-- Unmarked maintainer observation (priority.md uncommitted line
-   2026-09-27: "no delegation in a direct session without prior explicit ok")
-   — already codified as MEM-0110 (ff94000); NAP-only per observation triage.
-- **#92 LIVE-ACCEPTED (this session, 2026-09-27):** the part-2 self-compact
-   was the first real compaction under the #92 build — TWO DUMP-OK lines
-   (md ms=49 + json ms=50, ctx.log 15-42) + COMPACT line (keep=12m
-   tok=29498 computed); both artifacts verified on disk in
-   `.opencode/archive/sessions/compaction_dumps/` (md 616,987 B correct
-   header; json 1,216,263 B valid, `session/messages/orphan_parts`).
-   TODO #92 closed with the live evidence.
- - **Direct continuation (2026-09-27, same session — the depth-cap
-    follow-up):** #92 LIVE-ACCEPTED (2750f0f — above) +
-    **LINEAGE_MAX_DEPTH 2→10 LANDED** (3914181 — auto_resume.ts + smoke
-    #90 (iv) re-pinned to depth-2-spawns + #96 (c) 10-pair fixture pinning
-    the depth-10 boundary; smoke 139/139 + probe 345/345) + his
-    always-active design direction LANDED in ONE follow-up commit (all his
-    explicit rulings): (1) `submit` **ideas channel** →
-    `.opencode/agent/agent_ideas.md` (the AGENT-SIDE inbox — his
-    `.opencode/maintainer/ideas/ideas.md` stays his personal stream,
-    READ-ONLY inspiration; submit smoke (G) pin); (2) **idle close
-    policy** — autorun idle = the maintenance scope (incl. feedback/ideas
-    inbox review) + close with `action: restart`, NEVER `stop` (stop =
-    unrecoverable or direct maintainer interaction in autorun) — loop-doc
-    restart bullet + maintenance scope item 6 + orientation idle lane +
-    planner-prompt line; (3) **LINEAGE cap LIVE-CONFIGURABLE** —
-    `.opencode/temp/lineage_max_depth` (one integer; -1 = unbounded;
-    missing/unparseable → default 10; read per spawn decision — raisable
-    while the autorun runs) + cap-config smoke child (cap -1 → restored
-    depth-10 SPAWNS; live change to 0 → its depth-11 successor REFUSED).
-    Gates: auto_resume smoke 140/140 + submit smoke + probe 345/345.
-    **TODO #105** = the next-maintenance-pass research bundle (ideas.md
-    scan + keepTokens fork effort + v2 main-branch identification /
-    hardening + compaction-summary customization). His BIT-ROT REFRAME
-    (the not-kept history is DROPPED, not compressed — the compaction model
-    only creates the summary; the real risks = a stale/diluted summary +
-    the skipped post-compaction read) → the "cap exists for bit-rot"
-    rationale in AGENTS.md / the compaction guide is now STALE → added to
-    his pending-paste list (his files).
- - **His replies to the three open questions (2026-09-27, same session):**
-    (1) compaction budget STAYS 5+1 for now ("let it run and see") — his
-    backend work is in flight on the compaction WALL-TIME (gemma4: the
-    current session's context is recognized as valid for the compaction
-    agent → near-instant load; target ≈60s summary + 40-55s prefill of the
-    compacted session — unverified, his domain, NAP-only note);
-    (2) the `.opencode/submit/` folder idea DROPPED (the current inbox
-    placement stands); (3) the explorer/RESEARCHER MAKEOVER is NEEDED →
-    TODO #105 target (e) (researcher/information-finder/map-creator
-    prompt rework; he will tighten the explorer's write access in
-    opencode.jsonc himself — his domain; reuse the existing roles in
-    `agent/prompts/roles/`; the explorer prompt is a worker+explorer
-    combination — worker guidelines must not be repeated). He also asked
-    for the AGENTS.md copy with the pending changes (staged — see the
-    pending list above).
- - Pending the maintainer (non-blocking, carried from plan25 — full list in
-   plan25_nap.md): **the AGENTS.md replacement — copy staged at the repo
-   root `AGENTS_pending_2026-09-27.md`** (his 2026-09-27 request: the two
-   pending changes edited in — the #103 gauge-lag wording, TWO spots
-   (§Context budget + the Guardrails line), + the compaction
-   bit-rot-rationale reframe — plus ONE flagged addition: the `action:
-   stop` bullet now carries the autorun idle→restart policy; he drops it
-   if he disagrees; the compaction-guide (his draft) lag-wording +
-   bit-rot lines are STILL his own paste), #86 DEFERRED (queue tail), the
-   section-anchor schema call, the #98 natural cycle. (The plan25
-   live-channel acceptance + the #92 live acceptance are both DONE —
-   part 2 + the note above.)
- - NEXT (next session/iteration): **the #105 research bundle at the next
-    maintenance pass** (the ideas.md scan + keepTokens fork effort + v2
-    branch/hardening + compaction-summary customization — explorer-shaped
-    parts (b)+(d)); otherwise the idle lane (now productive by the 2026-09-27
-    ruling — idle closes with `action: restart`), #86 deferred tail.
+ - CLOSE: plan28_summary.md + loop -RETURN-/DONE lines + final bookkeeping
+  commit (e2b1cf8 pass / d963e51 spec / aaa1dfa research); action: restart.
 
 ## Compressed archive (one line each
+  - 2026-09-27 autorun (ses_f1d198b41ffeJA3a3By7tu3TfD, planner-27, Qwen3.8-27B-Q3S-245K-slow) — plan27: #99 follow-up research DONE (host 1.18.32 = the scratchpad dev tree; NO per-call keep input — the config `compaction.keep.tokens` (via the v2-compat shim) is the ONLY retention control; the budget is consumed whole-turn under an estimated-token metric; RESIDUAL = the N=10 discriminator + the summarize-scope probe — maintainer live) + bt live acceptance 3/3 PASS + #104 (e57f8a3) + #103 (fcc0fc8) LANDED + his in-session design directions LANDED (the submit ideas channel, the idle close policy, the LINEAGE_MAX_DEPTH 2→10 live-configurable 3914181, the explorer/researcher makeover → #105 (e)) + #92 LIVE-ACCEPTED (2750f0f) + the depth-cap direct Q&A codified — details: loop folder plan27_summary.md + git e57f8a3/fcc0fc8/3914181/2750f0f/ff94000 + `AGENTS_pending_2026-09-27.md` staged at the repo root (his pending paste)
   - 2026-09-27 autorun (ses_f1d4258efffeFUXLn6PTolcHsB, planner-26, Qwen3.8-27B-Q3S-245K-slow) — plan26: #92 build LANDED+verified (worker-26: 11f4a12 two-artifact dump / 5a6e842 probe S14 re-pins + check 345 / e2a1a52 smoke 76→78 / 86bda25 bookkeeping; planner re-run probe 345/345 + compact smoke 78/78; live acceptance = next real compaction shows both artifacts + two DUMP-OK lines) — details: loop folder plan26_summary.md + git 77f93fc
   - 2026-09-27 direct→autorun (ses_f20d1b39dffefE8ge0hH7jbgAn, planner-25, Qwen3.8-27B-Q3S-245K-slow) — plan25: maintainer rulings recorded (#92 YES→next unit, #74/#83/#93 CLOSED, #56 rework pending, #99 live tests complete + follow-up research APPROVED, #83 threshold 0.85 confirmed, bt anchor fix GO) + bt anchor fix LANDED+verified (worker-25: 2b50fee/b2e3963/6616689/7ddae1d; smoke 131/131, sandbox 64/64, probe 344/344, 459+1w, F=0; #104 filed) + dev_get_tool_context_contents fix (bda3584) + MEM-0110 (direct-session delegation ruling) — details: loop folder plan25_summary.md + plan25_nap.md + git fafdee8..50591f0
   - 2026-09-26 autorun (ses_f21359d77ffe2pviXZoIavxweh, planner-24, Qwen3.8-27B-Q3S-245K-slow) — plan24: loop_log-v2 LANDED+verified (worker-24: aa5a411/006a137/320d09f/b9d57c9 + S16 re-pin b1d122c; gates probe 340/340 + loop_log smoke 69/69 + all smokes + pytest 459+1w + F=0) + spec staged against the verified state (the proposal's 09-15 verdict line STALE) + proposal → implemented/ + prompt/doc bookkeeping — details: loop folder plan24_summary.md + git 68da83d..de31cdf

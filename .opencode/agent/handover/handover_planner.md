@@ -4,46 +4,54 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## Current session — autorun, 2026-09-28 (ses_f1b04ea20ffeo9jTAs1IEvAGjg, planner-28, Qwen3.8-27B-Q3S-245K-slow)
-- plan28 (iter 28, unit-4 restart branch after planner-27 `action: restart`
-  + host restart): **MAINTENANCE PASS done (catch-up — the iter-25 pass was
-  missed)**: knowledge_inbox cured (4 entries → host-map token-forensics
-  block + knowledge_plugins lineage-cap + knowledge_tools AGENTS.md-watch +
-  ctx-gauge post-#103 wording fix); behavioral guidelines → destill memory
-  (own section — MEM-0110 now the canonical home per his 2026-09-28
-  instruction); TODO: header → #106, #95 CLOSED (→ todo_records),
-  #106-#112 filed (feedback review + ideas.md scan triage); prompt friction
-  fixes (task-spec 4 lines, todo_inbox root-path ×3, close-down-rides-a-
-  commit ×2); ideas.md scan triaged (4 ideas submitted to agent_ideas.md;
-  2 maintainer-backend items = NAP-only: the parallel-slot/262k idea + the
-  cache-invalidation backend experiment); feedback 579 verified PARTIALLY
-  STALE on his request (1.5 corrected by the plan23 live acceptance — the
-  bt startMarker pair channel works live; 1.3 stands — read.offset schema-
-  shadowed; his escape evidence = the pre-#100 removal window, last live
-  kind=escape line 2026-09-26_02-27 vs removal commit 02:35:47); 585/594/
-  603 stale (plan25 digit-refs / bda3584 / plan25 fixes).
-- #105 part (b) DONE (explorer-28, ses_f1ac80746ffelkelB0h9zwQ4go, commit
-  aaa1dfa): research doc `.opencode/agent/research/2026-09-28_keeptokens-
-  fork-effort.md` — change set ~11 lines / 6 files (all grep-verified
-  against the 1.18.32 dev tree), phased estimate ~3-5 h wall,
-  recommendation = FORK NOW (plugin side = 0 lines — `callSummarize`
-  already sends the `keep` field + degrades gracefully on a non-forked
-  build). The fork build+swap + the N=10 discriminator acceptance are
-  maintainer domain (doc §3/§5). Remaining #105: (c) v2 branch/hardening,
-  (d) compaction-summary customization, (e) explorer/researcher makeover
-  (his opencode.jsonc write-access tightening pending).
- - Unmarked explorer finding (todo_inbox 2026-09-28_01-50): the self-
-  reference barrel-export quirk in `packages/core/src/v1/session.ts`
-  (opencode-dev tree) — NAP-only per observation triage (no action; the
-  canonical CompactionPart def = `packages/schema/src/v1/session.ts` L195 —
-  relevant only if the maintainer forks the tree).
- - Maintainer in-session messages (2026-09-28): the proposals folder was
-  restored by his commit d535e31 (verified) + the 579 verification request
-  (answered with the evidence above).
- - CLOSE: plan28_summary.md + loop -RETURN-/DONE lines + final bookkeeping
-  commit (e2b1cf8 pass / d963e51 spec / aaa1dfa research); action: restart.
+## Current session — autorun, 2026-09-28 (ses_f1aacd085ffeRONA7LZvTViDgw, planner-29, Qwen3.8-27B-Q3S-245K-slow)
+- plan29 (iter 29, unit-4 restart branch after planner-28 `action:
+  restart`): **PRE-APPROVED FRICTION BATCH LANDED (planner-direct, one
+  coherent unit per TRIAGE)** — #107 (the DUMP-OK / DUMP-RETRY= /
+  DUMP-FAIL ctx.log lines now carry the FULL repo-relative dump path —
+  the `DUMP_ARCHIVE_REL` constant shared with the archive-dir join; the
+  spawn's `--out` stays corpus-relative; the COMPACT line names no file
+  path — checked/unchanged — 7c91ecc; pins: probe S14 check 104 + S25
+  check 255 + the compact smoke's two DUMP-OK pins; measured: compact
+  smoke 78/78) + #108 (the auto_resume #96 (c) trim-restore fixture's
+  10 pairs are now generated PROGRAMMATICALLY in the child script + a
+  PAIR-COUNT assert that fails instantly with the count — c0f96b8; the
+  sibling cap-config fixture was already programmatic, no other hand-
+  typed pair blocks exist; measured: auto_resume smoke 140/140) + #111
+  (3-line doc batch, no behavior change — 03a1fc6: the worker prompt's
+  commit-message worked example (the hash NEVER in the commit — the
+  spec-doc hash DoD rule), the `node --check` probe-syntax line in
+  repo_testgate, the intercept smoke's MODULE-STATE FLIP header note
+  (the (12f) second factory re-points the shared module state to
+  proj2 — from (12f) on only `before2`/`read2` may be used)).
+- **TODO #113 FILED (9a12594) — ENVIRONMENT break, MAINTAINER CALL:**
+  the repo venv's `python.exe` is broken — `pyvenv.cfg` points at
+  `home\Projects\OpenCodeProjects\Free-Snap-Tap\python312`
+  (ONE level above the repo root), whose `python.exe` is ABSENT (the
+  dir holds only `Doc`). Measured: `./.venv/Scripts/python.exe -c
+  "print(...)"` fails; the probe's 11 numword-python checks (136-146)
+  all FAIL with `No Python at '...python312\python.exe'`; the standard
+  gate's pytest half is UNRUNNABLE (the venv is the only python with
+  the repo deps). The 2026-09-27 baselines predate the break — the
+  probe's 11 failures are environmental, NOT regressions; re-baseline
+  after the maintainer's fix.
+- Baselines updated: auto_resume 139 → **140** (the 3914181 cap-config
+  check — the Standing baseline was stale).
+- TRIAGE/queue: #105 (c)+(d) (explorer-shaped research) QUEUED for
+  iter 30 (the counter-triggered MAINTENANCE PASS runs there first);
+  #106/#109/#110/#112 next in the queue; stale-header curation
+  candidates for the iter-30 pass: #70 (all sub-statuses landed, header
+  still OPEN), #78 (LANDED 2026-09-23, header `open`), #97 (LANDED +
+  LIVE-ACCEPTED, header `open`), the four implemented proposals left in
+  `proposals/approved/`.
+- The `AGENTS_pending_2026-09-27.md` copy was CONSUMED by the
+  maintainer (no pending file at the root; the live AGENTS.md carries
+  the #103 gauge wording — verified in the loaded context + 643ca2a).
+- CLOSE: plan29_summary.md + loop DONE line (72%/66K) + final
+  bookkeeping commit; action: restart.
 
 ## Compressed archive (one line each
+  - 2026-09-28 autorun (ses_f1b04ea20ffeo9jTAs1IEvAGjg, planner-28, Qwen3.8-27B-Q3S-245K-slow) — plan28: MAINTENANCE PASS (catch-up — iter-25 missed: knowledge inbox cured 4 entries + behavioral guidelines → destill memory (MEM-0110 = canonical home) + TODO header/#95 close/#106-#112 filed + prompt/spec friction fixes + feedback 579 verified PARTIALLY STALE + agent_ideas scan 4 submitted) + #105 (a) ideas.md scan triaged + #105 (b) keepTokens fork-effort research (explorer-28 — FORK NOW recommendation, plugin side = 0 lines; the fork build+swap + N=10 acceptance are maintainer domain) — details: loop folder plan28_summary.md + git e2b1cf8/d963e51/aaa1dfa/3ab8a5f
   - 2026-09-27 autorun (ses_f1d198b41ffeJA3a3By7tu3TfD, planner-27, Qwen3.8-27B-Q3S-245K-slow) — plan27: #99 follow-up research DONE (host 1.18.32 = the scratchpad dev tree; NO per-call keep input — the config `compaction.keep.tokens` (via the v2-compat shim) is the ONLY retention control; the budget is consumed whole-turn under an estimated-token metric; RESIDUAL = the N=10 discriminator + the summarize-scope probe — maintainer live) + bt live acceptance 3/3 PASS + #104 (e57f8a3) + #103 (fcc0fc8) LANDED + his in-session design directions LANDED (the submit ideas channel, the idle close policy, the LINEAGE_MAX_DEPTH 2→10 live-configurable 3914181, the explorer/researcher makeover → #105 (e)) + #92 LIVE-ACCEPTED (2750f0f) + the depth-cap direct Q&A codified — details: loop folder plan27_summary.md + git e57f8a3/fcc0fc8/3914181/2750f0f/ff94000 + `AGENTS_pending_2026-09-27.md` staged at the repo root (his pending paste)
   - 2026-09-27 autorun (ses_f1d4258efffeFUXLn6PTolcHsB, planner-26, Qwen3.8-27B-Q3S-245K-slow) — plan26: #92 build LANDED+verified (worker-26: 11f4a12 two-artifact dump / 5a6e842 probe S14 re-pins + check 345 / e2a1a52 smoke 76→78 / 86bda25 bookkeeping; planner re-run probe 345/345 + compact smoke 78/78; live acceptance = next real compaction shows both artifacts + two DUMP-OK lines) — details: loop folder plan26_summary.md + git 77f93fc
   - 2026-09-27 direct→autorun (ses_f20d1b39dffefE8ge0hH7jbgAn, planner-25, Qwen3.8-27B-Q3S-245K-slow) — plan25: maintainer rulings recorded (#92 YES→next unit, #74/#83/#93 CLOSED, #56 rework pending, #99 live tests complete + follow-up research APPROVED, #83 threshold 0.85 confirmed, bt anchor fix GO) + bt anchor fix LANDED+verified (worker-25: 2b50fee/b2e3963/6616689/7ddae1d; smoke 131/131, sandbox 64/64, probe 344/344, 459+1w, F=0; #104 filed) + dev_get_tool_context_contents fix (bda3584) + MEM-0110 (direct-session delegation ruling) — details: loop folder plan25_summary.md + plan25_nap.md + git fafdee8..50591f0
@@ -152,20 +160,28 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   each save (normally triggered by the git add + commit). Pending changes
   ride the copy + this NAP's pending list. (Full entry: knowledge_inbox.md
   2026-09-27_23-40.)
-- Baselines (re-verified 2026-09-27 by the planner, post-plan26 #92):
-    probe **345** (344 + check 345 post-plan26 #92 json naming; the S14
-    dump section is now (8); check 108's enum pin carries the 11 bt
-    modes post-S4); smokes **all green**
-     (context_recovery 17/17 (post-unification Part B re-pins),
-    compact_memory 78/78 (post-plan26 #92: 76 + 2 two-artifact checks — from
-    74/74 post-unification; the re-exports keep the smoke import surface),
-    auto_resume 139/139 (post-#98),
-   intercept_observer 77/77 (post-R3: 68 + 9 channel checks),
-   block_transfer 131/131 + 64/64 (post-plan25: 123+8 new checks),
-   submit 20/20);
-  the per-suite counts are in each smoke's own readout — no total kept
-  here); pytest **459 passed + 1 warning (the known #10 coroutine
-  warning)**; ruff **F=0**.
+- Baselines (re-verified 2026-09-28 by the planner, post-plan29 friction
+   batch — compact smoke 78/78 + auto_resume smoke 140/140 + probe all
+   green except the #113 environmental failures; the last FULL gate was
+   plan26/27, 2026-09-27):
+     probe **345** (344 + check 345 post-plan26 #92 json naming; the S14
+     dump section is now (8); check 108's enum pin carries the 11 bt
+     modes post-S4); smokes **all green**
+      (context_recovery 17/17 (post-unification Part B re-pins),
+     compact_memory 78/78 (post-plan26 #92: 76 + 2 two-artifact checks — from
+     74/74 post-unification; the re-exports keep the smoke import surface),
+     auto_resume **140/140** (139 + the 3914181 cap-config check),
+     intercept_observer 77/77 (post-R3: 68 + 9 channel checks),
+     block_transfer 131/131 + 64/64 (post-plan25: 123+8 new checks),
+     submit 20/20);
+   the per-suite counts are in each smoke's own readout — no total kept
+   here); pytest **459 passed + 1 warning (the known #10 coroutine
+   warning)**; ruff **F=0** — **ENVIRONMENT (2026-09-28, #113 —
+   MAINTAINER CALL):** the repo venv's python is broken (the base
+   interpreter at `C:\...\Free-Snap-Tap\python312` — one level above
+   the repo root — is absent) → the pytest half of the standard gate is
+   UNRUNNABLE + the probe's 11 numword-python checks (136-146) fail
+   environmentally (NOT regressions); re-baseline on the next green gate.
 - Cross-compaction (measured 2026-09-18 plan2; re-verified live 2026-09-22):
   `compact_memory` with a foreign sessionID — no model args in the tool
   schema; the summarizer model resolves per `agent.compaction.model` (set in

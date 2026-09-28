@@ -185,3 +185,5 @@
 2026-09-28_01-50 DONE<--- explorer_Q3S_245K_slow ses_f1ac80746ffelkelB0h9zwQ4go explorer_Q3S_245K_slow SESSION=ses_f1ac80746ffelkelB0h9zwQ4go CTX=90973 (37%) REM=154027 | 5 compactions left
 2026-09-28_02-02 -RETURN- planner-28 ses_f1b04ea20ffeo9jTAs1IEvAGjg Qwen3.8-27B-Q3S-245K-slow explorer-28 ses_f1ac80746ffelkelB0h9zwQ4go explorer_Q3S_245K_slow (#105(b) keepTokens fork-effort research LANDED — aaa1dfa, research doc + recommendation fork now)
 2026-09-28_02-02 DONE<--- planner-28 ses_f1b04ea20ffeo9jTAs1IEvAGjg Qwen3.8-27B-Q3S-245K-slow 51%/119K
+2026-09-28_02-12 -->START planner-29 ses_f1aacd085ffeRONA7LZvTViDgw Qwen3.8-27B-Q3S-245K-slow plan29 (iter 29): pre-approved friction batch planner-direct — #107 (DUMP-OK/COMPACT full repo-relative paths) + #108 (auto_resume pair-fixture generator) + #111 (3-line doc batch); #105 (d) research queued for iter 30 (maintenance pass)
+2026-09-28_02-34 DONE<--- planner-29 ses_f1aacd085ffeRONA7LZvTViDgw Qwen3.8-27B-Q3S-245K-slow 72%/66K

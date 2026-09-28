@@ -665,3 +665,6 @@ glob tool silently returns "No files found" for patterns under .opencode/plugin/
 ### 2026-09-28_08-20 planner_Q3S_245K_slow ses_f1975f44cffeflRZdxIDJSvBEJ
 loop_log auto-fill fell back to context.agent for BOTH the role and model slots again (3rd occurrence: planner-33 CORRECT- 2026-09-28_07-41, planner-34 08-19/08-20) — omitting the optional role/model args costs a CORRECT- line each time; either make the host context carry the role-token (planner-N) + model id distinctly, or the tool should error on an unrecognized role/model shape instead of silently accepting context.agent in the model slot.
 
+### 2026-09-28_08-49 planner_Q3S_245K_slow ses_f195309bfffe5xjWBwmaEEXva0
+block_transfer PASTE feedback "(lines 1..29, first: ...)" is ambiguous between the BUFFER range and the insertion POSITION in dstFile — one extra verification call was needed to confirm the EOF append (plan35, TODO.md→todo_records.md curation). Suggestion: the PASTE feedback should state the insertion position explicitly (e.g. "appended at EOF — file now N lines" / "inserted after line K"), since targetMarker-absent = append-at-EOF is the common case.
+

@@ -108,6 +108,12 @@ function dumpStamp(): string {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}T${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
+// The repo-relative corpus dir the dumps land in (the archive/sessions root).
+// #107: the ctx.log DUMP-* lines carry the FULL repo-relative dump path
+// (prefix + name) so a live acceptance is a single `ls` — the spawn's `--out`
+// stays corpus-relative (the script's OUT_DIR-relative argument).
+const DUMP_ARCHIVE_REL = ".opencode/archive/sessions";
+
 // The pure dump-file NAME (no clock inside): `compaction_dumps/<sid>_c<count>.<format>`
 // (format "md" default / "json" #92), or `compaction_dumps/<sid>_c<count>_<stamp>.<format>`
 // when a stamp is supplied (the no-overwrite fallback). Exported for the probe
@@ -120,8 +126,8 @@ export function preCompactionDumpName(sessionID: string, count: number, stamp: s
 // Best-effort append of a DUMP-OK line to the ctx log (unit A, 2026-09-21;
 // #78: the elapsed-ms field gained the `ms=` prefix): same local-stamp
 // prefix style as the DUMP-FAIL line —
-// `<stamp> DUMP-OK <sid> <relfile> ms=<ms>` (relfile = the corpus-relative
-// dump path, ms = elapsed milliseconds). Never throws.
+// `<stamp> DUMP-OK <sid> <relFile> ms=<ms>` (relFile = the FULL repo-relative
+// dump path, #107; ms = elapsed milliseconds). Never throws.
 function appendDumpOkLine(root: string, sessionID: string, relFile: string, ms: number): void {
   try {
     const dir = tempDir(root);
@@ -137,8 +143,8 @@ function appendDumpOkLine(root: string, sessionID: string, relFile: string, ms: 
 // retry — the first attempt failed, a second spawn is tried): same local-
 // stamp prefix style —
 // `<stamp> DUMP-RETRY=1 <sid> <relFile> ms=<ms> err=<one-line error>`
-// (#92: the artifact relFile distinguishes the two per-artifact lines).
-// Never throws.
+// (#92: the artifact relFile distinguishes the two per-artifact lines;
+// #107: relFile = the full repo-relative dump path). Never throws.
 function appendDumpRetryLine(root: string, sessionID: string, relFile: string, ms: number, error: string): void {
   try {
     const dir = tempDir(root);
@@ -153,7 +159,7 @@ function appendDumpRetryLine(root: string, sessionID: string, relFile: string, m
 
 // Best-effort append of a DUMP-FAIL line to the ctx log (same append style as
 // appendCompactLine — never throws). #92: the artifact relFile distinguishes
-// the two per-artifact lines —
+// the two per-artifact lines; #107: relFile = the full repo-relative dump path —
 // `<stamp> DUMP-FAIL <sid> <relFile> <detail>`.
 function appendDumpFailLine(root: string, sessionID: string, relFile: string, error: string): void {
   try {
@@ -193,7 +199,7 @@ export function resolveNodeExe(execPath: string = process.execPath): string {
 // the retry + the captured stderr trace the root cause.
 export function preCompactionDump(root: string, sessionID: string, count: number): { ok: boolean; files: string[]; error?: string } {
   const scriptPath = path.join(root, ".opencode", "agent", "scripts", "db", "dump_session.cjs");
-  const archiveDir = path.join(root, ".opencode", "archive", "sessions");
+  const archiveDir = path.join(root, DUMP_ARCHIVE_REL);
   const baseTarget = path.join(archiveDir, preCompactionDumpName(sessionID, count, null));
   const stamp = existsSync(baseTarget) ? dumpStamp() : null;
   const files: string[] = [];
@@ -227,21 +233,24 @@ function dumpOneArtifact(
   format: "md" | "json",
 ): { ok: boolean; error?: string } {
   const extra = format === "json" ? ["--json"] : [];
+  // #107: the ctx.log lines carry the FULL repo-relative path; the spawn's
+  // `--out` keeps the corpus-relative `name` (the script's OUT_DIR-relative arg).
+  const relFile = `${DUMP_ARCHIVE_REL}/${name}`;
   const first = runDumpSpawn(scriptPath, sessionID, name, extra);
   if (first.error == null) {
-    appendDumpOkLine(root, sessionID, name, first.ms);
+    appendDumpOkLine(root, sessionID, relFile, first.ms);
     return { ok: true };
   }
   // #78: ONE retry — the DUMP-RETRY= line records the first failure, then the
   // second spawn gets a full budget of its own.
-  appendDumpRetryLine(root, sessionID, name, first.ms, first.error);
+  appendDumpRetryLine(root, sessionID, relFile, first.ms, first.error);
   const second = runDumpSpawn(scriptPath, sessionID, name, extra);
   if (second.error == null) {
-    appendDumpOkLine(root, sessionID, name, second.ms);
+    appendDumpOkLine(root, sessionID, relFile, second.ms);
     return { ok: true };
   }
   const detail = dumpFailDetail(second);
-  appendDumpFailLine(root, sessionID, name, detail);
+  appendDumpFailLine(root, sessionID, relFile, detail);
   return { ok: false, error: detail };
 }
 

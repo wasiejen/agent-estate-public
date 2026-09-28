@@ -204,10 +204,11 @@ const withClient = async (spec = {}) => {
    chk("dump hook fired on the tool path: compaction_dumps/ses_sm_self_c0.md exists (the stub dump, no WARNING appended)", existsSync(dumpFile), dumpFile);
    const DT = "\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}";
    const dumpOk = readLog().trim().split("\n").find((l) => l.includes("DUMP-OK ses_sm_self"));
-   // #78 re-pin: the elapsed-ms field gained the `ms=` prefix (was bare `<ms>`)
-   chk("DUMP-OK line on success: `<stamp> DUMP-OK ses_sm_self compaction_dumps/ses_sm_self_c0.md ms=<ms>`",
-     dumpOk != null && new RegExp(`^${DT} DUMP-OK ses_sm_self compaction_dumps/ses_sm_self_c0\\.md ms=\\d+$`).test(dumpOk),
-     JSON.stringify(dumpOk));
+    // #78 re-pin: the elapsed-ms field gained the `ms=` prefix (was bare `<ms>`);
+    // #107 re-pin: the relFile is now the FULL repo-relative dump path
+    chk("DUMP-OK line on success: `<stamp> DUMP-OK ses_sm_self .opencode/archive/sessions/compaction_dumps/ses_sm_self_c0.md ms=<ms>` (#107 full repo-relative path)",
+      dumpOk != null && new RegExp(`^${DT} DUMP-OK ses_sm_self \\.opencode/archive/sessions/compaction_dumps/ses_sm_self_c0\\.md ms=\\d+$`).test(dumpOk),
+      JSON.stringify(dumpOk));
    // #92 (2026-09-27): the pre-compaction dump saves BOTH artifacts — the md
    // (above) AND the raw JSON snapshot (the lossless master). The md DUMP-OK
    // line is written first, so the `.find` above still returns the md line —
@@ -215,8 +216,8 @@ const withClient = async (spec = {}) => {
    // rel can satisfy).
    const dumpJsonFile = path.join(SANDBOX, ".opencode", "archive", "sessions", "compaction_dumps", "ses_sm_self_c0.json");
    chk("dump hook fired on the tool path (#92): compaction_dumps/ses_sm_self_c0.json exists (the json artifact, the stub dump)", existsSync(dumpJsonFile), dumpJsonFile);
-   const dumpOkJson = readLog().trim().split("\n").find((l) => new RegExp(`^${DT} DUMP-OK ses_sm_self compaction_dumps/ses_sm_self_c0\\.json ms=\\d+$`).test(l));
-   chk("DUMP-OK line on success (#92): `<stamp> DUMP-OK ses_sm_self compaction_dumps/ses_sm_self_c0.json ms=<ms>` (the json artifact line)",
+    const dumpOkJson = readLog().trim().split("\n").find((l) => new RegExp(`^${DT} DUMP-OK ses_sm_self \\.opencode/archive/sessions/compaction_dumps/ses_sm_self_c0\\.json ms=\\d+$`).test(l));
+    chk("DUMP-OK line on success (#92): `<stamp> DUMP-OK ses_sm_self .opencode/archive/sessions/compaction_dumps/ses_sm_self_c0.json ms=<ms>` (the json artifact line, #107 full repo-relative path)",
      dumpOkJson != null,
      JSON.stringify(dumpOkJson));
  }

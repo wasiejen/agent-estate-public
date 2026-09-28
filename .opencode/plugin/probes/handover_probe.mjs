@@ -3482,7 +3482,8 @@ let s14Body1Json = null;
 //      (one per rel, the captured stderr detail) to the sandbox ctx.log
 //      (best-effort logging) — RE-PINNED 2026-09-23 (#78: the retry is part
 //      of the failure shape), RE-PINNED 2026-09-27 (#92: two artifacts → two
-//      lines per failure line type, each with its relFile)
+//      lines per failure line type, each with its relFile), RE-PINNED
+//      2026-09-28 (#107: the relFile is the FULL repo-relative dump path)
 {
   rmSync(QC_DUMP_SCRIPT, { force: true });
   let r = null;
@@ -3493,10 +3494,10 @@ let s14Body1Json = null;
     threw = true;
   }
   const ctxLog = readFileSync(path.join(SANDBOX, ".opencode", "temp", "ctx.log"), "utf8");
-  const retryMd = ctxLog.split("\n").filter((l) => l.includes("DUMP-RETRY=1 ses_pc_noscript compaction_dumps/ses_pc_noscript_c0.md")).length;
-  const retryJson = ctxLog.split("\n").filter((l) => l.includes("DUMP-RETRY=1 ses_pc_noscript compaction_dumps/ses_pc_noscript_c0.json")).length;
-  const failMd = ctxLog.split("\n").filter((l) => l.includes("DUMP-FAIL ses_pc_noscript compaction_dumps/ses_pc_noscript_c0.md")).length;
-  const failJson = ctxLog.split("\n").filter((l) => l.includes("DUMP-FAIL ses_pc_noscript compaction_dumps/ses_pc_noscript_c0.json")).length;
+  const retryMd = ctxLog.split("\n").filter((l) => l.includes("DUMP-RETRY=1 ses_pc_noscript .opencode/archive/sessions/compaction_dumps/ses_pc_noscript_c0.md")).length;
+  const retryJson = ctxLog.split("\n").filter((l) => l.includes("DUMP-RETRY=1 ses_pc_noscript .opencode/archive/sessions/compaction_dumps/ses_pc_noscript_c0.json")).length;
+  const failMd = ctxLog.split("\n").filter((l) => l.includes("DUMP-FAIL ses_pc_noscript .opencode/archive/sessions/compaction_dumps/ses_pc_noscript_c0.md")).length;
+  const failJson = ctxLog.split("\n").filter((l) => l.includes("DUMP-FAIL ses_pc_noscript .opencode/archive/sessions/compaction_dumps/ses_pc_noscript_c0.json")).length;
   check(
     "104",
     "S14",
@@ -6030,8 +6031,8 @@ let subTool;
   check(
     "255",
     "S25",
-    "DUMP-OK line on success: `<dt> DUMP-OK ses_qc_dumpok compaction_dumps/ses_qc_dumpok_c0.md ms=<ms>` (the #78 ms= form, the DUMP-FAIL prefix style)",
-    r.ok === true && line != null && new RegExp(`^${DT} DUMP-OK ses_qc_dumpok compaction_dumps/ses_qc_dumpok_c0\\.md ms=\\d+$`).test(line),
+    "DUMP-OK line on success: `<dt> DUMP-OK ses_qc_dumpok .opencode/archive/sessions/compaction_dumps/ses_qc_dumpok_c0.md ms=<ms>` (the #78 ms= form, the DUMP-FAIL prefix style; #107 full repo-relative path)",
+    r.ok === true && line != null && new RegExp(`^${DT} DUMP-OK ses_qc_dumpok \\.opencode/archive/sessions/compaction_dumps/ses_qc_dumpok_c0\\.md ms=\\d+$`).test(line),
     JSON.stringify(line),
   );
 }

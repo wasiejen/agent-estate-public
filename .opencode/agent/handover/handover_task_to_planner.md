@@ -68,9 +68,12 @@ part is the maintainer call, deliberately not built).
   CALL, per spec DoD): `./.venv/Scripts/python.exe -m pytest -q` →
   exit 103, `No Python at '"…\python312\python.exe'` — the venv's
   interpreter is missing. Reported, NOT fixed.
-- `git status` clean except the live loop log (`.opencode/loop/
-  autorun-2026-09-21_15-33/loop_log.md` carries my START/DONE lines —
-  uncommitted, rides the planner's bookkeeping, as established).
+- `git status` clean except: the live loop log (`.opencode/loop/
+  autorun-2026-09-21_15-33/loop_log.md` — my START/DONE lines, rides the
+  planner's bookkeeping, as established) + the two submit-tool inbox
+  files (`agent_feedback.md` + `knowledge/knowledge_inbox.md` — my
+  friction/knowledge entries, committed by the planner in their
+  bookkeeping per established history).
 
 ## TODO entries
 - TODO.md **#109 status → LANDED** (the full status note rides this

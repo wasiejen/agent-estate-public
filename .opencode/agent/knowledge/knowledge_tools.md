@@ -515,3 +515,15 @@ instructions/protocol — facts that save lookups. Format per the README:
 - **Ref:** agent_feedback 2026-09-28_02-03; block_transfer.ts (digit refs
   resolve against the PRE-call file state).
 - **Keys:** block_transfer, line number, stale anchor, digit ref, shift, DELETE
+## loop_log auto-fill puts the AGENT ID in both the role and model slots — pass role + model explicitly
+- **Do:** always pass `role` (your `planner-N` / `worker-N` token) and
+  `model` (your model id VERBATIM) explicitly to `loop_log` — do not rely
+  on the auto-fill.
+- **Why (evidence):** the auto-fill resolves role from `context.agent` and
+  model with the agent-identifier preference — in our sessions
+  `context.agent` is the agent ID (e.g. `planner_Q3S_245K_slow`), so BOTH
+  slots get the agent ID (wrong role token + wrong model) — 3rd recorded
+  occurrence per agent_feedback 2026-09-28_08-20 (planner-33 CORRECT-
+  07-41, planner-34 08-19/08-20, planner-35 08-29); every miss costs a
+  CORRECT- line.
+- **Keys:** loop_log, auto-fill, context.agent, role, model, CORRECT.

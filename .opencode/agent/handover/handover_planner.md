@@ -4,47 +4,48 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## Current session — autorun, 2026-09-28 (ses_f191a6cb5ffeq4noDPvOTFNkxM, planner-37, Qwen3.8-27B-Q3S-245K-slow)
-- plan37 (iter 37, unit-4 restart branch after planner-36 `action:
-  restart`):
-  - #114/#115 7th live data point: fresh-session injected ctx line
+## Current session — autorun, 2026-09-28 (ses_f1909eba8ffekWTqY0gYY2DK3l, planner-38, Qwen3.8-27B-Q3S-245K-slow)
+- plan38 (iter 38, unit-4 restart branch after planner-37 `action:
+  restart`): idle lane (queue all maintainer-blocked):
+  - #114/#115 8th live data point: fresh-session injected ctx line
     "CTX=notAvailable | 1 compactions left" (live build) vs self-gauge
-    "CTX=149101 (60%) REM=95899 | 5 compactions left" (disk build,
-    window 245000) — the live process still predates 12e3262 (the #114
-    fix) and 0c90abe (the #115 fix); live acceptances for both still
-    pending the maintainer's restart.
-  - Channels checked: maintainer inbox empty; priority.md active list
-    empty (standing idle-lane block only); markers clean (plan37 sweep —
-    no live additions); proposals: the NEW 2026-09-28_context-trim-
-    tool.md filed this session (root, awaiting his ruling) + the two
-    existing root proposals unchanged (2026-09-28_repo-split-phase1.md
-    + 2026-09-28_submit-memory-channel.md awaiting his ruling);
-    fst-rebind-repeat stays approved/ --deferred.
-  - Unit 1 (idle lane — the queue is all maintainer-blocked): the
-    tail-trim tool PROPOSAL filed (`.opencode/proposals/
-    2026-09-28_context-trim-tool.md`) — the decision package for the
-    plan36 research follow-up: report + tail (the `tail_start_id`
-    rewrite, non-destructive + reversible) first, the destructive
-    `turns` (row-deletion) mode as follow-up; the approval question =
-    whether a live-DB write tool is wanted at all (research doc
-    §effort/approval).
-  - Baseline re-verified (plan37 gate run): all smokes green at
-    baseline (auto_resume 146/146, block_transfer 131/131 + 64/64,
-    compact_memory 78/78, context_recovery 17/17, intercept_observer
-    78/78, loop_log 69/69, submit 23/23, ctx_gauge 3/3, gauge_core ALL
-    PASS) + probe 346 = 335 PASS + the 11 #113 environmental failures
-    (136-146) + ruff F=0; pytest still UNRUNNABLE (#113 — not
-    attempted).
-  - Inbox review (idle lane): agent_feedback.md + agent_ideas.md fully
-    triaged (nothing new since plan35/36); maintainer ideas.md
-    unchanged; no new maintainer files.
-  - Iter-38 queue (unchanged — all maintainer-blocked): the
+    "CTX=66758 (27%) REM=178242 | 5 compactions left" (disk build) — the
+    live process still predates 12e3262 (the #114 fix) and 0c90abe (the
+    #115 fix); live acceptances for both still pending the maintainer's
+    restart.
+  - Unit 1 (#116 source-side research, planner-inline): the
+    `message.updated` event payload DOES carry the finished step's token
+    usage — `properties.info` = the full AssistantMessage (tokens
+    {input, output, reasoning, cache.read/write} + cost + finish),
+    emitted by `Session.updateMessage` (session.ts:629-633) on the
+    step-finish path (processor.ts:452-470: tokens REPLACED per step,
+    cost accumulated) + finalization (processor.ts:609-610); the CLI's
+    own run consumer corroborates (session-data.ts:825-850 reads
+    info.tokens/cost). Verdict leans (a): a real-time gauge readout is
+    feasible plugin-side (last `message.updated` per session → in+out+cr,
+    the #103 formula, no DB read). Dated evidence entry:
+    knowledge/opencode-plugins/2026-09-28_message_updated_payload.md.
+    The LIVE capture (3+ raw payloads — the #116 DoD) still requires his
+    restart + capture-plugin registration.
+  - Unit 2 (recurring friction → knowledge): the loop_log auto-fill
+    entry landed in knowledge_tools.md (role+model auto-fill falls back
+    to the AGENT ID for both slots — pass role/model explicitly; 3rd
+    occurrence per agent_feedback 2026-09-28_08-20); the glob dot-dir
+    quirk was ALREADY covered there (no duplicate filed).
+  - Channels: maintainer inbox empty; priority.md active list empty
+    (standing idle-lane block only); markers clean (plan38 sweep); the
+    3 root proposals unchanged (context-trim-tool / repo-split-phase1 /
+    submit-memory-channel — awaiting his ruling); fst-rebind-repeat
+    stays approved/ --deferred.
+  - Baselines: unchanged since the plan37 gate run (all smokes green,
+    probe 346 = 335 + 11 #113 env, ruff F=0, pytest UNRUNNABLE #113).
+  - Iter-39 queue (unchanged — all maintainer-blocked): the
     live-acceptance battery (#114/#106/#109/#115 — his restart); #113
     venv (MAINTAINER CALL); repo-split (his domain); the
     detector-dispatch part (his call); #116 capture (post-restart); the
-    tail-trim tool (his ruling — proposal
-    2026-09-28_context-trim-tool.md).
+    tail-trim tool (his ruling).
 ## Compressed archive (one line each
+  - 2026-09-28 autorun (ses_f191a6cb5ffeq4noDPvOTFNkxM, planner-37, Qwen3.8-27B-Q3S-245K-slow) — plan37: idle-lane pass (queue all maintainer-blocked) — the tail-trim tool PROPOSAL filed (2026-09-28_context-trim-tool.md: report + tail (tail_start_id rewrite, non-destructive + reversible) first, the destructive `turns` mode follow-up; the live-DB write tool = his call) + #114/#115 7th live data point (live process still pre-12e3262/0c90abe) + baseline re-verified (10 smokes green at baseline + probe 346 = 335 + 11 #113 env + ruff F=0) + friction entry (bt WRITE regions single-text semantics) — details: loop folder plan37_summary.md + git 79de802..8b81670
   - 2026-09-28 autorun (ses_f1938fbf7ffezxbBZE47haZsdS, planner-36, Qwen3.8-27B-Q3S-245K-slow) — plan36: context-erase/tail-trim research LANDED+verified (explorer-36 4591cd0/c32c5eb — context re-derived from DB per step, no in-memory history; the viable trim channels = old-turn row deletion (narrow safe zone) + the host's own `tail_start_id` rewrite (compaction.ts:461-466); follow-up tool = MAINTAINER CALL per doc §effort/approval) + #114/#115 6th live data point (live process still pre-12e3262/0c90abe, restart pending) + knowledge entry — details: loop folder plan36_summary.md + git 2143597..b3b3c7e
   - 2026-09-28 autorun (ses_f195309bfffe5xjWBwmaEEXva0, planner-35, Qwen3.8-27B-Q3S-245K-slow) — plan35: MAINTENANCE PASS (iter-35 counter trigger: knowledge inbox fully cured — #109 detector internals → auto-resume-units-explainer; TODO #107/#108/#110/#111/#112 closed → todo_records.md + numbering from #116; NAP plan34 compressed) + #114/#115 5th live data point (live process still pre-fix, restart pending) + ideas triage (TODO #116 filed, submit-memory-channel proposal filed, (2) context-erase queued iter-36) — details: loop folder plan35_summary.md + git 31f48e8/6375709
   - 2026-09-28 autorun (ses_f1975f44cffeflRZdxIDJSvBEJ, planner-34, Qwen3.8-27B-Q3S-245K-slow) — plan34: #115 gauge window config-first LANDED+verified (worker-34 0c90abe — resolveWindow config-first from root opencode.jsonc limit.context, parseWindow fallback, 7 new pins (a)-(f); gauge_core ALL PASS, ctx_gauge 3/3, live byte-identity readout window=245000, probe 346, ruff F=0, pytest blocked #113) — LIVE: the host process still predates the build (no visible change until his restart — config 245000 == the name marker) — details: loop folder plan34_summary.md + git feafe37/373824c

@@ -4,45 +4,49 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## Current session — autorun, 2026-09-28 (ses_f1975f44cffeflRZdxIDJSvBEJ, planner-34, Qwen3.8-27B-Q3S-245K-slow)
-- plan34 (iter 34, unit-4 restart branch after planner-33 `action:
-  restart`): idle-lane pass — all real work maintainer-blocked (#114/
-  #106/#109 live acceptances pending his restart; #113 venv; repo-split;
-  detector dispatch). agent_ideas.md triaged: idea (1) → TODO #115
-  (gauge window config-first) — spec committed, worker-34
-  (`worker_Q3S_245K_slow`) launched → LANDED + planner-verified
-  (worker-34 ses_f19678e4affewDsm1KbWh7ZyNj, code **0c90abe**): gauge.mjs
-  `resolveWindow(modelId)` config-FIRST — root opencode.jsonc
-  `provider.<pid>.models.<mid>.limit.context` (JSONC strip replicated from
-  auto_resume.ts L1098, per-call read, never-throw, `setConfigFileForTest`
-  hook), the name-marker `parseWindow` as fallback; `gaugeFromRaw`
-  switched; 7 new resolveWindow pins (a)-(f), existing pins unchanged;
-  `formatGauge` format unchanged — all 3 surfaces covered via the single
-  shared core (no plugin/tool change). Planner verification: own
-  gauge_core ALL PASS + ctx_gauge 3/3 re-runs + the live byte-identity
-  readout (CTX=155274 (63%) REM=89726 — window 245000 = the config value)
-  + git scope clean (2 files, 180 ins/4 del); probe 346 unchanged (no
-  re-pin needed — synthetic ids carry no provider prefix); ruff F=0;
-  pytest blocked #113. LIVE NOTE: the running host process still predates
-  this build — the gauge surfaces pick it up at the maintainer's next
-  restart (no visible change until then: config 245000 == the current
-  model's name marker).
-  - Ideas (2) context-erase/tail-trim research, (3) submit memory-channel
-    proposal, (4) real-time gauge via `messages.updated` research →
-    queued for the iter-35 maintenance pass / the next idle lane.
-  - Channels checked: feedback + ideas triaged through plan33 (nothing
-    new); maintainer inbox empty; priority.md active list empty; markers
-    clean (plan33 sweep; no live additions found this session — his
-    `event_hook_message_updated.md` ideas note = background input for
-    idea (4), no action).
+## Current session — autorun, 2026-09-28 (ses_f195309bfffe5xjWBwmaEEXva0, planner-35, Qwen3.8-27B-Q3S-245K-slow)
+- plan35 (iter 35, unit-4 restart branch after planner-34 `action:
+  restart`): MAINTENANCE PASS (iter-35 counter trigger) + the 5th live
+  data point + the queued-ideas triage:
+  - Knowledge inbox cured: the lone uncured entry (2026-09-28_07-26,
+    worker-33 — #109 detector internals) → `opencode-plugins/
+    2026-09-28_auto-resume-units-explainer.md` (new "#109 detector"
+    block: the 5-clause signature, the direct loop_log.md write, the
+    Date.now-warp smoke pattern, firstAgent-from-event); inbox now
+    fully cured.
+  - TODO curation: 5 fully-complete entries closed (one-liner in
+    TODO.md + full text in todo_records.md: #107/#108/#110/#111/#112);
+    #106/#109 headers updated to LANDED (live acceptance pending his
+    restart); numbering header corrected (#115 used → new from #116);
+    TODO.md 1067 → 923 lines, todo_records.md 1915 → 2064.
+  - #114 5th live data point: injected ctx line "1 compactions left"
+    (live build) vs self-gauge "5 compactions left" (disk build
+    12e3262+ — CTX=108361 (44%) REM=136639, window 245000) — the live
+    process still predates the fix; #115 live acceptance likewise
+    pending (config 245000 == the name marker — indistinguishable until
+    his restart).
+  - Ideas triage (the plan28/34 queue): (4) real-time gauge → TODO #116
+    filed (the `event` hook DOES deliver `message.updated` — host-map
+    §2 + our auto_resume firstAgent use; open question = the payload's
+    token content; a capture plugin + his restart answers it);
+    (3) submit memory channel → proposal filed
+    (`proposals/2026-09-28_submit-memory-channel.md`); (2) context-
+    erase/tail-trim research → queued for the next idle lane (explorer,
+    one question: does removing session messages recompile the
+    context?).
+  - Channels checked: maintainer inbox empty; priority.md active list
+    empty; markers clean (plan35 sweep — no live additions); proposals
+    unchanged (fst-rebind-repeat stays approved/ --deferred;
+    2026-09-28_repo-split-phase1.md in the root awaiting his ruling).
   - Baselines: unchanged (probe 346 = 335 + the 11 #113 env; smokes per
-    Standing; the gauge_core suite grew by 7 pins — ALL PASS).
-  - Iter-35 queue: the counter-triggered MAINTENANCE PASS (iter 35) +
-    the live-acceptance battery (#114/#106/#109 — his restart), #113
-    venv (MAINTAINER CALL), repo-split Phase 1/2 (his domain), the
-    detector-dispatch part (his call), ideas (2)/(3)/(4).
+    Standing; last full gate plan26/27; venv broken — #113).
+  - Iter-36 queue: (2) context-erase/tail-trim research (explorer, one
+    question); the live-acceptance battery (#114/#106/#109/#115 — his
+    restart); #113 venv (MAINTAINER CALL); repo-split (his domain); the
+    detector-dispatch part (his call); #116 capture (post-restart).
 
 ## Compressed archive (one line each
+  - 2026-09-28 autorun (ses_f1975f44cffeflRZdxIDJSvBEJ, planner-34, Qwen3.8-27B-Q3S-245K-slow) — plan34: #115 gauge window config-first LANDED+verified (worker-34 0c90abe — resolveWindow config-first from root opencode.jsonc limit.context, parseWindow fallback, 7 new pins (a)-(f); gauge_core ALL PASS, ctx_gauge 3/3, live byte-identity readout window=245000, probe 346, ruff F=0, pytest blocked #113) — LIVE: the host process still predates the build (no visible change until his restart — config 245000 == the name marker) — details: loop folder plan34_summary.md + git feafe37/373824c
   - 2026-09-28 autorun (ses_f19a6d8effferDMEYo31DsSXCF, planner-33, Qwen3.8-27B-Q3S-245K-slow) — plan33: #109 silent-limit-stop detector LANDED+verified (worker-33 aa47335/a570d9c/091c9b8 — limitStopCheck tick leg, 5 Watch fields, -WARNING loop_log fire, smoke 146/146, probe 346=335+11 env #113, ruff F=0, pytest blocked #113; live acceptance PENDING the maintainer's restart) + repo-split Phase-1 PROPOSAL filed + Phase-0 dry-run script (verified read-only, UNEXECUTED — his domain) + #114 5th data point (live process still pre-12e3262) — details: loop folder plan33_summary.md + git 087e19e..c21cc72
   - 2026-09-28 autorun (ses_f19fdb571ffeb0aoqGGu62wbzo, planner-32, Qwen3.8-27B-Q3S-245K-slow) — plan32: #114 live check 4th data point (live process pre-12e3262, restart pending) + #110 (3a5de39 — 9 per-plugin/tool READMEs + the two folder-README indexes) + #112 (f406a20 — auto-resume units explainer, 61 lines) LANDED+verified + #109 research DONE (explorer-32 46de67b — the silent-limit-stop detector design + the scope=none key finding) + repo-split research LANDED (explorer-33 e4717ab — Option A deferred-move; the only machine-absolute repo-root pin = opencode.jsonc:26) — details: loop folder plan32_summary.md + git 4c45050..5f64052
   - 2026-09-28 autorun (ses_f1a4f121cffepXvNl2sCuSaM51, planner-31, Qwen3.8-27B-Q3S-245K-slow) — plan31: #114 ROOT CAUSE identified (no-total gauge reads lose the session-row model → default cap 1; 3rd live data point) + FIX LANDED+verified (worker-31 12e3262, probe 346, gauge_core ALL PASS) + #106 edit-fuzzy outcome tokens LANDED+verified (worker-31 cbbebf8, smoke 78/78) — live acceptances (#114, #106) PENDING the maintainer's host restart — details: loop folder plan31_summary.md + git 34adba6..8486445

@@ -1913,3 +1913,152 @@ smokes, pytest 459+1w, ruff F=0).
    the Windows-root form `home\AppData\Local\Temp\
    plan22_r8.txt` redirected 1:1 into the scratchpad (the `kind=redirect`
    line delivered in the tool feedback — the R8 note mechanism live).
+
+
+## #107. (open, 2026-09-28, plan28 feedback review; pre-approved class) DUMP-OK / COMPACT ctx.log lines should carry the FULL repo-relative directory
+- **Problem / evidence:** agent_feedback 2026-09-27_16-20 (planner): the
+  #92 live-acceptance verification cost two extra probes — the ctx.log
+  DUMP-OK line carries only the archive-RELATIVE path
+  (`compaction_dumps/…_c0.md`) but the real dir is
+  `.opencode/archive/sessions/compaction_dumps/`; the TODO/summary now names
+  the full dir, but the log line itself still forces the re-discovery.
+- **Desired outcome:** the DUMP-OK / DUMP-FAIL / DUMP-RETRY lines (and the
+  COMPACT line where a file path is named) carry the full repo-relative
+  path — a live acceptance is a single `ls`.
+- **Acceptance criteria:** the line format change pinned (probe S14
+  byte-exact pins + compact_memory smoke re-pins); gate green.
+- **Suggested scope:** `.opencode/plugin/compact_memory.ts` (the dump-hook
+  log lines), `.opencode/plugin/probes/handover_probe.mjs` (S14),
+  `.opencode/plugin/tests/compact_memory.smoke.mjs`.
+- **Status:** LANDED (plan29, 2026-09-28, planner-29 planner-direct —
+  pre-approved class): the three DUMP-* lines (DUMP-OK / DUMP-RETRY= /
+  DUMP-FAIL) now carry the FULL repo-relative dump path
+  (`.opencode/archive/sessions/` + name — the `DUMP_ARCHIVE_REL` constant
+  shared with the archive-dir join) so a live acceptance is a single `ls`;
+  the spawn's `--out` keeps the corpus-relative name (the script's
+  OUT_DIR-relative arg); the COMPACT line names no file path (checked —
+  unchanged). Pins re-pinned: probe S14 check 104 (4 includes()) + S25
+  check 255 (regex + label) + the compact_memory smoke's two DUMP-OK pins
+  (md + json). Measured: compact_memory smoke 78/78; probe all green
+  except the 11 pre-existing python312 environmental failures (see #113).
+  Hash in the plan29 bookkeeping commit.
+
+## #108. (open, 2026-09-28, plan28 feedback review; pre-approved class) auto_resume smoke: programmatic pair-block fixture builder
+- **Problem / evidence:** agent_feedback 2026-09-27_20-49 (planner): hand-
+  re-typing the 10-pair `#96 (c)` trim-restore fixture was error-prone — 19
+  lines written for 10 pairs (one `route=` line dropped), caught by the
+  smoke only after 2 runs + a standalone repro.
+- **Desired outcome:** the multi-pair fixture blocks are generated
+  programmatically (a loop building the string, not literal lines) + a
+  pair-count assert so a dropped line fails instantly with the count.
+- **Acceptance criteria:** the #96 (c) fixture (and any sibling multi-pair
+  fixtures) built by the generator; a pair-count assert present; the smoke
+  re-runs green with identical pin coverage.
+- **Suggested scope:** `.opencode/plugin/tests/auto_resume.smoke.mjs` (the
+  #96 (c) fixture block + the generator helper).
+- **Status:** LANDED (plan29, 2026-09-28, planner-29 planner-direct —
+  pre-approved class): the #96 (c) trim-restore fixture's 10 pairs are now
+  generated PROGRAMMATICALLY in the child script (`L(i) = charCode 97+i` +
+  `Array.from({length: 10})` loop — the same pattern the cap-config
+  sibling already carried) + a PAIR-COUNT assert (`pairCount !== 10` →
+  `console.log("PAIR_COUNT " + pairCount)` + non-zero exit BEFORE the log
+  is seeded — a dropped pair fails instantly with the count in the smoke
+  detail). The sibling multi-pair fixture (cap-config child) was already
+  programmatic (checked — no other hand-typed pair blocks exist).
+  Measured: auto_resume smoke 140/140 (the 140 = 139 baseline + the
+  3914181 cap-config check — the NAP baseline was stale, corrected in
+  plan29 bookkeeping). Hash in the plan29 bookkeeping commit.
+
+## #110. (open, 2026-09-28, plan28 ideas.md scan; pre-approved — docs) per-plugin README files for `.opencode/plugin/`
+- **Problem / evidence:** ideas.md 2026-09-22_17-53 (maintainer): "might be
+  a good idea to create separate README.md files for each plugin we have
+  written — general explanation what it does and how it is implemented;
+  might contain gotchas encountered — lessons learned and what not to do
+  with reasoning; this might be better in another gotchas file specific to
+  plugins."
+- **Desired outcome:** one README per our plugin (auto_resume,
+  compact_memory, context_recovery, intercept_observer, gauge/ctx nudge
+  family, block_transfer/loop_log/submit tool plugins where they live in
+  the plugin dir) — what it does, how it is implemented (hook surface +
+  key files), the gotchas/lessons (from knowledge entries + session
+  incidents); each ≤ ~60 lines, pointer-only (no restatement of the
+  knowledge base).
+- **Acceptance criteria:** the READMEs present in the plugin folder; every
+  plugin in `.opencode/plugin/` covered; content spot-checked against the
+  code (no stale hook names); the folder README (if any) indexes them.
+- **Suggested scope:** `.opencode/plugin/` (new README files, one per
+  plugin), `.opencode/agent/knowledge/knowledge_plugins.md` (source of the
+  gotchas).
+- **Status:** LANDED (plan32 unit 1, 2026-09-28, worker-32 — 9 per-plugin /
+  per-tool READMEs next to their sources + the two folder-README index
+  lines; the tools folder's 4 READMEs ride the same batch — see the
+  worker-32 handover). Hash recorded in the planner's follow-up bookkeeping
+  commit.
+
+## #111. (open, 2026-09-28, plan28 feedback review; pre-approved — small doc/prompt batch) doc/prompt friction batch from the plan28 review
+- **Problem / evidence:** three small pre-approved doc items from the
+  feedback review that are NOT in the prompt/spec docs yet: (1)
+  ideas.md 2026-09-22_12-03 — the worker "burned 10k tokens and 6.5 minutes
+  to decide to look up how others" referenced the git hash in his closing
+  commit (happens nearly every time); the task-spec doc carries the
+  commit-hash DoD RULE (codified 2026-09-22) but the worker prompt has no
+  short working example of the closing-commit message form (what goes in,
+  what the hash line says — "hash recorded in the planner's follow-up
+  bookkeeping"); (2) agent_feedback 2026-09-27_15-55 — a probe-comment
+  syntax slip survived to the ~2-min gate run: a cheap `node --check
+  .opencode/plugin/probes/handover_probe.mjs` after each probe edit batch
+  would catch token slips early; (3) agent_feedback 2026-09-26_15-13 — the
+  intercept smoke's module-state flip (the second factory call re-points
+  module state to proj2) is easy to miss on a fresh read: a header-level
+  note in the smoke file naming the before2/read2 convention for sections
+  after the R8 config-read block (~L712).
+- **Desired outcome:** the three one-liner doc fixes in place (worker
+  prompt commit-message example; `node --check` line in the test-gate doc;
+  smoke header convention note).
+- **Acceptance criteria:** the three lines present (worker prompt,
+  `repo_testgate.md` or the worker prompt, the intercept smoke header);
+  no behavior change.
+- **Suggested scope:** `.opencode/agent/prompts/agents/prompt_agent_task.md`,
+  `.opencode/agent/prompts/repo/repo_testgate.md`,
+  `.opencode/plugin/tests/intercept_observer.smoke.mjs` (header comment only).
+- **Status:** LANDED (plan29, 2026-09-28, planner-29 planner-direct —
+  pre-approved, no behavior change): (1) worker prompt `Checkpoint &
+  handoff` gains the commit-message worked example (subject + ~3 body
+  lines; the hash NEVER in the commit — `LANDED` (hash recorded in the
+  planner's follow-up bookkeeping commit), the spec doc's hash DoD rule);
+  (2) `repo_testgate.md` Test conventions gains the `node --check`
+  probe-syntax line (run before the gate after each probe edit batch);
+  (3) the intercept smoke header gains the MODULE-STATE FLIP note
+  ((12f) second factory re-points the shared module state to proj2 —
+  from (12f) on only `before2`/`read2` may be used). Hash in the plan29
+  bookkeeping commit.
+
+## #112. (open, 2026-09-28, plan28 ideas.md scan; pre-approved — docs) auto-resume explainer for the compaction handout + knowledge (compact, unit-by-unit)
+- **Problem / evidence:** ideas.md 2026-09-24_21-13 (maintainer): "include
+  infos about auto-resume in the compaction handout and system prompt —
+  e.g. what unit 2 and 4 actually do, how the restart of the planner after
+  compaction works, how a new planner is started; move it to knowledge
+  folder together." The knowledge base has the deep-dives (vendored
+  upstream reference) + our unit surface reports, but NO single compact
+  "what our auto_resume plugin does, unit by unit, in 1 page" explainer —
+  the compaction handout (the maintainer's draft) carries none of it.
+- **Desired outcome:** one compact knowledge entry (≤ ~80 lines) — unit 1
+  (skeleton/logging), unit 2 (context-limit nudge — the passive ctx-line
+  suffix, what the threshold gates), unit 3 (new-planner spawn helper),
+  unit 4 (liveness watchdog — the restart→spawn branch + the recovery
+  continue + the lineage cap + deactivation) — each: what it does, what
+  triggers it, the log lines it emits; pointer-only to the deep-dives /
+  surface reports for detail. The handout inclusion itself is the
+  maintainer's paste (his draft file).
+- **Acceptance criteria:** the knowledge entry present (dated, pointer-
+  only); the unit descriptions spot-checked against auto_resume.ts (no
+  stale hook names); the handout inclusion noted in the summary as
+  maintainer-pending.
+- **Suggested scope:** `.opencode/agent/knowledge/knowledge_plugins.md` or
+  a new dated file in `opencode-plugins/`, `.opencode/plugin/auto_resume.ts`
+  (read-only reference).
+- **Status:** LANDED (plan32 unit 1, 2026-09-28, worker-32 — the dated
+  explainer `knowledge/opencode-plugins/2026-09-28_auto-resume-units-
+  explainer.md`, ≤80 lines, spot-checked against auto_resume.ts). The
+  compaction-handout paste stays maintainer-domain. Hash recorded in the
+  planner's follow-up bookkeeping commit.

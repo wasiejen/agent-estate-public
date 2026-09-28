@@ -50,6 +50,26 @@ tick callback NEVER throw.
   a double-spawn (the residual race is accepted until the maintainer retires
   the looprunner).
 
+**#109 silent-limit-stop detector** (LANDED 2026-09-28, plan33 worker-33 — the
+tick leg AFTER `tailCompactRearm`, BEFORE the routing loop, own try/catch):
+zero-IO `limitStopCheck()` over the 5-clause signature (last assistant finish
+`length` + `tokens.total` >= 0.99 window + 60 s silence + idle + no NEW
+COMPACT line since the death step + in-scope: role-agent prefix
+`planner/worker/explorer` OR scope != none — Task-tool workers carry
+scope=none, so a scope-only gate would never fire). Fire = ONE `-WARNING`
+line appended DIRECTLY to the current looprun's `loop_log.md` (the plugin
+machine-stamps the local `YYYY-MM-DD_HH-MM` itself, same form as the
+loop_log tool — no folder → `auto_resume.log` only) + ONE `limit-stop=
+sid=… total=…` line in `auto_resume.log`; NO action on the session (the
+compaction dispatch stays a maintainer call). Build/test gotchas:
+`firstAgent` is captured from the USER-role `message.updated` event payload
+at arm time (NOT a messages() fetch); the smoke's 60 s silence gate is
+tested with a GLOBAL `Date.now` warp applied CUMULATIVELY across pins (each
+pin captures lastActivityAt under the current offset, the next pin warps
++70 s further); a same-tick ctx.log COMPACT append is visible because the
+leg sits AFTER `tailCompactRearm` (the `rearm=` line is the order
+discriminator).
+
 **Pointers** (pointer-only — no restatement):
 - `auto-resume-unit1-surface-report.md` — the live host surface (unit 1).
 - `auto-resume-deepdive-A.md` / `auto-resume-deepdive-B.md` /

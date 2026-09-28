@@ -1,100 +1,80 @@
-# Worker summary — #115 gauge window config-first (worker-34)
+# Worker summary — plan36 unit 1: context-erase / tail-trim research
 
-SESSION ses_f19678e4affewDsm1KbWh7ZyNj · model Qwen3.8-27B-Q3S-245K-slow · 2026-09-28
-
-## Executive summary
-TODO #115 is LANDED: the gauge's context window now resolves CONFIG-FIRST —
-the root `opencode.jsonc` `provider.<pid>.models.<mid>.limit.context`
-(finite > 0) wins, the name-marker `parseWindow` is the fallback. A model
-rename (no K/M marker) no longer degrades the readout. ONE change in the
-shared core `.opencode/plugin/scripts/gauge.mjs` covers all three surfaces
-(the ctx_watchdog injected line, the intercept_observer note, the
-ctx_gauge tool) — no plugin/tool code changed.
+explorer-36 (ses_f192da65effe5No7efgj5VFbb1, Qwen3.8-27B-Q3S-245K-slow),
+2026-09-28. Status: **LANDED**.
 
 ## What changed
-- **Code commit `0c90abe` (2 files, 180 ins / 4 del):**
-  - `gauge.mjs`:
-    - `parseJsonc` (replicated from auto_resume.ts's string-aware
-      JSONC→JSON strip — a `//` inside a string literal is NOT a comment;
-      trailing commas stripped; throws on parse failure, the caller
-      swallows). Replicated, not imported (plain .mjs — no TS import
-      possible).
-    - `DEFAULT_CONFIG_FILE` = repo-root `opencode.jsonc` (the
-      `join(THIS_DIR, "..", "..")` pattern of `DEFAULT_BUDGET_FILE`),
-      falling back to `opencode.json` when absent; `setConfigFileForTest` /
-      `getConfigFile` hooks (the `setBudgetFileForTest` pattern).
-    - new exported `resolveWindow(modelId)`: non-string → undefined;
-      first-`/` split → providerID/modelID (no `/` → skip the config path);
-      per-call config read (small file — the budget-store precedent) →
-      walk `provider[pid].models[mid].limit.context` — finite > 0 → the
-      window; every miss → `parseWindow(modelId)` (unchanged). Never throws.
-    - `gaugeFromRaw`: `window: resolveWindow(modelId)` (was parseWindow).
-    - the `parseWindow` header comment updated (it is now the FALLBACK of
-      resolveWindow — the rule itself is unchanged).
-  - `gauge_core.smoke.mjs`: 7 NEW resolveWindow pins — (a) config hit beats
-    the name marker (fx/x-256K → 999999), (b) no-marker model + config →
-    the config value (123456), (c) model not in the config → the name
-    parse (256000), (d) config file missing → the name parse, (e) a JSONC
-    fixture with line + block comments, trailing commas AND a `//` inside
-    a string literal parses (tricky-100K → 777777), (f) no provider prefix
-    → the name-parse fallback — + the non-string contract pin (undefined).
-    The fixture is a real JSONC file under the scratchpad, steered via
-    `setConfigFileForTest`. The existing 11 parseWindow pins + the item-3
-    budget-suffix pins are UNCHANGED (byte-identical).
-- **Bookkeeping (FINAL commit):** this handover, TODO.md #115 → LANDED,
-  the knowledge one-liner, the loop log DONE line.
 
-## Measured verification (all measured this session)
-- `gauge_core.smoke.mjs`: ALL PASS — 11 parseWindow pins (unchanged) + 1
-  parseModelId trio + 7 resolveWindow pins + 7 item-3 pins.
-- `ctx_gauge.smoke.mjs`: 3/3 — UNCHANGED, no re-pin needed (its live fixture
-  resolves identically: the live model's config value 245000 === its
-  name-marker parse).
-- `handover_probe.mjs`: 346 checks = **335 PASS** + the **11 pre-existing
-  environmental numword-python failures (136-146, #113 — NOT regressions)**
-  — identical to the documented baseline (TODO #106 close note). Zero
-  gauge-section failures; no probe re-pin / header change needed (the
-  synthetic `probe-model-256K_MTP`-style ids carry no provider prefix →
-  the config path is skipped — verified by running).
-- Other smokes at baseline: auto_resume 146/146, intercept_observer 78/78,
-  compact_memory 78/78, context_recovery 17/17, block_transfer 131/131 +
-  64/64, loop_log 69/69, submit 23/23.
-- ruff `--select F .`: **F=0** (all checks passed).
-- Live spot-check: `resolveWindow('llama-swap/Qwen3.8-27B-Q3S-245K-slow')`
-  = 245000 (config hit), no-prefix / unknown-provider / non-string ids fall
-  back as designed.
-- **pytest: BLOCKED by #113 (the broken venv)** — measured this session:
-  `./.venv/Scripts/python.exe -m pytest -q` exits 103 with `No Python at
-  'C:\...\python312\python.exe'` (the venv launcher points at a missing
-  `python312\python.exe`). Reported, NOT fixed (per spec). NOTE: this is
-  the SAME root cause as the 11 probe env failures (the probe spawns the
-  same venv python for the S17 python-twin checks).
+- ONE new doc: `.opencode/agent/research/2026-09-28_context-erase-tail-trim.md`
+  (211 lines — slightly over the ~150–200 target; kept rather than cut content).
+- No code, no config, no prompt, no TODO, no live-DB touch, no model traffic,
+  no FST run (all constraints honored).
+
+## Doc commit
+
+`4591cd0` — "research: context-erase/tail-trim — model context is re-derived
+from DB per step" (doc only).
+
+## The ONE question — answer
+
+**YES — the context changes.** The model's message list is re-derived from the
+DB at the top of EVERY loop step: `runLoop` re-reads via
+`MessageV2.filterCompactedEffect(sessionID)` (prompt.ts:1092-1094) →
+`stream()/page()` fresh SQL select on the `message` table (message-v2.ts:433-446,
+473-494) → parts joined by `message_id` (message-v2.ts:98-120) →
+`toModelMessagesEffect` (message-v2.ts:131+, called at prompt.ts:1262) →
+`llm.stream(streamInput)` (processor.ts:641-654). No in-memory history, no
+incremental list, no cached prompt — no cache to invalidate. (All refs vs the
+opencode-dev v1.18.32 source copy; the doc carries the full pin list.)
+
+## Verdict (doc §5)
+
+Row-deletion is a **VIABLE** context-trim channel — with a narrow safe zone:
+
+- Safe: complete finished turns (user + assistant rows; FK cascade
+  `part.message_id → message.id onDelete cascade`, sql.ts:82-89, with
+  `PRAGMA foreign_keys = ON` at database.ts:31) that are strictly BEFORE the
+  current last user message AND outside the compaction "marker quartet"
+  (compaction user row + compaction part with `tail_start_id` + summary row +
+  the `tail_start_id` target — message-v2.ts:549-573).
+- Hazardous: deleting the last user row re-runs the OLDEST surviving user
+  message as the active turn (`MessageV2.latest`, message-v2.ts:586-602, fed at
+  prompt.ts:1096/1273); deleting anything in the marker quartet degenerates the
+  window to the FULL pre-compaction history (guard at message-v2.ts:568) →
+  overflow, and this host has `compaction.auto = false` (no auto-compact
+  backstop); part-only deletion leaves phantom rows in session surfaces
+  (skipped at model level by message-v2.ts:200).
+- **Cleaner lever discovered**: the host itself rewrites the compaction part's
+  `tail_start_id` IN PLACE (`compaction.ts:461-466`, `session.updatePart`) — a
+  single-field JSON edit of one part row trims/extends the retained tail
+  (the `result.slice(tailIndex, compactionIndex)` window, message-v2.ts:567-571)
+  without any deletion. Where a marker exists, that edit is strictly safer than
+  row surgery; where no marker exists, the options are old-turn deletion or
+  creating a marker (needs a summarizer model request — forbidden on this host).
+
+## Suggested follow-ups (planner's call — NOT done by this unit)
+
+1. Maintainer call: is a live-DB write tool (tail-trim / tail_start_id editor)
+   wanted at all? Production use needs live-DB write coordination (WAL; the
+   host holds an open connection; reads are per-step so no restart needed).
+2. If yes: a worker task to design + implement the trim tool with a dry-run
+   mode, against a COPY of the DB first (never the live one).
 
 ## TODO entries
-- #115 → **LANDED** (status flipped in TODO.md; the code commit's hash —
-  `0c90abe` — recorded in the planner's follow-up bookkeeping commit, not
-  in mine).
-- NO new TODO entry appended — no doc/code discrepancy found in scope.
-  (Stated, not promised: a legitimate one would have gone to
-  `todo_inbox.md`.)
+
+None appended (no discrepancies beyond the doc content; the doc's
+"Effort / approval" section carries the follow-up design).
 
 ## What was deliberately NOT done
-- `opencode.jsonc` — READ-ONLY (untouched; verified git status clean for it).
-- `auto_resume.ts` (`getModelLimits` / the tick legs) — the provider.list()
-  path is separate (untouched).
-- `formatGauge`'s output format — unchanged (existing fixture bytes
-  identical; the item-3 pins prove it).
-- `parseWindow` / `parseModelId` themselves — kept + exported (they are
-  the fallback); only the `parseWindow` header comment was updated to say
-  so.
-- The budget-store read (compact_budget.json) — separate concern (untouched).
-- The pytest/venv block (#113) — reported, not rebuilt.
-- The 11 probe env failures — pre-existing baseline, not touched.
+
+- No live-DB reads or writes (constraint), no model/provider requests,
+  no FST run.
+- No code/plugin/config/TODO changes.
+- The v2-generation SDK surface (`session.context`/`session.history`) was
+  cited from the host-map (sdk.gen.d.ts:1718/1726) — not re-traced in source
+  (the installed live client is v1-generation, host-map L96-97; the v1 path
+  is the runtime path and was fully traced).
 
 ## Friction
-- (submit fired separately — one line on the glob-tool anomaly.)
 
-## Lessons
-- `glob` silently misses files under `.opencode/plugin/` on this host
-  (a `.opencode/plugin/**/*.mjs` pattern returned nothing while the files
-  exist) — `bash ls` / `grep` with an explicit dir worked.
+Logged via `submit(feedback=...)` (one line, before this handoff).

@@ -37,12 +37,6 @@
 - you are intelligent - you will find something to do
   - go through my ideas for new research on functions. create a folder in research for each if you find something worthwhile
 
-# planner behavioral guidelines needs to be moved from nap entirely into the destill memory
-- can be its own sectio in it
-- planner after a compaction acted really unreliable and implemented without giving the chance for interaction and clarification. behavioral learned guidelines were completely absend. jumped to conclusions, did not offer theories or asked questions to a topic we were currently talking about. he behaved really dump. answer/interact first (verify shortly if needed but never start a task with a worker without confirmation on what we actually want to implement). stop guessing and ask.
-- push back, do not sugarcoat. question my assumptions. i am learning and do not know everything. i bring ideas, you bring specific implementation knowledge and ability to fast check facts in our codebase. i want you to learn, so do not hesitate to ask directly. questions are a sign of maturity - jumping to conclusions without using the resources available is dump behavior.
-- in general in a direct sesson there should not be started a delegation without prior explicit ok from the maintainer
-
 # repo split research/proposal (each research should be at least a single run)
 - how best to seperate fst and the opencode_test branch into 2 independently trackable git repos
   - goal is to seperate repo files from opencode and agent files

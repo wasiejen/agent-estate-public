@@ -1706,3 +1706,210 @@ smokes, pytest 459+1w, ruff F=0).
 **Suggested scope:** opencode host (maintainer) + repo docs/prompts (agent-side).
 **Status:** open; root cause CONFIRMED per timeline (his 2026-09-21: PR #2470 merged ~4 days ago ≈ his ~48h onset; #2492 = same signature) — old ik_llama in place, workaround stays until the fork patches #2470; his update discipline: never adopt a fresh ik_llama build immediately — let it rest so others find the bugs first.
 ## #95. (closed 2026-09-28, plan28 maintenance pass — all four sub-items LANDED 2026-09-26: (1) R6 acb6323, (2) edit-fuzzy 15761d8+78b68e7, (3) R3 3ec1c5c/44c50a2/20d5a48, (4) R8 + return-info #97 07bdd56/0d9b8e6; R3 live-acceptance COMPLETE 2026-09-26 (plan23 re-test: grep/glob pair + bash quoted-form + bt anchor-marker pair live-accepted; section-anchor pinned-only, schema-shadowed)) — fuzzy edit-oldstring track (PARENT entry)
+
+## #67. (closed 2026-09-28, plan30 maintenance pass — R3 build LANDED 2026-09-26 (3ec1c5c/44c50a2/20d5a48, gate 337/337 + io 77/77) + live acceptance COMPLETE 2026-09-26 (plan23 re-test: grep/glob pair + bash quoted-form + bt anchor-marker pair live-accepted; section-anchor pinned-only, schema-shadowed — dormant by design on this host; see #95 closed status)) — Fuzzy scope extension: glob / grep / section-anchor resolvers (2026-09-16, plan2 queue)
+- **Problem / evidence:** plan2 wired ONLY `read` (+string filePath) — the
+  core matcher (`resolveReadPath`, corpus cache) is corpus-root-agnostic and
+  ready for more read-scope tools (research §2.3/§2.6).
+- **Outcome:** extend the hook scope to `glob`/`grep` path args and add the
+  section-anchor resolver (anchor line-prefix → offset, exactly-one-match,
+  fail-closed on 0/≥2 — §2.6), fail-closed + both-outcomes logged, probe
+  pins per the established pattern.
+- **Acceptance:** probe green (self-annotation updated), smoke green,
+  standard gate unchanged.
+- **Scope:** `intercept_observer_core.ts` + `intercept_observer.ts` + probe
+  S18 section.
+- **Status:** OPEN (this is the scope of staged spec R3,
+  `research/fuzzy-numword/spec_R3_arg_scope_extension.md`; gated on R1 + R2
+  green + R4 log-volume data). R4 LANDED 2026-09-23 (planner-13,
+  worker-13 ses_f30310096, commit dde74b9, planner-verified): the mining
+  scriptlet `scripts/log/summarize_intercept.cjs` + fixture pin (6/6 smoke) +
+  INVENTORY/README; the gate data is in hand (run output: verdict counts,
+  fuzzy-rejected d/gap lines, out-of-sandbox prefixes, per-session counts —
+  counts move, the log grows live). Census-basis note (worker finding): the
+  spec's "139 distinct session ids" was a substring census; the script's
+  field-2 census reads 86 at 3130 lines — the field-2 census is the R4
+  per-session basis (the gate is met on either basis). R3:
+   the build LANDED 2026-09-26 (3ec1c5c/44c50a2/20d5a48 — gate 337/337 + io
+   77/77; see #95 sub-item (3)). LIVE acceptance 2026-09-26 (plan22): 2 of 4
+   channels live (grep/glob pair + bash quoted-form); the section-anchor +
+   bt anchor-marker channels blocked — the live process predates the import
+   fix 44c50a2 (the 14-26 mid-incident restart) → pending the maintainer's
+   next restart.
+
+## #70. (closed 2026-09-28, plan30 maintenance pass — all units LANDED + live-accepted: unit A 6864bc0 (2026-09-21) + unit B d4ef76e (2026-09-22); live acceptance 2026-09-21 (DUMP-OK PASS + config resolution; the cross model-read bug found+fixed 280b8d0 + re-accepted); the requested research-spec follow-on superseded by the #99/#101/#105 research tracks) — compact_memory rework: config-resolved summarizer + queued message + dump diagnostics (2026-09-16, new priority.md item; re-scoped 2026-09-21 by his priority.md #1)
+- **Problem / evidence:** maintainer priority.md addition: context_limit
+  error → compact the worker (use the Gemma compaction model per
+  opencode.jsonc `agent.compaction`); the flow is SERIAL (compaction active
+  = planner inactive — no sleep/wait polling); cross-compaction needs only
+  the target session_id (providerID/modelID to be REMOVED from the
+  compact_memory parameter list — resolved from opencode.jsonc; the
+  parameter descriptions were "described badly" — #55 item). Plan2 hit the
+  friction live: the dispatch resolved the SUMMARIZER to the same model as
+  the target session (Qwen) and I had to wait for the single slot. HIS
+  2026-09-21 priority.md #1 ADDITIONS: (1) BOTH providerID and modelID
+  REMOVED from the exposed parameter list — the summarizer resolves from
+  opencode.jsonc `agent.compaction.model` ("provider/model"); absent /
+  malformed → the COMPACTING session's own model (his ruling: same-model
+  compaction gives better results even if slower); the LIVE config has
+  `agent.compaction` commented out → the fallback path is currently
+  active; (2) the `message` arg does NOT arrive in the compacted session
+  (it only rides the caller's tool result) — change to a direct QUEUED
+  prompt message (promptAsync, no await — delivered on resume);
+  (3) DUMP-FAIL evidence (ctx.log 2026-09-16/17: 2× `spawnSync node
+  ETIMEDOUT`; measured: the dump script is 0.12 s standalone — a HUNG
+  CHILD INSIDE THE HOST, not script slowness; the hook logs failures
+  only, no DUMP-OK line → add DUMP-OK + duration for self-diagnosis;
+  defensive spawn stdio pipe→ignore); (4) auto-compaction on context
+  limit = an option togglable via a parameter in the budget file
+  (`.opencode/temp/compact_budget.json`); (5) research spec requested: a
+  small research on compact_memory + block_transfer (he wrote
+  "buffer_transfer") — up/downs, what is problematic and why,
+  alternatives.
+- **Outcome (goal):** param rework landed (4-key schema:
+  sessionID/keepTokens/keepMessages/message; config resolution with
+  session-model fallback) + the message queued to the compacted session +
+  DUMP-OK diagnostics + (follow-on) the budget-file auto-compact toggle +
+  (follow-on) the requested research spec; probe/smoke green; live
+  acceptance after a host restart.
+- **Acceptance:** param rework landed + probe/smoke green; a cross-compact
+  dispatch needs only the session_id; the queued message reaches the
+  compacted session (live, post-restart); the toggle readable from the
+  budget file (follow-on unit); the research spec filed + run (follow-on
+  unit).
+- **Scope:** `.opencode/plugin/compact_memory.ts`,
+  `.opencode/plugin/tests/compact_memory.smoke.mjs`,
+  `.opencode/plugin/probes/handover_probe.mjs`, (follow-on:
+  `.opencode/plugin/auto_resume.ts` + the budget store).
+- **Status:** OPEN (approved — priority.md #1, top of his active list).
+  **Unit A LANDED (2026-09-21, plan5, worker-6 `worker_Q3S_160K`
+  ses_f3ab3c67dffeujQ8L1ucfWu8k8, code `6864bc0` — the planner verified the
+  full gate and landed the commit after the worker's context-limit death):**
+  4-key args (providerID/modelID removed) + config-resolved summarizer
+  (opencode.jsonc `agent.compaction.model` → session-model fallback; the
+  live config is commented out → fallback active = same-model summarize) +
+  queued promptAsync message + DUMP-OK line + stdio ignore (probe 241/241,
+  all 10 smokes, pytest 459+1w, ruff F=0). FOLLOW-ONS: the auto-compact
+  budget-file toggle (unit B), the research spec (compact_memory +
+  block_transfer up/downs), live acceptance after the next host restart.
+  **Unit A build in flight (plan5, 2026-09-21, looprun 2026-09-21_15-33):**
+  the param rework + config resolution + queued message + DUMP-OK
+  diagnostics — spec committed this iteration; follow-on: the auto-compact
+  toggle unit, the research spec, live acceptance post-restart.
+  **Live acceptance ATTEMPTED (2026-09-21, plan6, post-restart, planner-run):**
+  (a) DUMP-OK LIVE PASS — the pre-compaction dump hook fired on a live
+  dispatch (ctx.log `DUMP-OK ses_f3b16aa46… 76` + `compaction_dumps/
+  ses_f3b16aa46…_c0.md` created); (b) config resolution — the live
+  `agent.compaction` is COMMENTED OUT (opencode.jsonc line ~130) → the
+  same-model fallback is the active path (the dispatch reached it);
+  (c) CROSS MODEL-READ LIVE BUG FOUND: two live cross dispatches failed
+  `no resolvable model … request was NOT sent` + `cross-session model read
+  empty (no messages)` for sessions that DO have messages — root cause
+  measured: the in-process client resolves SDK calls to a RequestResult
+  wrapper `{ data: [...] }`, never a bare array (precedent: auto_resume.ts
+  383-386 unwraps `create()` as `res.data.id ?? res.id`; SDK types
+  `SessionMessagesResponses = { 200: Array<{info, parts}> }`) —
+  `resolveModel` ran `Array.isArray` on the raw result → always "no
+  messages" (smoke fakes returned bare arrays, so the gate stayed green).
+  **FIXED (280b8d0, worker-7, planner re-verified): dual-shape unwrap in
+  resolveModel + smoke wrapper case (smoke 53/53, probe 241/241, pytest
+  459+1w, ruff F=0).** LIVE RE-ACCEPTANCE (cross model resolution + queued
+  message + COMPACT line) PENDING the NEXT host restart (the fix is not
+   live yet). Unit B: spec committed (1c599a6); worker-8 DIED mid-run
+   (host stream-cut mid tool-call emission — the #74 family; no file
+   changes, nothing lost) → UNIT B LAUNCH-READY for the next iteration.
+   **Unit B LANDED (2026-09-22, plan7, worker-10 `worker_Q3S_160K`
+   ses_f3a03af20ffe1bRa56xVl143VG, code `d4ef76e` — planner re-verified:
+   smoke 62/62, probe 241/241, pytest 459+1w, ruff F=0):**
+   `autoCompactEnabled()` per-tick reader (fail-open: missing/unreadable/
+   malformed file or absent key → ON; key present → Boolean) + the tick
+   gate (`skip= autoCompact-off` line, no send, the once-per-busy-cycle
+   attempts budget NOT consumed when OFF); live `compact_budget.json`
+   untouched. Worker-9's cancelled partial (header comment + constant —
+   maintainer interrupt, the #79 ping-pong incident) was carried by
+   worker-10. Live acceptance pending the next host restart. Follow-on:
+   the requested research spec (compact_memory + block_transfer up/downs).
+
+## #78. (closed 2026-09-28, plan30 maintenance pass — LANDED 2026-09-23 (6b33907, per his 2026-09-23 ruling "go for 1 + 2, plus 3+4 unified": --json raw mode + lossless full markdown + --lite preset + hook 120 s budget / pipe stderr / one retry; planner-verified: --json spot-check 70 msgs / 337 parts exact-match the live DB)) — Dump completeness: the session dumps filter out parts (thinking/writing) (2026-09-21, planner; his --info note in priority.md)
+- **Problem / evidence:** his --info (priority.md, 2026-09-21): "automatic
+  dumps which were generated by the dumping script to backup all sessions
+  seemed to not include any thinking, writing or other parts at all" (e.g.
+  `.opencode/archive/sessions/ses_f5aefe9e1ffemgTiq9GELiqaGL.md`); "the
+  current dumping in the compact tool seems to filter out some parts. if
+  they are in json maybe it is best to just dump this directly as it is to
+  preserve the structure"; dumps in general should be COMPLETE — filtering
+  out tool calls can be done by scripts on a need basis.
+- **Desired outcome:** dumps (the `dump_session.cjs` corpus dumps AND the
+  compact pre-dump hook) preserve ALL part types (incl. reasoning); a raw
+  JSON dump mode that preserves structure as-is; the markdown filtering
+  stays available as an on-demand script concern.
+- **Acceptance:** a dump of a session containing reasoning parts shows
+  them (or the explicit JSON mode exists); his ruling recorded
+  (markdown-completeness vs raw-JSON-as-is as the default).
+- **Suggested scope:** `.opencode/agent/scripts/db/dump_session.cjs` (+ the
+  `preCompactionDump` call site in compact_memory.ts),
+  `.opencode/archive/sessions/` (read-only reference).
+- **Live evidence #2 (plan6, 2026-09-21):** the compact pre-dump hook
+  ALSO times out on large sessions — `DUMP-FAIL ses_f3a51aedcffeSa0cwt8PmwlXAr
+  spawnSync node ETIMEDOUT` (ctx.log) on a ~90 % session while a small
+  session dumped in 76 ms (`DUMP-OK`) — the dump's spawn timeout does not
+  scale with session size (same script family as the corpus dumps).
+- **Status:** LANDED 2026-09-23 (worker_Q3S_170K
+   ses_f30807a16ffelPQPUBH50wiXBe — A+B+C per spec 2f64d76: `--json` raw mode
+   + lossless full markdown + `--lite` preset + hook 120 s budget / pipe
+   stderr capture / one retry; DUMP-OK `ms=` + stdio + S14-104 re-pins
+   (recorded in the worker handover); gate green — the code commit hash is
+   recorded in the planner's follow-up bookkeeping — Commit **6b33907** (planner-verified 2026-09-23: compact_memory smoke re-run 57/57; `--json` spot-check on the trigger session: 70 msgs / 337 parts, JSON.parse OK, counts exact-match the live DB)). Was SCOPED 2026-09-23
+   (plan11, explore ses_f317d80c2ffeMGup4T9z5IvUs2 — findings:
+   `.opencode/loop/autorun-2026-09-21_15-33/plan11_78_scope.md`. Headline: his
+  cited corpus file is a STALE 2026-09-15 slim backfill — the CURRENT full
+  mode emits all 141 parts of that session (30 reasoning + 16 text verbatim);
+  residual gaps = tool `state.input`/`state.output` never emitted + 400/600-
+  char caps on other types; NO raw-JSON mode exists. Hook timeout = fixed
+  60 s (`compact_memory.ts` L359) vs measured 64–87 ms dump wall-times → the
+  live DUMP-FAIL ETIMEDOUT is a SPAWN-LEVEL STALL, not budget exhaustion
+  (`stdio: "ignore"` hides the child stderr). Ranked recs: (1) add a
+  `--json` raw-as-is mode to `dump_session.cjs` (S; hook-default = his call),
+  (2) raise/diagnose the hook timeout (S–M), (3) make markdown full mode
+  lossless (S) + (4) later an on-demand markdown filter over the raw JSON.)
+   Awaiting his ruling on the options. **RULING 2026-09-23 (planner-12 direct): go for 1 + 2, plus 3+4 unified** (his 3/4 intuition confirmed — unfiltered vs filtered = a renderer toggle: 3 = lossless full markdown AT DUMP TIME, 4 = a `--lite` filtered preset on the same script). Spec written (handover_task.md) + `worker_Q3S_170K` launched; the pre-compaction hook keeps its markdown backup rendered with the lossless full mode (raw JSON stays the on-demand `--json` mode — planner call, veto-able).
+
+## #97. (closed 2026-09-28, plan30 maintenance pass — LANDED 2026-09-25 (worker-17: 07bdd56 Unit 1 redirect + 0d9b8e6 Unit 2 escape return-info + 6684991 handover; gate green) + LIVE-ACCEPTED 2026-09-26 (plan22 planner spot-check: the Windows-root form redirected 1:1 into the scratchpad, kind=redirect line delivered)) — R8 sandbox redirect: out-of-sandbox path args redirected INTO the sandbox (2026-09-25, his live priority.md edit labeled "TODO #97"; planner-14 filed)
+- **Problem / evidence:** his priority.md live section 2026-09-25 ("# fuzzy_numword
+  R8"): repeated accesses outside the sandbox stop everything until he
+  intervenes — e.g. an access to `home\AppData\Local\Temp`
+  instead of the designated `home\AppData\Local\Temp\opencode`;
+  the earlier priority.md fuzzy_numword item gives the shape (redirect
+  calls like `C:\Users\Asiejen\AppData\Local\Temp\opencode\brtest.mjs`
+  into the sandbox). His named basis for the allowed paths: the
+  `permission.external_directory` + `references` sections of
+  opencode.jsonc (both). This is #95 sub-item (4) first half — the
+  escape return-info is the second half (rides the same launch).
+- **Desired outcome:** an out-of-sandbox path argument that maps 1:1 into
+  a sandbox/allowed path is REDIRECTED (mutated) by the intercept before
+  the call runs, with the mandatory log line (kind + orig= + value= per
+  his return-info ruling) — the "repeated accesses stop everything"
+  loop ends; NO new out-of-sandbox access is ever granted (redirect
+  only, never an allow-widening).
+- **Acceptance:** a controlled out-of-sandbox path (the Temp-without-
+  opencode-suffix case) is redirected + logged; a path with no 1:1
+  mapping fails closed (no mutation); probe pins per the established
+  pattern; standard gate green.
+- **Suggested scope:** `.opencode/plugin/intercept_observer.ts` (+ core —
+  the allowed-path resolution from opencode.jsonc
+  `permission.external_directory` + `references`),
+  `.opencode/plugin/probes/handover_probe.mjs`, the tests.
+- **Status:** LANDED (worker-17, 2026-09-25 — commits `07bdd56` (Unit 1
+  R8 redirect) + `0d9b8e6` (Unit 2 escape return-info) + `6684991`
+  (handover); planner-17 spot-verified: intercept smoke re-run 67/67
+  green, probe 303/303, pytest 459 passed + 1 warning, ruff F=0 per the
+  handover). The return-info/feedback half landed as Unit 2 (his
+  context-saving ruling honored: truncated first form in the feedback,
+  full pre-mutation payload in the journal `pre-escape` field).
+   Sign-offs (handover §deliberately-not-done): S28 probe section
+   placement, `pair-resolved` verdict reuse (the 12-token vocabulary is
+   pinned), the redirect note text, the 13b hint token — all accepted by
+   planner-17. **LIVE-ACCEPTED 2026-09-26 (plan22, planner spot-check):**
+   the Windows-root form `home\AppData\Local\Temp\
+   plan22_r8.txt` redirected 1:1 into the scratchpad (the `kind=redirect`
+   line delivered in the tool feedback — the R8 note mechanism live).

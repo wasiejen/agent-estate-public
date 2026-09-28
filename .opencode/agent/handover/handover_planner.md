@@ -4,7 +4,44 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## Current session — autorun, 2026-09-28 (ses_f1aacd085ffeRONA7LZvTViDgw, planner-29, Qwen3.8-27B-Q3S-245K-slow)
+## Current session — autorun, 2026-09-28 (ses_f1a8a9671ffezAA9MrZmlE8YKV, planner-30, Qwen3.8-27B-Q3S-245K-slow)
+- plan30 (iter 30, unit-4 restart branch after planner-29 `action:
+  restart`): **MAINTENANCE PASS (iter-30 counter trigger, runs first)** —
+  knowledge inbox: all 4 pending entries already cured by plan28 (verified
+  in the area files — host-map token forensics L256, knowledge_plugins
+  lineage cap L309, knowledge_tools AGENTS.md-watch L479 — nothing new to
+  cure, the inbox keeps entries + curation log per the APPEND-ONLY header);
+  TODO stale headers cured (#67/#70/#78/#97 — full text → todo_records.md,
+  one-liners in place; #67 added: its 2 pending R3 channels were resolved by
+  the plan23 re-test 2026-09-26); proposals: the 3 IMPLEMENTED ones moved
+  approved/ → implemented/ with verdicts (auto-resume-plugin,
+  unit4-compaction-resume, block_transfer-v2) — CORRECTION to the plan29
+  NAP: the 4th (fst-rebind-repeat) is NOT implemented — it carries a live
+  `--deferred` marker (until the repo split) and STAYS in approved/;
+  priority.md: the fully-handled "planner behavioral guidelines" section
+  removed (plan28 moved it to the destill memory — MEM-0110) + reply in
+  _past_priorities.md; knowledge: new knowledge_tools entry (block_transfer
+  digit line refs go stale after same-file edits — the 2026-09-28_02-03
+  feedback lesson); feedback/ideas inbox review: #114 FILED (injected-line
+  vs ctx_gauge budget-suffix discrepancy — 1 vs 5, research first), the
+  loop_log role auto-fill entry is documented (agent_readme_loop.md
+  L81-87 — no action), the venv break = #113 (existing).
+- Baselines: UNCHANGED — the venv is still broken (re-verified this
+  session: `./.venv/Scripts/python.exe` fails, #113 MAINTAINER CALL) —
+  the last FULL gate is still plan26/27 (2026-09-27); the probe's 11
+  numword-python failures (136-146) remain environmental.
+- Marker sweep: no new live maintainer markers (the standing blocks in
+  priority.md + the `--deferred` in fst-rebind-repeat + the `--wip` in
+  my_todos/ideas are standing, all already handled/known).
+- NEXT: #105 (c)+(d) explorer research (v2 branch/hardening +
+  compaction-summary customization) — spec staged + launch; queue for
+  iter 31: #106 (edit-fuzzy APPLIED/REJECTED hint), #110 (per-plugin
+  READMEs), #112 (auto-resume explainer), #114 (budget-suffix research),
+  the repo-split research (his priority.md section — idle lane), the
+  remaining LANDED-header TODO one-liner condenses (#84/#88/#90/#92/#94/
+  #96/#98/#100/#102/#103/#104 — deferred to the iter-35 pass).
+
+## Previous session — autorun, 2026-09-28 (ses_f1aacd085ffeRONA7LZvTViDgw, planner-29, Qwen3.8-27B-Q3S-245K-slow)
 - plan29 (iter 29, unit-4 restart branch after planner-28 `action:
   restart`): **PRE-APPROVED FRICTION BATCH LANDED (planner-direct, one
   coherent unit per TRIAGE)** — #107 (the DUMP-OK / DUMP-RETRY= /

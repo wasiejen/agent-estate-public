@@ -31,3 +31,4 @@ when he wants. The convention itself lives in `priority.md` (section
 - # how to deliver the message of self-compaction and cross-compaction to the compacted session? — done: spec 2+11 (526e7e1) — the message is STORED at queue time and relayed first at resume (the unit-4 CONTINUE path)
 - # 2026-09-24_22-47 (one-commit loosening — checkpoint commit per verified unit, TODO + handover ride the final commit) — APPROVED (his 2026-09-25 direct ruling): codified in agent_readme_task_spec.md (the Checkpoint-commits bullet); AGENTS.md §Commit-routine step 1 paste text provided in the 2026-09-25 close message (his file — his paste)
 - # TODO #97 — done: #97 LANDED (07bdd56/0d9b8e6, plan17) + LIVE-ACCEPTED 2026-09-26 (plan22: the Windows-root form redirected 1:1 into the scratchpad)
+- planner behavioral guidelines (priority.md section) — done: moved into the destill memory (MEM-0110, own section) by plan28 (2026-09-28); removed by plan30 (2026-09-28)

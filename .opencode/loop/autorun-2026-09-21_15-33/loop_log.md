@@ -187,3 +187,4 @@
 2026-09-28_02-02 DONE<--- planner-28 ses_f1b04ea20ffeo9jTAs1IEvAGjg Qwen3.8-27B-Q3S-245K-slow 51%/119K
 2026-09-28_02-12 -->START planner-29 ses_f1aacd085ffeRONA7LZvTViDgw Qwen3.8-27B-Q3S-245K-slow plan29 (iter 29): pre-approved friction batch planner-direct — #107 (DUMP-OK/COMPACT full repo-relative paths) + #108 (auto_resume pair-fixture generator) + #111 (3-line doc batch); #105 (d) research queued for iter 30 (maintenance pass)
 2026-09-28_02-34 DONE<--- planner-29 ses_f1aacd085ffeRONA7LZvTViDgw Qwen3.8-27B-Q3S-245K-slow 72%/66K
+2026-09-28_02-46 -->START planner-30 ses_f1a8a9671ffezAA9MrZmlE8YKV Qwen3.8-27B-Q3S-245K-slow plan30 (iter 30, unit-4 restart branch after planner-29 action:restart): MAINTENANCE PASS (iter-30 counter trigger, runs first) then #105 (c)+(d) explorer research

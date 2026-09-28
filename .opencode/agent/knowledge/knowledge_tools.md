@@ -502,3 +502,16 @@ instructions/protocol — facts that save lookups. Format per the README:
   found"; `plugin/tests/*.smoke.mjs` also empty — the dot-directory is the
   discriminator, `.gitignore` does NOT list `.opencode`).
 - **Keys:** glob, dot-directory, hidden, .opencode, no files found, ls.
+## block_transfer digit line refs go stale after same-file edits (verified 2026-09-28, plan28 incident)
+- **Do:** after ANY edit to a file, re-verify the line numbers (fresh read/grep)
+  before using digit refs in block_transfer — or use unique string anchors for
+  block ops on files edited this session.
+- **Why (evidence):** planner-28 (2026-09-28) used digit line refs (31..154)
+  that were correct BEFORE a same-file edit had shifted the lines — a
+  block_transfer DELETE removed the wrong 124-line window (the plan28 section
+  tail + most of the plan27 section instead of the plan27 section alone);
+  caught only because the delete echo names its first line (which did not
+  match the expected anchor), then repaired.
+- **Ref:** agent_feedback 2026-09-28_02-03; block_transfer.ts (digit refs
+  resolve against the PRE-call file state).
+- **Keys:** block_transfer, line number, stale anchor, digit ref, shift, DELETE

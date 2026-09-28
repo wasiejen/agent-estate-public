@@ -28,13 +28,27 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
     Verification: wc -l in limits, hook-surface spot check (grep -c
     match the worker's table), TODO #110/#112 → LANDED, git scope
     clean (docs-only, no code touched).
-  - Unit 2: #109 silent-limit-stop detector research (explorer —
-    spec next). Then (if context allows) the repo-split research
-    (explorer — his priority.md section, "each research at least a
-    single run"), then close. Maintenance pass next at iter 35
-    (counter trigger) — the LANDED-header one-liner condenses ride
-    that pass. #105 (e) stays open (his opencode.jsonc write-access
-    tightening — his domain).
+  - Unit 2 LANDED + planner-verified (explorer-32
+    ses_f19d3d34bffeDuzNz23350dZfk, doc 46de67b + summary b528ffb):
+    #109 research DONE — the detector = a zero-IO `limitStopCheck()`
+    leg in the auto_resume 5s tick (5-conjunction signature; DB fields
+    evidenced live; corpus scan 16566 rows); KEY FINDING: Task-tool
+    workers carry `scope= none` → a scope-only gate would NEVER fire —
+    the doc's gate = role-agent prefix OR scope≠none (evidence won
+    over the spec's gate); visibility = a `-WARNING` line appended
+    directly to `loop_log.md` (the loop_log tool is agent-facing —
+    the plugin writes the file); build spec sketch in doc §5
+    (6 smoke pins, ~0.5-1 day; the -WARNING detector is the
+    pre-approved class; a compaction DISPATCH on detection =
+    maintainer call). TODO #109 → RESEARCH DONE / OPEN for the build.
+    Minor: doc 181 lines vs the spec's ~150 (soft target — dense,
+    evidence-tagged; no padding; accepted).
+  - Unit 3 (if context allows): the repo-split research (explorer —
+    his priority.md section, "each research at least a single
+    run"), then close. Maintenance pass next at iter 35 (counter
+    trigger) — the LANDED-header one-liner condenses ride that pass.
+    #105 (e) stays open (his opencode.jsonc write-access tightening —
+    his domain).
   - Baselines: probe 346 (335 pass + 11 #113 environmental 136-146);
     smokes per Standing; venv still broken (#113 MAINTAINER CALL).
 

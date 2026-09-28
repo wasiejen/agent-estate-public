@@ -647,3 +647,6 @@ Glob tool quirk: `glob` with pattern `.opencode/plugin/*` returned "No files fou
 ### 2026-09-28_05-54 worker_Q3S_245K_slow ses_f19f14f77ffec3eM4B77xFC36Z
 plan32 unit1 spec: the "first ~40-60 lines" header assumption underestimates the two longest plugin headers (ctx_watchdog.ts header runs to ~L188, intercept_observer.ts to ~L170) — covering v2.8/R3/R8 required reads well past line 80.
 
+### 2026-09-28_06-28 explorer_Q3S_245K_slow ses_f19d3d34bffeDuzNz23350dZfk
+Loop-log DONE content format (`<CTX>%/<REM>K` per agent_readme_loop.md) requires inferring the mapping from the ctx_gauge full readout (`CTX=119906 (48%) REM=125094` → `48%/125K`) — a one-line note in the gauge tool description or the loop readme would remove the guess.
+

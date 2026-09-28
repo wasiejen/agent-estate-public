@@ -4,39 +4,48 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## Current session — autorun, 2026-09-28 (ses_f1938fbf7ffezxbBZE47haZsdS, planner-36, Qwen3.8-27B-Q3S-245K-slow)
-- plan36 (iter 36, unit-4 restart branch after planner-35 `action:
+## Current session — autorun, 2026-09-28 (ses_f191a6cb5ffeq4noDPvOTFNkxM, planner-37, Qwen3.8-27B-Q3S-245K-slow)
+- plan37 (iter 37, unit-4 restart branch after planner-36 `action:
   restart`):
-  - #114/#115 6th live data point: injected ctx line "CTX=notAvailable |
-    1 compactions left" (live build) vs self-gauge "CTX=69115 (28%)
-    REM=175885 | 5 compactions left" (disk build, window 245000) — the
-    live process still predates 12e3262 (the #114 fix) and 0c90abe (the
-    #115 fix); live acceptances for both still pending the maintainer's
-    restart.
+  - #114/#115 7th live data point: fresh-session injected ctx line
+    "CTX=notAvailable | 1 compactions left" (live build) vs self-gauge
+    "CTX=149101 (60%) REM=95899 | 5 compactions left" (disk build,
+    window 245000) — the live process still predates 12e3262 (the #114
+    fix) and 0c90abe (the #115 fix); live acceptances for both still
+    pending the maintainer's restart.
   - Channels checked: maintainer inbox empty; priority.md active list
-    empty (standing idle-lane block only); markers clean (plan36 sweep —
-    no live additions); proposals unchanged (2026-09-28_repo-split-
-    phase1.md + 2026-09-28_submit-memory-channel.md at root awaiting his
-    ruling; fst-rebind-repeat stays approved/ --deferred).
-  - Unit 1: context-erase/tail-trim research LANDED (explorer-36
-    ses_f192da65effe5No7efgj5VFbb1, doc 4591cd0 + handover c32c5eb):
-    YES — the model context is re-derived from the DB at the top of every
-    loop step (prompt.ts:1092 filterCompactedEffect → fresh SQL select
-    message-v2.ts:433-446 → toModelMessagesEffect → llm.stream; no
-    in-memory history, no cached prompt). Row deletion is a VIABLE trim
-    channel with a narrow safe zone (complete finished old turns strictly
-    before the last user message, outside the compaction marker quartet);
-    CLEANER lever = the host's own in-place `tail_start_id` rewrite
-    (compaction.ts:461-466). Planner spot-verified all 4 key refs against
-    the opencode-dev source copy. Knowledge entry filed (opencode-
-    plugins/2026-09-28_context-erase-tail-trim.md). Follow-up (the
-    tail-trim tool) = MAINTAINER CALL (doc §effort/approval).
-  - Iter-37 queue: the live-acceptance battery (#114/#106/#109/#115 —
-    his restart); #113 venv (MAINTAINER CALL); repo-split (his domain);
-    the detector-dispatch part (his call); #116 capture (post-restart);
-    the tail-trim tool (MAINTAINER CALL — research doc 2026-09-28_
-    context-erase-tail-trim.md §effort/approval).
+    empty (standing idle-lane block only); markers clean (plan37 sweep —
+    no live additions); proposals: the NEW 2026-09-28_context-trim-
+    tool.md filed this session (root, awaiting his ruling) + the two
+    existing root proposals unchanged (2026-09-28_repo-split-phase1.md
+    + 2026-09-28_submit-memory-channel.md awaiting his ruling);
+    fst-rebind-repeat stays approved/ --deferred.
+  - Unit 1 (idle lane — the queue is all maintainer-blocked): the
+    tail-trim tool PROPOSAL filed (`.opencode/proposals/
+    2026-09-28_context-trim-tool.md`) — the decision package for the
+    plan36 research follow-up: report + tail (the `tail_start_id`
+    rewrite, non-destructive + reversible) first, the destructive
+    `turns` (row-deletion) mode as follow-up; the approval question =
+    whether a live-DB write tool is wanted at all (research doc
+    §effort/approval).
+  - Baseline re-verified (plan37 gate run): all smokes green at
+    baseline (auto_resume 146/146, block_transfer 131/131 + 64/64,
+    compact_memory 78/78, context_recovery 17/17, intercept_observer
+    78/78, loop_log 69/69, submit 23/23, ctx_gauge 3/3, gauge_core ALL
+    PASS) + probe 346 = 335 PASS + the 11 #113 environmental failures
+    (136-146) + ruff F=0; pytest still UNRUNNABLE (#113 — not
+    attempted).
+  - Inbox review (idle lane): agent_feedback.md + agent_ideas.md fully
+    triaged (nothing new since plan35/36); maintainer ideas.md
+    unchanged; no new maintainer files.
+  - Iter-38 queue (unchanged — all maintainer-blocked): the
+    live-acceptance battery (#114/#106/#109/#115 — his restart); #113
+    venv (MAINTAINER CALL); repo-split (his domain); the
+    detector-dispatch part (his call); #116 capture (post-restart); the
+    tail-trim tool (his ruling — proposal
+    2026-09-28_context-trim-tool.md).
 ## Compressed archive (one line each
+  - 2026-09-28 autorun (ses_f1938fbf7ffezxbBZE47haZsdS, planner-36, Qwen3.8-27B-Q3S-245K-slow) — plan36: context-erase/tail-trim research LANDED+verified (explorer-36 4591cd0/c32c5eb — context re-derived from DB per step, no in-memory history; the viable trim channels = old-turn row deletion (narrow safe zone) + the host's own `tail_start_id` rewrite (compaction.ts:461-466); follow-up tool = MAINTAINER CALL per doc §effort/approval) + #114/#115 6th live data point (live process still pre-12e3262/0c90abe, restart pending) + knowledge entry — details: loop folder plan36_summary.md + git 2143597..b3b3c7e
   - 2026-09-28 autorun (ses_f195309bfffe5xjWBwmaEEXva0, planner-35, Qwen3.8-27B-Q3S-245K-slow) — plan35: MAINTENANCE PASS (iter-35 counter trigger: knowledge inbox fully cured — #109 detector internals → auto-resume-units-explainer; TODO #107/#108/#110/#111/#112 closed → todo_records.md + numbering from #116; NAP plan34 compressed) + #114/#115 5th live data point (live process still pre-fix, restart pending) + ideas triage (TODO #116 filed, submit-memory-channel proposal filed, (2) context-erase queued iter-36) — details: loop folder plan35_summary.md + git 31f48e8/6375709
   - 2026-09-28 autorun (ses_f1975f44cffeflRZdxIDJSvBEJ, planner-34, Qwen3.8-27B-Q3S-245K-slow) — plan34: #115 gauge window config-first LANDED+verified (worker-34 0c90abe — resolveWindow config-first from root opencode.jsonc limit.context, parseWindow fallback, 7 new pins (a)-(f); gauge_core ALL PASS, ctx_gauge 3/3, live byte-identity readout window=245000, probe 346, ruff F=0, pytest blocked #113) — LIVE: the host process still predates the build (no visible change until his restart — config 245000 == the name marker) — details: loop folder plan34_summary.md + git feafe37/373824c
   - 2026-09-28 autorun (ses_f19a6d8effferDMEYo31DsSXCF, planner-33, Qwen3.8-27B-Q3S-245K-slow) — plan33: #109 silent-limit-stop detector LANDED+verified (worker-33 aa47335/a570d9c/091c9b8 — limitStopCheck tick leg, 5 Watch fields, -WARNING loop_log fire, smoke 146/146, probe 346=335+11 env #113, ruff F=0, pytest blocked #113; live acceptance PENDING the maintainer's restart) + repo-split Phase-1 PROPOSAL filed + Phase-0 dry-run script (verified read-only, UNEXECUTED — his domain) + #114 5th data point (live process still pre-12e3262) — details: loop folder plan33_summary.md + git 087e19e..c21cc72
@@ -153,10 +162,11 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   each save (normally triggered by the git add + commit). Pending changes
   ride the copy + this NAP's pending list. (Full entry: knowledge_inbox.md
   2026-09-27_23-40.)
-- Baselines (re-verified 2026-09-28 — post-plan31 #114 fix: probe 346
-    (335 pass + the 11 #113 environmental 136-146), gauge_core smoke ALL
-    PASS (planner re-run), smokes as below; the last FULL gate was
-    plan26/27, 2026-09-27; the venv is broken — #113 MAINTAINER CALL):
+- Baselines (re-verified 2026-09-28 plan37 full gate run: all smokes
+    green at baseline (below) + probe 346 (335 pass + the 11 #113
+    environmental 136-146) + ruff F=0; the last FULL gate (incl. pytest)
+    was plan26/27, 2026-09-27; the venv is broken — #113 MAINTAINER
+    CALL):
       probe **346** (345 + check 28.7 post-plan31 #114 the model-nowhere
       default-1 pin; check 345 post-plan26 #92 json naming; the S14
      dump section is now (8); check 108's enum pin carries the 11 bt

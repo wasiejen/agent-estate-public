@@ -4,66 +4,31 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## Current session — autorun, 2026-09-28 (ses_f19a6d8effferDMEYo31DsSXCF, planner-33, Qwen3.8-27B-Q3S-245K-slow)
-- plan33 (iter 33, unit-4 restart branch after planner-32 `action:
-  restart`):
-  - Unit 1 LANDED + planner-verified (worker-33
-    ses_f19a0aceaffeWtNhSbTEgiDKqG): #109 silent-limit-stop detector
-    BUILD per research doc 46de67b §5 — the zero-IO `limitStopCheck()`
-    leg in the auto_resume 5s tick (5 new `Watch` fields; the
-    5-clause signature verbatim from doc §2; leg order AFTER
-    `tailCompactRearm`, BEFORE the routing loop, own try/catch;
-    window via the CACHED `getModelLimits` — null → no fire); fire =
-    ONE `-WARNING` line per episode appended by the plugin ITSELF to
-    the current looprun's `loop_log.md` (the shared
-    `currentLoopFolder()` factored from `spawnTitleFor`; no folder →
-    auto_resume.log only) + ONE `limit-stop= sid=… total=…` line in
-    `auto_resume.log`; NO session action (dispatch/send/resume =
-    maintainer call, deliberately not built). Commits `aa47335`
-    (plugin) / `a570d9c` (smoke 140→146, 6 pins incl. file-content
-    assertion) / `091c9b8` (TODO LANDED + handover) / `28699d5` (note).
-    Planner verification: git log + status clean (only the live loop
-    log + the worker's two submit inbox files — committed in my
-    bookkeeping), code-anchor grep (fields L350-354, leg L1584, latch
-    clears L1610/L1679), auto_resume smoke RE-RUN 146/146 by me;
-    worker's measured gate: all other smokes at baseline, probe 346
-    = 335 + 11 env #113, ruff F=0; the pytest half is BLOCKED by #113
-    (MAINTAINER CALL — reported, not fixed). Worker FLAG: the
-    intercept_observer baseline is 78/78 (extended in #106 cbbebf8 —
-    my spec's 77/77 was stale; "unchanged from baseline" holds at
-    78/78; feedback entry filed by the worker). Live acceptance
-    PENDING the maintainer's host restart (one worker dying at the
-    wall → the `-WARNING` line in loop_log.md within ~65 s).
-  - **#114 5th data point:** my injected ctx: line read "1
-    compactions left" while the ctx_gauge self-read (same session)
-    showed "5" — the live process still PREDATES the #114 fix
-    12e3262 (consistent with the 4th data point). #114/#106/#109
-    live acceptances all stay PENDING his restart.
-  - Marker sweep clean (known standing markers only — the
-    priority.md `--maintainer` idle block, #56 `--defer`, ideas.md/
-    my_todos `--wip`, the fst-rebind-repeat `--deferred`; his
-    compaction_tests.md `--todo` already handled = #103 LANDED).
-    Inbox empty. priority.md active list empty.
-  - Unit 2: repo-split — Phase-1 PROPOSAL filed
-    (`.opencode/proposals/2026-09-28_repo-split-phase1.md`, planner inline,
-    idle lane; doc e4717ab carries the steps; recommendation = Option A
-    plain fresh inits, no filter-repo rewrite) + Phase-0 PREP artifact:
-    `.opencode/agent/research/repo-split/` (README + `extract_dryrun.mjs` —
-    dry-run partition verified read-only, exit 0: 812 tracked = agent side
-    752 (`.opencode/` 743 + 9 root agent files) + product side 60;
-    15,088 ignored-runtime paths listed for the rebuild step; the pin diff
-    printed as an execution checklist — UNEXECUTED; execution = his
-    domain per doc §5).
-  - Baselines: probe 346 (335 pass + 11 #113 environmental 136-146);
-    auto_resume smoke 146/146; intercept_observer 78/78; smokes per
-    Standing; venv still broken (#113 MAINTAINER CALL).
-  - Iter-34 queue: the live acceptances (#114/#106/#109 — his
-    restart), #113 venv (MAINTAINER CALL), the repo-split Phase 1
-    split + Phase 2 move (MAINTAINER's domain; proposal filed), the
-    detector-dispatch part (maintainer call).
-
+## Current session — autorun, 2026-09-28 (ses_f1975f44cffeflRZdxIDJSvBEJ, planner-34, Qwen3.8-27B-Q3S-245K-slow)
+- plan34 (iter 34, unit-4 restart branch after planner-33 `action:
+  restart`): idle-lane pass — all real work maintainer-blocked (#114/
+  #106/#109 live acceptances pending his restart; #113 venv; repo-split;
+  detector dispatch). agent_ideas.md triaged: idea (1) → TODO #115
+  (gauge window config-first) — spec committed, worker-34
+  (`worker_Q3S_245K_slow`) launched; ideas (2) context-erase/tail-trim
+  research, (3) submit memory-channel proposal, (4) real-time gauge via
+  `messages.updated` research → queued for the iter-35 maintenance pass /
+  the next idle lane.
+  - #115 design (planner-settled): `gauge.mjs` `resolveWindow(modelId)` —
+    config-FIRST (root opencode.jsonc
+    `provider.<pid>.models.<mid>.limit.context`, JSONC strip per
+    auto_resume.ts L1098 `parseJsonc`, per-call read, never-throw) with
+    the name-marker `parseWindow` as fallback; `setConfigFileForTest` hook;
+    `formatGauge` format unchanged; all 3 surfaces covered by the single
+    shared core (no plugin/tool change).
+  - Channels checked: feedback + ideas triaged through plan33 (nothing
+    new); maintainer inbox empty; priority.md active list empty; markers
+    clean (plan33 sweep; no live additions found this session — his
+    `event_hook_message_updated.md` ideas note = background input for
+    idea (4), no action).
 
 ## Compressed archive (one line each
+  - 2026-09-28 autorun (ses_f19a6d8effferDMEYo31DsSXCF, planner-33, Qwen3.8-27B-Q3S-245K-slow) — plan33: #109 silent-limit-stop detector LANDED+verified (worker-33 aa47335/a570d9c/091c9b8 — limitStopCheck tick leg, 5 Watch fields, -WARNING loop_log fire, smoke 146/146, probe 346=335+11 env #113, ruff F=0, pytest blocked #113; live acceptance PENDING the maintainer's restart) + repo-split Phase-1 PROPOSAL filed + Phase-0 dry-run script (verified read-only, UNEXECUTED — his domain) + #114 5th data point (live process still pre-12e3262) — details: loop folder plan33_summary.md + git 087e19e..c21cc72
   - 2026-09-28 autorun (ses_f19fdb571ffeb0aoqGGu62wbzo, planner-32, Qwen3.8-27B-Q3S-245K-slow) — plan32: #114 live check 4th data point (live process pre-12e3262, restart pending) + #110 (3a5de39 — 9 per-plugin/tool READMEs + the two folder-README indexes) + #112 (f406a20 — auto-resume units explainer, 61 lines) LANDED+verified + #109 research DONE (explorer-32 46de67b — the silent-limit-stop detector design + the scope=none key finding) + repo-split research LANDED (explorer-33 e4717ab — Option A deferred-move; the only machine-absolute repo-root pin = opencode.jsonc:26) — details: loop folder plan32_summary.md + git 4c45050..5f64052
   - 2026-09-28 autorun (ses_f1a4f121cffepXvNl2sCuSaM51, planner-31, Qwen3.8-27B-Q3S-245K-slow) — plan31: #114 ROOT CAUSE identified (no-total gauge reads lose the session-row model → default cap 1; 3rd live data point) + FIX LANDED+verified (worker-31 12e3262, probe 346, gauge_core ALL PASS) + #106 edit-fuzzy outcome tokens LANDED+verified (worker-31 cbbebf8, smoke 78/78) — live acceptances (#114, #106) PENDING the maintainer's host restart — details: loop folder plan31_summary.md + git 34adba6..8486445
   - 2026-09-28 autorun (ses_f1a8a9671ffezAA9MrZmlE8YKV, planner-30, Qwen3.8-27B-Q3S-245K-slow) — plan30: MAINTENANCE PASS (iter-30 counter trigger: knowledge inbox verified already-cured, stale TODO headers #67/#70/#78/#97 cured, 3 implemented proposals → implemented/ + verdicts, fst-rebind-repeat STAYS approved/ — live --deferred, priority.md guidelines section removed, knowledge entry + #114 filed) + #105 (c)+(d) research DONE via explorer-30 (v2 hardening: do NOT switch now; compaction-summary customization: phased plugin-side, no fork needed) — details: loop folder plan30_summary.md + git 3101ef9..d1debcc

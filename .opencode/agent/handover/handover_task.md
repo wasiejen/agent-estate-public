@@ -1,98 +1,106 @@
-# Task spec — worker-33, plan33 unit 1: TODO #109 silent limit-stop detector (build)
+# TASK SPEC — #115: the gauge window is config-derived (root opencode.jsonc `limit.context`), name-marker fallback
 
-GOAL: make a SILENT context-limit stop visible — a zero-IO `limitStopCheck()` leg in the
-auto_resume 5s tick that fires ONE `-WARNING` line into the current looprun's
-`loop_log.md` (+ one attribution line in `auto_resume.log`) per episode, when a watched
-role session died at the context wall (finish=length, tokens at the window), was never
-compacted, and went silent — the class that returns an EMPTY Task result with no failure
-message (MEM-0107 / TODO #109).
+## Goal
+The gauge's context window must resolve from the root `opencode.jsonc`
+`limit.context` (config-FIRST), falling back to the existing model-ID
+name-marker parse. A model rename (no K/M marker) must not degrade the
+readout (losing `(pct%)/REM`).
 
-DESIGN AUTHORITY (read FIRST, 181 lines):
-`.opencode/agent/research/2026-09-28_silent-limit-stop-detector.md` — §2 design,
-§4 visibility channel, §5 build sketch, appendix evidence. It IS the design; your job is
-the build, not the re-derivation.
+## Verified facts (planner-measured at spec time — trust these, don't re-derive)
+- All THREE gauge surfaces share ONE core: `.opencode/plugin/scripts/gauge.mjs`
+  (`readGauge`/`formatGauge` — the ctx_watchdog.ts injected ctx: line, the
+  intercept_observer note, the tools/ctx_gauge.ts tool). A single change in
+  gauge.mjs covers all surfaces — no plugin/tool code change needed.
+- `gaugeFromRaw` (gauge.mjs ~L546-565) sets `window: parseWindow(modelId)`;
+  `parseWindow` (~L242-250) is the name-marker parser only.
+- The DB model id is `provider/model` (e.g. "llama-swap/Qwen3.8-27B-Q3S-245K-slow") —
+  `parseModelId` (gauge.mjs L254-267) returns the full "provider/model" string.
+- The root `opencode.jsonc` declares per-model limits:
+  `provider.<pid>.models.<mid>.limit.context` (finite > 0). E.g. L111-114:
+  "Qwen3.8-27B-Q3S-245K-slow" → 245000. The file is JSONC (comments +
+  trailing commas; a `//` INSIDE a string literal, e.g. the baseURL, is NOT a
+  comment).
+- Repo-root resolution pattern in gauge.mjs: `join(THIS_DIR, "..", "..")`
+  (see `DEFAULT_BUDGET_FILE`, gauge.mjs L186-189) — resolve the config the
+  same way (opencode.jsonc, falling back to opencode.json when absent).
+- The string-aware JSONC→JSON strip reference implementation: auto_resume.ts
+  L1098 `parseJsonc` (comments + trailing commas, string-aware, throws on
+  parse failure). REPLICATE its logic into gauge.mjs (plain .mjs — no TS
+  import possible).
+- A per-call config read is fine (small file — same precedent as the
+  budget-store read in formatGauge); NEVER throw (missing / unparseable /
+  no entry → the parseWindow fallback stands).
+- The `formatGauge` OUTPUT FORMAT must not change. `auto_resume.ts`
+  `getModelLimits` (the provider.list() path, L478) is a SEPARATE mechanism —
+  untouched.
 
-VERIFIED ANCHORS (planner-measured at spec time, HEAD 5f64052; if one drifted, re-anchor
-by the named pattern — never guess a line number):
-- `.opencode/plugin/auto_resume.ts` (1735 lines):
-  - `interface Watch` L313-345 — append the new fields here.
-  - the assistant `message.updated` capture block L1545-1562 (role check L1550, token
-    capture L1553-1558) — capture `info.finish` HERE (`finish` is a top-level sibling
-    field of the same info object — doc appendix [E1]) into `lastFinish`/`lastFinishAt`
-    (event time).
-  - `tailCompactRearm()` L1408 (the ctx.log tail reader; the COMPACT-line regex ~L1392)
-    — set `lastCompactAt` here on a NEW `COMPACT <sid>` line for that sid.
-  - the tick: `tailCompactRearm()` is called at L1467 BEFORE the routing loop — put your
-    `limitStopCheck()` leg right after that call (before the routing loop), own
-    try/catch (the tick never throws).
-  - `getModelLimits` L467 (cached; the nudge path uses it at L607) — the per-model window
-    is `limits.context`.
-  - `spawnTitleFor()` L645 — looprun-folder resolution; reuse for the `loop_log.md`
-    append; NO resolvable folder → degrade to the `auto_resume.log` line only.
-  - first-user `info.agent`: reuse the existing `firstUserAgent` pattern (L1036; live-used
-    for the inject identity, #85 part 2) — capture at arm time into `firstAgent`.
-- `.opencode/plugin/tests/auto_resume.smoke.mjs` — currently 140 `chk(` checks; the smoke
-  instantiates the plugin with `tickMs` (fake-timer pattern — see the plugin comment
-  L1709-1726).
+## Design (the contract — the HOW inside it is yours)
+- New exported `resolveWindow(modelId)`:
+  1. modelId not a string → undefined (the parseWindow contract).
+  2. Config path: split on the FIRST "/" → providerID + modelID (no "/" →
+     skip the config path). Read the root config (opencode.jsonc →
+     opencode.json), strip + parse the JSONC, walk
+     `provider[providerID].models[modelID].limit.context` — a finite number
+     > 0 → that is the window.
+  3. Fallback: `parseWindow(modelId)` (unchanged).
+- `gaugeFromRaw`: `window: resolveWindow(modelId)`.
+- A test hook `setConfigFileForTest(p)` (the `setBudgetFileForTest` pattern,
+  gauge.mjs L190-194) so smokes point at a fixture config; the default is
+  the THIS_DIR-relative root path.
 
-NEW WATCH FIELDS (5): `lastFinish: string | null`, `lastFinishAt: number | null`,
-`lastCompactAt: number | null`, `firstAgent: string | null`, `limitWarned: boolean`
-(per-episode dedup latch).
+## DoD
+- gauge_core.smoke.mjs: the existing pins stay valid UNCHANGED (the
+  parseWindow cases L14-26 use synthetic ids that appear in no fixture
+  config) + NEW resolveWindow pins:
+  (a) config hit beats the name marker (fixture "fx/x-256K" with config
+      context 999999 → 999999);
+  (b) no-marker model + config → the config value (e.g. 123456);
+  (c) model not in the config → the name parse (e.g. 256000);
+  (d) config file missing → the name parse;
+  (e) a JSONC config with comments (incl. a `//` inside a string literal)
+      parses correctly;
+  (f) a modelId without a provider prefix → the name-parse fallback.
+- ctx_gauge.smoke.mjs: re-pin ONLY if affected (its fixtures are name-marker
+  models — verify; update expected bytes only where the config path actually
+  changes a value).
+- Probe `.opencode/plugin/probes/handover_probe.mjs`: the gauge fixtures use
+  synthetic "probe-model-256K_MTP"-style ids (no provider prefix → the config
+  path is skipped → the pins should stay green — VERIFY by running; re-pin +
+  update the header tally only if actually changed).
+- Standard gate: the probe (self-annotated header total), gauge_core +
+  ctx_gauge smokes, all other smokes at their baselines (auto_resume 146/146,
+  intercept_observer 78/78, compact_memory 78/78, context_recovery 17/17,
+  block_transfer 131/131 + 64/64, loop_log 69/69, submit 23/23), ruff F=0.
+  The pytest half is BLOCKED by #113 (the broken venv) — report it in the
+  handover, do NOT fix it.
+- Knowledge: ONE dated line appended to
+  `.opencode/agent/knowledge/knowledge_plugins.md`: the gauge window is now
+  config-first (root opencode.jsonc `limit.context`), name-marker fallback —
+  a model rename is free as long as the config entry keeps its limit.context.
+- TODO.md #115 → status `LANDED` (hash recorded in the planner's follow-up
+  bookkeeping commit — never your own hash).
+- Checkpoint commits per verified unit (code only); TODO + handover ride the
+  FINAL commit.
+- No new TODO entry expected — but state it, don't promise it: a legitimate
+  doc/code discrepancy found in scope gets appended to `todo_inbox.md` (repo
+  root).
 
-FIRE SIGNATURE (conjunction — ALL on one tick, per watched sid) — doc §2 verbatim:
-1. `lastFinish === "length"`.
-2. `lastTokenTotal >= 0.99 * window` (window = cached `getModelLimits(...).context`;
-   null/unresolvable → NO fire, fail-open).
-3. `now - lastActivityAt >= 60_000` AND `status === "idle"`.
-4. `lastCompactAt == null || lastCompactAt < lastFinishAt` (no NEW COMPACT line since
-   the death step).
-5. `firstAgent` starts with `planner`/`worker`/`explorer` OR `w.scope !== "none"`.
-   (Evidence win over the original scope-only gate — doc §2 item 5; Task-tool workers
-   all carry scope "none".)
+## DO-NOT-TOUCH
+- `opencode.jsonc` (READ-ONLY — the maintainer's live file).
+- `.opencode/maintainer/**`.
+- `auto_resume.ts` (getModelLimits / the tick legs) — the provider.list()
+  path is separate.
+- `formatGauge`'s output format (the existing fixture readout bytes must stay
+  identical).
+- FST product code. `parseWindow` / `parseModelId` themselves (keep + export
+  — they are the fallback).
+- The budget-store read (compact_budget.json) — separate concern.
 
-FIRE (once — the latch clears on a new busy OR a new assistant update):
-- append ONE `-WARNING` line to the current looprun's `loop_log.md` (the plugin writes
-  the file itself — the loop_log TOOL is agent-facing; same 8-char line format,
-  `.opencode/agent/prompts/agent_readme_loop.md` §Loop log):
-  `<stamp> -WARNING auto_resume <sid> <model> silent limit-stop: finish=length total=<n> window=<n> no-COMPACT`
-  (stamp format per that file; folder via `spawnTitleFor`; no folder → auto_resume.log
-  only).
-- append `limit-stop= sid=… total=…` to `auto_resume.log`.
-- NO action on the session: NO compaction dispatch, NO send, NO resume — that part is a
-  maintainer call and is NOT built here.
+## Worker
+worker_Q3S_245K_slow (live roster in opencode.jsonc — verified at spec time).
+Stay on the current checkout (branch `opencode_test`, HEAD c21cc72).
 
-SMOKE PINS (6, existing fake-timer / tickMs pattern):
-1. finish:length@window + 60 s silence + idle + no COMPACT → exactly ONE `-WARNING` line
-   (assert the loop_log.md file content, not only the log line).
-2. same but a NEW COMPACT line after lastFinishAt → no fire.
-3. finish:length with total < 0.99*window → no fire.
-4. first agent not a role prefix AND scope "none" → no fire.
-5. latch: unchanged second tick → no second line.
-6. fresh busy after firing clears the latch (a later episode fires again).
-Smoke count 140 → 146.
-
-DOD:
-- auto_resume smoke 146/146; every other smoke at its baseline UNCHANGED
-  (intercept_observer 77/77, block_transfer 131/131 + 64/64, compact_memory 78/78,
-  context_recovery 17/17, submit 23/23).
-- probe 346 (335 pass + the 11 ENVIRONMENTAL #113 failures 136-146 — NOT regressions;
-  do not fix the venv).
-- ruff F=0.
-- the pytest half of the standard gate is UNRUNNABLE (#113 broken venv — MAINTAINER
-  CALL): run what runs, report the blocked half in the handover.
-- TODO #109 status → `LANDED` (the hash is recorded in the planner's follow-up
-  bookkeeping commit — your commit cannot carry its own hash).
-- handover in `.opencode/agent/handover/handover_task_to_planner.md` (executive summary,
-  measured numbers, commit hashes, TODO entries, deliberately-not-done, discrepancies).
-- git status clean; one green checkpoint commit per verified unit (code only);
-  TODO + handover ride the FINAL commit.
-
-DO-NOT-TOUCH: `.opencode/maintainer/**`, root `opencode.jsonc`, live `AGENTS.md`, the NAP,
-the loop folder, other plugins/tools, the probe (it does not cover this plugin — if you
-believe a probe pin is needed, FLAG it in the handover, do not write it),
-`.opencode/agent/prompts/**` (you have no edit access — the no-circumvent rule applies).
-
-LIVE ACCEPTANCE: PENDING the maintainer's host restart — one worker dying at the wall →
-the `-WARNING` line lands in `loop_log.md` within ~65 s (doc §5 DoD). NOT yours to run.
-
-EFFORT EXPECTED: ~90-130 lines total (50-80 plugin + 40-50 smoke).
+## Handover
+`.opencode/agent/handover/handover_task_to_planner.md` — the standard shape:
+what changed, the measured verification (smoke + probe + gate numbers), the
+code commit hash(es), the TODO entry status, what was deliberately NOT done.

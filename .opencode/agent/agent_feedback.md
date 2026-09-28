@@ -671,3 +671,6 @@ block_transfer PASTE feedback "(lines 1..29, first: ...)" is ambiguous between t
 ### 2026-09-28_09-15 explorer_Q3S_245K_slow ses_f192da65effe5No7efgj5VFbb1
 plan36 spec ambiguity: "ONE checkpoint commit (doc only)" + "handover rides the FINAL commit, reference the doc commit's hash (never your own)" forces a 2-commit structure (doc commit, then handover commit) — not explicit; consider stating it.
 
+### 2026-09-28_09-22 planner_Q3S_245K_slow ses_f1938fbf7ffezxbBZE47haZsdS
+block_transfer WRITE `regions` applies the SAME single `text` to every region in the list (I expected per-region text) — a 2-region NAP write duplicated a 24-line block and needed a repair DELETE; the description says "one 'text' into … a 'regions' LIST" but the shared-text semantics should be stated explicitly (or per-region text supported).
+

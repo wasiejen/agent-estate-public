@@ -187,7 +187,7 @@
 import type { Plugin, PluginInput } from "@opencode-ai/plugin";
 import type { Event } from "@opencode-ai/sdk";
 import { createHash } from "node:crypto";
-import { appendFileSync, closeSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -342,6 +342,16 @@ interface Watch {
   // own log (part C — the user count is unknown there → 0).
   deactivated: boolean;
   deactivatedUserCount: number;
+  // #109 (silent limit-stop detector): all event-time captured (zero
+  // per-tick cost) — the LAST assistant update's finish + event time,
+  // the last NEW ctx.log COMPACT line's time (tailCompactRearm), the
+  // FIRST user message's agent (arm-time), and the per-episode fire
+  // latch (cleared on a fresh busy OR a new assistant update).
+  lastFinish: string | null;
+  lastFinishAt: number | null;
+  lastCompactAt: number | null;
+  firstAgent: string | null;
+  limitWarned: boolean;
 }
 const watches = new Map<string, Watch>();
 const sending = new Set<string>();
@@ -423,6 +433,7 @@ function getWatch(sid: string): Watch {
       lastTokenTotal: 0, model: null, attempts: 0, lastActivityAt: null, armed: false, status: "",
       scope: "unknown", recoveryCount: 0, idlePending: false, deadMarked: false,
       deactivated: false, deactivatedUserCount: 0,
+      lastFinish: null, lastFinishAt: null, lastCompactAt: null, firstAgent: null, limitWarned: false,
     };
     watches.set(sid, w);
   }
@@ -642,7 +653,13 @@ async function onToolAfterNudge(
 // NO loop folder / no `loop_log.md` / no `planner-<N>` line → null
 // (the spawn stays un-named, exactly as before). Never throws out —
 // a title failure must not break the spawn.
-function spawnTitleFor(): string | null {
+// #109: the CURRENT looprun folder NAME — the shared resolution (the
+// plan9 unit A logic, factored out): exactly one `autorun-*` folder →
+// it, several → the most-recently-modified (mirrors the loop_log
+// tool), none / unreadable → null. spawnTitleFor derives the spawn
+// title from it; the limit-stop `-WARNING` line lands in its
+// `loop_log.md`. Never throws out.
+function currentLoopFolder(): string | null {
   try {
     if (!projectDir) return null;
     const loopRoot = join(projectDir, ".opencode", "loop");
@@ -650,17 +667,21 @@ function spawnTitleFor(): string | null {
       .filter((e) => e.isDirectory() && e.name.startsWith("autorun-"))
       .map((e) => e.name);
     if (folders.length === 0) return null;
-    let folder: string;
-    if (folders.length === 1) {
-      folder = folders[0];
-    } else {
-      // Several → the most-recently-modified (mirrors the loop_log tool).
-      folder = folders
-        .map((n) => ({ n, m: statSync(join(loopRoot, n)).mtimeMs }))
-        .sort((a, b) => b.m - a.m)[0].n;
-    }
+    if (folders.length === 1) return folders[0];
+    return folders
+      .map((n) => ({ n, m: statSync(join(loopRoot, n)).mtimeMs }))
+      .sort((a, b) => b.m - a.m)[0].n;
+  } catch {
+    return null; // no loop dir / unreadable → null
+  }
+}
+
+function spawnTitleFor(): string | null {
+  try {
+    const folder = currentLoopFolder();
+    if (!folder) return null;
     // Missing loop_log.md throws → caught below → null (no identifier).
-    const logText = readFileSync(join(loopRoot, folder, "loop_log.md"), "utf-8");
+    const logText = readFileSync(join(projectDir, ".opencode", "loop", folder, "loop_log.md"), "utf-8");
     let max = 0;
     for (const m of logText.matchAll(/planner-(\d+)/g)) {
       const n = parseInt(m[1], 10);
@@ -1442,9 +1463,99 @@ function tailCompactRearm(): void {
     if (!m) continue;
     const w = watches.get(m[1]);
     if (!w) continue; // only watched sids
+    w.lastCompactAt = Date.now(); // #109: this NEW COMPACT line's event time
     w.idlePending = true;
     w.recoveryCount = 0; // a FRESH recovery budget (the context changed)
     log(`rearm= compact sid=${m[1]}`);
+  }
+}
+
+// #109 (silent limit-stop detector): the machine stamp for the
+// `-WARNING` line — local clock, `YYYY-MM-DD_HH-MM` (minute
+// resolution), the SAME form the loop_log tool's lines use.
+// Machine-computed, never retyped (AGENTS.md pattern 4).
+function localStamp(d: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`;
+}
+
+// #109: the ONE per-episode FIRE — the `-WARNING` line into the current
+// looprun's `loop_log.md` (the plugin writes the file itself — the
+// loop_log TOOL is agent-facing; same 8-char line form,
+// agent_readme_loop.md §Loop log, `auto_resume` in the machine-writer
+// role slot) + the `limit-stop=` attribution line in auto_resume.log.
+// NO action on the session (no compaction dispatch, no send, no resume
+// — that part is a maintainer call, NOT built here). Never throws out.
+function fireLimitStop(sid: string, w: Watch, window: number): void {
+  log(`limit-stop= sid=${sid} total=${w.lastTokenTotal}`);
+  const model = w.model ? w.model.modelID : "unknown";
+  const line =
+    `${localStamp()} -WARNING auto_resume ${sid} ${model} ` +
+    `silent limit-stop: finish=length total=${w.lastTokenTotal} window=${window} no-COMPACT`;
+  const folder = currentLoopFolder();
+  if (!folder) return; // no resolvable looprun → the log line only
+  try {
+    const dir = join(projectDir, ".opencode", "loop", folder);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    appendFileSync(join(dir, "loop_log.md"), line + "\n", "utf-8");
+  } catch {
+    // a loop-log write failure is not a session failure (the log line stays)
+  }
+}
+
+// #109 (silent limit-stop detector): the TICK LEG — sits AFTER
+// tailCompactRearm (the ctx.log cursor is fresh, so condition (4) sees
+// a same-tick COMPACT line) and BEFORE the routing loop; own
+// try/catch (the tick never throws). NO DB access, NO messages() fetch
+// per tick — everything from the in-memory watch state + the existing
+// per-tick ctx.log tail-read. The FIRE signature (conjunction — ALL on
+// one tick, per watched sid):
+//   (1) lastFinish === "length" (the per-turn OUTPUT cap cut the step
+//       while the context was at the wall — the silent death class);
+//   (2) lastTokenTotal >= 0.99 * window (the cached per-model context
+//       window — null/unresolvable → NO fire, fail-open);
+//   (3) now - lastActivityAt >= 60 s AND status === "idle" (the
+//       measured idle lands ~23 s after the death step — 60 s ≈ 3x
+//       that latency);
+//   (4) no NEW ctx.log COMPACT line for the sid since the death step;
+//   (5) in scope: the first user agent starts with planner/worker/
+//       explorer OR the scope verdict is not "none" (the evidence win —
+//       Task-tool workers ALL carry scope "none").
+// FIRE: once per episode — the `limitWarned` latch (cleared on a fresh
+// busy OR a new assistant update).
+async function limitStopCheck(): Promise<void> {
+  try {
+    const now = Date.now();
+    for (const [sid, w] of watches) {
+      try {
+        if (w.lastFinish !== "length") continue; // (1)
+        if (!w.model) continue; // (2) — no model → no window → fail-open
+        const limits = await getModelLimits(w.model);
+        if (limits === null) continue; // unresolvable window → NO fire
+        const window = limits.context;
+        if (!(w.lastTokenTotal >= 0.99 * window)) continue; // (2)
+        if (w.status !== "idle") continue; // (3)
+        if (w.lastActivityAt == null || now - w.lastActivityAt < 60_000) continue; // (3)
+        // (4) a NEW COMPACT line since the death step suppresses the fire
+        // (lastFinishAt is structurally set whenever (1) holds — the
+        // null arm is the conservative fail-closed for the impossible)
+        if (w.lastCompactAt != null && (w.lastFinishAt == null || w.lastCompactAt >= w.lastFinishAt)) continue;
+        // (5) the in-scope gate (role-agent prefix OR a non-"none" verdict)
+        const first = w.firstAgent;
+        const inScope =
+          (typeof first === "string" &&
+            (first.startsWith("planner") || first.startsWith("worker") || first.startsWith("explorer"))) ||
+          w.scope !== "none";
+        if (!inScope) continue;
+        if (w.limitWarned) continue; // the per-episode latch
+        w.limitWarned = true;
+        fireLimitStop(sid, w, window);
+      } catch {
+        // one session's failure must not block the others
+      }
+    }
+  } catch {
+    // never throw (the tick's never-throw contract)
   }
 }
 
@@ -1452,7 +1563,8 @@ function tailCompactRearm(): void {
 // the only decision+send funnel. Unit 3's
 // trigger check runs first (the spawn is a high-priority action), then
 // #98 part B re-arms the watched sids on a NEW ctx.log COMPACT line,
-// then Unit 4 routes every scoped session with a pending idle decision.
+// then #109 checks the silent limit-stop, then Unit 4 routes every
+// scoped session with a pending idle decision.
 // (#85 part 3: Unit 2 has no tick leg anymore — the nudge is a passive
 // ctx-line suffix on the tool-call return, gated per tool result in
 // onToolAfterNudge.) Never throws out (an unhandled rejection from the
@@ -1465,6 +1577,11 @@ async function tick() {
   }
   try {
     tailCompactRearm(); // #98 part B — BEFORE the routing loop: arm on a NEW ctx.log COMPACT line
+  } catch {
+    // swallow — the timer callback must never reject
+  }
+  try {
+    await limitStopCheck(); // #109 — AFTER tailCompactRearm (a same-tick COMPACT is visible), BEFORE the routing loop
   } catch {
     // swallow — the timer callback must never reject
   }
@@ -1490,6 +1607,7 @@ function armEvent(type: string, sid: string, props: Record<string, unknown>) {
     if (status === "busy") {
       const w = getWatch(sid);
       w.armed = true;
+      w.limitWarned = false; // #109: a fresh busy clears the per-episode fire latch
       w.attempts = 0; // #85 part 3: a fresh busy cycle resets the once-per-cycle nudge-log dedup
       // #80 (cap semantics): only a REAL new busy resets the recovery
       // cap — a busy that consumes a still-pending CONTINUE injection
@@ -1545,10 +1663,20 @@ function armEvent(type: string, sid: string, props: Record<string, unknown>) {
   if (type !== "message.updated") return;
   const info = (props.message ?? props.info) as Record<string, unknown> | undefined;
   if (!info) return;
+  const w = getWatch(sid);
+  const role = info.role ?? props.role;
+  // #109: the FIRST user message's agent (arm-time capture — the
+  // firstUserAgent pattern, read once from the event payload; zero
+  // per-tick cost). The first non-empty string agent seen wins.
+  if (role === "user" && w.firstAgent == null) {
+    const a = info.agent ?? props.agent;
+    if (typeof a === "string" && a !== "") w.firstAgent = a;
+  }
   // Only assistant-role updates are the saturation input (deep-dive B
   // §2 step 1); user-role updates are NOT tracked here.
-  if ((info.role ?? props.role) !== "assistant") return;
-  const w = getWatch(sid);
+  if (role !== "assistant") return;
+  // #109: a NEW assistant update clears the per-episode fire latch.
+  w.limitWarned = false;
   const tokens = (info.tokens ?? props.tokens) as Record<string, unknown> | undefined;
   if (tokens && typeof tokens === "object") {
     const total = tokenTotal(tokens);
@@ -1556,6 +1684,14 @@ function armEvent(type: string, sid: string, props: Record<string, unknown>) {
       w.lastTokenTotal = total; // OVERWRITTEN per update
       w.lastActivityAt = Date.now();
     }
+  }
+  // #109: the last assistant step's finish (a top-level sibling field
+  // of the same info object — DB-verified, research doc appendix [E1])
+  // + the event time.
+  const finish = info.finish ?? props.finish;
+  if (typeof finish === "string" && finish !== "") {
+    w.lastFinish = finish;
+    w.lastFinishAt = Date.now();
   }
   const model = modelPair(info, props);
   if (model) w.model = model;

@@ -1,106 +1,107 @@
-# Worker summary — plan30: TODO #105 parts (c) + (d) — RESEARCH ONLY (explorer-30)
+# Worker summary — plan31: TODO #114 fix — the gauge budget suffix must agree for a no-total read (worker-31)
 
-## What changed (research only, no code change, no gate run — per spec)
+## What changed
 
-Two research documents, checkpoint-committed in spec order ((d) first, then (c)):
+One verified unit, committed as **`12e3262`** (code + pins together — the
+probe can only be green with both; splitting would commit a red gate):
 
-1. **(d) Compaction-summary customization** —
-   `.opencode/agent/research/2026-09-28_compaction-summary-customization.md`
-   (checkpoint commit **98bcaf7**).
-   - Q answered explicitly: the installed 1.18.32 summarize call accepts NO
-     prompt override in the HTTP body (`SummarizePayload = {providerID, modelID,
-     auto?}`, groups/session.ts L65-69) or via any env var (zero hits grepped in
-     compaction.ts / agent.ts / core compaction.ts / llm/request.ts); YES via
-     CONFIG — `agent.compaction.prompt` (v1) or `agent.compaction.system` (v2,
-     mapped by v2-compat `lowerAgent` L401) replaces the summarizer's system
-     prompt (agent.ts L267-294, L283); the template + update-instructions are
-     hardcoded module constants (core/session/compaction.ts L16-55, sole consumer
-     `buildPrompt` L160-174).
-   - Both maintainer ideas assessed against the influenceable surfaces:
-     `experimental.session.compacting` (context append OR full prompt replace —
-     typed plugin/index.ts L298-308), `experimental.chat.messages.transform`
-     (drop/rewrite pre-summarizer messages; caveat: also fires on normal chat —
-     prompt.ts L1255), `experimental.chat.system.transform` (system[] of any LLM
-     request incl. the summarizer's), `experimental.text.complete`
-     (deterministic post-hoc summary-text rewrite). Neither idea needs a fork.
-   - Recommendation: phased plugin-side — Phase A soft `context` injection with
-     dynamic iteration N (~30-60 lines, ~0.5-1 day incl. live testing); Phase B
-     hard prompt-replace / text-complete diff-stamping only if quality
-     insufficient; optional static config `agent.compaction` override (maintainer
-     call, zero agent work); fork NOT recommended for these ideas.
-2. **(c) v2 migration hardening** —
-   `.opencode/agent/research/2026-09-28_v2-migration-hardening.md`
-   (checkpoint commit **c81f6c1**).
-   - Mainline identified (GitHub, fetched 2026-09-28): default branch is
-     **`dev`** (there is no `main` branch), 15,802 commits; latest tag
-     **v2.0.18** (2026-09-25); v2 line ≈ 1 release/day (v2.0.10 09-19 → v2.0.18
-     09-25); v1.18.32 the last v1 tag (09-21); 210.4k stars / 27.8k forks. The
-     "nearly 2000 branches" figure is UNVERIFIED — the branches page rendered
-     only the active branches (dev, session-row-helpers, `v2`,
-     weekly-i18n-sep28, effect-rc115, url-media-type); the total count did not
-     come through the fetch (reported honestly as a gap).
-   - Per-call keep answer: **NO** on the mainline — fetched dev
-     `SummarizePayload` is unchanged (no keep field), `ConfigV2.Compaction`
-     unchanged (auto/prune/keep.tokens/buffer), and the v1→v2 config shim still
-     ships (keep.tokens → preserve_recent_tokens). One open gap, specified for
-     follow-up: the v2 `/api/session/{id}/compact` payload (present in the v2 SDK
-     gen, sdk.gen.ts L5663-5671; its server routes not in the fetched mainline
-     groups; no committed openapi.json on dev) — verify via `bun dev generate`
-     on a dev checkout if the maintainer wants it.
-   - Hardening table (per plugin/tool, risk + effort): hooks interface
-     UNCHANGED on dev (all 18 hook names present); our client endpoints
-     (summarize/messages/status/promptAsync) all present on dev; LOW risk:
-     compact_memory (dual-dispatch already v2-ready), compaction_core,
-     context_recovery, intercept_observer, all six tools (node/fs, no SDK);
-     MEDIUM risk: auto_resume (event payload shapes unverified), ctx_watchdog
-     (gauge DB schema unverified), and the v1-format opencode.jsonc
-     (permission/provider/TUI items not in the inspected shim mapping;
-     `compaction.keep.system: true` silently ignored on v2 — harmless).
-   - Recommendation: **do NOT switch now** — npm `latest` is still 1.18.32
-     (measured: `npm view opencode-ai`; v2 only on the npm `dev` tag
-     `0.0.0-dev-202609261957`), v2 is in rapid churn, the switch buys no
-     per-call keep, and the code delta is small (verification ≈ 1-2 sessions).
-     Re-check each v2 minor (cheap tag + SummarizePayload fetch); switch when v2
-     lands on npm `latest` or adds per-call keep. The fork (part b doc) and the
-     (d) plugin-side surfaces are unaffected by the switch.
+1. **`.opencode/plugin/scripts/gauge.mjs`** (the fix — per the settled
+   design, no re-derivation):
+   - `SQL_NEWEST_SESSION` + `SQL_SESSION_BY_ID`: now `SELECT id, model …`
+     (the session row's own `model` column).
+   - `readApiDb`: `model` precedence = finished-step row's model (unchanged
+     when present) → ELSE the session row's `model` → ELSE null.
+   - Spawn backend: `GAUGE_SQL_MARKER` + `sqlMarkerForSession` S statements
+     now `SELECT 'S', id, model …`; `readSpawnSqlite3` parses the S row as
+     `sid | model…` (split on the FIRST bar — a `|` in the model id stays
+     safe); the S-row model fills in ONLY when model is still null (the M
+     row prints first and keeps precedence — verified, it cannot be
+     clobbered).
+   - `compactionsLeftSuffix`: NO logic change (per spec).
+   - Two comment updates (the QUERIES header block; the suffix doc — the
+     no-total read now carries the session-row model).
+2. **Pins (byte-exact, established pattern):**
+   - `handover_probe.mjs`:
+     - FX_NOTAL fixture gains `ses_fx_nomodel` (session-row model NULL, no
+       messages, `time_updated` below 3000 so the newest-session default
+       read stays on `ses_fx_empty`); added to the S5 FINGERPRINT.
+     - S6 check 23 re-pinned: the no-total read's `modelId` is now the
+       session-row model (`probe-model-120K_MTP`), not `""`.
+     - S6b check 28.6 re-pinned to exercise the NEW behavior with a
+       path-discriminating budget fixture (row model cap 3 vs entry model
+       cap 2 vs default 1 → ` | 3 compactions left` proves the row-model
+       path; the pre-fix fallback would have read 2).
+     - S6b NEW check 28.7: no-total + model NOWHERE (row model NULL + no
+       budget entry) → `default 1` → ` | 1 compaction left` (the old
+       fallback still holds).
+     - S7 check 36 re-pinned: the real-exe spawn no-total read now asserts
+       `modelId === "probe-model-120K_MTP"` (the S row carries the model).
+     - Header: S6b description + the section-sum tally (`S6b=7`, total
+       `346/346`) — matches the machine.
+     - S4 t3 pin (`ctx: SESSION=ses_fx_empty CTX=notAvailable`) stays
+       byte-exact as-is — the probe's default budget file is
+       never-created (fail-open → no suffix); verified PASS.
+   - `gauge_core.smoke.mjs`: the existing entry-model-fallback pin kept
+     (still valid) + one new check: a no-total result carrying the
+     session-row modelId → the model_budget key's cap.
 
 ## Verification (measured)
 
-- All dev-tree locators: grep/read-verified against
-  `home\AppData\Local\Temp\opencode\opencode-dev` (1.18.32 tree,
-  provenance per the #99 trace doc) on 2026-09-28.
-- All mainline claims: fetched directly from GitHub `dev` branch 2026-09-28
-  (repo/branches/tags pages + raw files: groups/session.ts,
-  groups/experimental.ts, core config/compaction.ts, plugin/index.ts,
-  config/v2-compat.ts existence; API 404 for openapi.json).
-- npm state measured locally 2026-09-28 (`npm view opencode-ai`).
-- No code changed → no gate run needed (spec §Definition of done 5).
+- **Probe** (before change): 345 total, 11 FAIL — exactly 136-146
+  (environmental, #113 venv: `No Python at …python312\python.exe`).
+- **Probe** (after change): 346 total, 335 PASS, 11 FAIL — the SAME 136-146
+  environmental failures only; checks 23 / 28.6 / 28.7 / 36 / 15 / 43 all
+  PASS (explicitly re-read from the run log). Header tally `346/346` agrees
+  with the machine.
+- **gauge_core smoke**: ALL PASS (19 checks, incl. the 2 new no-total pins).
+- **All other smokes unchanged**: auto_resume 140/140, block_transfer 131/131
+  + sandbox 64/64, compact_memory 78/78, context_recovery 17/17, ctx_gauge
+  3/3, intercept_observer 77/77, loop_log 69/69, submit 23/23.
+- **ruff F=0** (`./.venv/Scripts/ruff.exe check --select F .` → "All checks
+  passed!").
+- **pytest UNRUNNABLE (#113)** — not attempted, per the spec's DoD.
+- **Targeted scratchpad verification** (both backends, incl. the REAL
+  sqlite3.exe spawn end-to-end): no-total per-session + newest-session
+  reads carry the row model; model-nowhere reads default-1; finished-step
+  reads unchanged (M-row precedence intact); fail-open no-suffix intact.
 
-## Commits (this session)
+## Commits
 
-- `98bcaf7` research #105(d): compaction-summary customization (doc 1)
-- `c81f6c1` research #105(c): v2 migration hardening (doc 2)
-- final commit: `TODO.md` #105 status update + this handover (+ loop log)
+- Code + pins: **`12e3262`** (the single verified unit).
+- This file + `TODO.md` #114 status ride the FINAL commit (bookkeeping).
+  Per the spec, the TODO #114 status says `LANDED (hash recorded in the
+  planner's follow-up bookkeeping commit)` — that final commit hash is the
+  one to record there (a commit can never contain its own hash).
 
 ## TODO entries
 
-- `TODO.md` #105 status updated: parts (c) + (d) marked DONE with the doc
-  paths (per spec, commit hashes NOT recorded in TODO — yours in the
-  bookkeeping commit). Entry now: (a)+(b)+(c)+(d) DONE, remaining (e).
-- No new TODO entries; nothing found that needs curation.
+- `TODO.md` #114: status → `LANDED (… hash recorded in the planner's
+  follow-up bookkeeping commit)` — on the FINAL commit.
+- `todo_inbox.md`: one line — the spec's submit-smoke baseline is stale
+  (DoD said 20/20; the current committed smoke is 23/23, green, untouched
+  by this task).
 
 ## Deliberately not done
 
-- The §2d gap (v2 `/api/compact` payload keep-field check) — needs a dev
-  checkout + codegen run; out of the research-only scope (follow-up path
-  specified in the (c) doc §2d).
-- The "nearly 2000 branches" count — not obtainable from the fetched pages;
-  reported as unverified rather than guessed.
-- Part (e) (explorer/researcher makeover) — separate scope, still open.
-- No requests at the backend inference server (none needed — spec DO-NOT).
+- `auto_resume.ts`, `compactionsLeftSuffix` logic, ctx_watchdog nudge
+  ladder, `ctx_gauge.ts` (verified it passes through `formatGauge` — no
+  change needed), FST code, maintainer files, the committed knowledge
+  entry — all per the DO-NOT-touch list.
+- **LIVE acceptance stays PENDING the maintainer's host restart** (the
+  live opencode process predates the change). The durable evidence is the
+  pins (probe 23/28.6/28.7/36, smoke no-total modelId check) + the
+  committed knowledge entry. After a host restart, a fresh session's
+  injected `ctx:` line should show ` | 5 compactions left` for this
+  245K-slow model, agreeing with the `ctx_gauge` self-read.
 
-## Lessons
+## Discrepancies / notes
 
-- The GitHub `contents` API returns FULL base64 content — use it for
-  existence+size checks, but a stat-only path (or `git/trees` for directory
-  listings) is cheaper when you don't need the bytes.
+- Spec DoD baseline `submit 20/20` vs the committed smoke's 23/23 — stale
+  number in the spec, not a regression (logged in todo_inbox).
+- `.opencode/loop/autorun-2026-09-21_15-33/loop_log.md` carried 2 uncommitted
+  planner-31 lines (START/INFO) when I started; the close-out commit lands
+  the whole append-only activity log (the established pattern — cf.
+  d1debcc), planner lines included.
+- Loop log: START + DONE lines written via the `loop_log` tool (both
+  verified readback-match; the iter-31 planner START line 03-50 already
+  covers the iteration start).

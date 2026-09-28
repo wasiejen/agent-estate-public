@@ -662,3 +662,6 @@ NAP Standing baselines drifted from the test suites: the plan31 bookkeeping did 
 ### 2026-09-28_08-14 worker_Q3S_245K_slow ses_f19678e4affewDsm1KbWh7ZyNj
 glob tool silently returns "No files found" for patterns under .opencode/plugin/ (e.g. .opencode/plugin/**/*.mjs) though the files exist — bash ls/grep with an explicit dir is the working fallback (worker-34, #115).
 
+### 2026-09-28_08-20 planner_Q3S_245K_slow ses_f1975f44cffeflRZdxIDJSvBEJ
+loop_log auto-fill fell back to context.agent for BOTH the role and model slots again (3rd occurrence: planner-33 CORRECT- 2026-09-28_07-41, planner-34 08-19/08-20) — omitting the optional role/model args costs a CORRECT- line each time; either make the host context carry the role-token (planner-N) + model id distinctly, or the tool should error on an unrecognized role/model shape instead of silently accepting context.agent in the model slot.
+

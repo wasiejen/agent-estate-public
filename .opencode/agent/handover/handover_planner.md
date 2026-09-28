@@ -10,22 +10,37 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
   #106/#109 live acceptances pending his restart; #113 venv; repo-split;
   detector dispatch). agent_ideas.md triaged: idea (1) → TODO #115
   (gauge window config-first) — spec committed, worker-34
-  (`worker_Q3S_245K_slow`) launched; ideas (2) context-erase/tail-trim
-  research, (3) submit memory-channel proposal, (4) real-time gauge via
-  `messages.updated` research → queued for the iter-35 maintenance pass /
-  the next idle lane.
-  - #115 design (planner-settled): `gauge.mjs` `resolveWindow(modelId)` —
-    config-FIRST (root opencode.jsonc
-    `provider.<pid>.models.<mid>.limit.context`, JSONC strip per
-    auto_resume.ts L1098 `parseJsonc`, per-call read, never-throw) with
-    the name-marker `parseWindow` as fallback; `setConfigFileForTest` hook;
-    `formatGauge` format unchanged; all 3 surfaces covered by the single
-    shared core (no plugin/tool change).
+  (`worker_Q3S_245K_slow`) launched → LANDED + planner-verified
+  (worker-34 ses_f19678e4affewDsm1KbWh7ZyNj, code **0c90abe**): gauge.mjs
+  `resolveWindow(modelId)` config-FIRST — root opencode.jsonc
+  `provider.<pid>.models.<mid>.limit.context` (JSONC strip replicated from
+  auto_resume.ts L1098, per-call read, never-throw, `setConfigFileForTest`
+  hook), the name-marker `parseWindow` as fallback; `gaugeFromRaw`
+  switched; 7 new resolveWindow pins (a)-(f), existing pins unchanged;
+  `formatGauge` format unchanged — all 3 surfaces covered via the single
+  shared core (no plugin/tool change). Planner verification: own
+  gauge_core ALL PASS + ctx_gauge 3/3 re-runs + the live byte-identity
+  readout (CTX=155274 (63%) REM=89726 — window 245000 = the config value)
+  + git scope clean (2 files, 180 ins/4 del); probe 346 unchanged (no
+  re-pin needed — synthetic ids carry no provider prefix); ruff F=0;
+  pytest blocked #113. LIVE NOTE: the running host process still predates
+  this build — the gauge surfaces pick it up at the maintainer's next
+  restart (no visible change until then: config 245000 == the current
+  model's name marker).
+  - Ideas (2) context-erase/tail-trim research, (3) submit memory-channel
+    proposal, (4) real-time gauge via `messages.updated` research →
+    queued for the iter-35 maintenance pass / the next idle lane.
   - Channels checked: feedback + ideas triaged through plan33 (nothing
     new); maintainer inbox empty; priority.md active list empty; markers
     clean (plan33 sweep; no live additions found this session — his
     `event_hook_message_updated.md` ideas note = background input for
     idea (4), no action).
+  - Baselines: unchanged (probe 346 = 335 + the 11 #113 env; smokes per
+    Standing; the gauge_core suite grew by 7 pins — ALL PASS).
+  - Iter-35 queue: the counter-triggered MAINTENANCE PASS (iter 35) +
+    the live-acceptance battery (#114/#106/#109 — his restart), #113
+    venv (MAINTAINER CALL), repo-split Phase 1/2 (his domain), the
+    detector-dispatch part (his call), ideas (2)/(3)/(4).
 
 ## Compressed archive (one line each
   - 2026-09-28 autorun (ses_f19a6d8effferDMEYo31DsSXCF, planner-33, Qwen3.8-27B-Q3S-245K-slow) — plan33: #109 silent-limit-stop detector LANDED+verified (worker-33 aa47335/a570d9c/091c9b8 — limitStopCheck tick leg, 5 Watch fields, -WARNING loop_log fire, smoke 146/146, probe 346=335+11 env #113, ruff F=0, pytest blocked #113; live acceptance PENDING the maintainer's restart) + repo-split Phase-1 PROPOSAL filed + Phase-0 dry-run script (verified read-only, UNEXECUTED — his domain) + #114 5th data point (live process still pre-12e3262) — details: loop folder plan33_summary.md + git 087e19e..c21cc72

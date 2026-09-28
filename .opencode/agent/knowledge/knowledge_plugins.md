@@ -325,3 +325,40 @@ Gained, verified knowledge for opencode plugins. Format per the README:
   .opencode/temp/auto_resume.log | tail`.
 - **Keys:** lineage, depth cap, skip= depth, lineage_max_depth, restore,
   restart, spawn chain.
+
+## Gauge budget suffix: no-total reads resolved the model to "" → default cap 1 (verified 2026-09-28, planner-31 — #114 root cause)
+- **Do:** a gauge read with no finished step yet (a fresh session at
+  session start) must resolve its model from the SESSION ROW's own
+  `model` column (fallback), not from the finished-step row alone —
+  otherwise the ` | N compactions left` suffix resolves
+  `model_budget.default` (the store carries `"default":1`) and reports
+  the wrong remainder (a fresh 245K-slow session reads "1 compaction
+  left" instead of "5").
+- **Why (evidence):** measured 2026-09-28 (planner-31,
+  ses_f1a4f121cffepXvNl2sCuSaM51): the session-start injected `ctx:` line
+  = `CTX=notAvailable | 1 compaction left`; the ctx_gauge self-read of
+  the SAME session after the first finished step = `CTX=79335 (32%) … |
+  5 compactions left` — 3rd live data point after planner-29 +
+  explorer-30 (the #114 discrepancy). Root cause: `gauge.mjs`
+  `readApiDb` sources `model` ONLY from the finished-step row
+  (`step?.model`, L416); `SQL_NEWEST_SESSION` / `SQL_SESSION_BY_ID`
+  select `id` only; no finished step → `modelId ""` →
+  `compactionsLeftSuffix` fallback (entry.model — a fresh session has
+  no budget entry yet — → "") → not in `model_budget` → `default: 1`.
+  The live DB session row DOES carry
+  `model = {"id":"Qwen3.8-27B-Q3S-245K-slow","providerID":"llama-swap",…}`
+  — `parseModelId` yields the exact model_budget key (cap 5). BOTH
+  surfaces (the ctx_watchdog chat.message post + the ctx_gauge tool)
+  share the SAME gauge core — the divergence is ONE code path read at
+  two times (session start vs post-first-step), not two code paths.
+  `auto_resume.ts` `budgetExhausted` is NOT affected (it reads
+  entry.model — an entry always carries its model; a fresh session is
+  never exhausted).
+- **Ref:** `.opencode/plugin/scripts/gauge.mjs` (SQL_NEWEST_SESSION L350,
+  SQL_SESSION_BY_ID L374, readApiDb L402-438, compactionsLeftSuffix
+  L292-329, GAUGE_SQL_MARKER L362-367, sqlMarkerForSession L382-390,
+  readSpawnSqlite3 S-row parse L500-513); the store
+  `.opencode/temp/compact_budget.json` (model_budget.default=1,
+  sessions[sid].count).
+- **Keys:** gauge, compactionsLeftSuffix, no-total, session-row model,
+  model_budget default, injected ctx line, session start, #114.

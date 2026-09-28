@@ -1,91 +1,90 @@
-# Task spec — plan30: TODO #105 parts (c) + (d) — RESEARCH ONLY (no code change)
+# Task spec — plan31: TODO #114 fix — the gauge budget suffix must agree for a no-total read
 
-Worker: `explorer_Q3S_245K_slow` (verified live in `opencode.jsonc`, 2026-09-28).
-Two research documents, in this ORDER (checkpoint commit per document):
-1. **(d) compaction-summary customization** →
-   `.opencode/agent/research/2026-09-28_compaction-summary-customization.md`
-2. **(c) v2 migration hardening** →
-   `.opencode/agent/research/2026-09-28_v2-migration-hardening.md`
-`TODO.md` #105 status update + your handover ride the FINAL commit.
+Worker: `worker_Q3S_245K_slow` (verified live in `opencode.jsonc`, 2026-09-28).
 
-## Goal (the maintainer's #105 targets, verbatim gist)
-- (d) "using the exact summarize prompt (… `compaction_prompt.md` + the temp
-  opencode:dev copy), find how the compaction model's summary behavior can be
-  influenced — e.g. drop all content older than 4 compactions, mark new
-  additions with the current compaction iteration (keeps the summary current +
-  trackable)."
-- (c) "the current 'main' branch is identified (nearly 2000 branches) and a
-  hardening plan for our plugins/app for a potential switch is researched
-  (incl. whether v2's summarize already has keepTokens functionality not
-  based solely on opencode.jsonc)."
+## Goal
+One budget value for both surfaces: the session-start injected `ctx:` line and
+the `ctx_gauge` self-read show the SAME ` | N compactions left` for the same
+session. The planner root-caused the divergence (measured, 2026-09-28 — the
+knowledge entry is already committed in `.opencode/agent/knowledge/
+knowledge_plugins.md`, entry "Gauge budget suffix: no-total reads…"): a gauge
+read with NO finished step yet (a fresh session at session start) resolves the
+model to `""` (the model comes only from the finished-step row) →
+`compactionsLeftSuffix` falls back to `model_budget.default` (= 1 in the store)
+instead of the session's real model cap (5 for Qwen3.8-27B-Q3S-245K-slow).
+Fix: source the model from the SESSION ROW's own `model` column as the fallback.
 
-## Context (verified facts — do NOT re-derive; start here)
-- Installed host = **1.18.32** (measured 2026-09-27); the scratchpad dev copy
-  `home\AppData\Local\Temp\opencode\opencode-dev` IS that exact
-  build (provenance spot-verified vs the published v1.18.32 tag).
-- The summarize body is `{providerID, modelID, auto?}` (opencode-dev
-  `groups/session.ts` L65-69); the handler passes only model + auto
-  (`handlers/session.ts` L273-294); the retention budget reads CONFIG only
-  (`session/compaction.ts` L115-120) — full trace:
-  `.opencode/agent/knowledge/opencode-plugins/2026-09-27_summarize-keep-source-
-  trace.md` (READ this first — it is the protocol for the #99 research).
-- The exact summarize prompt (READ-ONLY reference):
-  `.opencode/maintainer/draft/compaction_guide/compaction_prompt.md`.
-- The prior fork-effort research (READ as starting context for (c)):
-  `.opencode/agent/research/2026-09-28_keeptokens-fork-effort.md`
-  (its recommendation: fork 1.18.32 now, ~11 lines / 6 files, Phase 1-3).
-- Our plugin/tool surface for the hardening inventory (READ-ONLY):
-  `.opencode/plugin/*.ts` (auto_resume, compact_memory, context_recovery,
-  intercept_observer, gauge/ctx nudge) + `.opencode/tools/*.ts`
-  (block_transfer, loop_log, submit) + the SDK surface facts in
-  `.opencode/agent/knowledge/opencode-plugins/host-map.md`.
+## The fix (design is settled — implement it; HOW within the files is yours)
+`.opencode/plugin/scripts/gauge.mjs` ONLY:
+1. `SQL_NEWEST_SESSION` (L350) + `SQL_SESSION_BY_ID` (L374): also select the
+   session row's `model` (`SELECT id, model …`).
+2. `readApiDb` (L402-438): `model` precedence = finished-step row's model
+   (CURRENT source of truth — unchanged when present) → ELSE the session row's
+   `model` → ELSE null:
+   `step != null && typeof step.model === "string" ? step.model : (typeof newest?.model === "string" ? newest.model : null)`
+3. Spawn backend (only reached if both API backends fail — keep it consistent):
+   `GAUGE_SQL_MARKER` (L362-367) + `sqlMarkerForSession` (L382-390): the `'S'`
+   row also carries the session-row model (`SELECT 'S', id, model …`); in
+   `readSpawnSqlite3` (L482-516) parse the S row as `sid | model…` (rest of the
+   line = model; the M row prints FIRST and must stay the precedence winner —
+   set the S-row model only when model is still null).
+4. `compactionsLeftSuffix` (L292-329): NO logic change — it already does the
+   right fallback chain; it just finally receives a real modelId.
+
+## Pins (re-pin per the established byte-exact pattern; the fixture DBs are
+seeded in the probe/smoke files — find them with `grep -n "ses_fx_empty" /
+"ses_fx_ok" / "fx_unk"` in the two test files)
+- The no-total fixture sessions should carry a model on their SESSION ROW so
+  the pins exercise the NEW behavior: a no-total read of a session whose row
+  model matches a model_budget key → the line ends with THAT model's cap
+  (e.g. ` | 3 compactions left` for a fixture model with cap 3), NOT
+  `default 1`.
+- KEEP one pin proving the old fallback still holds: no-total + no model
+  anywhere (session row model NULL/absent + no budget entry) → `default 1`
+  (` | 1 compaction left`).
+- Affected surfaces to re-pin (find all — grep for `notAvailable` +
+  `compaction` in both files):
+  - `.opencode/plugin/tests/gauge_core.smoke.mjs` (item-3 section, ~L38-80)
+  - `.opencode/plugin/probes/handover_probe.mjs` (S6b no-total pin ~L1570; the
+    spawn-marker S-row pins in the S6 section if the S-row shape changed; the
+    ctx_watchdog t3 pin ~L1270 `ctx: SESSION=ses_fx_empty CTX=notAvailable` —
+    it must stay byte-exact per the fixture's model value).
+- Update the probe header self-annotated total ONLY if the check count changes
+  (re-pins keep counts; a new fallback pin may add one — the header tally must
+  match the machine).
 
 ## Definition of done
-1. **(d) doc** (committed first — checkpoint before starting (c)):
-   - Answers EXPLICITLY: does the installed 1.18.32 summarize call accept ANY
-     instruction/prompt override — a body field, a config field, an env var, or
-     nothing? (measured from the dev-copy source — file + line locators for
-     every claim; if none exists, say so with the negative evidence).
-   - Assesses the two maintainer ideas (drop content older than 4 compactions;
-     tag additions with the compaction iteration) against what IS influenceable
-     (e.g. the config `compaction` section, the prompt the host sends —
-     `compaction_prompt.md` is what the host itself sends; can it be
-     substituted/configured? — plus the queue-message / pre-compaction hooks we
-     control).
-   - One RECOMMENDATION with effort estimate (what to change where: host
-     config = maintainer file, plugin-side hook, or nothing).
-2. **(c) doc**:
-   - Identifies the opencode project's CURRENT mainline branch/state from
-     GitHub (webfetch; cite what you looked at — default branch, latest
-     releases/tags; "nearly 2000 branches" is the maintainer's observation —
-     report what you actually see).
-   - Answers EXPLICITLY: does v2 (the current mainline) summarize/compaction
-     have a per-call keep input (vs config-only in 1.18.32)? (grep the v2
-     source — raw file fetch from GitHub is fine; locators required).
-   - The HARDENING PLAN: per our plugin/tool (the list above), what breaks or
-     changes on a switch (hook names, SDK shapes, config fields) — a table or
-     list with effort estimates per item; reuse the fork-effort doc's facts
-     where they still apply.
-3. Both docs: dated header, sources/locators per claim, ≤ ~250 lines each,
-   pointer-only where a knowledge file already covers a fact.
-4. `TODO.md` #105 status: parts (c)+(d) marked DONE with the doc paths
-   (hash recorded in the planner's follow-up bookkeeping commit — NEVER in
-   your own commit); handover to
-   `.opencode/agent/handover/handover_task_to_planner.md`.
-5. Checkpoint commits: one per verified doc; TODO + handover in the final
-   commit. No gate run needed (research-only, no code change).
+- Standard gate green, measured + reported: full probe run (self-annotated
+  total; the 11 numword-python failures 136-146 are ENVIRONMENTAL — #113 venv
+  break — not regressions; everything else must pass), gauge_core smoke green,
+  all other smokes unchanged (context_recovery 17/17, compact_memory 78/78,
+  auto_resume 140/140, intercept_observer 77/77, block_transfer 131/131 +
+  sandbox 64/64, submit 20/20), ruff F=0. pytest is UNRUNNABLE (#113 — do not
+  attempt it).
+- Checkpoint commits per verified unit (code, then pins if you split them);
+  `TODO.md` #114 status (LANDED — hash recorded in the planner's follow-up
+  bookkeeping commit) + your handover ride the FINAL commit.
+- LIVE acceptance stays PENDING the maintainer's host restart (the live
+  process predates the change) — state that in your handover; the
+  pins + the knowledge entry are the durable evidence.
 
 ## DO-NOT-touch
-- `.opencode/maintainer/**` (READ-ONLY — esp. the draft compaction_guide files)
-- `.opencode/plugin/**`, `.opencode/tools/**` (READ-ONLY here)
-- `AGENTS.md`, `.opencode/agent/prompts/**`, `opencode.jsonc` (his live files)
-- FST product code (everything outside `.opencode/` + the research folder)
-- NO requests at the backend inference server (llama-swap) — ever.
+- `.opencode/plugin/auto_resume.ts` (`budgetExhausted` reads entry.model —
+  different semantics, NOT affected — leave it).
+- `compactionsLeftSuffix` logic (no behavior change).
+- The ctx_watchdog nudge ladder / the auto_resume Unit-2 suffix (they consume
+  the same gauge core — no change there).
+- FST product code, `.opencode/maintainer/**`, `.opencode/tools/ctx_gauge.ts`
+  (the tool wraps the core — no change needed; verify by reading that it
+  passes through formatGauge).
+- The already-committed knowledge entry (it is the spec's evidence; do not
+  reword it).
 
-## Context discipline
-- First greps bounded (`| head -30`); read bounded windows of the dev copy,
-  not whole files; GitHub raw-file fetches only for the files you need.
-- If (c) blows past your context (GitHub research is open-ended): commit the
-  (d) doc first (already done by then), finish what you can of (c) as a
-  PARTIAL doc (state what is missing), and close the handover — the planner
-  will decide the follow-up.
+## Context pointers (read ONLY these areas, bounded)
+- `.opencode/plugin/scripts/gauge.mjs` L292-330, L350-440, L482-516, L534-553
+- `.opencode/plugin/tests/gauge_core.smoke.mjs` L1-120
+- `.opencode/plugin/probes/handover_probe.mjs`: header tally + S6/S6b
+  (~L140-200, L1100-1120, L1440-1590) + the ctx_watchdog section (~L980-1290)
+  + the fixture seeding (grep `ses_fx_empty`)
+- `.opencode/agent/knowledge/knowledge_plugins.md` — the #114 root-cause entry
+  (last entry) — your evidence

@@ -1,71 +1,106 @@
-# handover_task_to_planner.md — #105 part (b): keepTokens fork-effort research (explorer-28, plan28)
+# Worker summary — plan30: TODO #105 parts (c) + (d) — RESEARCH ONLY (explorer-30)
 
-Date: 2026-09-28. Research-only run — NO code changed, no build, no install, no npm touch,
-no backend-server contact.
+## What changed (research only, no code change, no gate run — per spec)
 
-## Deliverable
-`.opencode/agent/research/2026-09-28_keeptokens-fork-effort.md` — the one-line change set,
-phased estimate, fork/install strategy, risks, recommendation (the #105 acceptance form).
-Every file/line reference in it was grep-verified against the 1.18.32 dev tree at writing
-time (the #99 refs all re-verified: `SummarizePayload` groups/session.ts L65-69 ✓, handler
-handlers/session.ts L273-294 / create-call L282-290 ✓, `preserveRecentBudget`
-compaction.ts L115-120 + call site L230 ✓, v2-compat shim L164-185 (keep at L172-177) ✓).
+Two research documents, checkpoint-committed in spec order ((d) first, then (c)):
 
-## Change-set tally (fork = honoring a per-call `keep.tokens`)
-**6 files, ~11 lines** (server side):
-1. `groups/session.ts` L65-69 — `SummarizePayload` + optional `keep.tokens` field (+2)
-2. `handlers/session.ts` L282-290 — handler pass-through to `compactSvc.create` (+1)
-3. `compaction.ts` `create` L559-565 + part write L574-581 — carry + store `keepTokens` (+2)
-4. `compaction.ts` `processCompaction` L319-325 + `select` call L367-371 — forward it (+2)
-5. `compaction.ts` `select` L223-230 — the override: `budget = keepTokens ?? preserveRecentBudget(...)` (+2)
-6. `packages/schema/src/v1/session.ts` L195-201 — `CompactionPart` + optional `keepTokens` (+1)
-7. `prompt.ts` L1150-1156 — task loop passes `task.keepTokens` (+1)
-   (numbered 7 rows / 6 distinct files — compaction.ts carries rows 3-5.)
-Client side: **0 lines for our plugins** — `callSummarize` (compaction_core.ts L591-602)
-already sends the `keep` body field with `client: any` and a retry-without-keep fallback.
-Optional cosmetic: 4 lines in the two SDK gen type files (v1 gen is hand-maintained/stale —
-it's even missing `auto`; v2 gen is codegen'd).
+1. **(d) Compaction-summary customization** —
+   `.opencode/agent/research/2026-09-28_compaction-summary-customization.md`
+   (checkpoint commit **98bcaf7**).
+   - Q answered explicitly: the installed 1.18.32 summarize call accepts NO
+     prompt override in the HTTP body (`SummarizePayload = {providerID, modelID,
+     auto?}`, groups/session.ts L65-69) or via any env var (zero hits grepped in
+     compaction.ts / agent.ts / core compaction.ts / llm/request.ts); YES via
+     CONFIG — `agent.compaction.prompt` (v1) or `agent.compaction.system` (v2,
+     mapped by v2-compat `lowerAgent` L401) replaces the summarizer's system
+     prompt (agent.ts L267-294, L283); the template + update-instructions are
+     hardcoded module constants (core/session/compaction.ts L16-55, sole consumer
+     `buildPrompt` L160-174).
+   - Both maintainer ideas assessed against the influenceable surfaces:
+     `experimental.session.compacting` (context append OR full prompt replace —
+     typed plugin/index.ts L298-308), `experimental.chat.messages.transform`
+     (drop/rewrite pre-summarizer messages; caveat: also fires on normal chat —
+     prompt.ts L1255), `experimental.chat.system.transform` (system[] of any LLM
+     request incl. the summarizer's), `experimental.text.complete`
+     (deterministic post-hoc summary-text rewrite). Neither idea needs a fork.
+   - Recommendation: phased plugin-side — Phase A soft `context` injection with
+     dynamic iteration N (~30-60 lines, ~0.5-1 day incl. live testing); Phase B
+     hard prompt-replace / text-complete diff-stamping only if quality
+     insufficient; optional static config `agent.compaction` override (maintainer
+     call, zero agent work); fork NOT recommended for these ideas.
+2. **(c) v2 migration hardening** —
+   `.opencode/agent/research/2026-09-28_v2-migration-hardening.md`
+   (checkpoint commit **c81f6c1**).
+   - Mainline identified (GitHub, fetched 2026-09-28): default branch is
+     **`dev`** (there is no `main` branch), 15,802 commits; latest tag
+     **v2.0.18** (2026-09-25); v2 line ≈ 1 release/day (v2.0.10 09-19 → v2.0.18
+     09-25); v1.18.32 the last v1 tag (09-21); 210.4k stars / 27.8k forks. The
+     "nearly 2000 branches" figure is UNVERIFIED — the branches page rendered
+     only the active branches (dev, session-row-helpers, `v2`,
+     weekly-i18n-sep28, effect-rc115, url-media-type); the total count did not
+     come through the fetch (reported honestly as a gap).
+   - Per-call keep answer: **NO** on the mainline — fetched dev
+     `SummarizePayload` is unchanged (no keep field), `ConfigV2.Compaction`
+     unchanged (auto/prune/keep.tokens/buffer), and the v1→v2 config shim still
+     ships (keep.tokens → preserve_recent_tokens). One open gap, specified for
+     follow-up: the v2 `/api/session/{id}/compact` payload (present in the v2 SDK
+     gen, sdk.gen.ts L5663-5671; its server routes not in the fetched mainline
+     groups; no committed openapi.json on dev) — verify via `bun dev generate`
+     on a dev checkout if the maintainer wants it.
+   - Hardening table (per plugin/tool, risk + effort): hooks interface
+     UNCHANGED on dev (all 18 hook names present); our client endpoints
+     (summarize/messages/status/promptAsync) all present on dev; LOW risk:
+     compact_memory (dual-dispatch already v2-ready), compaction_core,
+     context_recovery, intercept_observer, all six tools (node/fs, no SDK);
+     MEDIUM risk: auto_resume (event payload shapes unverified), ctx_watchdog
+     (gauge DB schema unverified), and the v1-format opencode.jsonc
+     (permission/provider/TUI items not in the inspected shim mapping;
+     `compaction.keep.system: true` silently ignored on v2 — harmless).
+   - Recommendation: **do NOT switch now** — npm `latest` is still 1.18.32
+     (measured: `npm view opencode-ai`; v2 only on the npm `dev` tag
+     `0.0.0-dev-202609261957`), v2 is in rapid churn, the switch buys no
+     per-call keep, and the code delta is small (verification ≈ 1-2 sessions).
+     Re-check each v2 minor (cheap tag + SummarizePayload fetch); switch when v2
+     lands on npm `latest` or adds per-call keep. The fork (part b doc) and the
+     (d) plugin-side surfaces are unaffected by the switch.
 
-## Phase estimates (assumptions: maintainer builds/swaps; bun present; first build)
-- **Phase 1** — server wire + rebuild + swap: **~1.5-2.5 h wall** (diff itself < 1 h).
-  Build: `bun install` → `bun run --cwd packages/opencode build --single`
-  (`packages/opencode/script/build.ts`, bun-windows-x64 compile, smoke `--version` built in)
-  → overwrite `opencode-ai\bin\opencode.exe` (+ the platform-package twins so
-  postinstall can't restore upstream) → restart.
-- **Phase 2** — client-type alignment: **~0 h required** (≤0.5 h optional hygiene).
-- **Phase 3** — acceptance: **~1-2 h** — the #99 N=10 discriminator
-  (keepMessages=10, gauge-measured post-compaction prefill: ~44k count-like vs ~29-30k budget).
-- **Total ~3-5 h, one session.**
+## Verification (measured)
 
-## Fork/install strategy + overwrite risk
-Build pipeline located and cited in the doc (root bun workspace; `build.ts` flags
-`--single` / `--skip-install` / `--skip-embed-web-ui`; output
-`dist/opencode-windows-x64/bin/opencode.exe` + platform package.json manifest — the npm
-platform-package layout is reproduced locally without publishing). **Overwrite risk:**
-any `npm update opencode-ai` silently replaces the fork (manifests stay 1.18.32) —
-mitigated by pinning discipline + a version bump for traceability; the plugin degrades
-gracefully (retry note) if the fork dies. Other risks: live-host restart (one-time
-maintainer action), no DB migration (optional field), upstream divergence (re-land ~11
-lines per rebase), wait-for-upstream **undecidable from the pinned tree** (no keep field
-on either SDK surface as of 1.18.32 — the tree carries no commitment signal).
+- All dev-tree locators: grep/read-verified against
+  `home\AppData\Local\Temp\opencode\opencode-dev` (1.18.32 tree,
+  provenance per the #99 trace doc) on 2026-09-28.
+- All mainline claims: fetched directly from GitHub `dev` branch 2026-09-28
+  (repo/branches/tags pages + raw files: groups/session.ts,
+  groups/experimental.ts, core config/compaction.ts, plugin/index.ts,
+  config/v2-compat.ts existence; API 404 for openapi.json).
+- npm state measured locally 2026-09-28 (`npm view opencode-ai`).
+- No code changed → no gate run needed (spec §Definition of done 5).
 
-## Recommendation (one line)
-**Fork (b) now**, scoped Phase 1-3 — the diff is ~11 lines / 6 files, plugin-side work is
-zero, and the acceptance test is already specified; config-only (c) permanently caps
-retention at session-wide, wait (a) is undecidable. Fall back to (c) only if the maintainer
-refuses the build.
+## Commits (this session)
 
-## DO-NOT-TOUCH compliance
-No edits to the dev tree, the live `opencode.exe`, `opencode.jsonc`, `.opencode/plugin/**`,
-`AGENTS.md`, `.opencode/agent/prompts/**`, `.opencode/maintainer/**`; no npm/build/
-install; no request at the backend inference server. Writes: the research doc, this
-handover, one append to TODO.md (#105 part (b) status line), the loop log.
+- `98bcaf7` research #105(d): compaction-summary customization (doc 1)
+- `c81f6c1` research #105(c): v2 migration hardening (doc 2)
+- final commit: `TODO.md` #105 status update + this handover (+ loop log)
 
-## Files touched
-- NEW `.opencode/agent/research/2026-09-28_keeptokens-fork-effort.md`
-- MOD `TODO.md` (#105 status: part (b) DONE line appended — entry stays OPEN for (c)-(e))
-- MOD this handover file
+## TODO entries
 
-## Commit
-Commit hash: **LANDED — recorded in the planner's follow-up bookkeeping** (per the spec,
-never in the same commit). The commit carries exactly the three files above (no code).
+- `TODO.md` #105 status updated: parts (c) + (d) marked DONE with the doc
+  paths (per spec, commit hashes NOT recorded in TODO — yours in the
+  bookkeeping commit). Entry now: (a)+(b)+(c)+(d) DONE, remaining (e).
+- No new TODO entries; nothing found that needs curation.
+
+## Deliberately not done
+
+- The §2d gap (v2 `/api/compact` payload keep-field check) — needs a dev
+  checkout + codegen run; out of the research-only scope (follow-up path
+  specified in the (c) doc §2d).
+- The "nearly 2000 branches" count — not obtainable from the fetched pages;
+  reported as unverified rather than guessed.
+- Part (e) (explorer/researcher makeover) — separate scope, still open.
+- No requests at the backend inference server (none needed — spec DO-NOT).
+
+## Lessons
+
+- The GitHub `contents` API returns FULL base64 content — use it for
+  existence+size checks, but a stat-only path (or `git/trees` for directory
+  listings) is cheaper when you don't need the bytes.

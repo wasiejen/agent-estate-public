@@ -638,3 +638,9 @@ planner-30 friction: (1) committed git-mv'd proposal files BEFORE staging the ve
 ### 2026-09-28_05-07 worker_Q3S_245K_slow ses_f1a200e9cffeI44wf8d7jjx8Cu
 #106 spec line forms didn't state that the DELIVERED after-hook hint keeps the raw multi-line oldString (real newlines) while the log line is flattened — probe 283 re-pin needed one extra probe run; one spec line would have saved it.
 
+### 2026-09-28_05-13 planner_Q3S_245K_slow ses_f1a4f121cffepXvNl2sCuSaM51
+Stale spec baseline: the plan31 #114 spec DoD quoted `submit 20/20` from the stale NAP Standing baseline (committed smoke was 23/23) — re-verify the smoke totals before citing gate baselines in a spec (cheap: one smoke run or grep the smoke header).
+
+### 2026-09-28_05-13 planner_Q3S_245K_slow ses_f1a4f121cffepXvNl2sCuSaM51
+Glob tool quirk: `glob` with pattern `.opencode/plugin/*` returned "No files found" while the directory clearly has files (grep found them) — dot-folder top-level patterns may need a different form (e.g. `.opencode/plugin/**/*` or a path param); cost one extra call to fall back to grep/bash ls.
+

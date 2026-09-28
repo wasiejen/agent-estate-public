@@ -26,11 +26,16 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
     ALL PASS (planner re-run); bookkeeping 2c04582/4870630. LIVE
     acceptance PENDING the maintainer's host restart (a fresh session's
     injected line should then read "5 compactions left").
-  - **#106 spec committed (ea730f9) + worker launched:** `applied`/
-    `rejected` outcome tokens on the edit-fuzzy/edit-hint feedback lines +
-    the `fuzzy-edit applied` line delivered on the SUCCESSFUL tool result
-    (the mutation was invisible to the agent before — the hint was
-    deliberately not stored).
+  - **#106 LANDED + planner-verified (worker-31
+    ses_f1a200e9cffeI44wf8d7jjx8Cu, cbbebf8; spec ea730f9):** `fuzzy-edit
+    applied orig=… len=… d=… value=…` — STORED + DELIVERED on the
+    SUCCESSFUL tool result (the mutation was invisible to the agent
+    before) + `hint rejected …` on every fail-closed/ambiguous hint line;
+    smoke 77→78/78 (planner re-run), probe 346 re-pinned (203/271-284,
+    tally unchanged), ruff F=0. Lesson: the delivered hint keeps the RAW
+    unflattened evidence string (multi-line oldString → real newlines in
+    the delivered line; the log line is flattened — probe 283 pin). Live:
+    from the next process restart.
   - Baselines: probe 346 (post-#114); venv still broken (#113 MAINTAINER
     CALL — pytest half unrunnable, the 11 numword-python failures
     environmental); the submit smoke baseline corrected 20/20 → 23/23
@@ -45,6 +50,8 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
     #104 — deferred to the iter-35 pass); #105 (e) stays open (the
     maintainer's opencode.jsonc write-access tightening pending — his
     domain).
+  - CLOSE: plan31_summary.md + loop RETURN/DONE lines + bookkeeping commit;
+    action: restart.
 
 
 ## Compressed archive (one line each

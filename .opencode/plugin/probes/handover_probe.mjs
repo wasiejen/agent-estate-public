@@ -81,7 +81,14 @@
 // attempt → DUMP-RETRY=1 → one retry → DUMP-FAIL per artifact), the DUMP-
 // RETRY=/DUMP-FAIL lines gain the artifact relFile, the hook returns
 // { ok, files, error } (files = the landed paths, md first): the S14 checks
-// 104/105/106/107 re-pinned + the NEW check 345 (the json naming byte-exact)):
+// 104/105/106/107 re-pinned + the NEW check 345 (the json naming byte-exact))
+// + EXTENDED 2026-09-30 (plan39: the context_trim custom tool — the
+// approved context-trim build, Unit 1): the new S33 section, checks
+// 346-351: the tool's schema surface (type-stripped direct import, the
+// S12/S15 load pattern) + the report/dry-run/tail contract pins on the
+// probe's own fixture DB (the opencode-like session/message/part shapes
+// from the bounded read-only live-DB inspection) + the 4 fail-closed
+// rejection reasons + the no-marker full-history report):
 // the
 // pre-rebuild
 // probe
@@ -966,9 +973,33 @@
 //          the availability); the hook allows 2 normal, then auto-
 //          consumes the emergency 1 (the ` emergency` line suffix),
 //          then clean-fails — NO prompt (Part B).
+//   S33 context_trim tool (6) — 2026-09-30 (plan39: the approved
+//      context-trim build, Unit 1 — spec agent/handover/handover_task.md):
+//      the tool file is imported DIRECT, type-stripped, the S12/S15 load
+//      pattern; the CORE exports (reportWindow / tailSet) are driven over
+//      the probe's own fixture DB (DatabaseSync — the opencode-like
+//      session/message/part shapes from the bounded read-only live-DB
+//      inspection; the smoke's fixture layout is the reference):
+//      (346) the tool surface: the tool() default export (description +
+//          the mode/session/target args + the async execute, NO name
+//          field) + the core exports are functions;
+//      (347) report (no target): the full text BYTE-EXACT (the header
+//          fields + the 10 window rows with the read/bash/webfetch
+//          targets + the tokens/bytes4 mass);
+//      (348) dry-run: the exact remove/keep line (counts + token mass +
+//          verdict=ok) — no write;
+//      (349) tail rewrite lands: the return line byte-exact + the part
+//          row's JSON tail_start_id = the target (single-field edit) +
+//          the re-report retained=7;
+//      (350) rejections (fail-closed, exact reasons):
+//          no-completed-compaction / target-not-found /
+//          target-not-before-compaction (AT + AFTER the marker) /
+//          retained-tail-below-floor 5;
+//      (351) the no-marker session report: byte-exact (marker=none,
+//          window=full-history).
 //
 // EXPECTED OUTPUT:
-//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=7 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=8 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 hygiene=6  →  "PROBE handover: 346/346 PASS",
+//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=7 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=8 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 S33=6 hygiene=6  →  "PROBE handover: 352/352 PASS",
 //   exit code 0. Anything else with THIS file = behavior drift or broken
 //   environment — read the failures, do not "fix" the plugin for the probe.
 //   On failure the sandbox root is KEPT (printed) for forensics.
@@ -8009,6 +8040,248 @@ n29++;
     );
     n32++;
   }
+}
+
+// ------------------------------------------------------------------ S33 context_trim tool (6) — 2026-09-30 (plan39: the approved context-trim build, Unit 1): report + trim the session's live model context
+//
+// The custom tool at .opencode/tools/context_trim.ts: imported DIRECT from
+// the repo path (type-stripped, the S12/S15 load pattern — the tool file
+// MUST load that way). The section drives the CORE exports (reportWindow /
+// tailSet) against its OWN fixture DB built in the sandbox (DatabaseSync —
+// the opencode-like session/message/part shapes from the bounded
+// read-only live-DB inspection; the smoke's fixture layout is the
+// reference): ses_ct_fix (18 messages — 12 before the marker, the tool
+// parts INSIDE the retained tail: msg_08 read, msg_10 read+bash, msg_12
+// webfetch; the marker quartet: msg_13 the compaction user row (part
+// tail_start_id=msg_07 → retained tail msg_07..msg_12 = exactly the floor
+// 6), msg_14 the summary child; 4 messages after the summary) +
+// ses_ct_nomark (3 messages, no marker). The fixture DB is NEVER the
+// live one. Plain tool() object: no hooks, no sandbox plugin.log lines —
+// the S5 tallies are unaffected.
+const CT_TOOL_TS = path.join(REPO_ROOT, ".opencode", "tools", "context_trim.ts");
+const CT_DIR = path.join(SANDBOX, "context_trim");
+mkdirSync(CT_DIR, { recursive: true });
+const CT_DB = path.join(CT_DIR, "fixture.db");
+let ctTool;
+{
+  const db = new DatabaseSync(CT_DB);
+  db.exec("PRAGMA foreign_keys = ON;");
+  db.exec(`
+    CREATE TABLE project (id TEXT PRIMARY KEY);
+    CREATE TABLE session (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+      time_created INTEGER NOT NULL,
+      time_updated INTEGER NOT NULL
+    );
+    CREATE TABLE message (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+      time_created INTEGER NOT NULL,
+      time_updated INTEGER NOT NULL,
+      data TEXT NOT NULL
+    );
+    CREATE TABLE part (
+      id TEXT PRIMARY KEY,
+      message_id TEXT NOT NULL REFERENCES message(id) ON DELETE CASCADE,
+      session_id TEXT NOT NULL,
+      time_created INTEGER NOT NULL,
+      time_updated INTEGER NOT NULL,
+      data TEXT NOT NULL
+    );
+  `);
+  db.prepare("INSERT INTO project (id) VALUES (?)").run("prj_ct");
+  const insS = db.prepare("INSERT INTO session (id, project_id, time_created, time_updated) VALUES (?, ?, ?, ?)");
+  const insM = db.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?)");
+  const insP = db.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?, ?)");
+  const putUser = (sid, id, time, text) => {
+    insM.run(id, sid, time, time, JSON.stringify({ role: "user", time: { created: time } }));
+    insP.run(`p_${id}t`, id, sid, time, time, JSON.stringify({ type: "text", text }));
+  };
+  const putAsst = (sid, id, time, i, o, cr, parts) => {
+    insM.run(id, sid, time, time, JSON.stringify({ role: "assistant", parentID: `p_${id}u`, finish: "stop", tokens: { total: 0, input: i, output: o, reasoning: 0, cache: { write: 0, read: cr } } }));
+    parts.forEach((p, k) => insP.run(`p_${id}${String.fromCharCode(97 + k)}`, id, sid, time, time, JSON.stringify(p)));
+  };
+  const READ = (fp, offset, limit) => ({ type: "tool", tool: "read", callID: "call_" + fp, state: { status: "completed", input: { filePath: fp, offset, limit }, output: "ok" } });
+  const BASH = (command) => ({ type: "tool", tool: "bash", callID: "call_bash", state: { status: "completed", input: { command }, output: "" } });
+  const WEB = (url) => ({ type: "tool", tool: "webfetch", callID: "call_web", state: { status: "completed", input: { url, format: "text" }, output: "doc" } });
+  insS.run("ses_ct_fix", "prj_ct", 0, 0);
+  putUser("ses_ct_fix", "msg_01", 1000, "one");
+  putAsst("ses_ct_fix", "msg_02", 2000, 100, 50, 2000, [{ type: "text", text: "ok" }]);
+  putUser("ses_ct_fix", "msg_03", 3000, "three");
+  putAsst("ses_ct_fix", "msg_04", 4000, 200, 100, 4000, [{ type: "text", text: "ok" }]);
+  putUser("ses_ct_fix", "msg_05", 5000, "five");
+  putAsst("ses_ct_fix", "msg_06", 6000, 300, 150, 6000, [{ type: "text", text: "doc" }]);
+  putUser("ses_ct_fix", "msg_07", 7000, "seven");
+  putAsst("ses_ct_fix", "msg_08", 8000, 400, 200, 8000, [READ("/proj/alpha.md", 1, 40)]);
+  putUser("ses_ct_fix", "msg_09", 9000, "nine");
+  putAsst("ses_ct_fix", "msg_10", 10000, 500, 250, 10000, [READ("/proj/beta.md", 41, 80), BASH("ls -la")]);
+  putUser("ses_ct_fix", "msg_11", 11000, "eleven");
+  putAsst("ses_ct_fix", "msg_12", 12000, 600, 300, 12000, [WEB("https://example.com/doc")]);
+  insM.run("msg_13", "ses_ct_fix", 13000, 13000, JSON.stringify({ role: "user", time: { created: 13000 } }));
+  insP.run("p_13c", "msg_13", "ses_ct_fix", 13000, 13000, JSON.stringify({ type: "compaction", auto: false, tail_start_id: "msg_07" }));
+  insM.run("msg_14", "ses_ct_fix", 14000, 14000, JSON.stringify({ role: "assistant", parentID: "msg_13", mode: "compaction", agent: "compaction", summary: true, finish: "stop" }));
+  putUser("ses_ct_fix", "msg_15", 15000, "post one");
+  putAsst("ses_ct_fix", "msg_16", 16000, 700, 350, 14000, [{ type: "text", text: "done" }]);
+  putUser("ses_ct_fix", "msg_17", 17000, "post three");
+  putAsst("ses_ct_fix", "msg_18", 18000, 800, 400, 16000, [{ type: "text", text: "done" }]);
+  insS.run("ses_ct_nomark", "prj_ct", 0, 0);
+  putUser("ses_ct_nomark", "msg_n1", 100, "a");
+  putAsst("ses_ct_nomark", "msg_n2", 200, 10, 5, 100, [{ type: "text", text: "b" }]);
+  putUser("ses_ct_nomark", "msg_n3", 300, "c");
+  db.close();
+}
+let n33 = 346;
+
+// 346 — the tool surface: the tool file imports (type-stripped, direct)
+//      and exposes the tool() default export: description (non-empty
+//      string) + the 3 args IN ORDER (mode = REQUIRED string; session =
+//      REQUIRED string; target = OPTIONAL string) + async execute + NO
+//      `name` field (the host names the tool by FILENAME) + the CORE
+//      exports reportWindow/tailSet are functions (the smoke's surface)
+{
+  const toolMod = await import(pathToFileURL(CT_TOOL_TS).href);
+  ctTool = toolMod.default;
+  const argKeys = Object.keys(ctTool?.args ?? {});
+  const modeSch = ctTool?.args?.mode;
+  const sessSch = ctTool?.args?.session;
+  const targSch = ctTool?.args?.target;
+  check(
+    String(n33),
+    "S33",
+    "tool file imports (type-stripped, direct) and exposes the tool() default export (description + args [mode, session, target] + async execute, NO name field) + the core exports reportWindow/tailSet are functions",
+    ctTool != null && typeof ctTool.description === "string" && ctTool.description.length > 0 &&
+      JSON.stringify(argKeys) === JSON.stringify(["mode", "session", "target"]) &&
+      modeSch != null && typeof modeSch.safeParse === "function" &&
+      modeSch.safeParse(undefined).success === false && modeSch.safeParse("report").success === true && modeSch.safeParse("tail").success === true &&
+      sessSch != null && typeof sessSch.safeParse === "function" &&
+      sessSch.safeParse(undefined).success === false && sessSch.safeParse("ses_x").success === true &&
+      targSch != null && typeof targSch.safeParse === "function" &&
+      targSch.safeParse(undefined).success === true && targSch.safeParse("msg_x").success === true && targSch.safeParse(42).success === false &&
+      typeof ctTool.execute === "function" && ctTool.execute.constructor.name === "AsyncFunction" &&
+      !("name" in ctTool) &&
+      typeof toolMod.reportWindow === "function" && typeof toolMod.tailSet === "function",
+    JSON.stringify({ keys: argKeys, nameIn: "name" in (ctTool ?? {}), exports: Object.keys(toolMod) }),
+  );
+  n33++;
+}
+
+// 347 — report (no target) BYTE-EXACT: the header fields (marker/summary/
+//      tail_start/retained/post-summary) + the 10 window rows (the
+//      retained-tail slice msg_07..msg_12 + the post-summary slice
+//      msg_15..msg_18, chronological) with the read/bash/webfetch targets
+//      (the tool parts sit INSIDE the retained tail) + the tokens/bytes4
+//      mass (tokens = info.input+output+cache.read when present, else
+//      bytes/4 of the part text)
+{
+  const { reportWindow } = await import(pathToFileURL(CT_TOOL_TS).href);
+  const report = await reportWindow(CT_DB, "ses_ct_fix");
+  const EXPECT =
+    "session ses_ct_fix\n" +
+    "header: marker=msg_13 summary=msg_14 tail_start=msg_07 retained=6 post-summary=4\n" +
+    "row: msg_07 7000 user bytes4=1\n" +
+    "row: msg_08 8000 assistant tokens=8600 tool=read target=/proj/alpha.md offset=1 limit=40\n" +
+    "row: msg_09 9000 user bytes4=1\n" +
+    "row: msg_10 10000 assistant tokens=10750 tool=read target=/proj/beta.md offset=41 limit=80 tool=bash target=ls -la\n" +
+    "row: msg_11 11000 user bytes4=1\n" +
+    "row: msg_12 12000 assistant tokens=12900 tool=webfetch target=https://example.com/doc\n" +
+    "row: msg_15 15000 user bytes4=2\n" +
+    "row: msg_16 16000 assistant tokens=15050\n" +
+    "row: msg_17 17000 user bytes4=2\n" +
+    "row: msg_18 18000 assistant tokens=17200";
+  check(String(n33), "S33", "report (no target) byte-exact: the header fields + the 10 window rows with the read/bash/webfetch targets + the tokens/bytes4 mass", report === EXPECT, JSON.stringify(report));
+  n33++;
+}
+
+// 348 — dry-run BYTE-EXACT (the report + one line, no write): the exact
+//      remove/keep counts + token mass for a tail rewrite to msg_06
+//      (extend the retained tail to 7 — remove=0, keep=7, mass
+//      38703=6450+1+8600+1+10750+1+12900) + verdict=ok
+{
+  const { reportWindow } = await import(pathToFileURL(CT_TOOL_TS).href);
+  const dry = await reportWindow(CT_DB, "ses_ct_fix", "msg_06");
+  check(
+    String(n33),
+    "S33",
+    "dry-run (target msg_06) byte-exact: the exact remove/keep line (counts + token mass) + verdict=ok — no write",
+    dry.split("\n")[1] === "header: marker=msg_13 summary=msg_14 tail_start=msg_07 retained=6 post-summary=4" &&
+      dry.endsWith("dry-run: target=msg_06 remove=0 (0 tokens) keep=7 (38703 tokens) verdict=ok"),
+    JSON.stringify(dry.split("\n").slice(-1)),
+  );
+  n33++;
+}
+
+// 349 — the tail rewrite LANDS (the fixture is mutated from here on): the
+//      return line byte-exact (`tail= msg_07 -> msg_06 keep=7`) + the part
+//      row carries the new tail_start_id (the single-field JSON edit,
+//      byte-exact) + the re-report shows retained=7
+{
+  const { tailSet, reportWindow } = await import(pathToFileURL(CT_TOOL_TS).href);
+  const t = await tailSet(CT_DB, "ses_ct_fix", "msg_06");
+  let partJson = null;
+  {
+    const RO = new DatabaseSync(CT_DB, { readOnly: true });
+    partJson = RO.prepare("SELECT data FROM part WHERE id = 'p_13c'").get().data;
+    RO.close();
+  }
+  const report2 = await reportWindow(CT_DB, "ses_ct_fix");
+  check(
+    String(n33),
+    "S33",
+    "tail rewrite lands: the return line byte-exact + the part row carries the new tail_start_id (single-field JSON edit, byte-exact) + the re-report shows retained=7",
+    t === "tail= msg_07 -> msg_06 keep=7" &&
+      partJson === '{"type":"compaction","auto":false,"tail_start_id":"msg_06"}' &&
+      report2.split("\n")[1] === "header: marker=msg_13 summary=msg_14 tail_start=msg_06 retained=7 post-summary=4",
+    JSON.stringify({ t, partJson, h2: report2.split("\n")[1] }),
+  );
+  n33++;
+}
+
+// 350 — the REJECTIONS (fail-closed, each with its exact reason; no write
+//      anywhere): no compaction marker (ses_ct_nomark) / unknown target id
+//      / target AT the compaction row (msg_13) / target AFTER the
+//      compaction row (msg_15, post-summary) / floor violation (msg_08 →
+//      retained tail 5 < 6)
+{
+  const { tailSet } = await import(pathToFileURL(CT_TOOL_TS).href);
+  const r1 = await tailSet(CT_DB, "ses_ct_nomark", "msg_n1");
+  const r2 = await tailSet(CT_DB, "ses_ct_fix", "msg_dne");
+  const r3 = await tailSet(CT_DB, "ses_ct_fix", "msg_13");
+  const r4 = await tailSet(CT_DB, "ses_ct_fix", "msg_15");
+  const r5 = await tailSet(CT_DB, "ses_ct_fix", "msg_08");
+  check(
+    String(n33),
+    "S33",
+    "rejections (fail-closed, exact reasons): no-completed-compaction / target-not-found / target-not-before-compaction (AT + AFTER the marker) / retained-tail-below-floor 5",
+    r1 === "tail= rejected: no-completed-compaction" &&
+      r2 === "tail= rejected: target-not-found" &&
+      r3 === "tail= rejected: target-not-before-compaction" &&
+      r4 === "tail= rejected: target-not-before-compaction" &&
+      r5 === "tail= rejected: retained-tail-below-floor 5",
+    JSON.stringify({ r1, r2, r3, r4, r5 }),
+  );
+  n33++;
+}
+
+// 351 — the no-marker session report BYTE-EXACT: the header line
+//      (marker=none … window=full-history) + the 3 full-history rows
+//      (no compaction marker → the full history IS the model window)
+{
+  const { reportWindow } = await import(pathToFileURL(CT_TOOL_TS).href);
+  const r = await reportWindow(CT_DB, "ses_ct_nomark");
+  check(
+    String(n33),
+    "S33",
+    "no-marker report byte-exact: the header line (marker=none … window=full-history) + the 3 full-history rows",
+    r ===
+      "session ses_ct_nomark\n" +
+      "header: marker=none summary=none tail_start=none retained=0 post-summary=0 window=full-history\n" +
+      "row: msg_n1 100 user bytes4=0\n" +
+      "row: msg_n2 200 assistant tokens=115\n" +
+      "row: msg_n3 300 user bytes4=0",
+    JSON.stringify(r),
+  );
+  n33++;
 }
 
 // ------------------------------------------------------------------ summary

@@ -88,11 +88,26 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
     start). NOTE: the GitHub FST clone currently carries the MIXED
     history (.opencode is tracked there) — carve + force-push / fresh
     remote, his call.
-- Open (his ruling, ordered): (1) the full-gate re-baseline (worker or
-  next autorun) closes #113; (2) what ran at ~22:27 09-28 + where the
-  the estate (former name) folder went (the reference is still dead); (3) the
-  per-project-folder (vs submodule) ruling + the carve GO → I prepare
-  the read-only carve script + pin-sweep list; execution his domain.
+- Round 3 (~02:30): his three answers: (1) gate re-baseline = NEXT
+  session, not now; (2) the 22:27 mystery SOLVED — GitHub Desktop
+  renamed the agent folder back to "autorun", he fixed it to
+  the estate (former name) (on disk + matching the live config — accessible,
+  no restart needed); (3) rulings: per-project PLAIN FOLDERS (no
+  submodules) + CARVE GO. Executable carve plan written:
+  `.opencode/agent/research/repo-split/2026-09-29_carve_plan.md`
+  (fresh-clone filter-repo both sides; current partition 835 tracked
+  = agent 775 / product 60; the single-file tool at
+  home/Repos/git-filter-repo (212 KB script, downloaded
+  by him 02:23); verification gates; GitHub force-push + branch
+  pruning + the stale "Free-Snap-Tap - Copy" folder = his call). The
+  the estate (former name) folder's unique commit 76bf2e1 (on e7610ac) is
+  subsumed by the source HEAD. Per-project reorg filed as TODO #117
+  (separate unit, ideally inside/before the Phase-2 window). Ruling
+  recorded in the proposal file.
+- Open (ordered): (1) he executes the carve plan (the old workspace
+  stays live in the meantime — the Phase-2 physical move remains a
+  separate between-sessions window); (2) gate re-baseline next session
+  closes #113; (3) TODO #117 scheduling (his call).
 ## Compressed archive (one line each
   - 2026-09-28 autorun (ses_f1909eba8ffekWTqY0gYY2DK3l, planner-38, Qwen3.8-27B-Q3S-245K-slow) — plan38: idle lane (queue all maintainer-blocked) — #116 source-side research LANDED (the `message.updated` payload carries the finished step's tokens {in,out,reasoning,cache.r/w}+cost — a real-time gauge readout is feasible plugin-side; live capture still needs his restart + capture-plugin registration) + dated evidence entry + loop_log auto-fill knowledge entry (3rd occurrence) + #114/#115 8th live data point (live process still pre-12e3262/0c90abe) — details: loop folder plan38_summary.md + git e7610ac
   - 2026-09-28 autorun (ses_f191a6cb5ffeq4noDPvOTFNkxM, planner-37, Qwen3.8-27B-Q3S-245K-slow) — plan37: idle-lane pass (queue all maintainer-blocked) — the tail-trim tool PROPOSAL filed (2026-09-28_context-trim-tool.md: report + tail (tail_start_id rewrite, non-destructive + reversible) first, the destructive `turns` mode follow-up; the live-DB write tool = his call) + #114/#115 7th live data point (live process still pre-12e3262/0c90abe) + baseline re-verified (10 smokes green at baseline + probe 346 = 335 + 11 #113 env + ruff F=0) + friction entry (bt WRITE regions single-text semantics) — details: loop folder plan37_summary.md + git 79de802..8b81670

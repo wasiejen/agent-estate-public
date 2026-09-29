@@ -72,3 +72,18 @@ I added the 2 new paths to opencode.json:
 
 --comment:
 - so i ask for feedback to this in general (remember no sugarcoat - this is a best guess of mine but i have no prior experience in setting up sth like this)
+
+## Ruling (2026-09-29, direct session)
+- **Carve GO** — fresh-clone `git filter-repo` on both sides (plain
+  fresh clones; no history-rewrite ceremony beyond the carve itself);
+  per-project bookkeeping = **plain folders, NO submodules** (the
+  pointer-bump commits would still land in the agent history = the
+  goal only half-met, plus live-loop two-commit ceremony); the
+  full-gate re-baseline is deferred to the next session.
+- The 22:27 rename mystery solved: GitHub Desktop renamed the agent
+  folder back to "autorun"; fixed to `the estate (former name)` (now on disk,
+  matching the live config — accessible without a restart).
+- Executable carve plan:
+  `.opencode/agent/research/repo-split/2026-09-29_carve_plan.md`
+  (path list + exact commands + verification gates; execution = his
+  domain).

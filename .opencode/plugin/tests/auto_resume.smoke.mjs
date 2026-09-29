@@ -872,7 +872,7 @@ try {
   // #80: CONTINUE sends now carry agent=planner (scoped sessions) —
   // classify by the locked text, not by an absent agent field.
   const contSends = () =>
-    u4Sends.filter((c) => ((c.body?.parts?.[0]?.text ?? "")).includes("agent_readme_post_compaction.md")).map((c) => c.path?.id);
+    u4Sends.filter((c) => ((c.body?.parts?.[0]?.text ?? "")).includes("agent/readme/readme_post_compaction.md")).map((c) => c.path?.id);
   const spawnSends = () =>
     u4Sends.filter((c) => ((c.body?.parts?.[0]?.text ?? "")).startsWith(MARK) && c.body?.agent === "planner_Q3S_160K");
   chk("UNIT 4: batch-A scenarios all routed (stop / ask / restart / skip / continue / spawned-scope / err lines present)", okA, okA ? "" : "missing line(s)");
@@ -891,7 +891,7 @@ try {
     okA && u4Creates.length === 1 && !u4Sends.some((c) => c.path?.id === "ses_u4_sux"), "");
   chk("UNIT 4: no action: line → CONTINUE attempt 1 (queued, locked text names the post-compaction head)",
     okA && contSends().includes("ses_u4_noline") &&
-      ((u4Sends.find((c) => c.path?.id === "ses_u4_noline")?.body?.parts?.[0]?.text) ?? "").includes("agent_readme_post_compaction.md"), "");
+      ((u4Sends.find((c) => c.path?.id === "ses_u4_noline")?.body?.parts?.[0]?.text) ?? "").includes("agent/readme/readme_post_compaction.md"), "");
   chk("UNIT 4: non-scoped (no marker, not spawned) → zero sends, no route/recovery line (scope= none logged after ONE fetch)",
     okA && !u4Sends.some((c) => c.path?.id === "ses_u4_plain") &&
       messagesCalls.filter((c) => c?.path?.id === "ses_u4_plain").length === 1 &&
@@ -911,7 +911,7 @@ try {
   chk("UNIT 4 #80: batch-A continue sends (noline + spawned successor) carry agent=planner_Q3S_160K (explicit)",
     okA && contSends().length === 2 &&
       contSends().includes("ses_u4_noline") && contSends().includes("ses_u3_new") &&
-      u4Sends.filter((c) => ((c.body?.parts?.[0]?.text ?? "")).includes("agent_readme_post_compaction.md"))
+      u4Sends.filter((c) => ((c.body?.parts?.[0]?.text ?? "")).includes("agent/readme/readme_post_compaction.md"))
         .every((c) => c.body?.agent === "planner_Q3S_160K"),
     `contSends=${contSends().join(",")}`);
 
@@ -1030,7 +1030,7 @@ try {
     // relay= line) — pinned on ses_u4_noline (batch A).
     const nolineText = (u4Sends.find((c) => c.path?.id === "ses_u4_noline")?.body?.parts?.[0]?.text) ?? "";
     chk("ITEM 2: NO stored message → the plain CONTINUE text (no addendum, no relay= line)",
-      nolineText.includes("agent_readme_post_compaction.md") && !nolineText.includes("never re-plan from scratch") &&
+      nolineText.includes("agent/readme/readme_post_compaction.md") && !nolineText.includes("never re-plan from scratch") &&
         !readLines().some((l) => l.includes("relay= sid=ses_u4_noline")), "");
 
     // ---- (3) budget FULLY exhausted (count 3 > cap 2 — the emergency 1
@@ -1197,7 +1197,7 @@ try {
   chk("UNIT 4 #82: worker session + own-line <Autonom|> toggle → IN scope (autorun) — CONTINUE attempt 1",
     okWo && readLines().some((l) => l.includes("scope= autorun sid=ses_u4_worker_on")), "");
   chk("UNIT 4 #82: autorun-scoped CONTINUE body carries the session's OWN agent (worker_Q3S_160K), not the planner",
-    okWo && u4Sends.some((c) => c.path?.id === "ses_u4_worker_on" && c.body?.agent === WORKER_A && ((c.body?.parts?.[0]?.text) ?? "").includes("agent_readme_post_compaction.md")),
+    okWo && u4Sends.some((c) => c.path?.id === "ses_u4_worker_on" && c.body?.agent === WORKER_A && ((c.body?.parts?.[0]?.text) ?? "").includes("agent/readme/readme_post_compaction.md")),
     JSON.stringify(u4Sends.find((c) => c.path?.id === "ses_u4_worker_on")?.body ?? null));
 
   // (3) a NON-planner agent (prompt_builder-style) toggled ON → IN
@@ -1364,7 +1364,7 @@ try {
    chk("#85 part 2 (a): CONTINUE body carries the session's CURRENT agent+model (the last assistant's switched pair — not a planner constant)",
      okP2 && p2Cur?.body?.agent === WORKER_A && p2Cur?.body?.agent !== PLANNER_A &&
        p2Cur?.body?.model?.providerID === MODEL.providerID && p2Cur?.body?.model?.modelID === MODEL.modelID &&
-       ((p2Cur?.body?.parts?.[0]?.text) ?? "").includes("agent_readme_post_compaction.md"),
+       ((p2Cur?.body?.parts?.[0]?.text) ?? "").includes("agent/readme/readme_post_compaction.md"),
      JSON.stringify(p2Cur?.body ?? null));
    chk("#85 part 2 (a): the restart spawn carries the SOURCE session's current agent+model (the successor keeps them — not a planner constant)",
      okP2 && p2SpawnSend?.path?.id === "ses_p2_spawn" && p2SpawnSend?.body?.agent === WORKER_A && p2SpawnSend?.body?.agent !== PLANNER_A &&
@@ -1387,7 +1387,7 @@ try {
     chk("#91 (e1): a quoted `action: restart` in the COMPACTION SUMMARY does not drive the routing — the real turn (no line) → CONTINUE attempt 1, no restart spawn",
       okP2E && readLines().some((l) => l.includes("recovery= sid=ses_p2_cmp attempt=1")) &&
         !readLines().some((l) => l.includes("route= restart spawn sid=ses_p2_cmp") && !l.includes("sid=ses_p2_cmp2")) &&
-        !!p2CmpSend && ((p2CmpSend?.body?.parts?.[0]?.text) ?? "").includes("agent_readme_post_compaction.md") &&
+        !!p2CmpSend && ((p2CmpSend?.body?.parts?.[0]?.text) ?? "").includes("agent/readme/readme_post_compaction.md") &&
         p2CmpSend?.body?.agent === WORKER_A,
       JSON.stringify(p2CmpSend?.body ?? null));
     chk("#91 (e2): the restart routing reads the last REAL assistant (the action line survives a trailing compaction summary) → spawn",
@@ -1513,7 +1513,7 @@ try {
     const ok90b = await waitUntil(() => readLines().some((l) => l.includes("recovery= sid=ses_90_spawn attempt=1")), 12000);
     chk("#90 (i)+(ii): the restart-spawned successor derives scope autorun from its first user message ALONE (restart-safe) and is RECOVERED after an idle without an action line (the #87 stall case, inverted)",
       ok90b && readLines().some((l) => l.includes("scope= autorun sid=ses_90_spawn")) &&
-        c90Sends.some((c) => c.path?.id === "ses_90_spawn" && ((c.body?.parts?.[0]?.text ?? "")).includes("agent_readme_post_compaction.md")),
+        c90Sends.some((c) => c.path?.id === "ses_90_spawn" && ((c.body?.parts?.[0]?.text ?? "")).includes("agent/readme/readme_post_compaction.md")),
       `sends=${c90Sends.length}`);
 
     // ---- (iii): the trigger deactivates after a successful spawn:
@@ -1650,7 +1650,7 @@ try {
       12000,
     );
     chk("#90 (vii): the file-trigger path is unchanged — no lineage parent (depth 0), the content ON toggle is respected (scope= autorun + CONTINUE)",
-    ok90f && c90Sends.some((c) => c.path?.id === FILE && ((c.body?.parts?.[0]?.text ?? "")).includes("agent_readme_post_compaction.md")),
+    ok90f && c90Sends.some((c) => c.path?.id === FILE && ((c.body?.parts?.[0]?.text ?? "")).includes("agent/readme/readme_post_compaction.md")),
     `sends=${c90Sends.length}`);
 
     // ---- #96 (b): the INIT SIZE GUARD — a seeded oversized log is
@@ -1932,7 +1932,7 @@ try {
     chk("#98 (A1): a PROSE-QUOTED MID-LINE `action: restart` (no own line) is NOT an action line → CONTINUE attempt 1, NO restart spawn (the lastAssistantAction null path)",
       okP98A1 && p98Creates.length === 0 &&
         !readLines().some((l) => l.includes("route= restart spawn sid=ses_p98_prose")) &&
-        p98Sends.some((c) => c.path?.id === "ses_p98_prose" && ((c.body?.parts?.[0]?.text) ?? "").includes("agent_readme_post_compaction.md")),
+        p98Sends.some((c) => c.path?.id === "ses_p98_prose" && ((c.body?.parts?.[0]?.text) ?? "").includes("agent/readme/readme_post_compaction.md")),
       `create=${p98Creates.length}`);
 
     // (A2) OWN-LINE: a standalone `action: restart` on its OWN line →

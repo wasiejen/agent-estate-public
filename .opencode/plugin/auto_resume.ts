@@ -1482,7 +1482,7 @@ function localStamp(d: Date = new Date()): string {
 // #109: the ONE per-episode FIRE — the `-WARNING` line into the current
 // looprun's `loop_log.md` (the plugin writes the file itself — the
 // loop_log TOOL is agent-facing; same 8-char line form,
-// agent_readme_loop.md §Loop log, `auto_resume` in the machine-writer
+// readme_loop.md §Loop log, `auto_resume` in the machine-writer
 // role slot) + the `limit-stop=` attribution line in auto_resume.log.
 // NO action on the session (no compaction dispatch, no send, no resume
 // — that part is a maintainer call, NOT built here). Never throws out.

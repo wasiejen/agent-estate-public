@@ -3,7 +3,7 @@
 Stable, repo-agnostic rules for any agent (planner or worker) on this repo.
 Repo-specific facts — module map, shell/platform, test & lint commands, venv,
 handover-file paths, gotchas — live in `repo_overview.md` (the repo docs
-folder `.opencode/agent/prompts/repo/`). **Read `repo_overview.md` if it is
+folder `agent/prompts/repo/`). **Read `repo_overview.md` if it is
 present** before starting real work; it is the repo map, read it FIRST. If anything here
 conflicts with the code or `repo_overview.md`, the code wins — but flag the discrepancy.
 
@@ -73,11 +73,11 @@ shared protocol; it does not replace it. Read these sections once and reference 
 
 | channel | path | written by | read by | canonical when |
 |---|---|---|---|---|
-| task spec | `.opencode/agent/handover/handover_task.md` | planner | worker | committed |
-| worker summary | `.opencode/agent/handover/handover_task_to_planner.md` | worker | planner | committed (the Task-tool result may clobber it post-commit — the committed copy wins) |
-| plan state / NAP | `.opencode/agent/handover/handover_planner.md` | planner | planner (next session) | committed |
+| task spec | `agent/handover/handover_task.md` | planner | worker | committed |
+| worker summary | `agent/handover/handover_task_to_planner.md` | worker | planner | committed (the Task-tool result may clobber it post-commit — the committed copy wins) |
+| plan state / NAP | `agent/handover/handover_planner.md` | planner | planner (next session) | committed |
 | action line | last `action:` line of planner's closing message | planner | auto-resume plugin / planner (for worker end line) | last one in the message |
-| maintainer → role | `.opencode/maintainer/inbox_<role>/` | maintainer | named role | moved to `maintainer/done/` after handling |
+| maintainer → role | `maintainer/inbox_<role>/` | maintainer | named role | moved to `maintainer/done/` after handling |
 
 **Action-line state machine** (planner read this):
 - `action: restart` — fresh planner session (default; missing/unclear → restart)
@@ -120,7 +120,7 @@ agent can resume from a committed state without re-exploring. Two-party split:
    open/unresolved content.
 4. **Post-commit context check** — see Context budget.
 - Commit green, commit often, never commit red. Handover files ride along.
-- Handover files live in `./.opencode/agent/handover`.
+- Handover files live in `./agent/handover`.
 
 ## Context budget (stop line)
 - Check between logical chunks and after every commit (step 4): run the context gauge
@@ -191,7 +191,7 @@ delegating. Closed entries live in `todo_records.md`.
 
 # Compaction Guidelines
 
-Full reference: `.opencode/maintainer/draft/compaction_guide/full_guide.md`.
+Full reference: `maintainer/draft/compaction_guide/full_guide.md`.
 Numbers below are current for the planner model (170k window) on this host; mechanics apply to
 every agent, numbers are per model. Budget might vary based on current model. 
 Check your ctx: inline message to see `#n compactions left`.

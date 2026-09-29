@@ -683,3 +683,9 @@ Exact-match edit on TODO.md failed once on a whitespace off-by-one (leading spac
 
 ### 2026-09-29_16-48 worker_Q3S_245K_slow ses_f12b5172dffeq1r2iwK4QLlWxj
 #117 (worker): two frictions — (1) `git mv` fails on this Git-Bash host (ENOENT/EPERM even for existing tracked sources) despite being the spec's named tool; plain `mv` + `git add` produces identical staged R-renames — the spec/role prompts should name the fallback so the next worker doesn't spend a unit re-deriving it; (2) the live opencode process still loads pre-move plugin code after U1 — the pre-compaction dump hook then ran the OLD `.opencode/agent/scripts/db/dump_session.cjs` path and failed (MODULE_NOT_FOUND), so no session dump existed as the forced-recovery source; a restart clears it, but the dump-failure mode is worth noting for the post-restart acceptance.
+
+### 2026-09-29_18-23 planner_Q3S_245K_slow ses_f130ae200ffeDRuhAMKmw0N1qE
+A compaction summary's Work State can be STALE (the summarizer reconstructs, not snapshots) — the #117 worker's summary claimed "U2 edits uncommitted / U3 not started" although U1–U3 were all committed before it compacted; the planner misread it and the maintainer corrected from the live host. A worker's state must be verified from git (log + status + handover) before resume/verification, never from the summary text alone.
+
+### 2026-09-29_18-23 planner_Q3S_245K_slow ses_f130ae200ffeDRuhAMKmw0N1qE
+A repo-wide full-path string replace misses filename-form pins — the #117 reorg's 10 `.includes("agent_readme_post_compaction.md")` smoke pins (bare filename, no directory) survived the maintainer's full-path replace and broke the auto_resume smoke (re-pinned 87a0487); future path reorgs should grep BOTH forms (full path + bare filename) in code and tests.

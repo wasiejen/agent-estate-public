@@ -1,0 +1,509 @@
+// plan39 (approved 2026-09-29: proposals/approved/
+// 2026-09-28_context-trim-tool.md — the maintainer's "1. + 2. are approved" +
+// round-2 "go :-); Unit 1 = this tool, `turns` (row-deletion) Ruled out):
+// the `context_trim` custom tool — report + trim a session's LIVE model
+// context over the opencode DB (the gauge's DEFAULT_DB_PATH — the same
+// resolution as the gauge core; nothing re-derived here).
+//
+// Design authority (do not re-research):
+//   - agent/research/2026-09-28_context-erase-tail-trim.md §3 + §5 — the
+//     window semantics, the guard, the marker quartet, the lever.
+//   - proposals/approved/2026-09-28_context-trim-tool.md §"Build scope"
+//     (Unit 1) + the round-2 feedback §8 (the report's file/line info).
+//
+// WHY IT WORKS (research doc §1-3, verified 1.18.32): the model context is
+// re-derived from the DB at the top of EVERY loop step (prompt.ts:1092 →
+// fresh select message-v2.ts:433-446 → toModelMessagesEffect) — no
+// in-memory history, no prompt cache. A single-field JSON edit of the
+// compaction part's `tail_start_id` trims or extends the retained tail
+// precisely (the host itself rewrites that field in place on compaction —
+// compaction.ts:461-466; the retained slice is exactly
+// result.slice(tailIndex, compactionIndex), message-v2.ts:568-573). No
+// restart, no invalidation.
+//
+// WINDOW SEMANTICS (mirrored from message-v2.ts:525-576 — the ascending
+// (time_created, id) order; the host's stream() pages DESC then reverses
+// per page, and filterCompacted reverses the whole list, so the window
+// math runs on the ASCENDING list):
+//   - the last compaction marker = the LAST (most recent) user row whose
+//     parts carry a `compaction` part with `tail_start_id !== undefined`
+//     (host findLastIndex, :549-553);
+//   - summary index (the host guard's detection, :558-565) = the FIRST
+//     assistant row strictly AFTER the marker with `info.summary` +
+//     `parentID === marker.id` (no finish check in the host guard);
+//   - the COMPLETED compaction (this tool's stricter marker+summary
+//     requirement, spec-verified fact) additionally requires
+//     `info.finish` + no `info.error` (message-v2.ts:545-546, 558-566);
+//   - tail index = the message whose id === the part's `tail_start_id`;
+//   - the host guard (:568): `tailIndex >= 0 && tailIndex < compactionIndex
+//     && summaryIndex > compactionIndex` — guard fail → the FULL
+//     un-reordered history is sent (overflow; the context_recovery plugin
+//     backstop fires — #93).
+//
+// Surface (the tool() form — the shape of submit.ts / ctx_gauge.ts; the
+// host names the tool by FILENAME — no `name` field):
+//   - report <session> [target] — READ-ONLY: (1) the window-state header
+//     (the last completed compaction: marker present? compaction user row
+//     id, summary id, current tail_start_id, retained-tail count,
+//     post-summary count; no marker → say so), (2) per-message rows for
+//     the messages INSIDE the model window (the retained-tail slice + the
+//     post-summary slice; no marker / guard-degenerate → the full
+//     history): id, time, role, and for tool parts: tool name + target
+//     (`read`: input filePath + offset/limit; `bash`: command;
+//     `webfetch`: url — other tools: name only), token mass (info.tokens
+//     input+output+cache.read when all present, else bytes/4 of the part
+//     text — text parts' `text` + tool parts' string `state.output`);
+//     (3) with target: a dry-run of what a tail rewrite to it would
+//     remove/keep (counts + token mass) + whether the tail write would be
+//     accepted — no write.
+//   - tail <session> <messageID> — WRITE: rewrite the last completed
+//     compaction part's `tail_start_id` to the target id. Validation,
+//     fail-closed (mirrors the guard exactly): (1) session exists;
+//     (2) the last completed compaction exists (marker + summary child);
+//     (3) the target id exists in the session; (4) the target sits
+//     strictly BEFORE the compaction user row in (time_created, id)
+//     order; (5) retained-tail count (target → compaction row, exclusive)
+//     >= 6 — the keepMessages floor (the maintainer's round-2 ruling); a
+//     retained tail below 6 is rejected. Single transaction; WAL — the
+//     host reads on its own connection (concurrent read safe);
+//     SQLITE_BUSY → one short-backoff retry (the gauge's busy_timeout
+//     pattern) → fail-closed (never a partial write).
+//
+// Backend (in-process, WRITABLE — the gauge chain is read-only and does
+// not apply): `bun:sqlite` first (the native module of the bun-compiled
+// host), then `node:sqlite` (system node v24+ — the smoke host). Both
+// opened read-write with `PRAGMA busy_timeout = 2500`; report mode
+// performs NO writes (a WAL shared read on the same connection). NO
+// spawn fallback for writes — a missing in-process backend is a
+// fail-closed db-error (never a blind CLI write). The core is exported
+// for the smoke (the smoke NEVER points it at the live DB).
+//
+// Registration is the maintainer's domain (the live opencode.jsonc —
+// this file is deliberately NOT registered in any repo config; the
+// handover carries the registration snippet).
+import { existsSync } from "node:fs";
+import { tool } from "@opencode-ai/plugin";
+import { DEFAULT_DB_PATH } from "../plugin/scripts/gauge.mjs";
+
+const BUSY_TIMEOUT_MS = 2500;
+// The keepMessages floor (round-2 ruling — stated in the description).
+const FLOOR = 6;
+
+type Part = { id: string; data: any };
+type Msg = { id: string; time: number; data: any; parts: Part[] };
+type Ctx = { db: any; backend: string };
+
+// ---------------------------------------------------------------------------
+// Backend resolution (in-process, writable) — see the header block.
+// ---------------------------------------------------------------------------
+
+async function openDb(dbPath: string): Promise<Ctx> {
+  if (!existsSync(dbPath)) throw new Error(`db-missing ${dbPath}`);
+  // 1. bun:sqlite — the native module of the bun-compiled host.
+  try {
+    const mod: any = await import("bun:sqlite");
+    const Database = mod?.Database ?? (typeof mod?.default === "function" ? mod.default : mod?.default?.Database);
+    if (typeof Database === "function") {
+      const db = new Database(dbPath, { timeout: BUSY_TIMEOUT_MS });
+      try {
+        db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS};`);
+      } catch {
+        // the native `timeout` option already covers the busy wait
+      }
+      return { db, backend: "bun:sqlite" };
+    }
+  } catch {
+    // module absent (plain node host) — fall through
+  }
+  // 2. node:sqlite — system node v24+ (the smoke/probe host).
+  try {
+    const mod: any = await import("node:sqlite");
+    const DatabaseSync = mod?.DatabaseSync;
+    if (typeof DatabaseSync === "function") {
+      const db = new DatabaseSync(dbPath);
+      db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS};`);
+      return { db, backend: "node:sqlite" };
+    }
+  } catch {
+    // both backends unavailable
+  }
+  throw new Error("no in-process writable sqlite backend (bun:sqlite / node:sqlite both unavailable)");
+}
+
+// A busy/locked error → the gauge's retry discipline (one retry; the
+// busy_timeout is the short backoff).
+function isBusy(e: any): boolean {
+  return /busy|locked/i.test(String(e?.message ?? e));
+}
+
+// ---------------------------------------------------------------------------
+// Session state load (read-only queries — never throws, never mutates).
+// ---------------------------------------------------------------------------
+
+function parseJsonSafe(raw: string, what: string): any {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error(`bad-json ${what}`);
+  }
+}
+
+// Loads the session's messages + parts in the host's ASCENDING
+// (time_created, id) order (the window-math order, see the header).
+function loadSession(ctx: Ctx, sessionID: string): { exists: boolean; msgs: Msg[] } {
+  const sess = ctx.db.prepare("SELECT id FROM session WHERE id = ?").get(sessionID);
+  if (sess == null) return { exists: false, msgs: [] };
+  const mRows: any[] = ctx.db
+    .prepare("SELECT id, time_created, data FROM message WHERE session_id = ? ORDER BY time_created ASC, id ASC")
+    .all(sessionID);
+  const pRows: any[] = ctx.db
+    .prepare("SELECT id, message_id, data FROM part WHERE session_id = ? ORDER BY message_id ASC, id ASC")
+    .all(sessionID);
+  const partsByMsg = new Map<string, Part[]>();
+  for (const r of pRows) {
+    const list = partsByMsg.get(r.message_id);
+    const part: Part = { id: r.id, data: parseJsonSafe(String(r.data), `part ${r.id}`) };
+    if (list) list.push(part);
+    else partsByMsg.set(r.message_id, [part]);
+  }
+  const msgs: Msg[] = mRows.map((r) => ({
+    id: r.id,
+    time: Number(r.time_created),
+    data: parseJsonSafe(String(r.data), `message ${r.id}`),
+    parts: partsByMsg.get(r.id) ?? [],
+  }));
+  return { exists: true, msgs };
+}
+
+// ---------------------------------------------------------------------------
+// The window math (mirrors message-v2.ts:525-576 — see the header).
+// ---------------------------------------------------------------------------
+
+type WindowState = {
+  compactionIndex: number; // -1 when no marker
+  markerId: string | null;
+  tailStartId: string | null;
+  summaryIndex: number; // the host-guard (loose) detection
+  strictSummaryIndex: number; // the completed-compaction (strict) detection
+  summaryId: string | null; // the strict summary's id (null when absent)
+  tailIndex: number;
+  hostGuard: boolean;
+  retained: number; // slice(tailIndex, compactionIndex) length (0 when degenerate)
+  postSummary: number; // messages strictly after the loose summary index
+};
+
+function computeWindow(msgs: Msg[]): WindowState {
+  // The last compaction marker (host findLastIndex, :549-553).
+  let compactionIndex = -1;
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i];
+    if (m.data?.role === "user" && m.parts.some((p) => p.data.type === "compaction" && p.data.tail_start_id !== undefined)) {
+      compactionIndex = i;
+    }
+  }
+  const marker = compactionIndex >= 0 ? msgs[compactionIndex] : null;
+  const part = marker
+    ? marker.parts.find((p) => p.data.type === "compaction" && p.data.tail_start_id !== undefined)
+    : undefined;
+  const tailStartId = part?.data?.tail_start_id ?? null;
+
+  // summary index — the host guard's LOOSE detection (:558-565:
+  // summary + parentID, no finish check) and the COMPLETED-COMPACTION
+  // strict detection (:545-546: summary + finish + no error).
+  let summaryIndex = -1;
+  let strictSummaryIndex = -1;
+  if (marker != null) {
+    for (let j = compactionIndex + 1; j < msgs.length; j++) {
+      const m = msgs[j];
+      if (m.data?.role !== "assistant" || m.data?.parentID !== marker.id) continue;
+      if (summaryIndex === -1 && m.data?.summary) summaryIndex = j;
+      if (strictSummaryIndex === -1 && m.data?.summary && m.data?.finish && !m.data?.error) strictSummaryIndex = j;
+    }
+  }
+
+  const tailIndex = tailStartId ? msgs.findIndex((m) => m.id === tailStartId) : -1;
+  const hostGuard = tailIndex >= 0 && tailIndex < compactionIndex && summaryIndex > compactionIndex;
+  const retained =
+    compactionIndex >= 0 && tailIndex >= 0 && tailIndex < compactionIndex ? compactionIndex - tailIndex : 0;
+  const postSummary =
+    compactionIndex >= 0 && summaryIndex > compactionIndex ? msgs.length - (summaryIndex + 1) : 0;
+
+  return {
+    compactionIndex,
+    markerId: marker?.id ?? null,
+    tailStartId,
+    summaryIndex,
+    strictSummaryIndex,
+    summaryId: strictSummaryIndex >= 0 ? msgs[strictSummaryIndex].id : null,
+    tailIndex,
+    hostGuard,
+    retained,
+    postSummary,
+  };
+}
+
+// Token mass of ONE message (the spec's rule): info.tokens
+// input+output+cache.read when all three are present, else bytes/4 of
+// the part text (text parts' `text` + tool parts' string `state.output`).
+function massOf(m: Msg): number {
+  const t = m.data?.tokens;
+  if (
+    t != null &&
+    Number.isFinite(t.input) &&
+    Number.isFinite(t.output) &&
+    t?.cache != null &&
+    Number.isFinite(t.cache.read)
+  ) {
+    return t.input + t.output + t.cache.read;
+  }
+  let bytes = 0;
+  for (const p of m.parts) {
+    if (p.data?.type === "text" && typeof p.data?.text === "string") bytes += Buffer.byteLength(p.data.text, "utf8");
+    else if (p.data?.type === "tool" && typeof p.data?.state?.output === "string")
+      bytes += Buffer.byteLength(p.data.state.output, "utf8");
+  }
+  return Math.floor(bytes / 4);
+}
+
+const massKindOf = (m: Msg): "tokens" | "bytes4" => {
+  const t = m.data?.tokens;
+  return t != null && Number.isFinite(t.input) && Number.isFinite(t.output) && t?.cache != null && Number.isFinite(t.cache.read)
+    ? "tokens"
+    : "bytes4";
+};
+
+// The per-part target (spec §8: read → filePath + offset/limit; bash →
+// command; webfetch → url; other tools → name only). Newlines/tabs in a
+// command are escaped so a row stays ONE line.
+function toolTarget(p: Part): string | null {
+  const d = p.data;
+  if (d?.type !== "tool") return null;
+  const input = d?.state?.input;
+  switch (d?.tool) {
+    case "read": {
+      if (typeof input?.filePath !== "string") return null;
+      let s = input.filePath;
+      if (Number.isFinite(input?.offset)) s += ` offset=${input.offset}`;
+      if (Number.isFinite(input?.limit)) s += ` limit=${input.limit}`;
+      return s;
+    }
+    case "bash": {
+      if (typeof input?.command !== "string") return null;
+      return input.command.replace(/\r?\n/g, "\\n").replace(/\t/g, "\\t");
+    }
+    case "webfetch": {
+      if (typeof input?.url !== "string") return null;
+      return input.url;
+    }
+    default:
+      return null;
+  }
+}
+
+function rowOf(m: Msg): string {
+  let s = `${m.id} ${m.time} ${m.data?.role ?? "?"} ${massKindOf(m)}=${massOf(m)}`;
+  for (const p of m.parts) {
+    if (p.data?.type !== "tool") continue;
+    s += ` tool=${p.data.tool}`;
+    const t = toolTarget(p);
+    if (t != null) s += ` target=${t}`;
+  }
+  return s;
+}
+
+// ---------------------------------------------------------------------------
+// reportWindow (READ-ONLY — no write statement is ever executed).
+// ---------------------------------------------------------------------------
+
+export async function reportWindow(dbPath: string, sessionID: string, target?: string): Promise<string> {
+  let ctx: Ctx;
+  try {
+    ctx = await openDb(dbPath);
+  } catch (e: any) {
+    return `db-error: ${String(e?.message ?? e).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
+  }
+  try {
+    const loaded = loadSession(ctx, sessionID);
+    if (!loaded.exists) return `session ${sessionID}\nerror: session-not-found`;
+    const msgs = loaded.msgs;
+    const w = computeWindow(msgs);
+
+    const lines: string[] = [];
+    lines.push(`session ${sessionID}`);
+    if (w.compactionIndex < 0) {
+      lines.push(`header: marker=none summary=none tail_start=none retained=0 post-summary=0 window=full-history`);
+    } else {
+      let header =
+        `header: marker=${w.markerId} summary=${w.summaryId ?? "none"} tail_start=${w.tailStartId}` +
+        ` retained=${w.retained} post-summary=${w.postSummary}`;
+      if (!w.hostGuard) header += ` window=full-history (guard-degenerate)`;
+      lines.push(header);
+    }
+
+    // The model window rows: the retained-tail slice + the post-summary
+    // slice (the host's exact reorder minus the [marker, summary] pair the
+    // header documents); no marker / guard-degenerate → the full history.
+    const windowMsgs: Msg[] = w.hostGuard
+      ? [...msgs.slice(w.tailIndex, w.compactionIndex), ...msgs.slice(w.summaryIndex + 1)]
+      : [...msgs];
+    for (const m of windowMsgs) lines.push(`row: ${rowOf(m)}`);
+
+    if (target != null) {
+      let dry: string;
+      const verdict = dryRunVerdict(w, msgs, target);
+      if (verdict === "ok" || verdict.startsWith("rejected: retained-tail-below-floor")) {
+        // computable (target exists, sits before the marker): the numbers
+        const targetIndex = msgs.findIndex((m) => m.id === target);
+        const oldStart = w.hostGuard ? w.tailIndex : w.compactionIndex; // degenerate → no effective retained tail
+        const removeCount = targetIndex > oldStart ? targetIndex - oldStart : 0;
+        const removeMass = msgs
+          .slice(oldStart, targetIndex > oldStart ? targetIndex : oldStart)
+          .reduce((a, m) => a + massOf(m), 0);
+        const keepCount = w.compactionIndex - targetIndex;
+        const keepMass = msgs.slice(targetIndex, w.compactionIndex).reduce((a, m) => a + massOf(m), 0);
+        dry = `dry-run: target=${target} remove=${removeCount} (${removeMass} tokens) keep=${keepCount} (${keepMass} tokens) verdict=${verdict}`;
+      } else {
+        dry = `dry-run: target=${target} verdict=${verdict}`;
+      }
+      lines.push(dry);
+    }
+    return lines.join("\n");
+  } catch (e: any) {
+    return `session ${sessionID}\nerror: ${String(e?.message ?? e).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
+  } finally {
+    try {
+      ctx.db.close();
+    } catch {
+      // best effort — the read outcome has already been captured
+    }
+  }
+}
+
+// The dry-run verdict = the tail-write validation (fail-closed, mirrors
+// the guard) — `ok` or `rejected: <reason>`.
+function dryRunVerdict(w: WindowState, msgs: Msg[], target: string): string {
+  if (w.compactionIndex < 0 || w.strictSummaryIndex < 0) return "rejected: no-completed-compaction";
+  const targetIndex = msgs.findIndex((m) => m.id === target);
+  if (targetIndex < 0) return "rejected: target-not-found";
+  if (targetIndex >= w.compactionIndex) return "rejected: target-not-before-compaction";
+  const retained = w.compactionIndex - targetIndex;
+  if (retained < FLOOR) return `rejected: retained-tail-below-floor ${retained}`;
+  return "ok";
+}
+
+// ---------------------------------------------------------------------------
+// tailSet (WRITE — single transaction; WAL; one busy retry; fail-closed).
+// ---------------------------------------------------------------------------
+
+export async function tailSet(dbPath: string, sessionID: string, targetID: string): Promise<string> {
+  let ctx: Ctx;
+  try {
+    ctx = await openDb(dbPath);
+  } catch (e: any) {
+    return `tail= db-error: ${String(e?.message ?? e).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
+  }
+  try {
+    const loaded = loadSession(ctx, sessionID);
+    if (!loaded.exists) return `tail= rejected: session-not-found`;
+    const msgs = loaded.msgs;
+    const w = computeWindow(msgs);
+
+    // (2) the last COMPLETED compaction exists (marker + summary child —
+    // the strict detection: summary + finish + no error, parentID match).
+    if (w.compactionIndex < 0 || w.strictSummaryIndex < 0) return `tail= rejected: no-completed-compaction`;
+    // (3) the target exists in the session.
+    const targetIndex = msgs.findIndex((m) => m.id === targetID);
+    if (targetIndex < 0) return `tail= rejected: target-not-found`;
+    // (4) the target sits strictly BEFORE the compaction user row in
+    // (time_created, id) order (the ascending list index).
+    if (targetIndex >= w.compactionIndex) return `tail= rejected: target-not-before-compaction`;
+    // (5) the retained-tail count (target → compaction row, exclusive)
+    // meets the floor.
+    const retained = w.compactionIndex - targetIndex;
+    if (retained < FLOOR) return `tail= rejected: retained-tail-below-floor ${retained}`;
+
+    // The single-field JSON edit on the ONE compaction part row (the host
+    // does exactly this itself — compaction.ts:461-466). The spread
+    // preserves the field order (type, auto, tail_start_id).
+    const marker = msgs[w.compactionIndex];
+    const part = marker.parts.find((p) => p.data.type === "compaction" && p.data.tail_start_id !== undefined)!;
+    const oldTail = part.data.tail_start_id;
+    const newJson = JSON.stringify({ ...part.data, tail_start_id: targetID });
+    const now = Date.now();
+
+    const attempt = () => {
+      ctx.db.exec("BEGIN IMMEDIATE;");
+      try {
+        ctx.db.prepare("UPDATE part SET data = ?, time_updated = ? WHERE id = ?").run(newJson, now, part.id);
+        ctx.db.exec("COMMIT;");
+      } catch (e) {
+        try {
+          ctx.db.exec("ROLLBACK;");
+        } catch {
+          // best effort
+        }
+        throw e;
+      }
+    };
+    try {
+      attempt();
+    } catch (e: any) {
+      if (isBusy(e)) {
+        // SQLITE_BUSY → ONE short-backoff retry (the gauge's pattern) →
+        // fail-closed.
+        try {
+          attempt();
+        } catch (e2: any) {
+          return `tail= db-error: ${String(e2?.message ?? e2).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
+        }
+      } else {
+        return `tail= db-error: ${String(e?.message ?? e).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
+      }
+    }
+    return `tail= ${oldTail} -> ${targetID} keep=${retained}`;
+  } catch (e: any) {
+    return `tail= db-error: ${String(e?.message ?? e).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
+  } finally {
+    try {
+      ctx.db.close();
+    } catch {
+      // best effort
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The tool() wrapper — the gauge's default DB path (the live opencode DB).
+// The live DB is only ever written by `tail` mode (validated, single
+// transaction); `report` mode performs no writes.
+// ---------------------------------------------------------------------------
+
+export default tool({
+  description: `Reports and trims a session's live model context over the opencode DB (the gauge's default db path). \`report <session> [target]\` — READ-ONLY: (1) the window state — the last completed compaction (marker present? compaction user row id, summary id, current tail_start_id, retained-tail count, post-summary count; no marker → the full history is the model window), (2) per-message rows for the messages INSIDE the model window (retained-tail slice + post-summary slice): id, time, role, and for tool parts: tool name + target (read: filePath + offset/limit; bash: command; webfetch: url), token mass (info.tokens input+output+cache.read when present, else bytes/4 of the part text), (3) with target: a dry-run of what a tail rewrite to it would remove/keep (counts + token mass) + the verdict — no write. \`tail <session> <messageID>\` — WRITE: rewrite the last completed compaction part's tail_start_id to the target id (the host's own lever, compaction.ts:461-466) so the retained tail shrinks/grows to it; the context re-derives from the DB at the next step — zero restart. Fail-closed validation mirrors the host's window guard exactly: the session exists, the last completed compaction exists (marker + summary child), the target id exists in the session, the target sits strictly BEFORE the compaction user row in (time_created, id) order, and the retained-tail count (target → compaction row, exclusive) is >= 6 — the keepMessages floor (a retained tail below 6 is rejected). Single transaction; WAL — the host reads on its own connection (concurrent read safe); SQLITE_BUSY → one short-backoff retry → fail-closed (never a partial write). Returns \`tail= <old> -> <new> keep=<count>\` or the rejection reason. \`report\` never writes the DB.`,
+  args: {
+    mode: tool.schema
+      .string()
+      .describe("The mode: 'report' (read-only window map + optional dry-run) or 'tail' (the validated tail_start_id rewrite)."),
+    session: tool.schema
+      .string()
+      .describe("The session id (e.g. ses_…)."),
+    target: tool.schema
+      .string()
+      .optional()
+      .describe("report: the message id a tail rewrite would point at (dry-run, no write). tail (REQUIRED): the new tail_start_id — the id of the first message of the retained tail; it must sit strictly before the compaction marker and leave a retained tail of >= 6 messages (the floor)."),
+  },
+
+  execute: async (args: any, context: any) => {
+    const mode = args?.mode;
+    const session = String(args?.session ?? "").trim();
+    const target =
+      args?.target != null && String(args.target).trim() !== "" ? String(args.target).trim() : undefined;
+    if (!session) return "error: missing session";
+    if (mode === "report") return reportWindow(DEFAULT_DB_PATH, session, target);
+    if (mode === "tail") {
+      if (!target) return "error: tail mode requires target (the new tail_start_id message id)";
+      return tailSet(DEFAULT_DB_PATH, session, target);
+    }
+    return "error: mode must be 'report' or 'tail'";
+  }
+});

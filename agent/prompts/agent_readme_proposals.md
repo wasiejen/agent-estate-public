@@ -23,7 +23,7 @@ Read when proposing, revising, or landing a design change.
 - **Status** — current state (awaiting approval / approved / implemented).
 
 ## maintainer/ — the reverse direction (maintainer→agent, P10)
-Lives at `.opencode/maintainer/` — a SIBLING of `proposals/`, not under it
+Lives at `maintainer/` — a SIBLING of `proposals/`, not under it
 (moved out 2026-09-12; see its README for usage):
 - `inbox_planner/` and `inbox_worker/` — each role scans its own inbox at
   session start BEFORE planning/executing; handle an item, then move it to

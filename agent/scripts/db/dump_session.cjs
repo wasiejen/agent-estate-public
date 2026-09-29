@@ -28,7 +28,7 @@
 //   node dump_session.cjs --all --slim      corpus backfill, slim (explicit)
 //   node dump_session.cjs --all --full      corpus backfill, full detail
 //
-// Output: <repoRoot>/.opencode/archive/sessions/<sessionID>.md
+// Output: <repoRoot>/archive/sessions/<sessionID>.md
 //         (or OUT_DIR/<relpath> when `--out <relpath>` is given;
 //          <sessionID>.json / OUT_DIR/<relpath>.json in --json mode)
 // The host DB is LIVE: it is opened readOnly: true and is NEVER written.

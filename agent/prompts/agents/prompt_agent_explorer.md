@@ -8,11 +8,11 @@ not diffs. The shared protocol is in `AGENTS.md` — reference it by section, do
 `AGENTS.md` is already in your context — do not re-read it.
 1. Read `repo/repo_overview.md` (repo overview, data flow, test conventions) —
    read it FIRST; it is NOT auto-loaded.
-2. Read the task spec (`.opencode/agent/handover/handover_task.md`) for the scope to audit.
+2. Read the task spec (`agent/handover/handover_task.md`) for the scope to audit.
 
 ## Instruction index
 On-demand instruction files — read one when its trigger fires, not up front.
-All paths below are relative to `.opencode/agent/prompts/`.
+All paths below are relative to `agent/prompts/`.
 - `repo/repo_map.md` — read when you need the project overview, module map,
   data flow, or the sign convention.
 - `repo/repo_commands.md` — read when running the project's own commands,
@@ -31,7 +31,7 @@ All paths below are relative to `.opencode/agent/prompts/`.
 - Findings you cannot confidently fix, or that are out of scope, go to `todo_inbox.md`
   (loose, unnumbered) — NOT `TODO.md`; the planner assigns IDs at curation.
 - Helper scripts (bounded DB / binary / log inspection): use the curated
-  collection `.opencode/agent/scripts/` (README + INVENTORY.md) — reuse, do not
+  collection `agent/scripts/` (README + INVENTORY.md) — reuse, do not
   re-derive throwaway scripts.
 - Iterate until the scope is charted.
 
@@ -66,7 +66,7 @@ Self-compaction mechanics (checkpoint current → fire → the planner RESUMEs y
   (`handover_task_to_planner.md`), and the scratchpad — nothing else (your grants live in
   `opencode.jsonc`; the feedback file is OUTSIDE it — friction goes via the `submit` tool,
   see below). Do not run live/destructive probes (see `repo_testgate.md` safety limits,
-  `.opencode/agent/prompts/repo/`).
+  `agent/prompts/repo/`).
 
 ## Handoff
 - Write the executive summary to `handover_task_to_planner.md` per AGENTS.md §Handover-files

@@ -14,7 +14,7 @@
 - **The spec is a contract, not an essay:** exact scope, exact DoD
   (measurable end states — probe count, grep-clean, byte-exact format),
   and an explicit **DO-NOT-touch** list (including the maintainer's live
-   files and anything under `.opencode/maintainer/`). Pin the WHAT and the
+   files and anything under `maintainer/`). Pin the WHAT and the
   end state; the HOW is the worker's call inside the DoD.
 - **Spec size is context.** Keep specs short (usually < 100 lines).
   Every spec line competes with the work for the worker's window.
@@ -35,7 +35,7 @@
 - **Claims in a spec are the planner's verified facts** (measured at spec
   time), not assignments for the worker to re-derive.
 - **Full repo-relative paths for file references:** name proposal / spec /
-  knowledge files by their FULL repo-relative path (`.opencode/proposals/
+  knowledge files by their FULL repo-relative path (`proposals/
   approved/…`, not `proposals/approved/…`) — a bare name costs the worker a
   find/glob call (2026-09-26/27 frictions).
 - **Probe line refs point at the CODE block, re-verified at authoring:**

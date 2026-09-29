@@ -9,17 +9,17 @@ the helper-script collection was curated from. **Originals are NOT deleted**
 
 | script | repo home |
 |---|---|
-| binwin.cjs | .opencode/agent/scripts/binary/ |
-| binoff.cjs | .opencode/agent/scripts/binary/ |
-| binhits.cjs | .opencode/agent/scripts/binary/ |
-| sesinspect.cjs | .opencode/agent/scripts/db/ |
-| sesdata.cjs | .opencode/agent/scripts/db/ |
-| compact_dir.cjs | .opencode/agent/scripts/db/ |
-| probe_schema.cjs | .opencode/agent/scripts/db/ |
-| logctx.cjs | .opencode/agent/scripts/log/ |
-| summarize_intercept.cjs | .opencode/agent/scripts/log/ |
-| numword.cjs | .opencode/agent/scripts/numword/ |
-| w2n.py | .opencode/agent/scripts/numword/ |
+| binwin.cjs | agent/scripts/binary/ |
+| binoff.cjs | agent/scripts/binary/ |
+| binhits.cjs | agent/scripts/binary/ |
+| sesinspect.cjs | agent/scripts/db/ |
+| sesdata.cjs | agent/scripts/db/ |
+| compact_dir.cjs | agent/scripts/db/ |
+| probe_schema.cjs | agent/scripts/db/ |
+| logctx.cjs | agent/scripts/log/ |
+| summarize_intercept.cjs | agent/scripts/log/ |
+| numword.cjs | agent/scripts/numword/ |
+| w2n.py | agent/scripts/numword/ |
 
 Not promoted (dedup/superseded): `findbin.ps1` (PowerShell twin of binwin.cjs),
 `find_ctx*.mjs` (binary context one-shots superseded by binary/), `dump_session.py`

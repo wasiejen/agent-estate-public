@@ -106,6 +106,6 @@ bigger context, weaker reasoning and stability):
 
 ## Phase-scoped work
 Phase plans, the progress log, current baselines, and the rules of the current
-handoff live in `.opencode/agent/handover/handover_planner.md` (the NAP) — read it first
+handoff live in `agent/handover/handover_planner.md` (the NAP) — read it first
 when you get one. `TODO.md` holds durable maintainer TODOs. This file holds
 stable facts and conventions only — never phase progress.

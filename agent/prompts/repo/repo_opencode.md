@@ -1,6 +1,6 @@
 # repo_opencode — opencode host specifics (need-to-know index)
 Keep this an INDEX: short facts + pointers, not copies. The details live in
-`.opencode/agent/knowledge/` (`opencode-plugins/` deep-dives + the area
+`agent/knowledge/` (`opencode-plugins/` deep-dives + the area
 files) — read those on need-to-know.
 
 ## Host paths
@@ -28,7 +28,7 @@ files) — read those on need-to-know.
   `knowledge_tools.md`.
 - Compaction mechanics (budgets, keep, dumps, the auto-resume interplay):
   AGENTS.md `# Compaction Guidelines` +
-  `.opencode/maintainer/draft/compaction_guide/full_guide.md`.
+  `maintainer/draft/compaction_guide/full_guide.md`.
 - auto_resume internals (units, scope, the spawn/restart path): TODO
   #75/#85/#90/#91 + `knowledge/opencode-plugins/auto-resume-*`.
 - The single backend slot: NEVER launch raw inference-server requests — all

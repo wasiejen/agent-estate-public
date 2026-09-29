@@ -1,6 +1,6 @@
 # auto_resume.ts — the auto-resume plugin (units 1-4)
 
-Approved 2026-09-21 (`.opencode/proposals/approved/2026-09-21_opencode-auto-resume-plugin.md`); the header block (units 1-4) is the contract of record.
+Approved 2026-09-21 (`proposals/approved/2026-09-21_opencode-auto-resume-plugin.md`); the header block (units 1-4) is the contract of record.
 
 ## What it does
 

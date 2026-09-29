@@ -58,7 +58,7 @@ and prompts exist so the system (and I) keep getting better.
   action requires a marker / inbox item / explicit instruction.
 - Serial loop, single slot: same-model delegation (the cache rule),
   compaction over re-fill, never a direct request to the inference server.
-- The maintainer's live files (opencode.jsonc, `.opencode/maintainer/**`)
+- The maintainer's live files (opencode.jsonc, `maintainer/**`)
   are never edited or staged by agents; registration is his domain.
 
 ## Idle / autonomous initiative (per his standing --maintainer block)

@@ -16,5 +16,5 @@ its own subdir, cleaned on start) — that hardcoded path is deliberate
 
 What does NOT go here: `probes/` (the plugin's own probe, distinct from
 tool smokes), the pytest suite (repo root `tests/`), and anything that
-touches the live loop folder `.opencode/loop/` or the live `opencode.jsonc`
+touches the live loop folder `loop/` or the live `opencode.jsonc`
 (smokes sandbox instead). New smokes need a green run before commit.

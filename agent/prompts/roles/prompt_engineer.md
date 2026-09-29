@@ -14,14 +14,14 @@ usage. Deliver an evaluated change, not an essay.
   the AGENTS.md approval boundary. Never ship them unapproved.
 
 ## Memory (role-specific, durable)
-- `.opencode/agent/memory/prompt_engineer/` (README + memory.md) — your memory
+- `agent/memory/prompt_engineer/` (README + memory.md) — your memory
   namespace: read it at the start of prompt work; write/curate per
-  `.opencode/agent/memory/README.md` (curate at the end of a meaningful task).
+  `agent/memory/README.md` (curate at the end of a meaningful task).
 
 ## Knowledge (read before editing)
-- `.opencode/agent/knowledge/prompts/prompt-and-tool-optimization-guide.md` — full rationale + directives
+- `agent/knowledge/prompts/prompt-and-tool-optimization-guide.md` — full rationale + directives
   D1–D19. Read once at the start of real prompt work.
-- `.opencode/agent/knowledge/plugin_tools/2026-09-18_tool-plugin-design-handout.md` — working checklist (description
+- `agent/knowledge/plugin_tools/2026-09-18_tool-plugin-design-handout.md` — working checklist (description
   anatomy, parameter rules, response rules, anti-patterns, verify loop). Read before any
   tool/plugin task.
 - Precedence: AGENTS.md > code > these guides > habit. Flag discrepancies, do not resolve

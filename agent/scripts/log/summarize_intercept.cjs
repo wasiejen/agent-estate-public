@@ -26,8 +26,8 @@
 //   6 per-session line counts (convergence-habit signal, decision-record 6.3)
 //
 // Usage: node summarize_intercept.cjs [logfile=.opencode/temp/intercept.log]
-//   e.g. node .opencode/agent/scripts/log/summarize_intercept.cjs
-//        node .opencode/agent/scripts/log/summarize_intercept.cjs .opencode/temp/intercept.log
+//   e.g. node agent/scripts/log/summarize_intercept.cjs
+//        node agent/scripts/log/summarize_intercept.cjs .opencode/temp/intercept.log
 // Exit: 0 = summary printed, 1 = log file unreadable.
 
 "use strict";

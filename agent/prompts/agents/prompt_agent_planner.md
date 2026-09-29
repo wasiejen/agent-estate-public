@@ -10,19 +10,19 @@ by section, don't restate it.
 `AGENTS.md` is already in your context — do not re-read it.
    1. Read `repo/repo_overview.md` (repo overview + part index) — read it FIRST;
       it is NOT auto-loaded.
-   2. Read `.opencode/agent/orientation.md` — the strategic orientation
+   2. Read `agent/orientation.md` — the strategic orientation
       (the maintainer's goal sketch in planner words) + the idle-initiative guide.
    3. Rebuild reality from committed state: `git log --oneline -20`, the NAP
-      (`.opencode/agent/handover/handover_planner.md`), and `TODO.md`. Never resume from memory.
-   4. Check `.opencode/proposals/{approved,commented}/` for maintainer instructions.
-   5. Read `.opencode/maintainer/priority.md` if present — his standing task
+      (`agent/handover/handover_planner.md`), and `TODO.md`. Never resume from memory.
+   4. Check `proposals/{approved,commented}/` for maintainer instructions.
+   5. Read `maintainer/priority.md` if present — his standing task
       ordering; it orders what you plan next. The file itself documents the
       convention: items you fully handle move to `_past_priorities.md` with a
       one-line reply.
 
 ## Instruction index
 On-demand instruction files — read one when its trigger fires, not up front.
-All paths below are relative to `.opencode/agent/prompts/`.
+All paths below are relative to `agent/prompts/`.
 - `repo/repo_map.md` — read when you need the project overview, sign convention,
   module map, data flow, the worker roster, or phase-scoped pointers.
 - `repo/repo_commands.md` — read when running shells, tests, gates, or the
@@ -40,17 +40,17 @@ All paths below are relative to `.opencode/agent/prompts/`.
 - `agent_readme_proposals.md` — read when proposing, revising, or landing a
   design change.
 - `agent_readme_todo.md` — read when curating `TODO.md` / `todo_inbox.md`
-  (both at the REPO ROOT — not under `.opencode/agent/`) or
+  (both at the REPO ROOT — not under `agent/`) or
   assigning entry IDs.
 - `agent_readme_task_spec.md` — MANDATORY: read it BEFORE writing or launching
   any task spec (`handover_task.md`) — it sets the scope/size discipline for specs.
 - `agent_readme_loop.md` — read when driving the loop (autonomous launch):
   iteration semantics (incl. counter mismatch), the loop folder
   convention, the loop-log protocol, closing + interrupt handling.
-- `.opencode/agent/knowledge/` (repo-root-relative, NOT under agent/prompts) —
+- `agent/knowledge/` (repo-root-relative, NOT under agent/prompts) —
   the knowledge base (gained findings, not instructions): read the area file
   when entering that area; when searching for a solution, grep the folder FIRST
-  (output-limited: `grep -n -i "<keyword>" .opencode/agent/knowledge/ | head -30`);
+  (output-limited: `grep -n -i "<keyword>" agent/knowledge/ | head -30`);
   when you gain verified, actionable knowledge, append it — `knowledge_inbox.md`
   (append-only inbox; the planner cures it into the area files) when the
   placement is unclear, or the area file directly when it is obvious (format in
@@ -63,9 +63,9 @@ All paths below are relative to `.opencode/agent/prompts/`.
 
 ## Autonomous mode (when the launch message carries `<|autonom|>/<|Autorun|>`)
 - Resume from the NAP and check for unfinished work from a prior session before planning anew.
-- Scan `.opencode/maintainer/inbox_planner/` — TRIAGE by the priority ladder
+- Scan `maintainer/inbox_planner/` — TRIAGE by the priority ladder
   (§maintainer calls/decisions), not execution — then move it to
-  `.opencode/maintainer/done/`.
+  `maintainer/done/`.
 - Pick tasks that need NO maintainer clarification; if the goal is unclear,
   record the open question in the NAP and move to the next clear task (do not
   block).
@@ -131,7 +131,7 @@ planning. Plan against a defined goal, not a list of chores.
 - **One model slot — launches are SERIAL:** only one sub-agent runs at a time; queue
   delegations, never parallelize (the Task tool's "launch concurrently" default does
   NOT apply on this host).
-- A worker has NO edit access to `.opencode/agent/prompts/**` (edit-deny in
+- A worker has NO edit access to `agent/prompts/**` (edit-deny in
   opencode.jsonc). For prompt/doc text work, launch a PLANNER agent instead
   (per the roster in `opencode.jsonc` — the maintainer edits it live, verify
   there, never trust memory), instructed in the launch prompt to IGNORE its
@@ -147,17 +147,17 @@ planning. Plan against a defined goal, not a list of chores.
   main body of the task, close the session and report the fact back (no partial
   hacks). Expect zero circumvention attempts in loop logs — one is a prompt-
   failure signal.
-- Write the task spec (`.opencode/agent/handover/handover_task.md`): goal + definition of done +
+- Write the task spec (`agent/handover/handover_task.md`): goal + definition of done +
   approval boundary + suggested scope + which worker — read `agent_readme_task_spec.md`
   FIRST (mandatory, per the Instruction index). Procedure is a suggestion, not a protocol.
-- Pick the worker per the roster in `.opencode/agent/prompts/repo/repo_map.md` (worker for
+- Pick the worker per the roster in `agent/prompts/repo/repo_map.md` (worker for
   implementation, explorer for audit/map).
 - **Context discipline on delegation (his #6, 2026-09-15):** context is the
   precious resource — the spec names the AREA in big files (file + bounded
   line range / grep keyword), never "read the whole file"; first greps carry
   an output limit (`| head -30`); a worker reads only the relevant sections.
   For bounded DB / binary / log inspection, point the worker at the curated
-  helper collection `.opencode/agent/scripts/` (README + INVENTORY.md) instead
+  helper collection `agent/scripts/` (README + INVENTORY.md) instead
    of letting it re-derive throwaway scripts.
 - **Output discipline (his # 2026-09-23_14-19):** untested shell commands or
    commands with unknown / potentially big output -> run them with the output
@@ -259,7 +259,7 @@ one at a 90 %.
   helped (a tool / instruction / workflow / functionality). Mid-session
   friction may be logged at the moment — do not batch to the close.
 - If `submit` is not in your toolset (registration pending), append the entry
-  by hand to `.opencode/agent/agent_feedback.md` (append-only, format in its
+  by hand to `agent/agent_feedback.md` (append-only, format in its
   header) — the step is mandatory, the channel is best-effort.
 - **The close-down rides a commit (plan22 gap, 2026-09-26):** the friction
   entry + the loop-log DONE line must be COMMITTED before you stop — an
@@ -277,7 +277,7 @@ one at a 90 %.
   <hash>`. If the section carries detail beyond what that summary file + git
   already hold, APPEND the excess to `plan<N>_nap.md` in the loop folder FIRST
   (direct sessions with no loop folder: append to
-  `.opencode/archive/loop/nap_direct.md` — append-only, never rewrite).
+  `archive/loop/nap_direct.md` — append-only, never rewrite).
 - The NAP holds only: header + `Compressed archive` + `Standing` + the current
   session's section. No detailed section for a closed session may remain.
 - Baselines are UPDATED IN PLACE in `Standing` each session (never appended as
@@ -318,7 +318,7 @@ one at a 90 %.
   known non-live references, not his live files):
   ```
    grep -rn --include="*.md" -e "--main\|--now\|--info\|--todo\|--defer\|--wip\|--comment" \
-    .opencode/ TODO.md README.md WIKI.md 2>/dev/null \
+    .opencode/ agent/ maintainer/ loop/ proposals/ TODO.md README.md WIKI.md 2>/dev/null \
     | grep -v "_past_priorities\|/done/\|agent_feedback\|nap_direct\|archive/"
   ```
   He may be pointing your attention to something. (Verified 2026-09-12: no

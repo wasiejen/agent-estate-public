@@ -7,20 +7,20 @@
 //   (2) CLI run on the fixture (child node, repo-root cwd): stdout ===
 //       expected_summary.txt, exit 0
 //   (3) missing log file: exit 1, empty stdout, error on stderr
-// Run: node .opencode/agent/scripts/log/tests/summarize_intercept.smoke.cjs
+// Run: node agent/scripts/log/tests/summarize_intercept.smoke.cjs
 //   (plain node, exit 0 iff green)
 "use strict";
 const fs = require("fs");
 const path = require("path");
 const { execFileSync, execFile } = require("child_process");
 
-// repo root = five levels up (tests -> log -> scripts -> agent -> .opencode -> root)
-const ROOT = path.join(__dirname, "..", "..", "..", "..", "..");
+// repo root = four levels up (tests -> log -> scripts -> agent -> root)
+const ROOT = path.join(__dirname, "..", "..", "..", "..");
 const FIX = path.join(__dirname, "intercept_fixture.log");
 // forward slashes on purpose: the path lands in the output header and must
 // match expected_summary.txt byte-exact (path.join would give backslashes
 // on this host).
-const FIXREL = ".opencode/agent/scripts/log/tests/intercept_fixture.log";
+const FIXREL = "agent/scripts/log/tests/intercept_fixture.log";
 const EXPECT = path.join(__dirname, "expected_summary.txt");
 const SCRIPT = path.join(__dirname, "..", "summarize_intercept.cjs");
 const expected = fs.readFileSync(EXPECT, "utf8").trim();

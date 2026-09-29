@@ -35,9 +35,9 @@ not here.
   plugin reads the LAST one.
 
 ## Loop folder
-- The CURRENT looprun lives in `.opencode/loop/autorun-<YYYY-MM-DD_HH-MM>/` —
+- The CURRENT looprun lives in `loop/autorun-<YYYY-MM-DD_HH-MM>/` —
   exactly one folder there at any time (unambiguous).
-- ALL older loopruns live in `.opencode/archive/loop/autorun-…/`.
+- ALL older loopruns live in `archive/loop/autorun-…/`.
 - Rollover: when the planner starts at ITERATION 1 (a new looprun), it moves
   the current `loop/autorun-…/` folder into `archive/loop/` and creates a fresh
   `loop/autorun-<now>/` (folder name machine-generated, never retyped). A
@@ -62,7 +62,7 @@ not here.
 - The looprun activity log — who ran when, on what; for the loop itself and for
   the maintainer after the fact.
 - ONE file per looprun, in its loop folder:
-  `.opencode/loop/autorun-<YYYY-MM-DD_HH-MM>/loop_log.md` — append only,
+  `loop/autorun-<YYYY-MM-DD_HH-MM>/loop_log.md` — append only,
   created on first write. Logged: loopruns and direct planner runs; plain
   interactive chat has no log.
 - Tool (v2, landed 2026-09-26): when the `loop_log` tool is in your toolset,
@@ -133,10 +133,11 @@ not here.
 
 ## Interrupt handling
 - Rebuild from committed state: `git log`, the NAP
-  (`.opencode/agent/handover/handover_planner.md`), `TODO.md` — never from memory.
+  (`agent/handover/handover_planner.md`), `TODO.md` — never from memory.
 
 ## Looprunner's own file (retired)
-- `.opencode/loop_log.md` was the looprunner's bookkeeping. The role is
+- The looprunner's own bookkeeping file (the retired `loop_log.md` at
+  `.opencode/` level) no longer exists. The role is
   retired (2026-09-24) — the auto-resume plugin covers launch/relay/restart —
   and the file no longer exists.
 

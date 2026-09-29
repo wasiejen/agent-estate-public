@@ -5,7 +5,7 @@ and write exactly one output file, `_overall_summary.md`, INTO that loop run
 folder (overwrite if present).
 
 ## Target
-The newest `autorun-<date>_<hh-mm>` folder under `.opencode/loop/`, or the
+The newest `autorun-<date>_<hh-mm>` folder under `loop/`, or the
 folder named in the launch message.
 
 ## What to read (keep the whole scan under ~40k tokens)

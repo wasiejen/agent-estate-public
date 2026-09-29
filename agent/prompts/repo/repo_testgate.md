@@ -17,7 +17,7 @@ thin index pointing at the parts.
   original `tests/test_known_issues.py` is fully resolved/accepted and no longer
   exists — recreate the pattern if needed). When a fix lands, move the test into
   a normal file and keep it green.
-- Suite size is a moving baseline — see `.opencode/agent/handover/handover_planner.md`
+- Suite size is a moving baseline — see `agent/handover/handover_planner.md`
   for the current expected count. Do not hard-code test-count assumptions here.
 - **Cheap probe syntax check:** after each probe edit batch, run
   `node --check .opencode/plugin/probes/handover_probe.mjs` BEFORE the gate

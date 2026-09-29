@@ -25,7 +25,7 @@ A SEPARATE plugin (maintainer ruling — functionally separate from `ctx_watchdo
 
 - FAIL-CLOSED everywhere (addendum C6: conservative + both outcomes logged) — a gate mismatch mutates NOTHING and lets the honest error surface.
 - HOUSE RULE: best-effort, never-throw (any internal error → at most ONE `intercept-error`-style line, the hook returns silently).
-- SINGLE NUMWORD MAP HOME (C3): the plugin reads `.opencode/agent/scripts/numword/numwords.json` at start (NO embedded second copy); a failed read silently disables only the numword checks.
+- SINGLE NUMWORD MAP HOME (C3): the plugin reads `agent/scripts/numword/numwords.json` at start (NO embedded second copy); a failed read silently disables only the numword checks.
 - The mutation surface is PATH fields ONLY — content / oldString / newString / buffer fields are observation-form.
 
 ## Tests

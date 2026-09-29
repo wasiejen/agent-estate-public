@@ -2,7 +2,7 @@
 
 One md per skill. Launch = a generic agent (e.g. a Q4-model agent, to avoid
 switching the backend model) whose launch message says: read this file first,
-follow it. Host quirk: every md under `.opencode/agent/` also auto-registers
+follow it. Host quirk: every md under `agent/` also auto-registers
 as a launchable agent type (`prompts/skill/skill_*`) — that is a side effect,
 not the intended launch path.
 - `skill_autorun_summary.md` — summarize one autorun run → `_overall_summary.md`

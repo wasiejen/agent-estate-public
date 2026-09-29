@@ -41,4 +41,4 @@ call).
 When the context gauge hits ~85-90% or just before `compact_memory`, dump the
 current session (id from your `ctx:` line) so the fine-grained context that
 compaction destroys is preserved in the corpus:
-`node .opencode/agent/scripts/db/dump_session.cjs <sessionID>`
+`node agent/scripts/db/dump_session.cjs <sessionID>`

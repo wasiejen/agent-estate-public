@@ -57,7 +57,7 @@ Contract pinning lives in `.opencode/plugin/probes/handover_probe.mjs`.
   per session).
 - Pre-compaction dump (TODO #55, landed plan4): before ANY dispatch the
   target session's full content is dumped to
-  `.opencode/archive/sessions/compaction_dumps/<sid>_c<count>.md` —
+  `archive/sessions/compaction_dumps/<sid>_c<count>.md` —
   NEVER overwritten; a same-count collision falls back to a STAMPED name.
   A dump failure is logged (`DUMP-FAIL` in `ctx.log`) and never blocks.
 - After a SELF compaction the session ENDS — continuation rides the

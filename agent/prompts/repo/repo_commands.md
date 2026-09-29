@@ -45,7 +45,7 @@ verified live in a direct session). Unix idioms work natively: `ls -la`,
 - Run tests: `./.venv/Scripts/python.exe -m pytest -q`
 - Coverage: `./.venv/Scripts/python.exe -m pytest -q --cov=fst_data_types --cov=fst_manager --cov=fst_save_file_handler --cov=fst_keyboard --cov=fst_tasks --cov=vk_codes --cov=fst_overlay`
 - Lint: `./.venv/Scripts/ruff.exe check --select F .` Current expected finding
-  count is a moving baseline — see `.opencode/agent/handover/handover_planner.md` and
+  count is a moving baseline — see `agent/handover/handover_planner.md` and
   relevant `TODO.md` entries.
 - Gate probe: `node .opencode/plugin/probes/handover_probe.mjs` (repo root; plain
   system `node`, no venv; one `MODULE_TYPELESS_PACKAGE_JSON` warning on stderr is
@@ -60,11 +60,11 @@ verified live in a direct session). Unix idioms work natively: `ls -la`,
 ## Handover file paths
 Channel semantics (who writes/reads, canonicality) live in the `AGENTS.md`
 interaction-contract table — this section keeps only the concrete repo facts:
-- The plan-state file `.opencode/agent/handover/handover_planner.md` is what the
+- The plan-state file `agent/handover/handover_planner.md` is what the
   maintainer calls the **NAP** (**N**ext **A**gent **P**rompt) — "NAP"/"write a
   NAP" means this file. Phase close moves it to
-  `.opencode/archive/<YYYY-MM-DD>-<slug>.md` with a STATUS header. All handover
-  files live in `.opencode/agent/handover/`.
+  `archive/<YYYY-MM-DD>-<slug>.md` with a STATUS header. All handover
+  files live in `agent/handover/`.
 - Context gauge (self-gauge): prefer the `ctx_gauge` tool when it is in your
   toolset (same readout, in-band — no shell-out); the command below is the
   fallback (the tool is registered host-side and takes effect at the

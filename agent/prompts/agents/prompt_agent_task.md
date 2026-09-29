@@ -10,13 +10,13 @@ reference it by section, don't restate it.
 `AGENTS.md` is already in your context — do not re-read it.
 1. Read `repo/repo_overview.md` (repo overview + part index) — read it FIRST;
    it is NOT auto-loaded.
-2. Read the task spec (`.opencode/agent/handover/handover_task.md`) — it defines the goal +
+2. Read the task spec (`agent/handover/handover_task.md`) — it defines the goal +
    definition of done + approval boundary.
-3. Scan `.opencode/maintainer/inbox_worker/` if present.
+3. Scan `maintainer/inbox_worker/` if present.
 
 ## Instruction index
 On-demand instruction files — read one when its trigger fires, not up front.
-All paths below are relative to `.opencode/agent/prompts/`.
+All paths below are relative to `agent/prompts/`.
 - `repo/repo_map.md` — read when you need the project overview, sign convention,
   module map, or data flow.
 - `repo/repo_commands.md` — read when running shells, tests, the gate, or the
@@ -32,12 +32,12 @@ All paths below are relative to `.opencode/agent/prompts/`.
   install/log/SDK paths, plugin registration, or opencode behavior not in
   the knowledge base (index → `knowledge/opencode-plugins/`).
 - `agent_readme_todo.md` — read when appending findings to `todo_inbox.md`
-  (at the REPO ROOT — not under `.opencode/agent/`).
+  (at the REPO ROOT — not under `agent/`).
 - `agent_readme_loop.md` — §Loop log defines the activity-log lines you write at
   session start and task completion (write them via the `loop_log` tool when it
   is in your toolset — status by KEYWORD, role/model/session optional and
   auto-filled; the format description is the fallback).
-- `.opencode/agent/knowledge/` (repo-root-relative, NOT under agent/prompts) —
+- `agent/knowledge/` (repo-root-relative, NOT under agent/prompts) —
   the knowledge base (gained findings, not instructions): read the area file for
   your task's area (e.g. `knowledge_tools.md`, `knowledge_context.md`) before
   starting; append an entry when you gain verified, actionable knowledge
@@ -64,7 +64,7 @@ All paths below are relative to `.opencode/agent/prompts/`.
    (intercept.log `kind=redirect` lines are the evidence; the `/tmp` POSIX
    form is NOT mapped — that is the stop case).
 - Helper scripts (bounded DB / binary / log inspection, output-limited): use
-  the curated collection `.opencode/agent/scripts/` (README + INVENTORY.md) —
+  the curated collection `agent/scripts/` (README + INVENTORY.md) —
   reuse, do not re-derive throwaway scripts.
 - Verify with the project's own commands (test/lint — see `repo_commands.md`); iterate until
   green. The task file governs WHAT; its procedure is a suggestion — deviate if your way is
@@ -148,7 +148,7 @@ the budget that funds the compaction).
   §Friction check — fire `submit(feedback=...)` with ONE actionable line per
   friction point directly BEFORE the handoff (auto-stamped; absence = no
   entry); mid-session friction may be logged at the moment. If `submit` is not
-  in your toolset, append by hand to `.opencode/agent/agent_feedback.md`
+  in your toolset, append by hand to `agent/agent_feedback.md`
   (append-only, format in its header).
 - **The close-down rides a commit (plan22 gap, 2026-09-26):** the friction
   entry + your loop-log DONE line must be COMMITTED before you stop — an

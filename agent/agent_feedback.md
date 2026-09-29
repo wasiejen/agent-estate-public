@@ -689,3 +689,8 @@ A compaction summary's Work State can be STALE (the summarizer reconstructs, not
 
 ### 2026-09-29_18-23 planner_Q3S_245K_slow ses_f130ae200ffeDRuhAMKmw0N1qE
 A repo-wide full-path string replace misses filename-form pins — the #117 reorg's 10 `.includes("agent_readme_post_compaction.md")` smoke pins (bare filename, no directory) survived the maintainer's full-path replace and broke the auto_resume smoke (re-pinned 87a0487); future path reorgs should grep BOTH forms (full path + bare filename) in code and tests.
+
+### 2026-09-29_18-38 planner_Q3S_slow ses_f130ae200ffeDRuhAMKmw0N1qE
+The compact_budget.json v2-rewrite (TODO #119) destroyed the config SILENTLY — nothing surfaced until a second compaction was refused; a -WARNING loop_log line or a diff-check in the increment path (or at least preserving unknown keys) would have surfaced it at the moment of the rewrite, not 30 min later.
+
+

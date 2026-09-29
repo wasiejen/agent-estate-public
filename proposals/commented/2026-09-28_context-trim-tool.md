@@ -213,7 +213,6 @@ verified against 1.18.32; re-grep at apply time (possible 1-line drift).
 to your concern because of update and reapplying the changes:
 - there are 28 thousend forks currently and who knows how many forks of forks of opencode. i can not imagine that this is not solved in an easy way already. or maybe a non-issue in the first place. on each fetch of the origin i have to do a merge and just move keep out changes. npm install is the only thing i have no idea first why this is a problem and second even less on how to solve this :-)
 
-### Proposed order (my recommendation)
 1. + 2. are approved
 3. self-pruning is more a tool to free up space more deliberately before work or after ingesting big tool output. tool output and thoughts that are no longer needed can be dropped when a finished design/draft is ready to be implemented. or for webfetch to summerize the findings and remove after each or couple of webfetches. this makes the cost of compaction way less and preserves the loaded file state like repo specific and readme files. in my eyes way better than the crude drop the head completely and only keep the tail
 - and i see the need for model toggling every time the session slows down due to big reads or long thinking blocks that later are only unnecessary weight and make really long sessions potentially viable.
@@ -222,4 +221,7 @@ to your concern because of update and reapplying the changes:
 - AND i also want to see how well this works - to have an own fork :-) (learning opportunity for me)
 4. the 11-line is if 2. is working the more cononical way but at the same time unnecessary if 2. works.
 
-the report lookup should also offer the info about what file was read and line markings if possible so the agent know exactly what is in the context and can choose more informed what to drop (addition for 3.)
+the report lookup could also offer the info about what file was read and line markings if possible so the agent know exactly what is in the context and can choose more informed what to drop (addition for 3. if not already planned?)
+
+
+feedback pls again. no sugarcoating or accomodating pls

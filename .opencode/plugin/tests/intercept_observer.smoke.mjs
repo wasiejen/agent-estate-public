@@ -22,7 +22,7 @@
 // `directory` — the intercept.log lands in the sandbox
 // (.opencode/temp/intercept.log under the sandbox project), NEVER the live
 // .opencode/temp/ (DO-NOT-touch); the numword map is the REAL shared file
-// (.opencode/agent/scripts/numword/numwords.json), read-only.
+// (agent/scripts/numword/numwords.json), read-only.
 // The plugin module exports the default factory ONLY (the 2026-09-16 export
 // fix — the host loader requires every Object.values entry to be a
 // function); the named core surface (types/constants/pure functions) is

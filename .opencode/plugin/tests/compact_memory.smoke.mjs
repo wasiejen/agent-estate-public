@@ -31,7 +31,7 @@ const { chk, finish } = makeChecker("COMPACT_MEMORY_SMOKE");
 
 // The pre-compaction dump hook (4512fe6, TODO #152; #92 2026-09-27: BOTH
 // artifacts — the md + the raw json, each independently) fires on EVERY
-// dispatch and spawns <SANDBOX>/.opencode/agent/scripts/db/dump_session.cjs.
+// dispatch and spawns <SANDBOX>/agent/scripts/db/dump_session.cjs.
 // The stub below (mirrors the probe S13 preamble) makes every dump SUCCEED,
 // so the hook appends nothing to the byte-exact response checks (a missing
 // script would append a WARNING line and break them). The stub is rel-driven
@@ -52,7 +52,7 @@ const file = path.join(OUT_DIR, rel);
 fs.mkdirSync(path.dirname(file), { recursive: true });
 fs.writeFileSync(file, "FAKE DUMP of " + sid + "\\n");
 `;
-const DUMP_SCRIPT = path.join(SANDBOX, ".opencode", "agent", "scripts", "db", "dump_session.cjs");
+const DUMP_SCRIPT = path.join(SANDBOX, "agent", "scripts", "db", "dump_session.cjs");
 mkdirSync(path.dirname(DUMP_SCRIPT), { recursive: true });
 writeFileSync(DUMP_SCRIPT, FAKE_DUMP, "utf8");
 
@@ -200,24 +200,24 @@ const withClient = async (spec = {}) => {
   chk("budget increment-on-verified-success (count 1 after drain)", st.sessions.ses_sm_self?.count === 1, JSON.stringify(st.sessions.ses_sm_self));
   const line = readLog().trim().split("\n").find((l) => l.includes("COMPACT ses_sm_self"));
   chk("COMPACT line written with model field + keep args (#99: resolved keepTokens + source — none here)", line != null && / COMPACT ses_sm_self keep=7m tok=- none$/.test(line) && line.includes("Qwen3.8-27B-IQ4KT-120K"), JSON.stringify(line));
-   const dumpFile = path.join(SANDBOX, ".opencode", "archive", "sessions", "compaction_dumps", "ses_sm_self_c0.md");
+   const dumpFile = path.join(SANDBOX, "archive", "sessions", "compaction_dumps", "ses_sm_self_c0.md");
    chk("dump hook fired on the tool path: compaction_dumps/ses_sm_self_c0.md exists (the stub dump, no WARNING appended)", existsSync(dumpFile), dumpFile);
    const DT = "\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}";
    const dumpOk = readLog().trim().split("\n").find((l) => l.includes("DUMP-OK ses_sm_self"));
     // #78 re-pin: the elapsed-ms field gained the `ms=` prefix (was bare `<ms>`);
     // #107 re-pin: the relFile is now the FULL repo-relative dump path
-    chk("DUMP-OK line on success: `<stamp> DUMP-OK ses_sm_self .opencode/archive/sessions/compaction_dumps/ses_sm_self_c0.md ms=<ms>` (#107 full repo-relative path)",
-      dumpOk != null && new RegExp(`^${DT} DUMP-OK ses_sm_self \\.opencode/archive/sessions/compaction_dumps/ses_sm_self_c0\\.md ms=\\d+$`).test(dumpOk),
+    chk("DUMP-OK line on success: `<stamp> DUMP-OK ses_sm_self archive/sessions/compaction_dumps/ses_sm_self_c0.md ms=<ms>` (#107 full repo-relative path)",
+      dumpOk != null && new RegExp(`^${DT} DUMP-OK ses_sm_self archive/sessions/compaction_dumps/ses_sm_self_c0\\.md ms=\\d+$`).test(dumpOk),
       JSON.stringify(dumpOk));
    // #92 (2026-09-27): the pre-compaction dump saves BOTH artifacts — the md
    // (above) AND the raw JSON snapshot (the lossless master). The md DUMP-OK
    // line is written first, so the `.find` above still returns the md line —
    // the json line is matched byte-exact (the anchored regex only the json
    // rel can satisfy).
-   const dumpJsonFile = path.join(SANDBOX, ".opencode", "archive", "sessions", "compaction_dumps", "ses_sm_self_c0.json");
+   const dumpJsonFile = path.join(SANDBOX, "archive", "sessions", "compaction_dumps", "ses_sm_self_c0.json");
    chk("dump hook fired on the tool path (#92): compaction_dumps/ses_sm_self_c0.json exists (the json artifact, the stub dump)", existsSync(dumpJsonFile), dumpJsonFile);
-    const dumpOkJson = readLog().trim().split("\n").find((l) => new RegExp(`^${DT} DUMP-OK ses_sm_self \\.opencode/archive/sessions/compaction_dumps/ses_sm_self_c0\\.json ms=\\d+$`).test(l));
-    chk("DUMP-OK line on success (#92): `<stamp> DUMP-OK ses_sm_self .opencode/archive/sessions/compaction_dumps/ses_sm_self_c0.json ms=<ms>` (the json artifact line, #107 full repo-relative path)",
+    const dumpOkJson = readLog().trim().split("\n").find((l) => new RegExp(`^${DT} DUMP-OK ses_sm_self archive/sessions/compaction_dumps/ses_sm_self_c0\\.json ms=\\d+$`).test(l));
+    chk("DUMP-OK line on success (#92): `<stamp> DUMP-OK ses_sm_self archive/sessions/compaction_dumps/ses_sm_self_c0.json ms=<ms>` (the json artifact line, #107 full repo-relative path)",
      dumpOkJson != null,
      JSON.stringify(dumpOkJson));
  }

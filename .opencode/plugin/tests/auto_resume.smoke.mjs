@@ -723,7 +723,7 @@ try {
    // ident= bit in the spawn= line. The folder + log pin the
    // derivation: planner-7 → next is planner-8. The queued prompt
    // text is UNCHANGED (title mechanism, not a prompt prefix).
-   const loopDir = path.join(proj, ".opencode", "loop", "autorun-test_0-0");
+   const loopDir = path.join(proj, "loop", "autorun-test_0-0");
    fs.mkdirSync(loopDir, { recursive: true });
    fs.writeFileSync(path.join(loopDir, "loop_log.md"),
      "2026-09-21_15-33 -->START planner-7 unknown Qwen3.8-27B-Q3S-170K task oneliner\n", "utf-8");
@@ -760,7 +760,7 @@ try {
    // Leave the sandbox clean for the UNIT 4 sections below: the loop
    // dir is removed (no folder → no identifier — the pre-plan9 spawn
    // behavior those sections pin).
-   fs.rmSync(path.join(proj, ".opencode", "loop"), { recursive: true, force: true });
+   fs.rmSync(path.join(proj, "loop"), { recursive: true, force: true });
 
     // ============================================================
     // UNIT 4 — liveness watchdog (#85 part 1: the #82 generalized scope)
@@ -1008,7 +1008,7 @@ try {
     const tmp2 = path.join(proj, ".opencode", "temp");
     const budget2 = path.join(tmp2, "compact_budget.json");
     const RELAY_MSG = "resume the gate section from the last green commit (re-read the NAP)";
-    const ADDENDUM = "post-compaction: re-read your head files per .opencode/agent/prompts/agent_readme_post_compaction.md and CONTINUE — never re-plan from scratch";
+    const ADDENDUM = "post-compaction: re-read your head files per agent/prompts/agent_readme_post_compaction.md and CONTINUE — never re-plan from scratch";
 
     // ---- (1) a stored message → relayed as the FIRST CONTINUE message
     // (+ the one-line addendum); the file is consumed on success.
@@ -2025,7 +2025,7 @@ try {
     const hooksLS = await factory({ directory: proj, client: { session: lsSession, provider: { list: providerList }, app: { log: () => "log" } } });
     // The sandbox loop folder — the -WARNING line destination (the
     // plugin resolves it via the shared currentLoopFolder logic).
-    const lsLoopDir = path.join(proj, ".opencode", "loop", "autorun-2026-09-28_09-00");
+    const lsLoopDir = path.join(proj, "loop", "autorun-2026-09-28_09-00");
     fs.mkdirSync(lsLoopDir, { recursive: true });
     const lsLoopLog = path.join(lsLoopDir, "loop_log.md");
     fs.writeFileSync(lsLoopLog, "2026-09-28_09-00 -->START  planner-5 ses_planner_smoke Qwen3.8-27B-Q3S-170K smoke looprun\n", "utf-8");

@@ -1,7 +1,7 @@
 // loop_log.smoke.mjs — the loop_log tool (scratchpad origin: loop_log_smoke.mjs,
 // T3 smoke, iter-13; moved per the 2026-09-15_smoke-harness-home proposal).
 // The context object carries a SCRATCHPAD temp `directory` — NEVER the live
-// .opencode/loop/ (the live loop folder is DO-NOT-touch for this smoke).
+// loop/ (the live loop folder is DO-NOT-touch for this smoke).
 // Run: node .opencode/plugin/tests/loop_log.smoke.mjs (plain node, exit 0 iff green).
 import fs from "node:fs";
 import path from "node:path";
@@ -66,7 +66,7 @@ try {
   const retA = await t.execute(argsA, ctxA);
   const tA = localStamp();
   const pA = parseRet(retA);
-  const loopRootA = path.join(projA, ".opencode", "loop");
+  const loopRootA = path.join(projA, "loop");
   const subA = fs.existsSync(loopRootA)
     ? fs.readdirSync(loopRootA, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name)
     : [];
@@ -113,11 +113,11 @@ try {
   chk("(D) bogus status: the return is an Error naming the accepted keywords (never a silent INFO fallback)", String(retD).startsWith("Error:") && /start \/ done \/ return \/ warn \/ info \/ correct/.test(retD), retD);
   const retD2 = await t.execute({ status: "", content: "D2 empty status" }, { directory: projD });
   chk("(D) empty status: the same Error (no keyword matched)", String(retD2).startsWith("Error:") && /start \/ done \/ return \/ warn \/ info \/ correct/.test(retD2), retD2);
-  chk("(D) bogus/empty statuses write nothing (no folder, no line in the fresh dir)", !fs.existsSync(path.join(projD, ".opencode")));
+  chk("(D) bogus/empty statuses write nothing (no folder, no line in the fresh dir)", !fs.existsSync(path.join(projD, "loop")));
 
   // ---- (E) multi-folder anomaly: two autorun-* dirs, distinct mtimes
   const projE = mkproj("E");
-  const loopE = path.join(projE, ".opencode", "loop");
+  const loopE = path.join(projE, "loop");
   fs.mkdirSync(loopE, { recursive: true });
   const dir1 = path.join(loopE, "autorun-2020-01-01_09-00");
   const dir2 = path.join(loopE, "autorun-2020-01-01_09-05");
@@ -212,8 +212,8 @@ try {
     chk(`(G${i + 1}) written line byte-matches <stamp> <status> <role> <session> <model> <content>`, pG.line === mkG(gBefore) || pG.line === mkG(gAfter), `got=${pG.line}`);
     gRetLines.push(pG.line);
   }
-  const gLog = fs.readdirSync(path.join(projG, ".opencode", "loop"), { withFileTypes: true })
-    .map((e) => path.join(projG, ".opencode", "loop", e.name, "loop_log.md"))
+  const gLog = fs.readdirSync(path.join(projG, "loop"), { withFileTypes: true })
+    .map((e) => path.join(projG, "loop", e.name, "loop_log.md"))
     .find((p) => fs.existsSync(p));
   const gFile = fs.readFileSync(gLog, "utf-8").split(/\r?\n/).filter((l) => l.length > 0);
   chk("(G) append-only: the file prefix is byte-unchanged across the 3 calls (earlier lines never rewritten)", gFile.length === 3 && gFile.every((l, i) => l === gRetLines[i]), JSON.stringify(gFile));
@@ -223,7 +223,7 @@ try {
   //      glues the new line onto it, so the readback's last line differs from
   //      the line written -> `verified: readback-MISMATCH: <actual last line>`
   const projH = mkproj("H");
-  const logH = path.join(projH, ".opencode", "loop", "autorun-2026-01-01_00-00", "loop_log.md");
+  const logH = path.join(projH, "loop", "autorun-2026-01-01_00-00", "loop_log.md");
   fs.mkdirSync(path.dirname(logH), { recursive: true });
   fs.writeFileSync(logH, "partial-line-no-trailing-newline"); // NO trailing \n
   const argsH = { role: "worker-13", model: "Qwen3.8-27B-IQ4KT-120K", status: "--INFO--", content: "H1 mismatch probe line" };
@@ -264,7 +264,7 @@ try {
     const pI = parseRet(retI);
     chk(`(I) '${raw}' normalizes to ${expected}`, pI.line.split(" ")[1] === expected, pI.line);
   }
-  const iRoot = path.join(projI, ".opencode", "loop");
+  const iRoot = path.join(projI, "loop");
   const iSub = fs.readdirSync(iRoot, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
   const iLog = path.join(iRoot, iSub[0], "loop_log.md");
   const countI = () => fs.readFileSync(iLog, "utf-8").split(/\r?\n/).filter((l) => l.length > 0).length;
@@ -295,7 +295,7 @@ try {
   chk("(J1) the CORRECT- line is appended (token byte-exact) + `corrects:` carries the PREVIOUS line byte-exact, after `verified:`",
     pJ1.line.split(" ")[1] === "CORRECT-" && jLines1[2] === "verified: readback-match" && jLines1[3] === `corrects: ${pJ0.line}` && jLines1.length === 4,
     retJ1);
-  const jRoot = path.join(projJ, ".opencode", "loop");
+  const jRoot = path.join(projJ, "loop");
   const jSub = fs.readdirSync(jRoot, { withFileTypes: true }).filter((e) => e.isDirectory())[0].name;
   const jFile = fs.readFileSync(path.join(jRoot, jSub, "loop_log.md"), "utf-8").split(/\r?\n/).filter((l) => l.length > 0);
   chk("(J) append-only: the first line is byte-unchanged; the file holds both lines in order",

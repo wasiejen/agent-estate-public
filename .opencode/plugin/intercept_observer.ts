@@ -152,7 +152,7 @@
 // hook returns silently.
 //
 // SINGLE NUMWORD MAP HOME (addendum C3): at plugin start this file reads
-// `.opencode/agent/scripts/numword/numwords.json` — the ONE shared map
+// `agent/scripts/numword/numwords.json` — the ONE shared map
 // (also read by numword.cjs / w2n.py). NO embedded second copy. If the read
 // fails, numword checks (b) and (c) are silently off; the other checks
 // still run.
@@ -241,10 +241,10 @@ import { stripJsoncComments } from "./compact_memory.ts";
 import { readGauge } from "./scripts/gauge.mjs";
 
 const THIS_DIR = dirname(fileURLToPath(import.meta.url));
-// The ONE shared numword map (addendum C3) — resolved next to this file:
-// .opencode/plugin → .opencode/agent/scripts/numword (stable for the host
-// load and the type-stripped probe/smoke import alike).
-const MAP_PATH = join(THIS_DIR, "..", "agent", "scripts", "numword", "numwords.json");
+// The ONE shared numword map (addendum C3) — resolved from this file's
+// dir to the repo root: .opencode/plugin → root → agent/scripts/numword
+// (stable for the host load and the type-stripped probe/smoke import alike).
+const MAP_PATH = join(THIS_DIR, "..", "..", "agent", "scripts", "numword", "numwords.json");
 
 // ------------------------------------------------------------------ hook plumbing
 

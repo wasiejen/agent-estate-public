@@ -2,8 +2,8 @@
 // 2026-09-17_agent-feedback-closedown.md): ONE unified append tool for the
 // three agent-inbox channels (feedback / knowledge / todo). The context
 // object carries a SCRATCHPAD temp `directory` — NEVER the live targets
-// (the real .opencode/agent/agent_feedback.md /
-// .opencode/agent/knowledge/knowledge_inbox.md / todo_inbox.md are
+// (the real agent/agent_feedback.md /
+// agent/knowledge/knowledge_inbox.md / todo_inbox.md are
 // DO-NOT-touch for this smoke).
 // Run: node .opencode/plugin/tests/submit.smoke.mjs (plain node, exit 0 iff green).
 import fs from "node:fs";
@@ -25,10 +25,10 @@ const localStamp = (d = new Date()) => {
 // (the spec pins these three exact paths; the header depth is the
 // established form of each channel).
 const REL = {
-  feedback: ".opencode/agent/agent_feedback.md",
-  knowledge: ".opencode/agent/knowledge/knowledge_inbox.md",
+  feedback: "agent/agent_feedback.md",
+  knowledge: "agent/knowledge/knowledge_inbox.md",
   todo: "todo_inbox.md",
-  ideas: ".opencode/agent/agent_ideas.md",
+  ideas: "agent/agent_ideas.md",
 };
 const HDR = { feedback: "###", knowledge: "##", todo: "##", ideas: "###" };
 const NO_PARAMS_ERR = "error: none of feedback/knowledge/todo/ideas provided — nothing written";
@@ -109,10 +109,10 @@ try {
   const projD = mkproj("D");
   const retD = await t.execute({}, { directory: projD });
   chk("(D) none provided -> the exact error string", retD === NO_PARAMS_ERR, `got=${JSON.stringify(retD)}`);
-  chk("(D) no file touched (fresh project dir stays empty)", !fs.existsSync(path.join(projD, ".opencode")) && !fs.existsSync(fpath(projD, "todo")));
+  chk("(D) no file touched (fresh project dir stays empty)", !fs.existsSync(path.join(projD, "agent")) && !fs.existsSync(fpath(projD, "todo")));
   const projD2 = mkproj("D2");
   const retD2 = await t.execute({ feedback: "", knowledge: "   ", todo: "" }, { directory: projD2 });
-  chk("(D) empty/blank strings count as NOT provided -> same error, no file", retD2 === NO_PARAMS_ERR && !fs.existsSync(path.join(projD2, ".opencode")) && !fs.existsSync(fpath(projD2, "todo")), `got=${JSON.stringify(retD2)}`);
+  chk("(D) empty/blank strings count as NOT provided -> same error, no file", retD2 === NO_PARAMS_ERR && !fs.existsSync(path.join(projD2, "agent")) && !fs.existsSync(fpath(projD2, "todo")), `got=${JSON.stringify(retD2)}`);
 
   // ---- (E) multi-param: all FOUR provided in ONE call — one shared stamp,
   //      four files, the return = the four blocks in feedback/knowledge/
@@ -140,7 +140,7 @@ try {
   chk("(E) the four entries share ONE stamp (captured once per call)", stampsE.every((s) => /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}$/.test(s ?? "")) && new Set(stampsE).size === 1, JSON.stringify(stampsE));
 
   // ---- (G) ideas single-param (2026-09-27 ruling): `### ` stamp into the
-  //      agent-side ideas inbox .opencode/agent/agent_ideas.md — the
+  //      agent-side ideas inbox agent/agent_ideas.md — the
   //      MAINTAINER's ideas.md is NOT a target (read-only inspiration)
   const projG = mkproj("G");
   const argsG = { ideas: "idea: the maintenance pass should scan agent_ideas.md and the maintainer's ideas.md" };
@@ -151,7 +151,7 @@ try {
   const bodyG = fs.existsSync(fG) ? fs.readFileSync(fG, "utf-8") : null;
   const okEntryG = (s) => bodyG === mkEntry("ideas", s, "planner-27", "ses_TEST_74", argsG.ideas);
   chk("(G) ideas append: agent_ideas.md created with EXACTLY the entry (### stamp)", okEntryG(tG1) || okEntryG(tG2), `got=${JSON.stringify(bodyG)}`);
-  chk("(G) the maintainer-side ideas.md path is NOT touched (no .opencode/maintainer under the sandbox)", !fs.existsSync(path.join(projG, ".opencode", "maintainer")));
+  chk("(G) the maintainer-side ideas.md path is NOT touched (no maintainer/ under the sandbox)", !fs.existsSync(path.join(projG, "maintainer")));
   const okRetG = (s) => retG === mkBlock("ideas", mkEntry("ideas", s, "planner-27", "ses_TEST_74", argsG.ideas));
   chk("(G) return = `ideas` + `target:` + `entry:`, byte-exact vs the file entry", okRetG(tG1) || okRetG(tG2), `got=${JSON.stringify(retG)}`);
 

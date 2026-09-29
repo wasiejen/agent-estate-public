@@ -1,5 +1,5 @@
 // compaction_core.ts — the shared compaction core (approved proposal
-// .opencode/proposals/approved/2026-09-26_compaction-unification.md, Part A —
+// proposals/approved/2026-09-26_compaction-unification.md, Part A —
 // ONE compaction behavior BY CONSTRUCTION: both entry points route through
 // this module).
 //

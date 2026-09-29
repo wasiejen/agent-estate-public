@@ -125,7 +125,7 @@
 // WHAT IT RUNS:
 //   The plugin is initialized with directory=<temp sandbox root> (os.tmpdir,
 //   mkdtemp), so ALL its fs writes land in the sandbox: dummy
-//   .opencode/agent/handover/handover_task.md spec (non-empty sentinel), mirror file pre-filled
+//   agent/handover/handover_task.md spec (non-empty sentinel), mirror file pre-filled
 //   with STALE content, empty plugin.log. The real .opencode/ files are NEVER
 //   touched (S5 verifies byte-identity + zero writes outside the sandbox).
 //   S1 pre-flight warn (3): spec present → no warn; renamed away → exactly ONE
@@ -407,7 +407,7 @@
 //   S14 compact_memory pre-compaction dump hook (8) — TODO #152 (approved
 //      2026-09-15): BEFORE ANY dispatch the hook dumps the target session's
 //      full pre-compaction content into the corpus via the dump script
-//      (<root>/.opencode/agent/scripts/db/dump_session.cjs <sid> --out
+//      (<root>/agent/scripts/db/dump_session.cjs <sid> --out
 //      <relpath>), BOTH artifacts (#92 2026-09-27: the md + the raw json —
 //      the json spawn carries --out <rel>.json --json), each INDEPENDENTLY
 //      (one's failure does not skip the other); NO-OVERWRITE naming keyed on
@@ -476,7 +476,7 @@
 //      activity log as a directly-fired tool (.opencode/tools/loop_log.ts,
 //      T3 loop-tool-batch part 3) imported DIRECT (type-stripped); driven
 //      with sandbox roots (the created autorun-* folder + loop_log.md land
-//      in the sandbox, never the repo's real .opencode/loop/); the folder
+//      in the sandbox, never the repo's real loop/); the folder
 //      stamp is local-clock — pinned by FORMAT only (the AGENTS.md
 //      pattern-5 discipline):
 //      (10.18) registration shape: the tool() default export (description +
@@ -687,8 +687,8 @@
 //      trailing blank line, appended to the HARDCODED target; the stamp
 //      is minute-resolution, pinned by FORMAT + the before/after trick;
 //      the return per param = <param> + target: <rel> + entry: <exact
-//      text>; feedback → .opencode/agent/agent_feedback.md ### /
-//      knowledge → .opencode/agent/knowledge/knowledge_inbox.md ## /
+//      text>; feedback → agent/agent_feedback.md ### /
+//      knowledge → agent/knowledge/knowledge_inbox.md ## /
 //      todo → the PROJECT-ROOT todo_inbox.md ## — the no-path-parameter
 //      IS the sandbox: the deliberate deviation from the proposal
 //      (the proposal's quoted ".opencode/ subtree" wording — the quote
@@ -988,9 +988,9 @@ const PLUGIN_TS = path.join(REPO_ROOT, ".opencode", "plugin", "ctx_watchdog.ts")
 
 // --------------------------------------------------------------- fixed payloads
 
-const HOV_PROMPT = "Read .opencode/agent/handover/handover_task.md and execute it EXACTLY.";
+const HOV_PROMPT = "Read agent/handover/handover_task.md and execute it EXACTLY.";
 const ORIGINAL_SPEC =
-  "# PROBE DUMMY SPEC\n\nsentinel — NOT the real spec file (the real one lives at <repo root>/.opencode/agent/handover/handover_task.md).\n";
+      "# PROBE DUMMY SPEC\n\nsentinel — NOT the real spec file (the real one lives at <repo root>/agent/handover/handover_task.md).\n";
 // P02 (v2.7): the mirror is DISABLED — the plugin must NEVER touch this file, so the
 // sentinel must survive the whole probe byte-for-byte.
 const STALE_SENTINEL = "STALE MIRROR SENTINEL — the plugin must NOT touch this file (mirror disabled, P02).\n";
@@ -1039,10 +1039,11 @@ const check = (id, section, label, cond, detail = "") => {
 // temp sandbox root — the plugin is initialized with directory=SANDBOX, so every
 // fs write it performs lands here, never in the repo. The fixture DBs live here too.
 const SANDBOX = mkdtempSync(path.join(os.tmpdir(), "fst_handover_probe_"));
-const SB_SPEC = path.join(SANDBOX, ".opencode", "agent", "handover", "handover_task.md");
-const SB_MIRROR = path.join(SANDBOX, ".opencode", "agent", "handover", "handover_task_to_planner.md");
+const SB_SPEC = path.join(SANDBOX, "agent", "handover", "handover_task.md");
+const SB_MIRROR = path.join(SANDBOX, "agent", "handover", "handover_task_to_planner.md");
 const SB_LOG = path.join(SANDBOX, ".opencode", "plugin.log");
-mkdirSync(path.join(SANDBOX, ".opencode", "agent", "handover"), { recursive: true });
+mkdirSync(path.join(SANDBOX, "agent", "handover"), { recursive: true });
+mkdirSync(path.join(SANDBOX, ".opencode"), { recursive: true });
 writeFileSync(path.join(SANDBOX, "sandbox_root_marker.txt"), "sandbox\n");
 writeFileSync(SB_SPEC, ORIGINAL_SPEC);
 writeFileSync(SB_MIRROR, STALE_SENTINEL);
@@ -2921,7 +2922,7 @@ const dbPathBeforeS12 = getDbPath(); // the hook-restore capture (cf. check 39)
 //
 // The plugin-registered compact_memory (the model_budget compaction budget —
 // consolidated 2026-09-22 into the shared budget file; approved proposal
-// .opencode/proposals/approved/2026-09-12_compact_memory_plugin.md, supersedes
+// proposals/approved/2026-09-12_compact_memory_plugin.md, supersedes
 // the v1 artifact pinned by S10): the plugin file is imported DIRECT
 // (type-stripped) — NO hook fires, the S5 tallies are unaffected; ALL the
 // tool's fs writes are steered into the sandbox via the tool context's
@@ -2998,7 +2999,7 @@ const file = path.join(OUT_DIR, rel);
 fs.mkdirSync(path.dirname(file), { recursive: true });
 fs.writeFileSync(file, "FAKE DUMP of " + sid + "\\n");
 `;
-const QC_DUMP_SCRIPT = path.join(SANDBOX, ".opencode", "agent", "scripts", "db", "dump_session.cjs");
+const QC_DUMP_SCRIPT = path.join(SANDBOX, "agent", "scripts", "db", "dump_session.cjs");
 mkdirSync(path.dirname(QC_DUMP_SCRIPT), { recursive: true });
 writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
 
@@ -3535,10 +3536,10 @@ let s14Body1Json = null;
     threw = true;
   }
   const ctxLog = readFileSync(path.join(SANDBOX, ".opencode", "temp", "ctx.log"), "utf8");
-  const retryMd = ctxLog.split("\n").filter((l) => l.includes("DUMP-RETRY=1 ses_pc_noscript .opencode/archive/sessions/compaction_dumps/ses_pc_noscript_c0.md")).length;
-  const retryJson = ctxLog.split("\n").filter((l) => l.includes("DUMP-RETRY=1 ses_pc_noscript .opencode/archive/sessions/compaction_dumps/ses_pc_noscript_c0.json")).length;
-  const failMd = ctxLog.split("\n").filter((l) => l.includes("DUMP-FAIL ses_pc_noscript .opencode/archive/sessions/compaction_dumps/ses_pc_noscript_c0.md")).length;
-  const failJson = ctxLog.split("\n").filter((l) => l.includes("DUMP-FAIL ses_pc_noscript .opencode/archive/sessions/compaction_dumps/ses_pc_noscript_c0.json")).length;
+  const retryMd = ctxLog.split("\n").filter((l) => l.includes("DUMP-RETRY=1 ses_pc_noscript archive/sessions/compaction_dumps/ses_pc_noscript_c0.md")).length;
+  const retryJson = ctxLog.split("\n").filter((l) => l.includes("DUMP-RETRY=1 ses_pc_noscript archive/sessions/compaction_dumps/ses_pc_noscript_c0.json")).length;
+  const failMd = ctxLog.split("\n").filter((l) => l.includes("DUMP-FAIL ses_pc_noscript archive/sessions/compaction_dumps/ses_pc_noscript_c0.md")).length;
+  const failJson = ctxLog.split("\n").filter((l) => l.includes("DUMP-FAIL ses_pc_noscript archive/sessions/compaction_dumps/ses_pc_noscript_c0.json")).length;
   check(
     "104",
     "S14",
@@ -3556,8 +3557,8 @@ let s14Body1Json = null;
 {
   writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
   const r1 = qcMod.preCompactionDump(SANDBOX, "ses_pc_ok", 0);
-  s14File1 = path.join(SANDBOX, ".opencode", "archive", "sessions", "compaction_dumps", "ses_pc_ok_c0.md");
-  s14File1Json = path.join(SANDBOX, ".opencode", "archive", "sessions", "compaction_dumps", "ses_pc_ok_c0.json");
+  s14File1 = path.join(SANDBOX, "archive", "sessions", "compaction_dumps", "ses_pc_ok_c0.md");
+  s14File1Json = path.join(SANDBOX, "archive", "sessions", "compaction_dumps", "ses_pc_ok_c0.json");
   s14Body1 = existsSync(s14File1) ? readFileSync(s14File1, "utf8") : null;
   s14Body1Json = existsSync(s14File1Json) ? readFileSync(s14File1Json, "utf8") : null;
   check(
@@ -4021,8 +4022,8 @@ let btTool;
 // part 3): the loop-log line every agent used to hand-format, now
 // machine-formatted. Imported DIRECT (type-stripped, the S12/S13 load
 // pattern). The probe drives it with context.directory = sandbox roots —
-// the loop root <dir>/.opencode/loop, the created autorun-* folder, and the
-// loop_log.md all land in the sandbox (the repo's real .opencode/loop/ is
+// the loop root <dir>/loop, the created autorun-* folder, and the
+// loop_log.md all land in the sandbox (the repo's real loop/ is
 // NEVER touched; S5 hygiene verifies zero writes outside the sandbox). The
 // folder stamp is local-clock, minute resolution — pinned by FORMAT (regex),
 // never the exact value (the AGENTS.md pattern-5 discipline). Plain tool()
@@ -4084,7 +4085,7 @@ let llRetA = null;
   const lines = String(llRetA).split("\n");
   llFolderA = lines[0]?.startsWith("folder: ") ? lines[0].slice("folder: ".length) : null;
   const llFolderBareA = (llFolderA ?? "").replace(/\s\((created|existing)\)$/, "");
-  const logFile = path.join(LL_A, ".opencode", "loop", llFolderBareA, "loop_log.md");
+  const logFile = path.join(LL_A, "loop", llFolderBareA, "loop_log.md");
   const logBody = existsSync(logFile) ? readFileSync(logFile, "utf8") : null;
   check(
     "119",
@@ -4106,7 +4107,7 @@ let llRetA = null;
 //      the same return: the ` (created)` folder + `verified: readback-match`)
 {
   const llFolderBareA2 = (llFolderA ?? "").replace(/\s\((created|existing)\)$/, "");
-  const logFile = path.join(LL_A, ".opencode", "loop", llFolderBareA2, "loop_log.md");
+  const logFile = path.join(LL_A, "loop", llFolderBareA2, "loop_log.md");
   const logBody = existsSync(logFile) ? readFileSync(logFile, "utf8") : null;
   const lineOnly = logBody === null ? null : logBody.replace(/\n$/, "");
   const lineRe = /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2} -->START probe-s16 unknown probe-model probe start line$/;
@@ -4128,7 +4129,7 @@ let llRetA = null;
 //      (the exactly-one-folder rule — still no ANOMALY)
 {
   const llFolderBareA3 = (llFolderA ?? "").replace(/\s\((created|existing)\)$/, "");
-  const logFile = path.join(LL_A, ".opencode", "loop", llFolderBareA3, "loop_log.md");
+  const logFile = path.join(LL_A, "loop", llFolderBareA3, "loop_log.md");
   const countLines = () => readFileSync(logFile, "utf8").split("\n").filter((l) => l.length > 0).length;
   const beforeCount = countLines();
   const res2 = await llTool.execute(
@@ -4156,7 +4157,7 @@ let llRetA = null;
 //      file gains exactly one more line
 {
   const llFolderBareA4 = (llFolderA ?? "").replace(/\s\((created|existing)\)$/, "");
-  const logFile = path.join(LL_A, ".opencode", "loop", llFolderBareA4, "loop_log.md");
+  const logFile = path.join(LL_A, "loop", llFolderBareA4, "loop_log.md");
   const countLines = () => readFileSync(logFile, "utf8").split("\n").filter((l) => l.length > 0).length;
   const beforeCount = countLines();
   const res3 = await llTool.execute(
@@ -4184,8 +4185,8 @@ let llRetA = null;
 //      the LAST return line (the v2 `verified:` line sits above it — the
 //      other folder stays untouched)
 {
-  const dOld = path.join(LL_MULTI, ".opencode", "loop", "autorun-2026-09-01_09-05");
-  const dNew = path.join(LL_MULTI, ".opencode", "loop", "autorun-2026-09-14_10-05");
+  const dOld = path.join(LL_MULTI, "loop", "autorun-2026-09-01_09-05");
+  const dNew = path.join(LL_MULTI, "loop", "autorun-2026-09-14_10-05");
   mkdirSync(dOld, { recursive: true });
   mkdirSync(dNew, { recursive: true });
   utimesSync(dOld, Date.UTC(2026, 8, 1, 9, 5) / 1000, Date.UTC(2026, 8, 1, 9, 5) / 1000);
@@ -4212,14 +4213,14 @@ let llRetA = null;
 
 // ------------------------------------------------------------------ S17 numword scriptlet (26)
 //
-// The lane-5.2 scriptlet (.opencode/agent/scripts/numword/): ONE shared map
+// The lane-5.2 scriptlet (agent/scripts/numword/): ONE shared map
 // (numwords.json) read by BOTH entry points. The node CLI is SPAWNED (the
 // committed scriptlet IS the contract — no in-probe re-implementation), the
 // python twin is spawned via the repo venv python, and the module is required
 // DIRECT via createRequire (node -e usable). Grammar: research §3.2 +
 // addendum C4 — unknown input is LOUD, never a best-guess.
 
-const NUMWORD_DIR = path.join(REPO_ROOT, ".opencode", "agent", "scripts", "numword");
+const NUMWORD_DIR = path.join(REPO_ROOT, "agent", "scripts", "numword");
 const NUMWORD_JS = path.join(NUMWORD_DIR, "numword.cjs");
 const NUMWORDS_JSON = path.join(NUMWORD_DIR, "numwords.json");
 const VENV_PY = path.join(REPO_ROOT, ".venv", "Scripts", "python.exe");
@@ -5778,7 +5779,7 @@ writeFileSync(path.join(ioRnDir, "OpenCodeProjects", "SiblingProj", "whatever.md
 // todo_inbox.md sits at the project root — the spec ratifies the three
 // exact paths). Imported DIRECT (type-stripped, the S12/S13/S16 load
 // pattern). Driven with context.directory = sandbox roots — the targets
-// land in the sandbox, the real .opencode/agent/agent_feedback.md /
+// land in the sandbox, the real agent/agent_feedback.md /
 // knowledge_inbox.md / todo_inbox.md are NEVER touched (S5 hygiene
 // verifies zero writes outside the sandbox). The stamp is local-clock,
 // minute resolution — pinned by FORMAT (regex) + the minute-boundary
@@ -5791,10 +5792,10 @@ const SUB_TODO = path.join(SANDBOX, "submit-todo"); // the todo append (check 23
 const SUB_KEEP = path.join(SANDBOX, "submit-keep"); // the never-read preservation (check 238)
 const SUB_NO_PARAMS_ERR = "error: none of feedback/knowledge/todo/ideas provided — nothing written";
 const SUB_REL = {
-  feedback: ".opencode/agent/agent_feedback.md",
-  knowledge: ".opencode/agent/knowledge/knowledge_inbox.md",
+  feedback: "agent/agent_feedback.md",
+  knowledge: "agent/knowledge/knowledge_inbox.md",
   todo: "todo_inbox.md",
-  ideas: ".opencode/agent/agent_ideas.md",
+  ideas: "agent/agent_ideas.md",
 };
 const SUB_HDR = { feedback: "###", knowledge: "##", todo: "##", ideas: "###" };
 const subEntry = (k, s, role, ses, text) => `${SUB_HDR[k]} ${s} ${role} ${ses}\n${text}\n\n`;
@@ -5879,13 +5880,13 @@ let subTool;
     "S22",
     "no-params ({} and all-empty-string) → the EXACT error string + NO target created (nothing written)",
     noArgsRet === SUB_NO_PARAMS_ERR && emptyRet === SUB_NO_PARAMS_ERR &&
-      !existsSync(path.join(SUB_FB, ".opencode")) && !existsSync(path.join(SUB_FB, "todo_inbox.md")),
+      !existsSync(path.join(SUB_FB, "agent")) && !existsSync(path.join(SUB_FB, "todo_inbox.md")),
     JSON.stringify({ noArgsRet, emptyRet }),
   );
 }
 
 // 235 — the feedback append (1 of 3): a fresh sandbox project dir — the
-//      tool CREATES .opencode/agent/agent_feedback.md (parent dirs
+//      tool CREATES agent/agent_feedback.md (parent dirs
 //      auto-created) carrying ONLY the entry: `### <stamp> probe-s21
 //      ses_fx_sub` + the raw text + one trailing blank line (the stamp
 //      minute-resolution, pinned by the before/after trick); the return is
@@ -5913,7 +5914,7 @@ let subTool;
 }
 
 // 236 — the knowledge append (2 of 3): the same contract for
-//      .opencode/agent/knowledge/knowledge_inbox.md with the `## ` header
+//      agent/knowledge/knowledge_inbox.md with the `## ` header
 //      (the established form of the inbox channel)
 {
   const t1 = subStampNow();
@@ -6072,8 +6073,8 @@ let subTool;
   check(
     "255",
     "S25",
-    "DUMP-OK line on success: `<dt> DUMP-OK ses_qc_dumpok .opencode/archive/sessions/compaction_dumps/ses_qc_dumpok_c0.md ms=<ms>` (the #78 ms= form, the DUMP-FAIL prefix style; #107 full repo-relative path)",
-    r.ok === true && line != null && new RegExp(`^${DT} DUMP-OK ses_qc_dumpok \\.opencode/archive/sessions/compaction_dumps/ses_qc_dumpok_c0\\.md ms=\\d+$`).test(line),
+    "DUMP-OK line on success: `<dt> DUMP-OK ses_qc_dumpok archive/sessions/compaction_dumps/ses_qc_dumpok_c0.md ms=<ms>` (the #78 ms= form, the DUMP-FAIL prefix style; #107 full repo-relative path)",
+    r.ok === true && line != null && new RegExp(`^${DT} DUMP-OK ses_qc_dumpok archive/sessions/compaction_dumps/ses_qc_dumpok_c0\\.md ms=\\d+$`).test(line),
     JSON.stringify(line),
   );
 }

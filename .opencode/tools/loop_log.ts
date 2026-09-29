@@ -1,5 +1,5 @@
 // T3 (iter-13, the loop-tool-batch part 3 — approved design:
-// .opencode/proposals/approved/2026-09-12_loop-tool-batch.md): the `loop_log`
+// proposals/approved/2026-09-12_loop-tool-batch.md): the `loop_log`
 // custom tool — the looprun activity log as a DIRECTLY-FIRED tool. Every agent
 // used to hand-append its loop-log line (the 8-char status token, the
 // role-iteration, the session id, the model, the content — format discipline
@@ -7,7 +7,7 @@
 // AND the per-agent folder-permission management (the single point that grants
 // loop-folder write access to all agents at once).
 //
-// v2 (plan24; the approved design .opencode/proposals/approved/
+// v2 (plan24; the approved design proposals/approved/
 // 2026-09-12_loop_log-v2.md, parts A–D, built A→B→C→D):
 //   Part A — auto-identity: `role`/`model`/`session` are OPTIONAL; each is
 //      resolved by a best-effort chain (first hit wins, else the literal
@@ -39,7 +39,7 @@
 //      log omits the field).
 //
 // Behavior (append-only — the tool NEVER rewrites or curates the file):
-//   1. resolve `.opencode/loop/` against `context.directory ?? process.cwd()`;
+//   1. resolve `loop/` against `context.directory ?? process.cwd()`;
 //   2. NO `autorun-*` folder there  -> create `autorun-<YYYY-MM-DD_HH-MM>`
 //      (the name MACHINE-COMPUTED from the local clock, never retyped — the
 //      AGENTS.md pattern-5 discipline) + its `loop_log.md`;
@@ -115,7 +115,7 @@ function normalizeStatus(raw: unknown): string | null {
 }
 
 export default tool({
-  description: `Appends ONE machine-timestamped loop-log line to the current looprun's loop_log.md (auto-creates the dated autorun-* folder when .opencode/loop/ is empty) and CONFIRMS the write (reads the file back, byte-compares the last line). status = a free-form word containing one of the keywords (checked in order): start / done / return / warn / info / correct -> the established 8-char tokens (-->START / DONE<--- / -RETURN- / -WARNING / --INFO-- / CORRECT-); case/dash/arrow variants normalize ('restart' -> START); an unrecognized status returns an error naming the keywords (nothing is written). role / model / session are OPTIONAL — auto-filled from the host context (role/model <- context.agent, model fallback <- context.extra.model.id, session <- context.sessionID | sessionId | session.id; else the literal 'unknown'). Return: folder: <name> (created|existing) + line: <exact line> + verified: readback-match (or readback-MISMATCH: <actual last line>) + corrects: <previous log line> (status 'correct' only) + the ANOMALY note (several autorun-* folders). The line format is unchanged: <stamp> <status> <role> <session> <model> <content>; append-only (no earlier line is ever rewritten).`,
+  description: `Appends ONE machine-timestamped loop-log line to the current looprun's loop_log.md (auto-creates the dated autorun-* folder when loop/ is empty) and CONFIRMS the write (reads the file back, byte-compares the last line). status = a free-form word containing one of the keywords (checked in order): start / done / return / warn / info / correct -> the established 8-char tokens (-->START / DONE<--- / -RETURN- / -WARNING / --INFO-- / CORRECT-); case/dash/arrow variants normalize ('restart' -> START); an unrecognized status returns an error naming the keywords (nothing is written). role / model / session are OPTIONAL — auto-filled from the host context (role/model <- context.agent, model fallback <- context.extra.model.id, session <- context.sessionID | sessionId | session.id; else the literal 'unknown'). Return: folder: <name> (created|existing) + line: <exact line> + verified: readback-match (or readback-MISMATCH: <actual last line>) + corrects: <previous log line> (status 'correct' only) + the ANOMALY note (several autorun-* folders). The line format is unchanged: <stamp> <status> <role> <session> <model> <content>; append-only (no earlier line is ever rewritten).`,
   args: {
     role: tool.schema
       .string()
@@ -147,7 +147,7 @@ export default tool({
     }
 
     const dir = context?.directory ?? process.cwd();
-    const loopRoot = path.join(dir, ".opencode", "loop");
+    const loopRoot = path.join(dir, "loop");
 
     // Step 2 — locate (or create) the current looprun folder.
     // (Part B: an EMPTY root means THIS call creates the folder.)

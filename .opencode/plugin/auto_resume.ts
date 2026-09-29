@@ -1,5 +1,5 @@
 // auto_resume.ts — UNIT 1+2+3+4 of the auto-resume plugin (approved 2026-09-21,
-// .opencode/proposals/approved/2026-09-21_opencode-auto-resume-plugin.md).
+// proposals/approved/2026-09-21_opencode-auto-resume-plugin.md).
 //
 // UNIT 1 (the testbed):
 //   (1) EVENT LOG — EVERY event the host delivers is logged as ONE line to
@@ -662,7 +662,7 @@ async function onToolAfterNudge(
 function currentLoopFolder(): string | null {
   try {
     if (!projectDir) return null;
-    const loopRoot = join(projectDir, ".opencode", "loop");
+    const loopRoot = join(projectDir, "loop");
     const folders = readdirSync(loopRoot, { withFileTypes: true })
       .filter((e) => e.isDirectory() && e.name.startsWith("autorun-"))
       .map((e) => e.name);
@@ -681,7 +681,7 @@ function spawnTitleFor(): string | null {
     const folder = currentLoopFolder();
     if (!folder) return null;
     // Missing loop_log.md throws → caught below → null (no identifier).
-    const logText = readFileSync(join(projectDir, ".opencode", "loop", folder, "loop_log.md"), "utf-8");
+    const logText = readFileSync(join(projectDir, "loop", folder, "loop_log.md"), "utf-8");
     let max = 0;
     for (const m of logText.matchAll(/planner-(\d+)/g)) {
       const n = parseInt(m[1], 10);
@@ -821,7 +821,7 @@ async function checkSpawnTrigger() {
 function continueText(sid: string): string {
   return (
     `[auto-resume unit 4 — planner liveness watchdog, session ${sid}] Your last turn ended without a recognized action: line ` +
-    "(compaction, sudden stop, or protocol gap). Follow .opencode/agent/prompts/agent_readme_post_compaction.md — " +
+    "(compaction, sudden stop, or protocol gap). Follow agent/prompts/agent_readme_post_compaction.md — " +
     "re-read the named head files, rebuild from the committed state (git log + NAP + TODO), and continue the current " +
     "unit or close it with an action: line."
   );
@@ -838,7 +838,7 @@ function continueText(sid: string): string {
 // .consumed ONLY after a successful promptAsync (a failed send keeps it
 // for the next attempt).
 const POST_COMPACTION_ADDENDUM =
-  "post-compaction: re-read your head files per .opencode/agent/prompts/agent_readme_post_compaction.md and CONTINUE — never re-plan from scratch";
+  "post-compaction: re-read your head files per agent/prompts/agent_readme_post_compaction.md and CONTINUE — never re-plan from scratch";
 
 function queuedMessagePath(sid: string): string {
   return join(logDir, `compact_message_${sid}`);
@@ -896,7 +896,7 @@ function restartText(sid: string, exhausted: boolean): string {
     base +
     ` compaction budget exhausted — scan the dump of ${sid} to gain all relevant knowledge ` +
     `(the auto-dump corpus; ` +
-    "`dump_session.cjs` in .opencode/agent/scripts/db/ for on-demand dumps); " +
+    "`dump_session.cjs` in agent/scripts/db/ for on-demand dumps); " +
     "make a clean handover/commit if not present; then continue per the NAP."
   );
 }
@@ -1495,7 +1495,7 @@ function fireLimitStop(sid: string, w: Watch, window: number): void {
   const folder = currentLoopFolder();
   if (!folder) return; // no resolvable looprun → the log line only
   try {
-    const dir = join(projectDir, ".opencode", "loop", folder);
+    const dir = join(projectDir, "loop", folder);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     appendFileSync(join(dir, "loop_log.md"), line + "\n", "utf-8");
   } catch {

@@ -1,5 +1,5 @@
 // T2 (iter-10, the loop-tool-batch part 2 — approved design:
-// .opencode/proposals/approved/2026-09-12_loop-tool-batch.md): the `ctx_gauge`
+// proposals/approved/2026-09-12_loop-tool-batch.md): the `ctx_gauge`
 // custom tool — the context-gauge readout as a DIRECTLY-FIRED tool. The
 // agent fires this for context-budget decisions instead of the bash shell-out
 // `node .opencode\plugin\scripts\peek.mjs` (the shell-out costs ~15k tokens

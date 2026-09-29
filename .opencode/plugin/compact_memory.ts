@@ -1,6 +1,6 @@
 // compact_memory — the plugin-registered compaction tool (the THIN
 // ENTRY-POINT WRAPPER — 2026-09-26 unification Part A:
-// .opencode/proposals/approved/2026-09-26_compaction-unification.md).
+// proposals/approved/2026-09-26_compaction-unification.md).
 //
 // The shared compaction behavior (the config reader, the budget store +
 // cap resolver, the keepTokens resolution (#99), the summarizer-pair
@@ -86,9 +86,9 @@ function tempDir(root: string): string {
 //
 // TODO #152 (the "dump function" entry, approved 2026-09-15): before ANY
 // compaction dispatch, dump the target session's FULL pre-compaction content
-// into the corpus (`.opencode/archive/sessions/`) so the corpus stays complete
+// into the corpus (`archive/sessions/`) so the corpus stays complete
 // for compacted sessions. The dump is the repo script
-// `.opencode/agent/scripts/db/dump_session.cjs <sid> --out <relpath>` (the
+// `agent/scripts/db/dump_session.cjs <sid> --out <relpath>` (the
 // script opens the LIVE host DB `readOnly:true` — it is NEVER written). The
 // hook is BEST-EFFORT: it NEVER throws and NEVER blocks the tool — a failure
 // appends a DUMP-FAIL line to the ctx log and the dispatch response carries a
@@ -112,7 +112,7 @@ function dumpStamp(): string {
 // #107: the ctx.log DUMP-* lines carry the FULL repo-relative dump path
 // (prefix + name) so a live acceptance is a single `ls` — the spawn's `--out`
 // stays corpus-relative (the script's OUT_DIR-relative argument).
-const DUMP_ARCHIVE_REL = ".opencode/archive/sessions";
+const DUMP_ARCHIVE_REL = "archive/sessions";
 
 // The pure dump-file NAME (no clock inside): `compaction_dumps/<sid>_c<count>.<format>`
 // (format "md" default / "json" #92), or `compaction_dumps/<sid>_c<count>_<stamp>.<format>`
@@ -198,7 +198,7 @@ export function resolveNodeExe(execPath: string = process.execPath): string {
 // ETIMEDOUT was a spawn-level stall (measured dump wall-times 64–87 ms), so
 // the retry + the captured stderr trace the root cause.
 export function preCompactionDump(root: string, sessionID: string, count: number): { ok: boolean; files: string[]; error?: string } {
-  const scriptPath = path.join(root, ".opencode", "agent", "scripts", "db", "dump_session.cjs");
+  const scriptPath = path.join(root, "agent", "scripts", "db", "dump_session.cjs");
   const archiveDir = path.join(root, DUMP_ARCHIVE_REL);
   const baseTarget = path.join(archiveDir, preCompactionDumpName(sessionID, count, null));
   const stamp = existsSync(baseTarget) ? dumpStamp() : null;

@@ -1,5 +1,5 @@
 // compact_memory — the plugin-registered compaction tool (approved proposal
-// v2, Parts 1-4: .opencode/proposals/approved/2026-09-12_compact_memory_plugin.md).
+// v2, Parts 1-4: proposals/approved/2026-09-12_compact_memory_plugin.md).
 // Supersedes the retired custom tool
 // .opencode/plugin/deactivated/compact_memory_v1.ts (moved from
 // .opencode/tools/compact_memory.ts): the custom-tool context is clientless BY
@@ -106,7 +106,7 @@ Context was compacted. Read .opencode\\agent\\prompts\\agent_readme_post_compact
 // message replaces the directive as the response body, and this fixed line
 // keeps the reload invariant alive whatever the caller writes.
 const POST_COMPACTION_TRAILER =
-  "Post-compaction reminder: re-read .opencode/agent/prompts/agent_readme_post_compaction.md before continuing.";
+  "Post-compaction reminder: re-read agent/prompts/agent_readme_post_compaction.md before continuing.";
 
 // v1 reporting defaults — the COMPACT line + the success line report THESE
 // when the keep args are omitted (the v1 reporting shape is preserved).

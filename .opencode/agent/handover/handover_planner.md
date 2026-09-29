@@ -58,12 +58,41 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
     09-28, .opencode/temp 09-29) → the split migration list must carry:
     `.venv` (FST side) + `.opencode/node_modules`, `.opencode/temp/`,
     `plugin.log` (agent side) — rebuild at the new locations.
-- Open (his ruling, ordered): (1) 3.12 venv rebuild (his domain) → then
-  the full-gate re-baseline (worker or next autorun) closes #113;
-  (2) what ran at ~22:27 09-28 + where the the estate (former name) folder went;
-  (3) the carve plan GO (filter-repo carve + no submodules + agent repo
-  as live workspace) → I prepare the read-only carve script + pin-sweep
-  list; execution his domain.
+- Round 2 (post-restart, ~02:00):
+  - venv REBUILT on 3.12.9 (verified 02:00: pyvenv.cfg → the Python312
+    install, 459 tests collect) → the full-gate re-baseline (worker /
+    next autorun) remains — closes #113.
+  - His restored compact_budget.json VERIFIED (all keys valid; his
+    `emergency_budget`=1 was right — that IS the key name) — the
+    injected line now reads "| 5 compactions left" == the ctx_gauge
+    self-read 5 → the #114 1-vs-5 mismatch GONE live (the no-total
+    fresh-session path gets its final check on the next fresh
+    session's first ctx line — close #114 on that data point). The
+    forgotten cap file = `.opencode/temp/lineage_max_depth` (one
+    integer; -1 = unbounded; default 10) — created with 10 + tracked.
+  - temp/ git strategy → INVERTED ignore (`*` + negations for the two
+    state files) — new logs auto-ignored (journal_edit.log already
+    appeared); the silent-loss class of the 22:27 deletion is now
+    git-visible.
+  - Submodule idea (his refinement: per-project bookkeeping
+    submodules inside the agent repo) discussed — recommendation: NO
+    (pointer-bump commits still land in the agent history = the goal
+    only half-met; live-loop two-commit ceremony; fresh-clone
+    ceremony); plain `projects/<name>/` folders + `git log -- <path>`
+    filtering = per-project history with zero ceremony; a separate
+    per-project repo (NOT a submodule) only if it needs its own
+    remote/CI. Awaiting his ruling.
+  - Carve mechanics explained (fresh clone + `git filter-repo --
+    invert-paths` per side); exact path lists + commands on his GO
+    (read-only prep; the existing extract_dryrun.mjs + pin map is the
+    start). NOTE: the GitHub FST clone currently carries the MIXED
+    history (.opencode is tracked there) — carve + force-push / fresh
+    remote, his call.
+- Open (his ruling, ordered): (1) the full-gate re-baseline (worker or
+  next autorun) closes #113; (2) what ran at ~22:27 09-28 + where the
+  the estate (former name) folder went (the reference is still dead); (3) the
+  per-project-folder (vs submodule) ruling + the carve GO → I prepare
+  the read-only carve script + pin-sweep list; execution his domain.
 ## Compressed archive (one line each
   - 2026-09-28 autorun (ses_f1909eba8ffekWTqY0gYY2DK3l, planner-38, Qwen3.8-27B-Q3S-245K-slow) — plan38: idle lane (queue all maintainer-blocked) — #116 source-side research LANDED (the `message.updated` payload carries the finished step's tokens {in,out,reasoning,cache.r/w}+cost — a real-time gauge readout is feasible plugin-side; live capture still needs his restart + capture-plugin registration) + dated evidence entry + loop_log auto-fill knowledge entry (3rd occurrence) + #114/#115 8th live data point (live process still pre-12e3262/0c90abe) — details: loop folder plan38_summary.md + git e7610ac
   - 2026-09-28 autorun (ses_f191a6cb5ffeq4noDPvOTFNkxM, planner-37, Qwen3.8-27B-Q3S-245K-slow) — plan37: idle-lane pass (queue all maintainer-blocked) — the tail-trim tool PROPOSAL filed (2026-09-28_context-trim-tool.md: report + tail (tail_start_id rewrite, non-destructive + reversible) first, the destructive `turns` mode follow-up; the live-DB write tool = his call) + #114/#115 7th live data point (live process still pre-12e3262/0c90abe) + baseline re-verified (10 smokes green at baseline + probe 346 = 335 + 11 #113 env + ruff F=0) + friction entry (bt WRITE regions single-text semantics) — details: loop folder plan37_summary.md + git 79de802..8b81670

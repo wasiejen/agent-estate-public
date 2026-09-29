@@ -170,20 +170,7 @@ a native per-call keep field).
   read-only report derived from the DB (per-message id + token mass + in/out
   of the current window per marker/tail + which messages a toggle would drop)
   = the proposed `report` mode, extended. Cheap — build it first.
-- Self-prune + self-summary (removing the compaction tool): two honest
-  caveats — (i) the summary must land WHERE the context builder treats it
-  specially (the summaryIndex logic) → that requires the fork's marker
-  mechanism or the state list anyway; (ii) generating the summary
-  IN-SESSION consumes the session's own window at exactly the 90 %+ moment
-  (the summary's output tokens count against the same window that triggered
-  the compaction) → risk of crossing the wall BEFORE the prune lands; the
-  current design dispatches to a separate summarizer session precisely so the
-  summary output does not eat the session's remaining window. Your cache
-  argument is real (a same-model self-summary reuses the session's prefix
-  cache; the separate compaction session re-prefills cold) — but at our window
-  sizes, the output-fit risk dominates until the state-list fork exists.
-  Recommendation: KEEP the compaction tool (it writes marker + summary for us),
-  customize retention via the tail-set above, revisit self-summary only after
+- Self-prune + self-summary (rem 
   the state list is proven.
 
 ### "How do I make the bun exe after changing the fork?"
@@ -217,9 +204,22 @@ verified against 1.18.32; re-grep at apply time (possible 1-line drift).
 --wip
 --comment:
 - "host has NO auto-compact backstop (`compaction.auto = false`)" - we have a auto compact backstop with the plugin recovery_context which triggers on context limit violation. thus we might trigger a second compaction if the tail_start_id is wrongly set.
+  - and honestly if we can apply the message-state-list then we do not need compaction as as safety net anymore - we could just wire in the removal of some big tool output (e.g. biggest tool output first and min 30k for example) and thus free up enough room to do a proper message-state-list trigger with self-summery
+    - reloading the compaction model or reloading the thus changed context is not so much different
 - "Semantics recommendation: explicit exact-retention" yes - it should be truthful in its working. but for security or to prevent wrong inputs is may best to not allow very low keepMessages like 1,2 or 3 .. maybe 6 and state that explicitly in the descirption (so it is truthful)
 - "Real costs to weigh: (a)" - the TUI still shows most of the messages. but would be better if all to just have a clear log of earlier messages. so would be a small feature not a detriment
 - "- Self-prune + self-summary" of course keep it - this is an idea not an instruction or concrete plan. there are 28 thousend
 
 to your concern because of update and reapplying the changes:
 - there are 28 thousend forks currently and who knows how many forks of forks of opencode. i can not imagine that this is not solved in an easy way already. or maybe a non-issue in the first place. on each fetch of the origin i have to do a merge and just move keep out changes. npm install is the only thing i have no idea first why this is a problem and second even less on how to solve this :-)
+
+### Proposed order (my recommendation)
+1. + 2. are approved
+3. self-pruning is more a tool to free up space more deliberately before work or after ingesting big tool output. tool output and thoughts that are no longer needed can be dropped when a finished design/draft is ready to be implemented. or for webfetch to summerize the findings and remove after each or couple of webfetches. this makes the cost of compaction way less and preserves the loaded file state like repo specific and readme files. in my eyes way better than the crude drop the head completely and only keep the tail
+- and i see the need for model toggling every time the session slows down due to big reads or long thinking blocks that later are only unnecessary weight and make really long sessions potentially viable.
+  - this also makes smaller context size on models more viable and let me optimize more on speed instead of using the slow models to have max context size
+- also the developement of the dev fork is really shallow and most of the new features will never land on v1 of opencode. thus to just stay with the current version and accasionally update it is ok - does not need to be up to date without mayor fixed errors.
+- AND i also want to see how well this works - to have an own fork :-) (learning opportunity for me)
+4. the 11-line is if 2. is working the more cononical way but at the same time unnecessary if 2. works.
+
+the report lookup should also offer the info about what file was read and line markings if possible so the agent know exactly what is in the context and can choose more informed what to drop (addition for 3.)

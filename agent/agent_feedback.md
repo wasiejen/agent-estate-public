@@ -699,4 +699,5 @@ Two friction points: (1) the identical `<|Direct|> continue` launch message arri
 
 ### 2026-09-29_23-14 planner_Q3S_slow ses_f110d8065ffeCVoCfNeTcba0wU
 Unit-4 watchdog injected a recovery CONTINUE into a DIRECT session whose close correctly carried no action: line (open questions only — the direct close form) — the Direct scope gate (per #85 part 3 "Direct deactivates Unit 4 for the planner") did not apply because the session's first message arrived as bare "continue" without the <|Direct|> own-line marker, so scopeVerdict fell back to planner-in-scope. One of the two would close the gap: dispatch keeps the <|Direct|> marker line in the message, or the direct close emits `action: ask_maintainer` (the state already matches: loop paused until the maintainer answers).
+MAINTAINER RULING (2026-09-29, same session): no Autorun/Direct marker set → the default behavior IS the Autorun one — the watchdog firing was EXPECTED, not a gap; both fix suggestions above are void (the entry stays as the confusion record).
 

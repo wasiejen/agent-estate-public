@@ -2,7 +2,7 @@
 
 Sections moved verbatim from the former root file; the overview (`repo_overview.md`, this folder) is now a
 thin index pointing at the parts. The FST project's commands (venv, pytest, ruff)
-live in `projects/Free-Snap-Tap/repo/repo_commands.md` (#117 split).
+live in `agent/readme/repo_commands.md` (#117 split).
 
 ## Environment & shell
 The `bash` tool = **Git-Bash (bash 3.6, MINGW64)** — `opencode.jsonc` pins
@@ -40,7 +40,7 @@ verified live in a direct session). Unix idioms work natively: `ls -la`,
   expected and harmless — `.opencode/package.json` must NOT gain a "type" field,
   TODO #51). **The "standard gate" in THIS repo = this probe + the smoke suite**
   (no pytest — no FST product code in this repo, #117; the FST gate = pytest +
-  ruff, see `projects/Free-Snap-Tap/repo/repo_commands.md`). The probe
+  ruff, see `agent/readme/repo_commands.md`). The probe
   self-annotates its total: the output line `PROBE handover: <t>/<t> PASS` must
   agree with the header annotation (the section-sum line) — the annotation is
   the source; NO duplicated moving number lives here (curate-don't-duplicate,

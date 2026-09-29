@@ -2448,7 +2448,7 @@ const cmExec = (args, extra) => cmTool.execute(args, cmCtx(extra));
     "75",
     "S10",
     "success return carries the re-application file pointer; refusal return carries the hand-over note",
-    String(ok).includes(".opencode\\agent\\prompts\\agent_readme_post_compaction.md") && /hand over and start fresh/i.test(ref) && cmCompactCalls.length === before + 1,
+    String(ok).includes("agent\\readme\\readme_post_compaction.md") && /hand over and start fresh/i.test(ref) && cmCompactCalls.length === before + 1,
     JSON.stringify({ ok: String(ok).slice(0, 160), ref }),
   );
 }
@@ -2938,7 +2938,7 @@ const qcMod = await import(pathToFileURL(QC_PLUGIN_TS).href);
 // steers the tool context's directory there too).
 const qcResolveCap = (name) => qcMod.resolveCap(SANDBOX, name);
 const QC_DIRECTIVE =
-  "[SYSTEM CONTEXT DIRECTIVE]\nContext was compacted. Read .opencode\\agent\\prompts\\agent_readme_post_compaction.md and re-read any required task-specific files using read_file before continuing.";
+  "[SYSTEM CONTEXT DIRECTIVE]\nContext was compacted. Read agent\\readme\\readme_post_compaction.md and re-read any required task-specific files using read_file before continuing.";
 const qcMakeClient = (spec = {}) => {
   const rec = { summarize: [], compact: [], messages: [], prompt: [] };
   const client = { session: {} };

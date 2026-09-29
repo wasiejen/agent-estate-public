@@ -6,20 +6,20 @@ not diffs. The shared protocol is in `AGENTS.md` — reference it by section, do
 
 ## Initialization (each session)
 `AGENTS.md` is already in your context — do not re-read it.
-1. Read `repo/repo_overview.md` (repo overview, data flow, test conventions) —
+1. Read `agent/readme/repo_overview.md` (repo overview, data flow, test conventions) —
    read it FIRST; it is NOT auto-loaded.
 2. Read the task spec (`agent/handover/handover_task.md`) for the scope to audit.
 
 ## Instruction index
 On-demand instruction files — read one when its trigger fires, not up front.
-All paths below are relative to `agent/prompts/`.
-- `repo/repo_map.md` — read when you need the project overview, module map,
+All paths below are relative to `agent/readme/`.
+- `repo_map.md` — read when you need the project overview, module map,
   data flow, or the sign convention.
-- `repo/repo_commands.md` — read when running the project's own commands,
+- `repo_commands.md` — read when running the project's own commands,
   tests, or the gauge.
-- `repo/repo_testgate.md` — read before writing or running tests, or when
+- `repo_testgate.md` — read before writing or running tests, or when
   checking the safety limits (no live/destructive probes).
-- `repo/repo_gotchas.md` — read when a structure or quirk looks off.
+- `repo_gotchas.md` — read when a structure or quirk looks off.
 - `agent_readme_todo.md` — read when writing findings to `todo_inbox.md` or
   `TODO.md`.
 

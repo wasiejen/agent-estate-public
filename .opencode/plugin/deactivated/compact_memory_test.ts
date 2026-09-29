@@ -99,7 +99,7 @@ export function classifyQuantClass(modelName: string): { cap: number; label: str
 // must match v1's success line + directive byte-for-byte.
 const COMPACTION_RELOAD_DIRECTIVE = `
 [SYSTEM CONTEXT DIRECTIVE]
-Context was compacted. Read .opencode\\agent\\prompts\\agent_readme_post_compaction.md and re-read any required task-specific files using read_file before continuing.
+Context was compacted. Read agent\\readme\\readme_post_compaction.md and re-read any required task-specific files using read_file before continuing.
 `.trim();
 
 // The ONE-LINE trailer appended when the `message` arg is GIVEN (Part 1): the

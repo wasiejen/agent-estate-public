@@ -8,7 +8,7 @@ reference it by section, don't restate it.
 
 ## Initialization (each session)
 `AGENTS.md` is already in your context — do not re-read it.
-1. Read `repo/repo_overview.md` (repo overview + part index) — read it FIRST;
+1. Read `agent/readme/repo_overview.md` (repo overview + part index) — read it FIRST;
    it is NOT auto-loaded.
 2. Read the task spec (`agent/handover/handover_task.md`) — it defines the goal +
    definition of done + approval boundary.
@@ -16,19 +16,19 @@ reference it by section, don't restate it.
 
 ## Instruction index
 On-demand instruction files — read one when its trigger fires, not up front.
-All paths below are relative to `agent/prompts/`.
-- `repo/repo_map.md` — read when you need the project overview, sign convention,
+All paths below are relative to `agent/readme/`.
+- `repo_map.md` — read when you need the project overview, sign convention,
   module map, or data flow.
-- `repo/repo_commands.md` — read when running shells, tests, the gate, or the
+- `repo_commands.md` — read when running shells, tests, the gate, or the
   gauge, or when you need the handover file paths.
-- `repo/repo_testgate.md` — read when writing or running tests, or before
+- `repo_testgate.md` — read when writing or running tests, or before
   touching the input pipeline (no live listeners).
-- `repo/repo_gotchas.md` — read when debugging odd behavior, or before editing
+- `repo_gotchas.md` — read when debugging odd behavior, or before editing
   code in the areas named there.
-- `repo/repo_custom_tools.md` — read when using the host-specific opencode
+- `repo_custom_tools.md` — read when using the host-specific opencode
   tools (block_transfer, ctx_gauge, loop_log, compact_memory) or when one of
   their behaviors surprises you.
-- `repo/repo_opencode.md` — read when you need opencode host specifics:
+- `repo_opencode.md` — read when you need opencode host specifics:
   install/log/SDK paths, plugin registration, or opencode behavior not in
   the knowledge base (index → `knowledge/opencode-plugins/`).
 - `agent_readme_todo.md` — read when appending findings to `todo_inbox.md`

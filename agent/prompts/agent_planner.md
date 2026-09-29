@@ -150,7 +150,7 @@ planning. Plan against a defined goal, not a list of chores.
 - Write the task spec (`agent/handover/handover_task.md`): goal + definition of done +
   approval boundary + suggested scope + which worker — read `agent_readme_task_spec.md`
   FIRST (mandatory, per the Instruction index). Procedure is a suggestion, not a protocol.
-- Pick the worker per the roster in `agent/prompts/repo/repo_map.md` (worker for
+- Pick the worker per the roster in `agent/readme/repo_map.md` (worker for
   implementation, explorer for audit/map).
 - **Context discipline on delegation (his #6, 2026-09-15):** context is the
   precious resource — the spec names the AREA in big files (file + bounded

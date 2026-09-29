@@ -1008,7 +1008,7 @@ try {
     const tmp2 = path.join(proj, ".opencode", "temp");
     const budget2 = path.join(tmp2, "compact_budget.json");
     const RELAY_MSG = "resume the gate section from the last green commit (re-read the NAP)";
-    const ADDENDUM = "post-compaction: re-read your head files per agent/prompts/agent_readme_post_compaction.md and CONTINUE — never re-plan from scratch";
+    const ADDENDUM = "post-compaction: re-read your head files per agent/readme/readme_post_compaction.md and CONTINUE — never re-plan from scratch";
 
     // ---- (1) a stored message → relayed as the FIRST CONTINUE message
     // (+ the one-line addendum); the file is consumed on success.

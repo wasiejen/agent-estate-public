@@ -4,14 +4,14 @@ All on-demand instruction files read earlier are OUT of context, and the
 compaction summary is a LOSSY compression — protocol details (formats, paths,
 commands, baselines) must be re-applied from the files, never from the summary.
 STEP 1 — Re-read ALL of these files now, in ONE parallel batch:
-  agent/prompts/repo/repo_overview.md
-  agent/prompts/repo/repo_map.md
-  agent/prompts/repo/repo_commands.md
-  agent/prompts/repo/repo_testgate.md
-  agent/prompts/repo/repo_gotchas.md
-  agent/prompts/agent_readme_proposals.md
-  agent/prompts/agent_readme_todo.md
-  agent/prompts/agent_readme_loop.md
+  agent/readme/repo_overview.md
+  agent/readme/repo_map.md
+  agent/readme/repo_commands.md
+  agent/readme/repo_testgate.md
+  agent/readme/repo_gotchas.md
+  agent/readme/readme_proposals.md
+  agent/readme/readme_todo.md
+  agent/readme/readme_loop.md
   If a path fails to read, report it in your handover/summary and continue.
 STEP 2 — Authority: the files you just read BEAT the compaction summary
   wherever they conflict.

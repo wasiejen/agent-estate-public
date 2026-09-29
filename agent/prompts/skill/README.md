@@ -9,6 +9,8 @@ not the intended launch path.
   in the loop run folder (run at end of loop).
 - `skill_feedback.md` — collect feedback from runs + `agent_feedback.md` +
   handovers → `maintainer/feedback/` (run regularly).
+- `skill_session_scan` — distillation experiment pipeline. scans ONE session
+  dump from `archive/sessions/` through ONE perspective and writes EXACTLY ONE findings file.
 Does NOT go here: role prompts / repo parts / agent readmes (sibling folders
 under `prompts/`), and maintainer memory files (his call — the folder layout
 clashes with opencode agent auto-registration, see `maintainer/my_todos.md`).

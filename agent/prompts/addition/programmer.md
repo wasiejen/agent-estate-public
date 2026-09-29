@@ -1,4 +1,4 @@
-# prompt_programmer_additions.md — programming role additions (DRAFT 2026-09-25, planner-17)
+# programmer.md — programming role additions (DRAFT 2026-09-25, planner-17)
 
 Assembly (when the role is created): the programmer role's prompt = the
 current worker prompt text (it lives inline in the live `opencode.jsonc`

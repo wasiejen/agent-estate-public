@@ -11,7 +11,7 @@
   `--todo` says: "clarify what each folder is for".
 - `opencode.jsonc` hard-references the layout (agent prompt paths
   `{file:./.opencode/system_prompts/agents/…}` + permission rules on
-  `.opencode/handover_planner.md`, `.opencode/prompt_**`, `system_prompts/agent_readme_loop.md`)
+  `.opencode/handover_planner.md`, `.opencode/prompt_**`, `system_readme/readme_loop.md`)
   — any move must update the config and needs a host restart.
 
 ## Design (independently approvable)

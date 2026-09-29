@@ -3,7 +3,7 @@
 Stable, repo-agnostic rules for any agent (planner or worker) on this repo.
 Repo-specific facts — module map, shell/platform, test & lint commands, venv,
 handover-file paths, gotchas — live in `repo_overview.md` (the repo docs
-folder `agent/prompts/repo/`). **Read `repo_overview.md` if it is
+folder `agent/readme/`). **Read `repo_overview.md` if it is
 present** before starting real work; it is the repo map, read it FIRST. If anything here
 conflicts with the code or `repo_overview.md`, the code wins — but flag the discrepancy.
 

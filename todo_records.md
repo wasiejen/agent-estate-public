@@ -189,7 +189,7 @@ canonical, tree clean) → closed; the split build launched per the committed sp
 
 ## 40. Explorer run #1 output unreliable (2026-09-10) - CLOSED (maintainer ruling 2026-09-10: the gemma agent option removed, verified in the live opencode.jsonc; curated 2026-09-11, iter 5) - the audit re-run goal was completed via audit 3a/3b (session 4; #48 is the only open audit residual); the gauge-fabrication caveats stand as the explorer-output-check lesson (verify numbers against the real command).
 
-## 50. (closed 2026-09-11, planner-direct, approved by maintainer inbox 11-11) — repo_map.md refresh: (a) §Worker-roster explorer bullet "findings to `TODO.md`" → "findings to `todo_inbox.md` (the planner curates + assigns the TODO IDs)"; (b) §Module-map `.opencode/` bullet now lists `system_prompts/repo/` parts + `agent_readme_*.md` readmes + the `loop/` current-looprun / `archive/loop/` history convention (and drops the stale "draft copies in `proposals/files/`" — they are archived). "Stable facts only" kept — no phase progress introduced.
+## 50. (closed 2026-09-11, planner-direct, approved by maintainer inbox 11-11) — repo_map.md refresh: (a) §Worker-roster explorer bullet "findings to `TODO.md`" → "findings to `todo_inbox.md` (the planner curates + assigns the TODO IDs)"; (b) §Module-map `.opencode/` bullet now lists `system_readme/` parts + `agent_readme_*.md` readmes + the `loop/` current-looprun / `archive/loop/` history convention (and drops the stale "draft copies in `proposals/files/`" — they are archived). "Stable facts only" kept — no phase progress introduced.
 
 ## 17. (closed 2026-09-11, see one-line record above) — v1.3 log-growth CONFIRMATION — one-shot read, deferred by the no-`plugin.log` constraint (2026-09-08)
 
@@ -553,7 +553,7 @@ prose.
   unambiguous for every spec/launch.
 - **Acceptance criteria:** `repo_commands.md` §Run / test names the probe
   command with the current baseline (99/99 as of 2026-09-15).
-- **Suggested scope:** `.opencode/agent/prompts/repo/repo_commands.md`
+- **Suggested scope:** `.opencode/agent/readme/repo_commands.md`
   (maintainer-owned file — he edits it or tasks the planner).
 - **Status:** CLOSED (2026-09-16, plan8) — `repo_commands.md` §Run/test now
   names the probe command and defines **"standard gate" = pytest + ruff +
@@ -1580,7 +1580,7 @@ smokes, pytest 459+1w, ruff F=0).
   `repo_testgate.md` or the worker prompt, the intercept smoke header);
   no behavior change.
 - **Suggested scope:** `.opencode/agent/prompts/agents/prompt_agent_task.md`,
-  `.opencode/agent/prompts/repo/repo_testgate.md`,
+  `.opencode/agent/readme/repo_testgate.md`,
   `.opencode/plugin/tests/intercept_observer.smoke.mjs` (header comment only).
 - **Status:** LANDED (plan29, 2026-09-28, planner-29 planner-direct —
   pre-approved, no behavior change): (1) worker prompt `Checkpoint &

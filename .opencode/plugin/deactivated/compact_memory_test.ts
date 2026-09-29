@@ -106,7 +106,7 @@ Context was compacted. Read .opencode\\agent\\prompts\\agent_readme_post_compact
 // message replaces the directive as the response body, and this fixed line
 // keeps the reload invariant alive whatever the caller writes.
 const POST_COMPACTION_TRAILER =
-  "Post-compaction reminder: re-read agent/prompts/agent_readme_post_compaction.md before continuing.";
+  "Post-compaction reminder: re-read agent/readme/readme_post_compaction.md before continuing.";
 
 // v1 reporting defaults — the COMPACT line + the success line report THESE
 // when the keep args are omitted (the v1 reporting shape is preserved).

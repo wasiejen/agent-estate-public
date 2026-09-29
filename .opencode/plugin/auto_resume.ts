@@ -821,7 +821,7 @@ async function checkSpawnTrigger() {
 function continueText(sid: string): string {
   return (
     `[auto-resume unit 4 — planner liveness watchdog, session ${sid}] Your last turn ended without a recognized action: line ` +
-    "(compaction, sudden stop, or protocol gap). Follow agent/prompts/agent_readme_post_compaction.md — " +
+    "(compaction, sudden stop, or protocol gap). Follow agent/readme/readme_post_compaction.md — " +
     "re-read the named head files, rebuild from the committed state (git log + NAP + TODO), and continue the current " +
     "unit or close it with an action: line."
   );
@@ -838,7 +838,7 @@ function continueText(sid: string): string {
 // .consumed ONLY after a successful promptAsync (a failed send keeps it
 // for the next attempt).
 const POST_COMPACTION_ADDENDUM =
-  "post-compaction: re-read your head files per agent/prompts/agent_readme_post_compaction.md and CONTINUE — never re-plan from scratch";
+  "post-compaction: re-read your head files per agent/readme/readme_post_compaction.md and CONTINUE — never re-plan from scratch";
 
 function queuedMessagePath(sid: string): string {
   return join(logDir, `compact_message_${sid}`);

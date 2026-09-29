@@ -66,7 +66,7 @@ Self-compaction mechanics (checkpoint current → fire → the planner RESUMEs y
   (`handover_task_to_planner.md`), and the scratchpad — nothing else (your grants live in
   `opencode.jsonc`; the feedback file is OUTSIDE it — friction goes via the `submit` tool,
   see below). Do not run live/destructive probes (see `repo_testgate.md` safety limits,
-  `agent/prompts/repo/`).
+  `agent/readme/`).
 
 ## Handoff
 - Write the executive summary to `handover_task_to_planner.md` per AGENTS.md §Handover-files

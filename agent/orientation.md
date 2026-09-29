@@ -46,7 +46,7 @@ and prompts exist so the system (and I) keep getting better.
   summarizer's gauge; live acceptance for observer-mediated mutations.
 - **The new-project phase (later)** — the programmer role (worker prompt +
   quality floor + greenfield design block; draft exists at
-  `prompts/agents/prompt_programmer_additions.md`), the quality-handout
+  `prompts/agents/addition/programmer.md`), the quality-handout
   distill becomes mandatory on activation, first commits become the
   conventions, and possibly the FST-vs-opencode split into two
   trackable repos (his research item).

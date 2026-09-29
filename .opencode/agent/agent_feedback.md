@@ -677,3 +677,6 @@ block_transfer WRITE `regions` applies the SAME single `text` to every region in
 ### 2026-09-29_01-27 planner_Q3S_170K ses_f15c490bdffe9KsxVC3kDdLi1K
 When .opencode/temp/compact_budget.json is missing, neither the injected ctx line nor ctx_gauge emits the budget suffix (silent fail-open) — the budget/audit file loss (.opencode/temp/ deleted 2026-09-28 ~22:27, found 2026-09-29) went unnoticed for ~15h and silently blocked the #114 live acceptance. A -WARNING loop_log line (or an explicit marker in the gauge readout) on first read of a missing budget store would surface it.
 
+### 2026-09-29_02-49 planner_Q3S_170K ses_f15c490bdffe9KsxVC3kDdLi1K
+Exact-match edit on TODO.md failed once on a whitespace off-by-one (leading spaces misjudged from the Read line-number prefix display); fixed by cat -A byte check — for long multi-line oldStrings in markdown with irregular spacing, prefer a short unique single-line anchor or byte-verify first.
+

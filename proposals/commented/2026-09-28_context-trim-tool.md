@@ -202,7 +202,7 @@ verified against 1.18.32; re-grep at apply time (possible 1-line drift).
 
 
 --wip
---comment:
+comment:
 - "host has NO auto-compact backstop (`compaction.auto = false`)" - we have a auto compact backstop with the plugin recovery_context which triggers on context limit violation. thus we might trigger a second compaction if the tail_start_id is wrongly set.
   - and honestly if we can apply the message-state-list then we do not need compaction as as safety net anymore - we could just wire in the removal of some big tool output (e.g. biggest tool output first and min 30k for example) and thus free up enough room to do a proper message-state-list trigger with self-summery
     - reloading the compaction model or reloading the thus changed context is not so much different
@@ -225,3 +225,119 @@ the report lookup could also offer the info about what file was read and line ma
 
 
 feedback pls again. no sugarcoating or accomodating pls
+
+## Feedback (2026-09-29, planner, direct session ses_f110d8065ffeCVoCfNeTcba0wU)
+
+Point by point on your 21-11 + 22-28 comments. No sugarcoating:
+
+### 1. "no auto-compact backstop" — your correction is right; my claim was overstated
+I was talking about the host-native setting (`compaction.auto = false`). You're right
+that context_recovery is the live backstop (live-verified in #93: overflow → recovery
+fires → compacts → session continues). So a wrongly-set `tail_start_id` that retains
+TOO MUCH → overflow → a second compaction fires. Cost: the first summary's work is
+wasted + one re-summarization cycle (~3-4 min) + a fresh marker. Self-healing, not
+catastrophic.
+One honest caveat: the backstop covers only the overflow direction. The opposite
+mistake — retaining too LITTLE — is silent: no overflow, no recovery, the agent just
+lost state it needed. So the fail-closed validation (id exists, strictly before the
+compaction user row, summary after it, window guard satisfiable) stays the PRIMARY
+safety; the backstop is the net for what validation misses in the dangerous direction.
+The proposal record gets amended accordingly.
+
+### 2. keepMessages floor — agreed
+Min 6, stated in the tool description. It's a code constant + one description line.
+
+### 3. TUI cost (a) — understood; nothing to build here
+The TUI already renders the full DB history (your "clear log of earlier messages"
+already exists). The only gap is that the TUI shows more than the model sees — you
+rate that acceptable / a small feature, not a detriment. I agree there's nothing to
+build on this track; a visual "effective window" indicator would be a separate small
+feature if you ever want it.
+
+### 4. Self-prune as a deliberate tool — agreed, and it argues for item 3 EARLIER than I gated it
+Your use-case sketch (drop big tool outputs — webfetch findings — while preserving
+loaded repo/readme state) is exactly what per-message toggling solves. Candid note:
+the approved scope (1+2) does NOT cover it at fine granularity. `report` gives the
+informed picker (which messages are big, which files/lines); `tail` gives only the
+COARSE boundary (everything before it is replaced by the summary). "Drop just this
+one webfetch output, keep the rest" needs the state-list fork (item 3). So your
+self-prune idea is the strongest argument to promote item 3 from "only if proven
+needed" to "planned follow-up". With your own-fork learning motive on top, my order
+is now: 1+2 now (approved), 3 next as the learning-fork unit.
+
+### The "28 thousand forks" pushback — you're right, and the npm point was over-flagged
+Fork maintenance is normal practice; your workflow (fetch origin → merge → move
+keep-out changes → rebuild) is what those 28k forks do — nothing new or hard in it.
+The npm point, precisely: the installed host is a global npm install
+(`AppData\Roaming\npm\node_modules\opencode-ai\bin\opencode.exe`) and the fork exe is
+SWAPPED into that path. The only hazard: a later `npm update opencode-ai` (or
+reinstall) silently overwrites the swapped fork with upstream — the fork dies
+unnoticed. npm install itself is NOT the problem; npm UPDATE clobbers the swap. And
+under the workflow you describe (updates go fork-side: fetch → merge → rebuild →
+swap), the concern evaporates entirely. One standing rule: never `npm update` that
+package while the fork is in place. So: a non-issue in your workflow, as you say.
+
+### 5. Model toggling — an idea, not buildable now; feasibility hinges on one research question
+Candidly, it has three parts: (a) per-session model choice — possible TODAY (sessions
+spawn with a chosen agent+model; auto_resume already resolves the identity to
+inject); (b) mid-session per-step switching — plausibly feasible: #80's live finding
+(2026-09-22) shows the host runs a turn as the agent+model carried in that message's
+`info` (the injected turns ran as "build" until the info was fixed) — so a plugin
+rewriting the next user message's model before the prefill (the same DB-write
+mechanism as the tail lever) would switch the turn's model; the open question is the
+exact read point + a clean write moment; (c) the trigger policy ("when the session
+slows") — a heuristic over ctx% + measured t/s; there is no clean "slowing" signal
+today. Recommendation: queue (b) as a short research pass (one question: where does
+the host read the per-step model?) before any build. Interaction to note: if the
+state-list fork (item 3) can drop the big outputs, the session may stop being slow in
+the first place — the trim lever may beat the model lever for your stated goal
+(speed over max-context).
+
+### 6. Shallow dev-fork — factually right; nothing to change
+The dev branch is experimental, v1 is stable; staying on 1.18.32/33 with occasional
+merges is the right policy for this host. Your fork-as-learning-project motive is
+noted and doesn't change the order (it strengthens the case for item 3 as the next
+unit).
+
+### 7. Item 4 (the 11-line wire) — dead unless item 2 fails
+Agreed with your read: canonical but unnecessary if 2 works. Removed from the active
+plan; the fork-effort doc stays as a fallback record only.
+
+### 8. Report with file/line info — not planned; added to the spec
+The DB part rows carry the tool-call inputs (`read`: file path + offset/limit;
+`bash`: the command; `webfetch`: the URL). The report will list per message: role,
+tool, target (file + line range / URL / command), token mass (S metric, bytes/4
+fallback). That makes the report directly usable as the picker for your self-prune
+use-case.
+
+### Build scope (your "1. + 2. are approved") — what the worker builds
+**Unit 1 — `context_trim` tool** (`.opencode/tools/context_trim.ts`):
+- `report <session>` — the current effective window (marker present? summary?
+  tail_start_id? what's inside/outside) + per-message rows (role, tool, target,
+  token mass) + a dry-run of what a tail trim to X would remove/keep.
+- `tail <session> <messageID>` — rewrite `tail_start_id` to the boundary;
+  fail-closed validation (id exists, strictly before the compaction user row,
+  summary after it, window guard satisfiable); logs `tail= old→new`; single
+  transaction, WAL write lock. keepMessages floor 6 (point 2), stated in the
+  description.
+- NO `turns` mode (the destructive lever is ruled out).
+- Smokes against a FIXTURE DB (never the live one) + probe pins; registration in
+  opencode.jsonc (your domain); live acceptance on a throwaway session (report first).
+
+**Unit 2 — the post-compaction tail-set** (plugin-side, zero fork):
+- Trigger: the existing verified channel (the ctx.log `COMPACT` line = the host's
+  compaction landed) → read the DB, find the fresh compaction part + its
+  `tail_start_id`, compute the keepMessages boundary (the tool's existing count
+  metric), rewrite the id; same validation as Unit 1's `tail`; log
+  `tail-set= old→new keep=N`.
+- The integration point (poll vs inline-after-dispatch) is pinned in the task spec.
+
+**Unit 3 — the state-list post-filter fork** (planned follow-up, NOT in the 1+2 build):
+- per-message toggles (non-destructive in the DB), map/peek surface = the extended
+  report, safe-zone rules carry over — your learning fork.
+
+### Open questions (ordered by priority)
+1. Units 1+2: GO for the task spec + worker launch now — or review the spec first?
+2. Unit 3 as the follow-up learning fork — is that ordering agreed?
+3. The model-toggle research question (where the host reads the per-step model) —
+   queue it, or run it now?

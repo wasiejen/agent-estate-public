@@ -694,3 +694,6 @@ A repo-wide full-path string replace misses filename-form pins — the #117 reor
 The compact_budget.json v2-rewrite (TODO #119) destroyed the config SILENTLY — nothing surfaced until a second compaction was refused; a -WARNING loop_log line or a diff-check in the increment path (or at least preserving unknown keys) would have surfaced it at the moment of the rewrite, not 30 min later.
 
 
+### 2026-09-29_20-43 planner_Q3S_slow ses_f11b625d3ffeio02fDzjzypbN2
+Two friction points: (1) the identical `<|Direct|> continue` launch message arrived TWICE in the same session — unclear whether host re-dispatch or maintainer duplicate; a marker distinguishing a re-dispatch would remove mid-unit ambiguity. (2) the edit tool returned "hint rejected reason=no-anchor-line" for the big NAP-section replacement while the edit HAD actually landed — the result message contradicted the file state, forcing a confirm re-read; the tool should report apply-vs-reject consistently (a rejection after an applied write, or an applied write without the rejection line).
+

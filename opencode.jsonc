@@ -200,12 +200,12 @@
     //   "model": "llama-swap/Qwen3.8-27B-Compaction",
     //   "temperature": 0.1
     // },
-    // "looprunner_Q3S_170K": {
+    // "looprunner_Q3S": {
     //   "description": "Just restarts the Planner in autonomous mode",
     //   "mode": "primary",
     //   "model": "llama-swap/Qwen3.8-27B-Q3S-170K",
     //   "temperature": 0.1, // set a bit higher - was really a bit easy to confuse with low temp
-    //   "prompt": "{file:./agent/prompts/agents/prompt_agent_looprunner.md}",
+    //   "prompt": "{file:./agent/prompts/agent_looprunner.md}",
     //   "tools": {
     //     "*": true,
     //     "write_file": false,
@@ -239,11 +239,11 @@
     //     "load_workspace_tree": false
     //   }
     // },
-    "planner_Q3S_170K": {
+    "planner_Q3S": {
       "description": "plans tasks and delegates to sub-agents: very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge",
       "mode": "all",
       "model": "llama-swap/Qwen3.8-27B-Q3S-170K",
-      "prompt": "{file:./agent/prompts/agents/prompt_agent_planner.md}\n{file:agent/memory/planner/destilled_mem.md}",
+      "prompt": "{file:./agent/prompts/agent_planner.md}\n{file:agent/memory/planner/destilled_mem.md}",
       // "prompt": "{file:./prompts/base.txt}\n{file:./prompts/rules.txt}\n{file:./prompts/examples.txt}"
       "temperature": 1.0,
       "permission": {
@@ -258,11 +258,11 @@
       },
       "color": "accent"
     },
-    "worker_Q3S_170K": {
+    "worker_Q3S": {
       "description": "very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge: best for very complex coding and code review work",
       "mode": "all",
       "model": "llama-swap/Qwen3.8-27B-Q3S-170K",
-      "prompt": "{file:./agent/prompts/agents/prompt_agent_task.md}",
+      "prompt": "{file:./agent/prompts/agent_worker.md}",
       "temperature": 1.0,
       "permission": {
         "task": "allow",
@@ -271,7 +271,7 @@
           "home/AppData/Local/Temp/opencode" : "allow",
           "AGENTS.md": "deny",
           "agent/prompts/**": "deny",
-          "agent/handover/handover_planner.md": "deny",
+          "agent/prompts/agent_planner.md": "deny",
           ".git/**": "deny",
           ".github/**": "deny"
         },
@@ -280,11 +280,11 @@
       },
       "color": "accent"
     },
-    "explorer_Q3S_170K": {
+    "explorer_Q3S": {
       "description": "very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge: best for very complex coding and code review work",
       "mode": "all",
       "model": "llama-swap/Qwen3.8-27B-Q3S-170K",
-      "prompt": "{file:./agent/prompts/agents/prompt_agent_explorer.md}",
+      "prompt": "{file:./agent/prompts/agent_explorer.md}",
       "temperature": 1.0,
       "permission": {
         "task": "allow",
@@ -293,7 +293,7 @@
           "home/AppData/Local/Temp/opencode" : "allow",
           "AGENTS.md": "deny",
           "agent/prompts/**": "deny",
-          "agent/handover/handover_planner.md": "deny",
+          "agent/prompts/agent_planner.md": "deny",
           ".git/**": "deny",
           ".github/**": "deny"
         },
@@ -302,7 +302,7 @@
       },
       "color": "accent"
     },
-    // "agent_Q3S_170K": {
+    // "agent_Q3S": {
     //   "description": "very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge: best for very complex coding and code review work",
     //   "mode": "all",
     //   "model": "llama-swap/Qwen3.8-27B-Q3S-170K",
@@ -315,7 +315,7 @@
     //       "home/AppData/Local/Temp/opencode" : "allow",
     //       "AGENTS.md": "deny",
     //       "agent/prompts/**": "deny",
-    //       "agent/handover/handover_planner.md": "deny",
+    //       "agent/prompts/agent_planner.md": "deny",
     //       ".git/**": "deny",
     //       ".github/**": "deny"
     //     },
@@ -324,29 +324,29 @@
     //   },
     //   "color": "#ff6b6b"
     // },
-    // "prompt_builder_Q3S_170K": {
+    // "prompt_builder_Q3S": {
     //   "description": "very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge",
     //   "mode": "all",
     //   "model": "llama-swap/Qwen3.8-27B-Q3S-170K",
-    //   "prompt": "{file:./agent/prompts/roles/prompt_engineer.md}",
+    //   "prompt": "{file:./agent/prompts/addition/prompt_engineer.md}",
     //   "temperature": 1.0,
     //   "permission": {
     //     "task": "allow",
     //     "edit": {
     //       "*": "allow",
     //       "home/AppData/Local/Temp/opencode" : "allow",
-    //       "agent/handover/handover_planner.md": "deny",
+    //       "agent/prompts/agent_planner.md": "deny",
     //       ".git/**": "deny",
     //       ".github/**": "deny"
     //     },
     //   },
     //   "color": "#ff6b6b"
     // },
-    // "worker_Q3S_140K_HQKV": {
+    // "worker_Q3S_HQKV": {
     //   "description": "very high intelligence, speedrating 57, 140k context, very high precision, highest general knowledge: best for very complex coding and code review work",
     //   "mode": "all",
     //   "model": "llama-swap/Qwen3.8-27B-Q3S-140K-HQKV",
-    //   "prompt": "{file:./agent/prompts/agents/prompt_agent_task.md}",
+    //   "prompt": "{file:./agent/prompts/agent_worker.md}",
     //   "temperature": 1.0,
     //   "permission": {
     //     "task": "allow",
@@ -355,7 +355,7 @@
     //       "home/AppData/Local/Temp/opencode" : "allow",
     //       "AGENTS.md": "deny",
     //       "agent/prompts/**": "deny",
-    //       "agent/handover/handover_planner.md": "deny",
+    //       "agent/prompts/agent_planner.md": "deny",
     //       ".git/**": "deny",
     //       ".github/**": "deny"
     //     },
@@ -364,11 +364,11 @@
     //   },
     //   "color": "accent"
     // },
-    "planner_Q3S_245K_slow": {
+    "planner_Q3S_slow": {
       "description": "plans tasks and delegates to sub-agents: very high intelligence, speedrating 45, 245k context, high precision, highest general knowledge",
       "mode": "all",
       "model": "llama-swap/Qwen3.8-27B-Q3S-210K-slow-HQKV",
-      "prompt": "{file:./agent/prompts/agents/prompt_agent_planner.md}\n{file:agent/memory/planner/destilled_mem.md}",
+      "prompt": "{file:./agent/prompts/agent_planner.md}\n{file:agent/memory/planner/destilled_mem.md}",
       // "prompt": "{file:./prompts/base.txt}\n{file:./prompts/rules.txt}\n{file:./prompts/examples.txt}"
       "temperature": 1.0,
       "permission": {
@@ -383,11 +383,11 @@
       },
       "color": "accent"
     },
-    "worker_Q3S_245K_slow": {
+    "worker_Q3S_slow": {
       "description": "very high intelligence, speedrating 45, 245k context, high precision, highest general knowledge: best for very complex coding and code review work",
       "mode": "all",
       "model": "llama-swap/Qwen3.8-27B-Q3S-210K-slow-HQKV",
-      "prompt": "{file:./agent/prompts/agents/prompt_agent_task.md}",
+      "prompt": "{file:./agent/prompts/agent_worker.md}",
       "temperature": 1.0,
       "permission": {
         "task": "allow",
@@ -396,7 +396,7 @@
           "home/AppData/Local/Temp/opencode" : "allow",
           "AGENTS.md": "deny",
           "agent/prompts/**": "deny",
-          "agent/handover/handover_planner.md": "deny",
+          "agent/prompts/agent_planner.md": "deny",
           ".git/**": "deny",
           ".github/**": "deny"
         },
@@ -405,11 +405,11 @@
       },
       "color": "accent"
     },
-    "explorer_Q3S_245K_slow": {
+    "explorer_Q3S_slow": {
       "description": "very high intelligence, speedrating 45, 245k context, high precision, highest general knowledge: for research and exploration of needed information",
       "mode": "all",
       "model": "llama-swap/Qwen3.8-27B-Q3S-210K-slow-HQKV",
-      "prompt": "{file:./agent/prompts/agents/prompt_agent_task.md}\n{file:./agent/prompts/agents/prompt_agent_explorer.md}",
+      "prompt": "{file:./agent/prompts/agent_worker.md}\n{file:./agent/prompts/agent_explorer.md}",
       "temperature": 1.0,
       "permission": {
         "task": "allow",
@@ -418,7 +418,7 @@
           "home/AppData/Local/Temp/opencode" : "allow",
           "AGENTS.md": "deny",
           "agent/prompts/**": "deny",
-          "agent/handover/handover_planner.md": "deny",
+          "agent/prompts/agent_planner.md": "deny",
           ".git/**": "deny",
           ".github/**": "deny"
         },
@@ -427,11 +427,11 @@
       },
       "color": "accent"
     },
-    // "planner_Q3XS_262K": {
+    // "planner_Q3XS": {
     //   "description": "plans tasks and delegates to sub-agents: high intelligence, speedrating 62, 262k context, medium-high precision, medium-high general knowledge: best for very complex coding and code review work",
     //   "mode": "all",
     //   "model": "llama-swap/Qwen3.8-27B-Q3XS-262K",
-    //   "prompt": "{file:./agent/prompts/agents/prompt_agent_planner.md}\n{file:agent/memory/planner/destilled_mem.md}",
+    //   "prompt": "{file:./agent/prompts/agent_planner.md}\n{file:agent/memory/planner/destilled_mem.md}",
     //   // "prompt": "{file:./prompts/base.txt}\n{file:./prompts/rules.txt}\n{file:./prompts/examples.txt}"
     //   "temperature": 1.0,
     //   "permission": {
@@ -446,11 +446,11 @@
     //   },
     //   "color": "accent"
     // },
-    // "worker_Q3XS_262K": {
+    // "worker_Q3XS": {
     //   "description": "high intelligence, speedrating 62, 262k context, medium-high precision, medium-high general knowledge",
     //   "mode": "all",
     //   "model": "llama-swap/Qwen3.8-27B-Q3XS-262K",
-    //   "prompt": "{file:./agent/prompts/agents/prompt_agent_task.md}",
+    //   "prompt": "{file:./agent/prompts/agent_worker.md}",
     //   "temperature": 1.0,
     //   "permission": {
     //     "task": "allow",
@@ -459,7 +459,7 @@
     //       "home/AppData/Local/Temp/opencode" : "allow",
     //       "AGENTS.md": "deny",
     //       "agent/prompts/**": "deny",
-    //       "agent/handover/handover_planner.md": "deny",
+    //       "agent/prompts/agent_planner.md": "deny",
     //       ".git/**": "deny",
     //       ".github/**": "deny"
     //     },
@@ -468,11 +468,11 @@
     //   },
     //   "color": "accent"
     // },
-    // "worker_gemma_Q4_262K": {
+    // "worker_gemma_Q4": {
     //   "description": "moderately intelligent, speedrating 160-200, 262k context, lower pecision, lower to medium general knowledge: needs explicit step by step guidance, should do no coding",
     //   "mode": "all",
     //   "model": "llama-swap/Gemma4-12B-Q4KXL-MTP-128K",
-    //   "prompt": "{file:./agent/prompts/agents/prompt_agent_task.md}",
+    //   "prompt": "{file:./agent/prompts/agent_worker.md}",
     //   "temperature": 0.6,
     //   "permission": {
     //     //"task": "allow",
@@ -481,7 +481,7 @@
     //       "home/AppData/Local/Temp/opencode" : "allow",
     //       "AGENTS.md": "deny",
     //       "agent/prompts/**": "deny",
-    //       "agent/handover/handover_planner.md": "deny",
+    //       "agent/prompts/agent_planner.md": "deny",
     //       ".git/**": "deny",
     //       ".github/**": "deny"
     //     },
@@ -490,7 +490,7 @@
     //   },
     //   "color": "accent"
     // },
-    "agent_gemma_Q4_262K": {
+    "agent_gemma_Q4": {
       "description": "moderately intelligent, speedrating 160-200, 262k context, lower pecision, lower to medium general knowledge: needs explicit step by step guidance, should do no coding",
       "mode": "all",
       "model": "llama-swap/Gemma4-12B-Q4KXL-MTP-128K",
@@ -503,7 +503,7 @@
           "home/AppData/Local/Temp/opencode" : "allow",
           "AGENTS.md": "deny",
           "agent/prompts/**": "deny",
-          "agent/handover/handover_planner.md": "deny",
+          "agent/prompts/agent_planner.md": "deny",
           ".git/**": "deny",
           ".github/**": "deny"
         },

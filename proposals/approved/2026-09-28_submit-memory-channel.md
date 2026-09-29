@@ -66,3 +66,11 @@ prompt text — hence this proposal.
   seeds the rest when it lifts.
 - This does not touch the `knowledge` channel or the knowledge base
   (separate lane, separate curation).
+
+--comment 2026-09-29_19-20:
+as long as in the description is enough information to actually create a valid and helpful memory then go ahead. keep in mind the agent\knowledge\plugin_tools\2026-09-18_tool-plugin-design-handout.md.
+- optimize when potential is seen
+
+1. go
+2. to form a valid memory according to the format of the memory.md as least some guideline need to be in the description of the memory submit tool part. see comment above - not overboarding with detailed instruction but enough to have the most important parts to make it a reliable memory
+3. inbox file and folder created when not already existing.

@@ -79,3 +79,24 @@ against the host's own guard semantics), and keep `turns` as a follow-up
 until a `report` run shows real savings in a long never-compacted session.
 If you want no live-DB write tool at all: the research doc stands as the
 evidence record, no code needed.
+
+--comment 2026-09-29_19-15: (replace "--comment" with just "comment" on read and acted on it - to not let the maintainer search be uncomment - that you can see as a general ruling and would need to be updated whereever the concention for this stands. only apply this instead of removing the comment to all documents that document the development/history or idea exchange)
+
+mh so the tail approach in general does exactly the same as the compaction - setting a marker from which the tail will start to load, but which only functions when a compaction marker is there? did i understand that correctly? so we could use it to customize our compaction not based on keepToken (which is not working due to non exposure of this function) but on real keepMessages. we could, after the compaction and before the prefill, set the marker to the keepMessages of compact_memory indicated position and thus keep the tail we want to keep.
+
+and i would prefer not to do any destructive measures on the DB in general.
+
+we have a fork of opencode in the:
+"opencode": {
+  "path": "home/Repos/opencode",
+  "description": "forked opencode repo"
+}
+and could thus customize the message pruning idea. why not change the way the current context "gathering" does. so instead of, using the full session in db and when a compaction was done the marker to indicate the start of the tail from which on to built the context of, we could have our own json or marker file that is the base of the context built up in which each message has an entry, a number, tool, #token, #token to current "tailhead" and a toggle to turn on and off (message-state-list). and we assemple the context based on this json file or equivalent in-memory state? so we could write a tool to manage this message-state-list and to modify this instead of the DB. and on removing a message we just toggle it of and it will no longer be built into the context. on compaction we could just overwrite the marker for the tail_start_id with the appropiate placement of our keepMessage of our compact_memory tool or completely replace it via the message-state-list and turn off all previous messages.
+- would need a map or peek functionality to let the agent know what is in the current context and to decide what to drop.
+- we could also complety remove compaction as a seperate tool and only use the pruning of messages: before a self-prune the agent would get the instruction to create the summery for himself (no loading times of the compaction agent and also reduced cache usage because this compaction model would never run)
+
+
+see agent\research\2026-09-28_keeptokens-fork-effort.md for the current idea on how to change the fork to make a simpler version of tail of it but with less control.
+
+but no idea how exactly after changing the fork i can create the bun exe opencode is actually running on.
+- so feedback to this please

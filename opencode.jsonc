@@ -193,7 +193,7 @@
     }
   },
   "subagent_depth": 2,
-  "default_agent": "planner_Q3S_245K_slow",
+  "default_agent": "planner_Q3S_slow",
   "agent": {
     // when no compaction model is set, then the session own model will be used for compaction
     // "compaction": {

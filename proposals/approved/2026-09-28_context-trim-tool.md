@@ -343,7 +343,7 @@ use-case.
    queue it, or run it now?
 
 
---comment:
+comment:
 5. Model toggling 
 - i meant static switch to a faster model. not in session model toggling.
 (one question: where does the host read the per-step model?) 

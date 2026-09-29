@@ -4,111 +4,15 @@ FIRST read AGENTS.md, repo_overview.md, TODO.md, this file.
 
 
 
-## Current session — direct, 2026-09-29 (ses_f15c490bdffe9KsxVC3kDdLi1K, Qwen3.8-27B-Q3S-170K)
-- Post-restart direct session (opencode restarted — the live process now
-  matches the disk build; the 8-data-point live-lag saga ends):
-  - Loop 28→38 retrospective answered (no limit-deaths / incidents; the
-    recurring loop_log auto-fill quirk fired 3 CORRECT lines across
-    planner-33/34/35 — 3rd occurrence → knowledge entry; all landings
-    green + verified: #114 fix, #106, #109 detector, #115, #110/#112,
-    #116 research, tail-trim proposal, repo-split research + proposal).
-  - #115 LIVE-VERIFIED: the gauge window resolves from the root
-    opencode.jsonc config (this session's window = 170000 = limit.context
-    for Qwen3.8-27B-Q3S-170K). The fresh-session injected "notAvailable"
-    = expected (no finished step yet — repo_commands line 78-79).
-  - #114 live acceptance now blocked on a NEW fact:
-    `.opencode/temp/compact_budget.json` is GONE → no budget suffix on
-    the injected ctx line NOR the self-gauge (fail-open, consistent
-    both sides); the first verified compaction rewrites the file.
-  - `.opencode/temp/` disappearance forensics: last known present
-    2026-09-28 09:57 (plan38 self-gauge "5 compactions left"); folder
-    gone by 00:55 (the live host recreated it empty; logs start 01:00).
-    mtime cluster 2026-09-28 22:27 across .opencode/{.gitignore,
-    agent, archive, loop, plugin, proposals, tools} ⇒ something
-    recursive touched entry levels there ~22:27 (repo-split prep the
-    prime suspect; programmatic deletion bypasses the Recycle Bin —
-    consistent with his empty bin). Lost: compact_budget.json + old
-    ctx/intercept/auto_resume logs; the compaction DUMPS live in
-    `.opencode/archive/sessions/` (tracked) — SAFE.
-  - Venv forensics (#113): the venv was REPLACED, not repaired —
-    `.venv/pyvenv.cfg` `command` records a fresh `Python314\python.exe
-    -m venv` (3.14.3, measured working, 459 tests collect); the old
-    `..\python312` base dir is GONE from disk. CI pins 3.12
-    (`ci.yml:17`) + baselines are 3.12-era; `py -0` shows 3.12 installed
-    and 3.14 as the default (`*`) — the bare-python gotcha. Rec: rebuild
-    `py -3.12 -m venv .venv` + reinstall requirements → full-gate
-    re-baseline closes #113. (TODO #113 status updated in this commit.)
-  - Repo-split feedback given (his --comment 2026-09-29, no-sugarcoat):
-    direction = the research Option A (right); his `.opencode/agent`
-    md-scan observation is REAL (every .md under it becomes a Task-tool
-    agent type — ~90 phantom entries in the live agent list);
-    per-repo carve (TODO/handover/repo-docs) = plain folders, OK;
-    SUBMODULES = NO (inner-commit + pointer-bump ceremony lands in the
-    LIVE loop — the coupling the split removes); history carve =
-    filter-repo on each copy (medium, his domain; multi-theme commits
-    keep a copy of the remainder in each repo); the LIVE WORKSPACE
-    should be the AGENT repo (opencode auto-discovers opencode.jsonc at
-    the workspace root; FST accessed via references + external_directory).
-    His machine state: `Repos/Free-Snap-Tap` = clone synced @6d18fe4 +
-    GitHub origin; `Repos/Free-Snap-Tap - Copy` = deep copy @82eb4e0
-    (likely the intended the estate (former name)); the `the estate (former name)` reference
-    path is DEAD (no such folder) — references + external_directory need
-    fixing when it is placed/renamed.
-  - Untracked-runtime loss measured TWICE in a week (the venv break
-    09-28, .opencode/temp 09-29) → the split migration list must carry:
-    `.venv` (FST side) + `.opencode/node_modules`, `.opencode/temp/`,
-    `plugin.log` (agent side) — rebuild at the new locations.
-- Round 2 (post-restart, ~02:00):
-  - venv REBUILT on 3.12.9 (verified 02:00: pyvenv.cfg → the Python312
-    install, 459 tests collect) → the full-gate re-baseline (worker /
-    next autorun) remains — closes #113.
-  - His restored compact_budget.json VERIFIED (all keys valid; his
-    `emergency_budget`=1 was right — that IS the key name) — the
-    injected line now reads "| 5 compactions left" == the ctx_gauge
-    self-read 5 → the #114 1-vs-5 mismatch GONE live (the no-total
-    fresh-session path gets its final check on the next fresh
-    session's first ctx line — close #114 on that data point). The
-    forgotten cap file = `.opencode/temp/lineage_max_depth` (one
-    integer; -1 = unbounded; default 10) — created with 10 + tracked.
-  - temp/ git strategy → INVERTED ignore (`*` + negations for the two
-    state files) — new logs auto-ignored (journal_edit.log already
-    appeared); the silent-loss class of the 22:27 deletion is now
-    git-visible.
-  - Submodule idea (his refinement: per-project bookkeeping
-    submodules inside the agent repo) discussed — recommendation: NO
-    (pointer-bump commits still land in the agent history = the goal
-    only half-met; live-loop two-commit ceremony; fresh-clone
-    ceremony); plain `projects/<name>/` folders + `git log -- <path>`
-    filtering = per-project history with zero ceremony; a separate
-    per-project repo (NOT a submodule) only if it needs its own
-    remote/CI. Awaiting his ruling.
-  - Carve mechanics explained (fresh clone + `git filter-repo --
-    invert-paths` per side); exact path lists + commands on his GO
-    (read-only prep; the existing extract_dryrun.mjs + pin map is the
-    start). NOTE: the GitHub FST clone currently carries the MIXED
-    history (.opencode is tracked there) — carve + force-push / fresh
-    remote, his call.
-- Round 3 (~02:30): his three answers: (1) gate re-baseline = NEXT
-  session, not now; (2) the 22:27 mystery SOLVED — GitHub Desktop
-  renamed the agent folder back to "autorun", he fixed it to
-  the estate (former name) (on disk + matching the live config — accessible,
-  no restart needed); (3) rulings: per-project PLAIN FOLDERS (no
-  submodules) + CARVE GO. Executable carve plan written:
-  `.opencode/agent/research/repo-split/2026-09-29_carve_plan.md`
-  (fresh-clone filter-repo both sides; current partition 835 tracked
-  = agent 775 / product 60; the single-file tool at
-  home/Repos/git-filter-repo (212 KB script, downloaded
-  by him 02:23); verification gates; GitHub force-push + branch
-  pruning + the stale "Free-Snap-Tap - Copy" folder = his call). The
-  the estate (former name) folder's unique commit 76bf2e1 (on e7610ac) is
-  subsumed by the source HEAD. Per-project reorg filed as TODO #117
-  (separate unit, ideally inside/before the Phase-2 window). Ruling
-  recorded in the proposal file.
-- Open (ordered): (1) he executes the carve plan (the old workspace
-  stays live in the meantime — the Phase-2 physical move remains a
-  separate between-sessions window); (2) gate re-baseline next session
-  closes #113; (3) TODO #117 scheduling (his call).
+## Current session — direct, 2026-09-29 (ses_f130ae200ffeDRuhAMKmw0N1qE, planner_Q3S_245K_slow → Qwen3.8-27B-Q3S-210K-slow-HQKV, 210k window)
+- FIRST session in the new workspace root repo-root (the agent-side repo post-carve — the maintainer executed the carve plan; the old workspace stays live until the Phase-2 physical move). His request: a start-test of opencode in the new root.
+- Verification — all pass: AGENTS.md auto-injected; all custom tools registered (block_transfer, ctx_gauge, loop_log, compact_memory, submit, dev context); first injected ctx line = `CTX=notAvailable | 5 compactions left` (no-total expected + budget suffix present); ctx_gauge self-read 28530 (13%) REM=181470 → window 210000 from the root config (a #115 data point on the new 210K model); intercept observer logging live (plugin.log tool.before/after); the .opencode tree intact (agent/prompts+handover+knowledge+memory, plugin, tools, archive, loop, maintainer, proposals, temp); runtime state carried over (node_modules, temp/ incl. compact_budget.json + lineage_max_depth, plugin.log); tree = agent-side only (778 tracked, no FST code); references + external_directory updated for the two-repo layout.
+- #114 CLOSED on the final no-total data point (the fresh-session first line reads 5, not 1) — full entry moved to todo_records.md.
+- TODO.md header numbering cured ("up to #115" → "up to #117, start #118" — #116/#117 were already in the file).
+- Stale docs flagged, not edited (maintainer-maintained / #117-reorg candidates): repo_overview.md header still "Free Snap Tap" (the product code no longer lives in this tree) + its parts list omits repo_opencode.md (the file is present in the folder); orientation.md's "two products in one tree" framing is pre-split; the *245K_slow agent names now run on the 210K model (his live config).
+- Open items are now cross-repo: (1) the #113 gate re-baseline belongs to the FST side (venv + tests now live in the Free-Snap-Tap workspace) — separate window; (2) TODO #117 per-project reorg scheduling = his call.
 ## Compressed archive (one line each
+  - 2026-09-29 direct (ses_f15c490bdffe9KsxVC3kDdLi1K, Qwen3.8-27B-Q3S-170K) — post-restart direct session (rounds 1-3): loop 28→38 retrospective + all landings verified; #114 live data point (budget file lost 22:27 → restored by him, injected 5 == gauge 5; the final no-total check then pending — landed in the first new-root session); 22:27 temp-loss forensics (GitHub Desktop rename); venv forensics → rebuilt on 3.12.9; carve GO + executable carve plan (835=775/60, fresh-clone filter-repo both sides) written; per-project plain folders ruled (no submodules); TODO #117 filed; force-push / branch-prune / stale-copy cleanup = his call — details: nap_direct.md (2026-09-29 append) + git 9e95983/8a046b4/718046e
   - 2026-09-28 autorun (ses_f1909eba8ffekWTqY0gYY2DK3l, planner-38, Qwen3.8-27B-Q3S-245K-slow) — plan38: idle lane (queue all maintainer-blocked) — #116 source-side research LANDED (the `message.updated` payload carries the finished step's tokens {in,out,reasoning,cache.r/w}+cost — a real-time gauge readout is feasible plugin-side; live capture still needs his restart + capture-plugin registration) + dated evidence entry + loop_log auto-fill knowledge entry (3rd occurrence) + #114/#115 8th live data point (live process still pre-12e3262/0c90abe) — details: loop folder plan38_summary.md + git e7610ac
   - 2026-09-28 autorun (ses_f191a6cb5ffeq4noDPvOTFNkxM, planner-37, Qwen3.8-27B-Q3S-245K-slow) — plan37: idle-lane pass (queue all maintainer-blocked) — the tail-trim tool PROPOSAL filed (2026-09-28_context-trim-tool.md: report + tail (tail_start_id rewrite, non-destructive + reversible) first, the destructive `turns` mode follow-up; the live-DB write tool = his call) + #114/#115 7th live data point (live process still pre-12e3262/0c90abe) + baseline re-verified (10 smokes green at baseline + probe 346 = 335 + 11 #113 env + ruff F=0) + friction entry (bt WRITE regions single-text semantics) — details: loop folder plan37_summary.md + git 79de802..8b81670
   - 2026-09-28 autorun (ses_f1938fbf7ffezxbBZE47haZsdS, planner-36, Qwen3.8-27B-Q3S-245K-slow) — plan36: context-erase/tail-trim research LANDED+verified (explorer-36 4591cd0/c32c5eb — context re-derived from DB per step, no in-memory history; the viable trim channels = old-turn row deletion (narrow safe zone) + the host's own `tail_start_id` rewrite (compaction.ts:461-466); follow-up tool = MAINTAINER CALL per doc §effort/approval) + #114/#115 6th live data point (live process still pre-12e3262/0c90abe, restart pending) + knowledge entry — details: loop folder plan36_summary.md + git 2143597..b3b3c7e

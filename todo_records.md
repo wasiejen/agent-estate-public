@@ -2062,3 +2062,61 @@ smokes, pytest 459+1w, ruff F=0).
   explainer.md`, ≤80 lines, spot-checked against auto_resume.ts). The
   compaction-handout paste stays maintainer-domain. Hash recorded in the
   planner's follow-up bookkeeping commit.
+
+
+## #114. (closed 2026-09-29, first fresh session in the new workspace root ses_f130ae200ffeDRuhAMKmw0N1qE — the final no-total data point; filed 2026-09-28, plan30 maintenance pass — feedback review; pre-approved class — truthfulness) the injected ctx: line's budget suffix disagrees with the ctx_gauge self-read (1 vs 5 compactions left — same session, no compaction in between)
+- **Problem / evidence:** agent_feedback 2026-09-28_02-40 (planner-29): at
+  session start the injected `ctx:` line read
+  `SESSION=ses_f1a8a9671ffezAA9MrZmlE8YKV CTX=notAvailable | 1 compactions
+  left` while the `ctx_gauge` self-read (source of truth per #103) showed
+  `5 compactions left` minutes later — no compaction in between, same
+  session. The two code paths (the injected nudge's budget read vs the gauge
+  tool's budget read) resolve the per-session budget differently; the
+  injected line even emitted the budget suffix while its own ctx read was
+  `notAvailable` (the budget read ran independently of the ctx read).
+- **Desired outcome:** one budget value for both surfaces — the injected line
+  and the ctx_gauge tool agree; the root cause of the divergence identified
+  (which file/field each path reads, why they differed).
+- **Acceptance:** a next session's injected line + self-gauge show the same
+  "N compactions left" (measured); the root cause recorded in the knowledge
+  base (dated entry).
+- **Suggested scope:** `.opencode/plugin/` (the gauge/ctx-nudge plugin that
+  emits the injected line + the ctx_gauge tool/gauge core),
+  `.opencode/temp/compact_budget.json` (the store both read), the knowledge
+  base (dated note).
+- **Status:** LANDED (2026-09-28, plan31, worker-31 — hash recorded in the
+  planner's follow-up bookkeeping commit).
+- **Status note (2026-09-28, plan31, planner-31): ROOT CAUSE IDENTIFIED
+  (planner-measured — knowledge_plugins.md entry "Gauge budget suffix:
+  no-total reads…"): a gauge read with no finished step yet (a fresh session
+  at session start) resolves the model to "" (the model comes only from the
+  finished-step row) → model_budget.default (=1) instead of the session's
+  real cap (5) — the session row's own model column is never read. 3rd live
+  data point (this session: injected "1 compaction left" vs ctx_gauge self-
+  read "5 compactions left", same session, no compaction between). FIX
+  DELEGATED (worker spec plan31_ho_task.md — session-row model as the
+   no-total fallback; pins re-pinned to exercise the new behavior + keep the
+   default-1 fallback pin).**
+- **Live check 2026-09-28 (plan32, 4th data point):** a fresh session
+  (ses_f19fdb571ffeb0aoqGGu62wbzo) carried the injected `ctx:` line
+  "1 compactions left" while its ctx_gauge self-read showed "5
+  compactions left" — the live host process still PREDATES the fix
+  12e3262; live acceptance remains pending the maintainer's host restart
+  (a fresh session's injected line should then read "5 compactions
+  left").
+- **LIVE-ACCEPTED (2026-09-29, direct ses_f15c490bdffe9KsxVC3kDdLi1K,
+  post-restart):** the injected ctx line and the ctx_gauge self-read
+  both read "5 compactions left" for the same session (`123085 (72%)
+  REM=46915 | 5`) — the original 1-vs-5 mismatch is GONE on the live
+  build (budget store restored by the maintainer). Residual: the exact
+  no-total failure path (a FRESH session's first injected line) gets
+  its final check on the next fresh session's first ctx line (should
+  read 5, not 1) — close on that data point.
+
+- **Final check 2026-09-29 (first fresh session in the new workspace
+   root, ses_f130ae200ffeDRuhAMKmw0N1qE — CLOSING the entry):** the fresh
+   session's first injected ctx line read `SESSION=ses_f130ae200ffeDRuhAMKmw0N1qE
+   CTX=notAvailable | 5 compactions left` — the no-total path emitted the
+   session's real cap (5), not the default 1. Both surfaces agree; root
+   cause + fix history in the bullets above (knowledge entry in
+   knowledge_plugins.md). CLOSED.

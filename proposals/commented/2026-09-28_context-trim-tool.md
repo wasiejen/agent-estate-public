@@ -341,3 +341,18 @@ use-case.
 2. Unit 3 as the follow-up learning fork — is that ordering agreed?
 3. The model-toggle research question (where the host reads the per-step model) —
    queue it, or run it now?
+
+
+--comment:
+5. Model toggling 
+- i meant static switch to a faster model. not in session model toggling.
+(one question: where does the host read the per-step model?) 
+- when switching model in a session i just have to select the new model and send a message. when the model arrives on the next idle after a tool call the model and agent are applied. but this causes a complete reprefill -> so not very interesting atm. so the message is the delivery of what agent/model is requested from the backend and stays this way until i send another message with different agent/model. agent and model are seperately setable.
+- so not planned or even intented?
+  - but nice idea that a model could request to switch to another model. but i think it would defeat the purpose a bit of per message pruning - except he requests a faster model :-)
+  - but generally bad for any planner-worker workflow - planner and worker need to be same model to allow fast switching from cache
+
+questions:
+1. go :-)
+2. agree, let see that the "easy" part works and we have an immediate gain
+3. not needed as described above in comment to 5. Model toggling

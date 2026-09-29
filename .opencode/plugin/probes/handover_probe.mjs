@@ -5790,7 +5790,7 @@ const SUB_FB = path.join(SANDBOX, "submit-fb"); // no-params error + the feedbac
 const SUB_KN = path.join(SANDBOX, "submit-kn"); // the knowledge append (check 234)
 const SUB_TODO = path.join(SANDBOX, "submit-todo"); // the todo append (check 235)
 const SUB_KEEP = path.join(SANDBOX, "submit-keep"); // the never-read preservation (check 238)
-const SUB_NO_PARAMS_ERR = "error: none of feedback/knowledge/todo/ideas provided — nothing written";
+const SUB_NO_PARAMS_ERR = "error: none of feedback/knowledge/todo/ideas/memory provided — nothing written";
 const SUB_REL = {
   feedback: "agent/agent_feedback.md",
   knowledge: "agent/knowledge/knowledge_inbox.md",
@@ -5820,9 +5820,9 @@ let subTool;
   check(
     String(++n22),
     "S23",
-    "submit tool file imports (type-stripped, direct) and exposes the tool() default export (description + args [feedback, knowledge, todo, ideas] + execute; role/session GONE from the schema)",
+    "submit tool file imports (type-stripped, direct) and exposes the tool() default export (description + args [feedback, knowledge, todo, ideas, memory] + execute; role/session GONE from the schema)",
     subTool != null && typeof subTool.description === "string" && subTool.description.length > 0 &&
-      JSON.stringify(argKeys) === JSON.stringify(["feedback", "knowledge", "todo", "ideas"]) &&
+      JSON.stringify(argKeys) === JSON.stringify(["feedback", "knowledge", "todo", "ideas", "memory"]) &&
       typeof subTool.execute === "function",
     JSON.stringify({ keys: argKeys, descType: typeof subTool?.description }),
   );
@@ -5863,9 +5863,9 @@ let subTool;
   check(
     String(++n22),
     "S22",
-    "arg schema: all 4 channel args (feedback/knowledge/todo/ideas) optional-accept (undefined AND a string); role/session absent from the schema",
-    ["feedback", "knowledge", "todo", "ideas"].every(optAccept) && !("role" in (subTool?.args ?? {})) && !("session" in (subTool?.args ?? {})),
-    JSON.stringify({ args: ["feedback", "knowledge", "todo", "ideas"].map((k) => ({ k, ok: optAccept(k) })), roleIn: "role" in (subTool?.args ?? {}), sessionIn: "session" in (subTool?.args ?? {}) }),
+    "arg schema: all 5 channel args (feedback/knowledge/todo/ideas/memory) optional-accept (undefined AND a string); role/session absent from the schema",
+    ["feedback", "knowledge", "todo", "ideas", "memory"].every(optAccept) && !("role" in (subTool?.args ?? {})) && !("session" in (subTool?.args ?? {})),
+    JSON.stringify({ args: ["feedback", "knowledge", "todo", "ideas", "memory"].map((k) => ({ k, ok: optAccept(k) })), roleIn: "role" in (subTool?.args ?? {}), sessionIn: "session" in (subTool?.args ?? {}) }),
   );
 }
 
@@ -5874,7 +5874,7 @@ let subTool;
 //      project dir stays empty — nothing written)
 {
   const noArgsRet = await subTool.execute({}, { directory: SUB_FB });
-  const emptyRet = await subTool.execute({ feedback: "", knowledge: "  ", todo: "" }, { directory: SUB_FB });
+  const emptyRet = await subTool.execute({ feedback: "", knowledge: "  ", todo: "", ideas: "", memory: "" }, { directory: SUB_FB });
   check(
     String(++n22),
     "S22",

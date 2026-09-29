@@ -261,6 +261,15 @@ one at a 90 %.
 - If `submit` is not in your toolset (registration pending), append the entry
   by hand to `agent/agent_feedback.md` (append-only, format in its
   header) — the step is mandatory, the channel is best-effort.
+- **Memory channel (2026-09-29, approved proposal 2026-09-28_submit-
+  memory-channel.md):** verified role-scoped experience/procedure/lessons
+  that improve THIS role's future work go to `submit(memory=...)` (this
+  role's memory inbox `agent/memory/<role>/memory_inbox.md` — the format
+  guideline lives in the tool description + `agent/memory/README.md`); repo-
+  general facts go to `submit(knowledge=...)` (the shared knowledge inbox).
+  Memory is a curated knowledge base, not a diary: one concise, self-
+  contained statement + type / confidence / scope / evidence locator /
+  review trigger.
 - **The close-down rides a commit (plan22 gap, 2026-09-26):** the friction
   entry + the loop-log DONE line must be COMMITTED before you stop — an
   uncommitted close is lost on an interrupted session and the next session
@@ -295,7 +304,7 @@ one at a 90 %.
    | `--todo` | capture | add a self-contained `TODO.md` entry (standard fields, next ID); no immediate work |
   | `--deferred` (alias `--defer`) | not for now | DEFERRED-flagged `TODO.md` entry; picked up only when nothing else is open |
   | `--wip` | file live-edited by the maintainer | READ ok, EDIT NO — if a task requires editing that file, stop and flag it in the summary/NAP; in afk/autorun it MAY BE IGNORED when it blocks work (his ruling 2026-09-15); the marker is removed only by the maintainer |
-  | `--comment` | maintainer COMMENTARY on the content (NOT an instruction — contrast `--maintainer` = he did/directs something) | read + acknowledge; act only if it contains an explicit request; MAY BE REMOVED once acted on / acknowledged (his ruling 2026-09-15 — supersedes the earlier never-remove) |
+   | `--comment` | maintainer COMMENTARY on the content (NOT an instruction — contrast `--maintainer` = he did/directs something) | read + acknowledge; act only if it contains an explicit request; ON ACTING: in development/history/idea-exchange documents (proposals, research, decision records) REPLACE the `--comment` line with `comment` (single dash) — his `--comment` search then finds only PENDING comments (his ruling 2026-09-29); in other documents the line MAY BE REMOVED once acted on (rulings 2026-09-15 + 2026-09-29) |
   | (no marker) | background | queue; small items (≤ a few lines of effect) may be done inline |
 - **Priority ladder (canonical — autonomous AND direct sessions):** direct
    maintainer message in a primary session > `--maintainer`/`--main` > `--now`
@@ -310,8 +319,10 @@ one at a 90 %.
   marker set is the contract; casual remarks are input, not work.
 - **Marker removal:** after a marker item is handled, remove the marker line (the
   `--main` rule, generalized) — EXCEPT `--wip` (owner: maintainer, never removed
-  by agents); `--comment` MAY be removed once acted on / acknowledged (his
-  ruling 2026-09-15).
+  by agents); `--comment`: in development/history/idea-exchange documents the
+  acted-on line is REPLACED with `comment` (single dash — his `--comment` search
+  then finds only pending comments); in other documents it MAY be removed once
+  acted on / acknowledged (his rulings 2026-09-15 + 2026-09-29).
 - At session start (and after any maintainer touch) sweep the markers with the
   READY-MADE command (do not re-derive the pattern — `--main` matches
   `--maintainer` too, `--defer` matches `--deferred` too; the filter removes

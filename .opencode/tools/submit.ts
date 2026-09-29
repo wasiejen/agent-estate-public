@@ -12,8 +12,9 @@
 // entry (date + role + session) and appends it.
 //
 // Behavior (append-only — the tool NEVER reads or rewrites a target):
-//   1. args: `feedback?` / `knowledge?` / `todo?` (all optional strings,
-//      at least one required — an EMPTY string counts as NOT provided).
+//   1. args: `feedback?` / `knowledge?` / `todo?` / `ideas?` / `memory?`
+//      (all optional strings, at least one required — an EMPTY string
+//      counts as NOT provided).
 //      role + session for the stamp are AUTO-FILLED from the tool context
 //      (role = context.agent else `agent`; session = context.sessionID
 //      else `unknown`) — there is NO role/session parameter;
@@ -26,20 +27,30 @@
 //        knowledge -> agent/knowledge/knowledge_inbox.md (## header)
 //        todo      -> todo_inbox.md (repo root)               (## header)
 //        ideas     -> agent/agent_ideas.md          (### header)
-//      (2026-09-27 maintainer ruling: ideas is a FOURTH channel distinct
-//      from feedback — feedback = friction (what slowed an agent), ideas =
-//      gaps/improvements (what is missing or could be done differently:
-//      process, toolset, design, part-interaction). The target is the
-//      AGENT-SIDE file — NOT the maintainer's live
-//      `maintainer/ideas/ideas.md` (his personal thought stream,
-//      read-only inspiration for the agents).)
+//        memory    -> agent/memory/<role>/memory_inbox.md (### header)
+//                    (2026-09-29 approved proposal 2026-09-28_submit-
+//                    memory-channel.md: a FIFTH, ROLE-SCOPED channel —
+//                    <role> = the context.agent id BEFORE the first `_`
+//                    (`planner_Q3S_245K_slow` -> `planner`), fallback
+//                    `agent` when the context carries no agent. Distinct
+//                    from `knowledge` (repo-general fact -> the shared
+//                    knowledge inbox) and `ideas` (maintainer-side
+//                    stream, read-only for agents): `memory` = verified
+//                    role-scoped experience/procedure for THIS role's
+//                    memory inbox; the curation lane (memory README
+//                    write policy) cures inbox entries into the role's
+//                    memory.md + destilled_mem.md. The inbox FILE and its
+//                    role FOLDER are created when not already existing
+//                    (his ruling 3 — supersedes the proposal's file-only
+//                    recommendation).)
 //      the header depth is the established form of each channel (the
 //      feedback file is maintainer-curated with ### entries; the two inbox
 //      files use ##; agent_ideas.md follows the feedback ### form); a
 //      missing target file (or its parent dir) is CREATED carrying only the
 //      entry — no header invention;
 //   4. return, per provided param: `<param>` + `target: <relative path>` +
-//      `entry: <exact text>` (blocks in feedback/knowledge/todo/ideas order).
+//      `entry: <exact text>` (blocks in
+//      feedback/knowledge/todo/ideas/memory order).
 //
 // Sandbox discipline: the targets are HARDCODED — there is NO path
 // parameter (that is the sandbox). NOTE the deliberate deviation from the
@@ -79,7 +90,7 @@ const CHANNELS = {
 type ChannelKey = keyof typeof CHANNELS;
 
 export default tool({
-  description: `Appends ONE machine-stamped entry (<header> <YYYY-MM-DD_HH-MM> <role> <session> + your raw text) to each of the provided inbox channels — feedback (friction points: what slowed/confused this session, one line preferred) -> agent/agent_feedback.md; knowledge (verified, actionable knowledge in inbox format) -> agent/knowledge/knowledge_inbox.md; todo (a loose finding, unnumbered — the planner assigns IDs at curation) -> todo_inbox.md; ideas (what is missing or could be done differently to improve something generally — process, toolset, general function, design, interaction of parts; NOT friction, that is feedback) -> agent/agent_ideas.md (the agent-side ideas inbox; the maintainer's own ideas.md is his personal stream, not this target). Fire it with at least one of feedback/knowledge/todo/ideas (several at once allowed; pass an empty string for the ones you skip). The date is stamped automatically and role + session are auto-filled from the tool context (role = context.agent, session = context.sessionID — falling back to 'agent'/'unknown'); the targets are hardcoded and NEVER read — you supply the channel texts only, no file fiddling.`,
+  description: `Appends ONE machine-stamped entry (<header> <YYYY-MM-DD_HH-MM> <role> <session> + your raw text) to each of the provided inbox channels — feedback (friction points: what slowed/confused this session, one line preferred) -> agent/agent_feedback.md; knowledge (verified, actionable knowledge in inbox format) -> agent/knowledge/knowledge_inbox.md; todo (a loose finding, unnumbered — the planner assigns IDs at curation) -> todo_inbox.md; ideas (what is missing or could be done differently to improve something generally — process, toolset, general function, design, interaction of parts; NOT friction, that is feedback) -> agent/agent_ideas.md (the agent-side ideas inbox; the maintainer's own ideas.md is his personal stream, not this target); memory (verified, role-scoped experience/procedure/lesson that improves THIS role's future work — NOT repo-general facts, those go to knowledge) -> agent/memory/<role>/memory_inbox.md, where <role> = your agent id before the first '_' (the maintainer's curation lane cures inbox entries into the role's memory.md + destilled_mem.md). Memory-entry guideline (enough to make a valid, reliable memory — full format in agent/memory/README.md, design intent in agent/knowledge/plugin_tools/2026-09-18_tool-plugin-design-handout.md): write ONE concise, self-contained memory statement plus, where known: its type (observed/derived/decided/learned/preference/hypothesis), confidence (high/medium/low), scope (when it applies), an evidence/source locator (file, commit, log line, incident), and a review trigger. NO transient session detail, NO speculation presented as fact, NO restatement of prompt/AGENTS.md/knowledge text (memory is a curated knowledge base, not a diary — search before assuming it is new). Fire it with at least one of feedback/knowledge/todo/ideas/memory (several at once allowed; pass an empty string for the ones you skip). The date is stamped automatically and role + session are auto-filled from the tool context (role = context.agent, session = context.sessionID — falling back to 'agent'/'unknown'); the targets are hardcoded and NEVER read — you supply the channel texts only, no file fiddling.`,
   args: {
     feedback: tool.schema
       .string()
@@ -97,6 +108,10 @@ export default tool({
       .string()
       .optional()
       .describe("An improvement idea for the agent-side ideas inbox: what is missing or could be done differently to improve something generally (process, toolset, general function, design, interaction of parts). Not friction — friction goes to feedback."),
+    memory: tool.schema
+      .string()
+      .optional()
+      .describe("Verified, role-scoped memory for THIS role's own memory inbox (agent/memory/<role>/memory_inbox.md — <role> = the agent id before the first '_'): one concise, self-contained memory statement plus type (observed/derived/decided/learned/preference/hypothesis), confidence, scope, an evidence/source locator, and a review trigger — NO transient session detail, NO speculation as fact, NO restatement of prompt/AGENTS.md/knowledge text. Repo-general facts go to knowledge instead."),
   },
 
   execute: async (args: any, context: any) => {
@@ -104,11 +119,15 @@ export default tool({
 
     // An empty/blank string counts as NOT provided (the same convention as
     // loop_log's session handling).
+    // The memory channel's target is ROLE-SCOPED (the context.agent prefix
+    // before the first '_'), so it is resolved outside the hardcoded
+    // CHANNELS table; the other four channels are unchanged.
     const provided = (Object.keys(CHANNELS) as ChannelKey[]).filter(
       (k) => args[k] != null && String(args[k]).trim() !== ""
     );
-    if (provided.length === 0) {
-      return "error: none of feedback/knowledge/todo/ideas provided — nothing written";
+    const memoryProvided = args["memory"] != null && String(args["memory"]).trim() !== "";
+    if (provided.length === 0 && !memoryProvided) {
+      return "error: none of feedback/knowledge/todo/ideas/memory provided — nothing written";
     }
 
     const stamp = localStamp();
@@ -119,6 +138,10 @@ export default tool({
       context?.agent != null && String(context.agent).trim() !== "" ? String(context.agent) : "agent";
     const session =
       context?.sessionID != null && String(context.sessionID).trim() !== "" ? String(context.sessionID) : "unknown";
+    // <role> = the agent id BEFORE the first '_' (`planner_Q3S_245K_slow` ->
+    // `planner`; an id without '_' keeps itself; the fallback role `agent`
+    // maps to the `agent` namespace).
+    const rolePrefix = role.split("_")[0];
 
     const blocks: string[] = [];
     for (const key of provided) {
@@ -128,6 +151,16 @@ export default tool({
       const entry = `${header} ${stamp} ${role} ${session}\n${String(args[key])}\n\n`;
       appendFileSync(target, entry, "utf-8"); // append-only: the target is NEVER read
       blocks.push(`${key}\ntarget: ${rel}\nentry: ${entry}`);
+    }
+    if (memoryProvided) {
+      const rel = `agent/memory/${rolePrefix}/memory_inbox.md`;
+      const target = path.join(dir, rel);
+      // His ruling 3: the inbox FILE and its role FOLDER are created when
+      // not already existing (recursive mkdir = both).
+      mkdirSync(path.dirname(target), { recursive: true });
+      const entry = `### ${stamp} ${role} ${session}\n${String(args["memory"])}\n\n`;
+      appendFileSync(target, entry, "utf-8"); // append-only: the target is NEVER read
+      blocks.push(`${"memory"}\ntarget: ${rel}\nentry: ${entry}`);
     }
     return blocks.join("\n");
   }

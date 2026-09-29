@@ -226,8 +226,19 @@ export function resolveCap(root: string, modelName: string): { cap: number; labe
 // transparency).
 
 type BudgetStoreV2 = {
-  version: number;
+  version?: number;
   sessions: Record<string, { count: number; updated: string; model: string }>;
+  // #119 (2026-09-29): the file is SHARED with the compaction config
+  // (autoCompact, saturationThreshold, outputReserve, keepTokens,
+  // keepMessages, emergencyRecovery, emergency_budget, model_budget —
+  // read per call by readCompactionConfig). The READ-MODIFY-WRITE invariant:
+  // a budget increment may change ONLY the `sessions` map (additively) +
+  // bump `version` — every pre-existing top-level key must survive the
+  // rewrite (the v2-only rewrite destroyed the config mid-run 2026-09-29:
+  // a config-only file had no `sessions` block, the lenient read fell
+  // through to the fresh object, the first increment rewrote the whole
+  // file).
+  [key: string]: unknown;
 };
 
 // Project root for the store + ctx.log: the entry-point context carries
@@ -252,19 +263,29 @@ function budgetPath(root: string): string {
   return path.join(tempDir(root), "compact_budget.json");
 }
 
+// #119: the parsed object is returned AS-IS (every pre-existing top-level
+// key survives — the file is shared with the compaction config); only the
+// `sessions` map is normalized (absent / wrong-typed / corrupt -> fresh
+// empty map). `version` is NOT forced here — the bump to 2 lands on the
+// first write (recordSuccess).
 function readBudget(root: string): BudgetStoreV2 {
+  let base: Record<string, unknown> = {};
   try {
     const p = budgetPath(root);
     if (existsSync(p)) {
       const parsed = JSON.parse(readFileSync(p, "utf8"));
-      if (parsed != null && typeof parsed === "object" && parsed.sessions != null && typeof parsed.sessions === "object") {
-        return parsed as BudgetStoreV2;
+      if (parsed != null && typeof parsed === "object" && !Array.isArray(parsed)) {
+        base = parsed as Record<string, unknown>;
       }
     }
   } catch {
     // corrupt/unreadable store → treat as fresh (never throw)
   }
-  return { version: 2, sessions: {} };
+  const sessions =
+    base.sessions != null && typeof base.sessions === "object" && !Array.isArray(base.sessions)
+      ? (base.sessions as Record<string, { count: number; updated: string; model: string }>)
+      : {};
+  return { ...base, sessions } as BudgetStoreV2;
 }
 
 function writeBudget(root: string, store: BudgetStoreV2): void {

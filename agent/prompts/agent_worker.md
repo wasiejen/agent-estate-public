@@ -150,6 +150,10 @@ the budget that funds the compaction).
   entry); mid-session friction may be logged at the moment. If `submit` is not
   in your toolset, append by hand to `agent/agent_feedback.md`
   (append-only, format in its header).
+- **Memory channel (2026-09-29):** a verified lesson/experience that improves
+  YOUR role's future work goes to `submit(memory=...)` (your role's memory
+  inbox — the format guideline is in the tool description +
+  `agent/memory/README.md`); repo-general facts go to `submit(knowledge=...)`.
 - **The close-down rides a commit (plan22 gap, 2026-09-26):** the friction
   entry + your loop-log DONE line must be COMMITTED before you stop — an
   uncommitted close is lost and the planner re-lands it.

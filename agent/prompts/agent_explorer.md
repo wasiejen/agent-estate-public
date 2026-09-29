@@ -76,4 +76,8 @@ Self-compaction mechanics (checkpoint current → fire → the planner RESUMEs y
   friction point directly BEFORE the handoff (auto-stamped; absence = no
   entry). If `submit` is not in your toolset, note the friction in the
   handover summary — the feedback file is outside your edit allow-list.
+- **Memory channel (2026-09-29):** a verified lesson/experience that improves
+  YOUR role's future work goes to `submit(memory=...)` (your role's memory
+  inbox — the format guideline is in the tool description +
+  `agent/memory/README.md`); repo-general facts go to `submit(knowledge=...)`.
 - Your final message is a SHORT pointer to that file. Never touch the NAP. Then stop.

@@ -67,10 +67,30 @@ prompt text — hence this proposal.
 - This does not touch the `knowledge` channel or the knowledge base
   (separate lane, separate curation).
 
---comment 2026-09-29_19-20:
+comment 2026-09-29_19-20:
 as long as in the description is enough information to actually create a valid and helpful memory then go ahead. keep in mind the agent\knowledge\plugin_tools\2026-09-18_tool-plugin-design-handout.md.
 - optimize when potential is seen
 
 1. go
 2. to form a valid memory according to the format of the memory.md as least some guideline need to be in the description of the memory submit tool part. see comment above - not overboarding with detailed instruction but enough to have the most important parts to make it a reliable memory
 3. inbox file and folder created when not already existing.
+
+## Verdict (moved to implemented/ 2026-09-29, direct session ses_f11b625d3ffeio02fDzjzypbN2)
+LANDED 2026-09-29 (planner-direct, per his 19-20 comment: GO + the three
+decisions): `memory` arg on `submit` (`.opencode/tools/submit.ts`) — target
+`agent/memory/<role>/memory_inbox.md` (`<role>` = the context.agent prefix
+before the first `_`, fallback `agent`), the inbox FILE + role FOLDER
+auto-created (his ruling 3), same stamp/append/return contract as the other
+channels (block order feedback/knowledge/todo/ideas/memory); the format
+guideline (one concise self-contained statement + type / confidence / scope /
+evidence locator / review trigger — not overboard, per his ruling 2) lives in
+the tool description + the memory README, not the prompts. Pins: submit smoke
+23 → 31 (new (H)/(H2)/(H3)/(H4) role-prefix + fallback + append-only pins +
+5-channel multi-param), probe S22 re-pins only (arg list / arg schema /
+no-params string — no new probe check per the proposal's recommendation).
+Prompt bullets (planner/worker/explorer friction sections) + the memory
+README curation lines (inbox cured into memory.md + destilled_mem.md at the
+maintenance pass) + the knowledge one-liner. Gate: submit smoke 31/31,
+compact_memory 80/80 (the #119 pins ride the same session), probe = 335 PASS +
+11 #113 env, all 10 smokes green. Commit hash: the same commit that carries
+this move (no self-reference).

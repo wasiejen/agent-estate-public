@@ -706,4 +706,40 @@ const CFG_PATH = path.join(SANDBOX, "opencode.jsonc");
     JSON.stringify(lineNone));
 }
 
+// ---- #119 (2026-09-29): the CONFIG-ONLY file (no sessions block) survives
+// the first increment — the 2026-09-29 mid-run incident: the lenient read
+// fell through to the fresh v2 object for a file WITHOUT a `sessions` key,
+// and the first increment rewrote the whole file, destroying autoCompact /
+// saturationThreshold / keepTokens / keepMessages / emergencyRecovery /
+// emergency_budget / model_budget. Acceptance: the increment leaves ONLY
+// the sessions block changed (additive) + the version bump — every
+// pre-existing top-level key survives byte-for-byte in value.
+{
+  const cfg = {
+    autoCompact: true,
+    saturationThreshold: 0.85,
+    outputReserve: 4000,
+    keepTokens: 30000,
+    keepMessages: 12,
+    emergencyRecovery: true,
+    emergency_budget: 1,
+    model_budget: { "Survive-M": 2, default: 1 },
+  };
+  writeFileSync(storePath, JSON.stringify(cfg, null, 2) + "\n");
+  const { exec } = await withClient({ summarize: true, messages: [{ info: { modelID: "Survive-M", providerID: "llama-swap" } }] });
+  const res = await exec({ keepMessages: 1, sessionID: "ses_sm_survive" });
+  await drain();
+  const stS = readStore();
+  chk("#119: config-only file (NO sessions block) -> the increment preserves ALL pre-existing top-level config keys",
+    /dispatched/i.test(res) &&
+      stS.autoCompact === true && stS.saturationThreshold === 0.85 && stS.outputReserve === 4000 &&
+      stS.keepTokens === 30000 && stS.keepMessages === 12 && stS.emergencyRecovery === true &&
+      stS.emergency_budget === 1 && stS.model_budget["Survive-M"] === 2 && stS.model_budget.default === 1,
+    JSON.stringify(stS));
+  chk("#119: ONLY the sessions block changed (one new entry, count 1, model recorded) + version bumped to 2",
+    stS.version === 2 && stS.sessions.ses_sm_survive.count === 1 && stS.sessions.ses_sm_survive.model === "Survive-M" &&
+      Object.keys(stS.sessions).length === 1,
+    JSON.stringify(stS.sessions));
+}
+
 finish();

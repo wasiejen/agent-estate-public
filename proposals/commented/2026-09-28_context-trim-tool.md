@@ -80,7 +80,7 @@ until a `report` run shows real savings in a long never-compacted session.
 If you want no live-DB write tool at all: the research doc stands as the
 evidence record, no code needed.
 
---comment 2026-09-29_19-15: (replace "--comment" with just "comment" on read and acted on it - to not let the maintainer search be uncomment - that you can see as a general ruling and would need to be updated whereever the concention for this stands. only apply this instead of removing the comment to all documents that document the development/history or idea exchange)
+comment 2026-09-29_19-15: (replace "--comment" with just "comment" on read and acted on it - to not let the maintainer search be uncomment - that you can see as a general ruling and would need to be updated whereever the concention for this stands. only apply this instead of removing the comment to all documents that document the development/history or idea exchange)
 
 mh so the tail approach in general does exactly the same as the compaction - setting a marker from which the tail will start to load, but which only functions when a compaction marker is there? did i understand that correctly? so we could use it to customize our compaction not based on keepToken (which is not working due to non exposure of this function) but on real keepMessages. we could, after the compaction and before the prefill, set the marker to the keepMessages of compact_memory indicated position and thus keep the tail we want to keep.
 
@@ -100,3 +100,126 @@ see agent\research\2026-09-28_keeptokens-fork-effort.md for the current idea on 
 
 but no idea how exactly after changing the fork i can create the bun exe opencode is actually running on.
 - so feedback to this please
+
+## Feedback (2026-09-29, planner, direct session ses_f11b625d3ffeio02fDzjzypbN2)
+
+Answering the 19-15 comment, point by point. Line refs verified against the
+1.18.32 dev tree (the #99/#105 research provenance); the fork itself reads
+**1.18.33** (measured today — re-grep refs at apply time, possible 1-line drift).
+
+### Q1 — "does the tail approach do exactly the same as compaction?"
+Yes — your understanding is correct, verified in source: the context builder
+(`message-v2.ts` `toModelMessagesEffect`) finds the LAST compaction part that
+carries a `tail_start_id` (L549-556) and builds the model context as
+[history up to the summary] + `slice(tailIndex, compactionIndex)` — and that
+slice only applies when the guard (L568) passes, i.e. ONLY when a compaction
+marker with `tail_start_id` exists. No compaction marker → no tail slicing at
+all (full history loads — which is exactly why a no-marker session would have
+needed the row-deletion `turns` lever, which you ruled out). The tail lever
+is compaction-only by design, and it rewrites the SAME single JSON field the
+host writes itself during compaction (compaction.ts:461-466).
+
+### Q2 — "customize our compaction on real keepMessages, not keepToken"
+Feasible plugin-side, ZERO fork — and I consider it the best use of the lever:
+- `compact_memory` already computes the keepMessages window (the S-diff
+  metric, #99/#106 work). The host's summarize request only resolves AFTER
+  the host has written the compaction part + summary + its own `tail_start_id`
+  into the DB. Our plugin then rewrites `tail_start_id` to the FIRST message
+  ID of the keepMessages window — before the next step's prefill.
+- No race, no restart: the host re-reads the DB fresh at the top of EVERY loop
+  step (verified: prompt.ts:1092 → fresh SQL select → toModelMessagesEffect →
+  llm.stream; no in-memory history) — the next prefill uses the rewritten tail.
+- It replaces the host's token-budget semantics (consume whole turns until the
+  configured 40k budget runs out) with EXACT count-based retention: exactly
+  the last keepMessages messages, no more, no less.
+- Validation (fail-closed, mirroring the host's own window guard): the rewritten
+  ID must exist in the session, sit strictly BEFORE the compaction user row,
+  and leave the summary after it — otherwise the window degenerates to the
+  FULL history → overflow, and this host has NO auto-compact backstop
+  (`compaction.auto = false`). WAL coordination: a brief write lock; the host
+  reads on its own connection (same as the proposal's `tail` mode).
+- Semantics recommendation: explicit exact-retention (bidirectional — extend
+  OR shorten the host's tail to the keepMessages boundary), logged
+  (`tail= old→new`). Shortening is your intent (control over what stays);
+  the validation protects against the degenerate write.
+
+Consequence: with this landed, the ~11-line fork keepTokens wire becomes
+OPTIONAL/redundant for OUR use case — same goal, zero fork, zero rebuild, zero
+npm-pinning. The fork doc stays as the fallback (it would also give any client
+a native per-call keep field).
+
+### The message-state-list fork idea
+- Feasibility re-frame: the minimal fork is NOT a redesign of context
+  gathering — it is a POST-FILTER on the already-fetched messages (inside /
+  just before `toModelMessagesEffect`): when a session's state list exists,
+  drop the toggled-off messages before the model context is built; the DB rows
+  are never touched (non-destructive in the DB sense — matches your no-
+  destructive ruling). Divergence concentrated in one function + list-file IO,
+  comparable in size to the 11-line wire, not to a rewrite.
+- Real costs to weigh: (a) a SECOND source of truth for "what is in context"
+  (TUI/DB views still show the full history; only the model context follows
+  the list) — fine for agent-centric use, confusing for manual inspection;
+  (b) the safe-zone rules carry over verbatim: toggling off ANY compaction-
+  quartet member degenerates the window to full history (overflow, no
+  backstop); toggling off the LAST user message makes the next prompt re-run
+  the oldest surviving user turn (message-v2.ts L586-602); the list must be
+  validated against the live DB each build (rows may have vanished);
+  (c) every upstream update re-lands the filter + rebuild + swap (the npm-
+  overwrite discipline of the fork-effort doc §3-4).
+- The map/peek you want ("what is in the current context") needs NO fork: a
+  read-only report derived from the DB (per-message id + token mass + in/out
+  of the current window per marker/tail + which messages a toggle would drop)
+  = the proposed `report` mode, extended. Cheap — build it first.
+- Self-prune + self-summary (removing the compaction tool): two honest
+  caveats — (i) the summary must land WHERE the context builder treats it
+  specially (the summaryIndex logic) → that requires the fork's marker
+  mechanism or the state list anyway; (ii) generating the summary
+  IN-SESSION consumes the session's own window at exactly the 90 %+ moment
+  (the summary's output tokens count against the same window that triggered
+  the compaction) → risk of crossing the wall BEFORE the prune lands; the
+  current design dispatches to a separate summarizer session precisely so the
+  summary output does not eat the session's remaining window. Your cache
+  argument is real (a same-model self-summary reuses the session's prefix
+  cache; the separate compaction session re-prefills cold) — but at our window
+  sizes, the output-fit risk dominates until the state-list fork exists.
+  Recommendation: KEEP the compaction tool (it writes marker + summary for us),
+  customize retention via the tail-set above, revisit self-summary only after
+  the state list is proven.
+
+### "How do I make the bun exe after changing the fork?"
+Documented in `agent/research/2026-09-28_keeptokens-fork-effort.md` §3 — the
+maintainer build+swap commands (I did not run them):
+1. `bun install` (one-time, full workspace; bun 1.3.x — the tree declares
+   `packageManager: bun@1.3.14`),
+2. `bun run --cwd packages/opencode build --single` (optionally
+   `--skip-embed-web-ui` — the web UI is unused on this host),
+3. smoke: `dist/opencode-windows-x64/bin/opencode --version` → expect the fork
+   version (bump `packages/opencode/package.json` to e.g. `1.18.33-fork.1`
+   for traceability),
+4. swap: overwrite `AppData\Roaming\npm\node_modules\opencode-ai\bin\opencode.exe`
+   AND both platform twins (`opencode-windows-x64` + `-baseline`) so a later
+   npm postinstall cannot silently restore upstream,
+5. restart.
+Caveat: the fork's `packages/opencode/package.json` reads **1.18.33** while
+the installed host is **1.18.32** — the research doc's line refs were
+verified against 1.18.32; re-grep at apply time (possible 1-line drift).
+
+### Proposed order (my recommendation)
+1. `report` + `tail` (the proposal's own recommendation — non-destructive,
+   reversible; the report doubles as the "what's in my context" peek),
+2. the plugin-side post-compaction tail-set (Q2 — zero fork, exact
+   keepMessages retention),
+3. only if (1)+(2) show a real need for per-message toggling: the state-list
+   post-filter fork (+ its map/peek surface),
+4. the 11-line fork wire only if you want the host-native field itself.
+
+
+--wip
+--comment:
+- "host has NO auto-compact backstop (`compaction.auto = false`)" - we have a auto compact backstop with the plugin recovery_context which triggers on context limit violation. thus we might trigger a second compaction if the tail_start_id is wrongly set.
+- "Semantics recommendation: explicit exact-retention" yes - it should be truthful in its working. but for security or to prevent wrong inputs is may best to not allow very low keepMessages like 1,2 or 3 .. maybe 6 and state that explicitly in the descirption (so it is truthful)
+- "Real costs to weigh: (a)" - the TUI still shows most of the messages. but would be better if all to just have a clear log of earlier messages. so would be a small feature not a detriment
+- "- Self-prune + self-summary" of course keep it - this is an idea not an instruction or concrete plan. there are 28 thousend
+
+to your concern because of update and reapplying the changes:
+- there are 28 thousend forks currently and who knows how many forks of forks of opencode. i can not imagine that this is not solved in an easy way already. or maybe a non-issue in the first place. on each fetch of the origin i have to do a merge and just move keep out changes. npm install is the only thing i have no idea first why this is a problem and second even less on how to solve this :-)

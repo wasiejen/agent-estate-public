@@ -680,3 +680,6 @@ When .opencode/temp/compact_budget.json is missing, neither the injected ctx lin
 ### 2026-09-29_02-49 planner_Q3S_170K ses_f15c490bdffe9KsxVC3kDdLi1K
 Exact-match edit on TODO.md failed once on a whitespace off-by-one (leading spaces misjudged from the Read line-number prefix display); fixed by cat -A byte check — for long multi-line oldStrings in markdown with irregular spacing, prefer a short unique single-line anchor or byte-verify first.
 
+
+### 2026-09-29_16-48 worker_Q3S_245K_slow ses_f12b5172dffeq1r2iwK4QLlWxj
+#117 (worker): two frictions — (1) `git mv` fails on this Git-Bash host (ENOENT/EPERM even for existing tracked sources) despite being the spec's named tool; plain `mv` + `git add` produces identical staged R-renames — the spec/role prompts should name the fallback so the next worker doesn't spend a unit re-deriving it; (2) the live opencode process still loads pre-move plugin code after U1 — the pre-compaction dump hook then ran the OLD `.opencode/agent/scripts/db/dump_session.cjs` path and failed (MODULE_NOT_FOUND), so no session dump existed as the forced-recovery source; a restart clears it, but the dump-failure mode is worth noting for the post-restart acceptance.

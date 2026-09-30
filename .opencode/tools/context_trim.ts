@@ -125,7 +125,12 @@ export function setBackends(list?: string[]) {
 // read-only CLI calls for report, ONE-CLI-call transaction for tail).
 // ---------------------------------------------------------------------------
 const SPAWN_TIMEOUT_MS = 2500; // hard KILL per CLI call — never a hang
-const SPAWN_MAX_BUFFER = 1024 * 1024;
+// 16 MB: the report pulls the window's part JSON through the CLI (the
+// target fields + token mass), and a window with big tool outputs can
+// sum past 1 MB (measured 2026-10-01: ENOBUFS at 1 MB on a fork window
+// carrying 109/36/25 KB parts). The fail-closed end stays — ENOBUFS at
+// 16 MB is a clear error, not a hang.
+const SPAWN_MAX_BUFFER = 16 * 1024 * 1024;
 
 // The positional `?` bindings inlined (the CLI takes ONE SQL text):
 // strings single-quoted ('' doubled), numbers/booleans as-is, null →
@@ -150,13 +155,21 @@ function bindSql(sql: string, args: any[]): string {
 
 // ONE sqlite3 CLI invocation (the gauge core's discipline — ARGS ARRAY
 // via execFileSync, no shell, hard timeout KILL). The column separator
-// is forced to TAB (the CLI default is `|` — pipe can occur inside the
-// JSON data columns, a raw tab never does). `dbRef` is the READ-ONLY
-// URI for report reads, the plain path for the write call.
+// is forced to SOH (\x01): the CLI default is `|` (a pipe CAN occur inside
+// the JSON data columns; a raw \x01 never does — JSON.stringify escapes
+// control bytes). \x01 is NON-whitespace, so it survives the Windows
+// command-line join UNQUOTED: a lone TAB arg is whitespace-collapsed in
+// the Bun-compiled live host, shifting the CLI's args (-separator eats
+// the DB URI, the SQL string becomes the "database name") → the CLI
+// drops to interactive mode and hangs on stdin → the deterministic
+// 2500 ms kill (measured 2026-09-30/10-01, the forked live test; the
+// gauge's separator-less call works live — same exe, same ro-URI).
+// `dbRef` is the READ-ONLY URI for report reads, the plain path for the
+// write call.
 function runCli(dbRef: string, sql: string): string {
   try {
     return String(
-      execFileSync(DEFAULT_EXE_PATH, ["-separator", "\t", dbRef, sql], {
+      execFileSync(DEFAULT_EXE_PATH, ["-separator", "\x01", dbRef, sql], {
         timeout: SPAWN_TIMEOUT_MS,
         maxBuffer: SPAWN_MAX_BUFFER,
         encoding: "utf8",
@@ -164,7 +177,10 @@ function runCli(dbRef: string, sql: string): string {
     );
   } catch (e: any) {
     const isTimeout = e?.killed === true || /timed?\s*out/i.test(String(e?.message ?? ""));
-    const detail = isTimeout ? `timeout ${SPAWN_TIMEOUT_MS}ms kill` : String(e?.stderr ?? "").trim() || String(e?.message ?? e);
+    const stderr = String(e?.stderr ?? "").trim();
+    const detail = isTimeout
+      ? `timeout ${SPAWN_TIMEOUT_MS}ms kill${stderr ? ` stderr: ${stderr}` : ""}`
+      : stderr || String(e?.message ?? e);
     throw new Error(String(detail).replace(/\r?\n+/g, " | ").slice(0, 106));
   }
 }
@@ -177,7 +193,7 @@ function parseRows(out: string, names: string[]): any[] {
   const rows: any[] = [];
   for (const line of String(out).split(/\r?\n/)) {
     if (line === "") continue;
-    const cols = line.split("\t");
+    const cols = line.split("\x01");
     const row: any = {};
     names.forEach((n, i) => {
       row[n] = cols[i] === "" ? null : cols[i];

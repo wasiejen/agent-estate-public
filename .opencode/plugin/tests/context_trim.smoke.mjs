@@ -221,6 +221,26 @@ const EXPECT_SPX = [
   putA("msg_s16", 16000, T({ i: 40, o: 20, cr: 400 }));
   W.close();
 }
+// 4c) ENOBUFS guard: a no-marker session carrying ONE >1 MB text part —
+// the report pulls the part JSON through the CLI, so the spawn maxBuffer
+// (16 MB) must hold (measured 2026-10-01: ENOBUFS at the old 1 MB on a
+// live fork window with 1271 KB of parts).
+{
+  const WB = new DatabaseSync(FX);
+  WB.prepare("INSERT INTO session (id, project_id, time_created, time_updated) VALUES ('ses_ct_big', 'prj_ct', 0, 0)").run();
+  const BIG = "x".repeat(2 * 1024 * 1024);
+  WB.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_b1', 'ses_ct_big', 100, 100, ?)").run(JSON.stringify({ role: "user", time: { created: 100 } }));
+  WB.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES ('p_b1t', 'msg_b1', 'ses_ct_big', 100, 100, ?)").run(JSON.stringify({ type: "text", text: BIG }));
+  WB.close();
+  tool.setBackends(["spawn-sqlite3"]); // FORCED — the spawn-only guard pin
+  const big = await reportWindow(FX, "ses_ct_big");
+  tool.setBackends(); // restore the default chain
+  chk(
+    "spawn report survives a >1 MB part (ENOBUFS guard, 16 MB maxBuffer)",
+    big.split("\n")[0] === "session ses_ct_big" && big.split("\n").some((l) => l.startsWith("row: msg_b1 ") && l.includes("bytes4=")),
+    JSON.stringify(big.split("\n").slice(0, 3)),
+  );
+}
 const spxDefault = await reportWindow(FX, "ses_ct_spx"); // in-process (the default chain)
 tool.setBackends(["spawn-sqlite3"]); // FORCED — the spawn-only pins below
 const spxSpawn = await reportWindow(FX, "ses_ct_spx");

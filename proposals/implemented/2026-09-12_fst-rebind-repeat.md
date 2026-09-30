@@ -44,7 +44,15 @@
 - Full gate green.
 
 ## Status
-awaiting approval (observable behavior change = maintainer-gated; approval boundary per AGENTS.md)
+LANDED 2026-09-30 (plan40, worker-40 — FST commit `e77c01f` on new branch
+`fst_work3` from `opencode_test` 57e7fdb): the let-through helper + the
+region gate in `fst_keyboard.py` per the Design above; the tap-group repeat
+allowance is UNTOUCHED per the 2026-09-15 ruling (5 `TestRebindRepeat`
+pinning tests incl. the MUST-pin tap-group case + 1 existing test
+repurposed to the macro-repeat pin); gate 464 passed + 1 warning, ruff
+F=0 (baseline 459+1w). Residual: #122 live FST testing = maintainer domain.
+Verdict: approved (the maintainer's macro/toggle-repeat ruling below
+carried into the build); the landed design matches the proposal.
 
 1. yes macro and togge repeat stay supressed. so if we have 
 a : b

@@ -731,3 +731,6 @@ Stale pre-carve commit hashes in TODO.md status lines cost a failed git call + r
 ### 2026-09-30_06-06 planner_Q3S_slow ses_f0f987895ffe9XriKa6gVZLn5s
 Planner/worker/explorer prompt Instruction indexes + loop/README still cited the pre-#118 filenames (`agent_readme_*.md`) — a fresh session following the index burns a failed read before finding the real `agent/readme/readme_*.md` (hit it this session; fixed 5c8d612). Suggest a grep-verify pass whenever the maintainer reorgs the tree, or a test pin that prompt index paths resolve.
 
+### 2026-09-30_06-50 planner_Q3S_slow ses_f0f80b612ffeneJo8m83pxjJoy
+Role-prompt instruction indexes listed doc parts that don't exist in the agent repo (repo_map/repo_testgate/repo_gotchas live per-project under projects/<name>/repo/ only) — my init hit a File-not-found and the worker roster had to be derived from opencode.jsonc (plan46's batch fixed renamed-file refs but not missing-file refs); fixed f7f4100 (index now points repo_overview.md + per-project folder pointer + roster to opencode.jsonc).
+

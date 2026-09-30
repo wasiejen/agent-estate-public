@@ -716,3 +716,6 @@ edit on projects/Free-Snap-Tap/repo/repo_commands.md: the fuzzy channel delivere
 ### 2026-09-30_03-24 planner_Q3S_slow ses_f102c4a2dffezocrIY7kzd44YA
 plan40 queue-item wording ("knowledge line: the static model/agent switch mechanics (his 2eba484) → the opencode-plugins inbox") was ambiguous — the entry was already appended to knowledge_inbox.md by planner-39, only the curation remained; the next session nearly re-derived it. Queue items should carry an explicit PENDING/DONE status.
 
+### 2026-09-30_04-05 planner_Q3S_slow ses_f1015adddffehabuOhEUYbxFMG
+plan42: at 77% I spent the window on batch re-reads of 4 large code sections to size a ~100-line build and hit the 87-92% stop line before starting — the 80% triage threshold (estimate remaining calls; >~10 → compact first, then targeted reads post-compaction) would have avoided the mid-unit compaction; the post-compaction build then ran cleanly from the queued continuation message.
+

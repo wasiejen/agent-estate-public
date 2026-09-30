@@ -38,6 +38,18 @@ direct session); the only consumed one is planner-39's (recovery path).
 Items 1-3 = pre-approved agent-usage class (my build + your review); item 4
 needs your ruling.
 
+## Status (2026-09-30, planner-42)
+Items 1-3 LANDED: item 1 = `f96a39c` (readme_post_compaction.md STEP 0 —
+protocol-side delivery for the scope-none resume channels); item 2 =
+`b025159` (zombie guard — `deleteQueuedMessage` on a verified dispatch
+failure, both the v1 summarize + v2 compact paths, + 2 smoke pins); item 3
+= `0a89e7c` (init age-sweep of `compact_message_*`, `queueSweepDays`
+factory option default 3, + 1 smoke pin). Gate: compact_memory smoke
+82/82, auto_resume smoke 147/147, probe 352/352, all other smokes green.
+The new behavior takes effect from the next host restart (the live process
+is the pre-context_trim build). Item 4 (restart-branch inheritance) =
+still awaiting your ruling.
+
 ## Your Q2 answer (in the doc, one line)
 
 COMPACT line + queue file = deliberate self-compact; COMPACT line without

@@ -737,3 +737,6 @@ Role-prompt instruction indexes listed doc parts that don't exist in the agent r
 ### 2026-09-30_07-28 planner_Q3S_slow ses_f0f47df47ffeMpsAnjDdX0F2PN
 compact_memory.ts lives in .opencode/plugin/ (not .opencode/tools/) — my first path guess failed (one wasted call); the tool/plugin split is not signposted in repo_overview's one-line folder listing — resolved via the folder README indexes, which a fresh session should use before guessing file homes.
 
+### 2026-09-30_16-57 planner_Q3S_slow ses_f0e129deeffeqmM5rc8mpnTY2Q
+The injected ctx budget suffix read "1 compactions left" while the self-gauge read 5 after the maintainer's model swap (row model 210K stale → unlisted in model_budget after his key swap → the silent default-cap-1 fallback, compaction_core.ts:205-211; no "default" key in the file) — it cost ~4 tool calls to diagnose; a visible marker for the default-1 fallback (or a "default" key convention) would have made it immediate.
+

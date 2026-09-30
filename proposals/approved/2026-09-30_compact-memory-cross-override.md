@@ -120,7 +120,10 @@ ruling). Build spec:
 `agent/handover/specs/2026-09-30_compact-memory-cross-override.md` (TODO
 #128), queue order after #127. The verified-fact correction (cap-0 self
 emergency is ALREADY allowed today — the "CPU denied for all" line was
-inaccurate) is recorded in the spec.
+inaccurate) is recorded in the spec. Part 3 INCLUDED per his live comment
+(2026-09-30: "part 3 can be implemented as well") — the spec carries it.
 
 comment:
 in favor of Option (b) ("raised by one temporarily"). "the limits do not apply" might have been adressed to model_budget. but to keep in in line only up to model_budget + emergency_budget can be spend via cross. the same as when self-compacting.
+
+comment: part 3 can be implemented as well.

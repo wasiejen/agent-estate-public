@@ -719,3 +719,6 @@ plan40 queue-item wording ("knowledge line: the static model/agent switch mechan
 ### 2026-09-30_04-05 planner_Q3S_slow ses_f1015adddffehabuOhEUYbxFMG
 plan42: at 77% I spent the window on batch re-reads of 4 large code sections to size a ~100-line build and hit the 87-92% stop line before starting — the 80% triage threshold (estimate remaining calls; >~10 → compact first, then targeted reads post-compaction) would have avoided the mid-unit compaction; the post-compaction build then ran cleanly from the queued continuation message.
 
+### 2026-09-30_04-19 planner_Q3S_slow ses_f0fef54baffeQ1VEvi6Z0RuTtN
+llama-swap's repo identity (mostlygeek/llama-swap) was not in the knowledge base — my guessed owner 404'd and two web searches were needed to find it; a one-line pointer (repo URL + that config.example.yaml now lives at docs/config.example.yaml) in the knowledge base would save re-derivation on the next backend-config research.
+

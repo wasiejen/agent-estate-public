@@ -725,3 +725,6 @@ llama-swap's repo identity (mostlygeek/llama-swap) was not in the knowledge base
 ### 2026-09-30_04-49 planner_Q3S_slow ses_f0fe3564dffexpKURnnJ1KyXDg
 Stale pre-carve commit hashes in TODO.md status lines cost a failed git call + re-identification (pre-rewrite cbbebf8/0c90abe/12e3262/44c50a2 vs post-rewrite 7a9e291/60f031b/fea1cbb) — the #123 sweep should annotate every dead cite; live-build data points should cite post-carve hashes only.
 
+### 2026-09-30_05-40 planner_Q3S_slow ses_f0fc7d5daffeVv6fOuHGVh6Nt2
+(1) The edit-fuzzy hint line "hint rejected line=145 d=0 gap=inf" fired on an edit that WAS actually applied (file state matched the newString) — a new signature in the hint-vs-state cluster (plan44: no-anchor-line / d-too-high); the tool should report apply-vs-reject consistently; agents should read-back after any hint line before trusting it. (2) node child_process execSync on win32 shells via cmd.exe — the '^' in git rev syntax ('<hash>^{commit}') is cmd-escaped, so git cat-file checks fail silently (my #123 sweep's first run reported all 340 hashes DEAD on this); use execFileSync (no shell) for git calls from node scripts — knowledge entry landed in knowledge_tools.md.
+

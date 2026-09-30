@@ -6,7 +6,7 @@ from the live file).
 
 **Numbering rule:** every ID used here is RESERVED and never reused — new entries in
 `TODO.md` continue from the last used ID (counter in the root `TODO.md` header:
-currently #123, next = #124). FST records moved to `projects/Free-Snap-Tap/
+currently #124, next = #125). FST records moved to `projects/Free-Snap-Tap/
 
 Pre-carve hash note (2026-09-30, plan45, #123): the 2026-09-29 filter-repo carve rewrote the entire history — every 7-hex hash cited below from before 2026-09-29 is a dead revision in the post-carve repo (historical text, not a live pointer). Measured remaps: cbbebf8→7a9e291 (#106), 0c90abe→60f031b (#115), 12e3262→fea1cbb (#114), 44c50a2→9e91878 (R3 import fix). The 4 pairs are re-pointed inline; the remaining dead citations are annotated by this line.
 todo_records.md` on 2026-09-29 (#117 per-project split).

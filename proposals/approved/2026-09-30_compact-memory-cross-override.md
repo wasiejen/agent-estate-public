@@ -112,9 +112,15 @@ cross pass, count==cap+1 via the override). **Recommendation: approve Part 1 +
 
 ## Status
 
-awaiting approval — planner recommendation: approve Parts 1 + 2 + 4 (Part 3
-optional); one build unit (worker or planner-direct — the gate change is
-~15-25 lines + pins).
+APPROVED 2026-09-30 (maintainer ruling in the comment below — option (b)
+with the cap clarification: the cross spendable total ≤ model_budget +
+emergency_budget, "the same as when self-compacting" → Part 1 ADJUSTED: the
+cross total is cap+1, NO second slot at count==cap+1; Part 3 EXCLUDED — no
+ruling). Build spec:
+`agent/handover/specs/2026-09-30_compact-memory-cross-override.md` (TODO
+#128), queue order after #127. The verified-fact correction (cap-0 self
+emergency is ALREADY allowed today — the "CPU denied for all" line was
+inaccurate) is recorded in the spec.
 
---comment:
+comment:
 in favor of Option (b) ("raised by one temporarily"). "the limits do not apply" might have been adressed to model_budget. but to keep in in line only up to model_budget + emergency_budget can be spend via cross. the same as when self-compacting.

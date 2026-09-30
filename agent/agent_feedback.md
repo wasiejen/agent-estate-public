@@ -704,3 +704,6 @@ MAINTAINER RULING (2026-09-29, same session): no Autorun/Direct marker set → t
 ### 2026-09-30_01-56 worker_Q3S_slow ses_f10a06089ffeVKusSGiE20Hjw9
 Bash `python -c` with embedded quotes/${...} mangles under this host's bash (silent no-ops + syntax errors) — prefer the edit tool or a written .py file for multi-line string replacements in code files.
 
+### 2026-09-30_02-03 planner_Q3S_slow ses_f110d8065ffeCVoCfNeTcba0wU
+Worker self-compaction mid-task (worker-39, plan39): the Task tool returned the COMPACTION SUMMARY as the task "result" (state completed), and that summary was STALE (it claimed the tool was "not yet written" although unit 1 was already committed 2d4480e) — the committed IN-PROGRESS handover was the only reliable state. The resume worked cleanly (MEM-0106), but the stale-summary-as-result presentation is a near-miss: a less careful planner could have relaunched the task from scratch. Suggestion: worker stop-line protocol line — the IN-PROGRESS handover commit is the resume contract (already practiced here; worth stating as the rule, not the exception).
+

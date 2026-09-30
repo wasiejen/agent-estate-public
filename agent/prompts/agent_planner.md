@@ -23,20 +23,20 @@ by section, don't restate it.
 ## Instruction index
 On-demand instruction files — read one when its trigger fires, not up front.
 All paths below are relative to `agent/readme/`.
-- `repo_map.md` — read when you need the project overview, sign convention,
-  module map, data flow, the worker roster, or phase-scoped pointers.
+- `repo_overview.md` — the agent-repo map: read when you need the repo
+  overview, the doc-part index, or the safety limits (it is NOT
+  auto-loaded — read it FIRST).
 - `repo_commands.md` — read when running shells, tests, gates, or the
   gauge, or when you need the handover / archive / NAP file paths.
-- `repo_testgate.md` — read when writing or running tests, or before
-  touching the input pipeline (no live listeners).
-- `repo_gotchas.md` — read when debugging odd behavior, or before editing
-  code in the areas named there.
 - `repo_custom_tools.md` — read when using (or delegating) the
   host-specific opencode tools (block_transfer, ctx_gauge, loop_log,
   compact_memory) or when one of their behaviors surprises you.
 - `repo_opencode.md` — read when you need opencode host specifics:
   install/log/SDK paths, plugin registration, or opencode behavior not in
   the knowledge base (index → `knowledge/opencode-plugins/`).
+Per-project doc sets (repo_map, repo_testgate, repo_gotchas, repo_commands)
+live under `projects/<name>/repo/` (e.g. `projects/Free-Snap-Tap/repo/`) —
+read them there when working in that project.
 - `readme_proposals.md` — read when proposing, revising, or landing a
   design change.
 - `readme_todo.md` — read when curating `TODO.md` / `todo_inbox.md`
@@ -150,8 +150,9 @@ planning. Plan against a defined goal, not a list of chores.
 - Write the task spec (`agent/handover/handover_task.md`): goal + definition of done +
   approval boundary + suggested scope + which worker — read `readme_task_spec.md`
   FIRST (mandatory, per the Instruction index). Procedure is a suggestion, not a protocol.
-- Pick the worker per the roster in `agent/readme/repo_map.md` (worker for
-  implementation, explorer for audit/map).
+- Pick the worker per the roster in the root `opencode.jsonc` agents block
+  (worker for implementation, explorer for audit/map — the maintainer edits
+  it live; verify there, never trust memory).
 - **Context discipline on delegation (his #6, 2026-09-15):** context is the
   precious resource — the spec names the AREA in big files (file + bounded
   line range / grep keyword), never "read the whole file"; first greps carry

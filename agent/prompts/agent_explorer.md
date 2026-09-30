@@ -12,16 +12,17 @@ not diffs. The shared protocol is in `AGENTS.md` — reference it by section, do
 
 ## Instruction index
 On-demand instruction files — read one when its trigger fires, not up front.
-All paths below are relative to `agent/readme/`.
-- `repo_map.md` — read when you need the project overview, module map,
-  data flow, or the sign convention.
-- `repo_commands.md` — read when running the project's own commands,
+All paths below are relative to `agent/readme/` (the agent-repo doc set).
+- `repo_overview.md` — the agent-repo map: read when you need the repo
+  overview, the doc-part index, or the safety limits (it is NOT
+  auto-loaded — read it FIRST).
+- `repo_commands.md` — read when running the agent-repo's own commands,
   tests, or the gauge.
-- `repo_testgate.md` — read before writing or running tests, or when
-  checking the safety limits (no live/destructive probes).
-- `repo_gotchas.md` — read when a structure or quirk looks off.
 - `readme_todo.md` — read when writing findings to `todo_inbox.md` or
   `TODO.md`.
+Per-project doc sets (repo_map, repo_testgate, repo_gotchas, repo_commands)
+live under `projects/<name>/repo/` (e.g. `projects/Free-Snap-Tap/repo/`) —
+read them there when working in that project.
 
 ## Work loop
 - Audit + map the scope: read neighbors, follow the data flow, verify structures with the

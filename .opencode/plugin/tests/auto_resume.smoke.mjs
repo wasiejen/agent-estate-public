@@ -1681,6 +1681,33 @@ try {
     chk("#96 (b): the surviving byte tail carries the seed end marker (the last pre-trim line is intact)",
       lTrim.some((l) => l.includes(SEED_END)), "");
 
+    // ---- queue-sweep (2026-09-30, compact-message-delivery item 3): the
+    // INIT AGE SWEEP of .opencode/temp/compact_message_* — seeded OLD
+    // (mtime back-dated past the cap) pending + .consumed files are
+    // deleted at factory init (ONE queue-sweep= line), a FRESH pending
+    // file survives. (The live host passes no option → the same 3-day
+    // default the smoke passes here explicitly.)
+    const tempDir = path.join(proj, ".opencode", "temp");
+    const OLD_PEND = path.join(tempDir, "compact_message_ses_sweep_old");
+    const OLD_CONS = path.join(tempDir, "compact_message_ses_sweep_old2.consumed");
+    const FRESH = path.join(tempDir, "compact_message_ses_sweep_fresh");
+    const oldT = new Date(Date.now() - 10 * 24 * 3600 * 1000);
+    fs.writeFileSync(OLD_PEND, "resume-old");
+    fs.writeFileSync(OLD_CONS, "resume-old2");
+    fs.writeFileSync(FRESH, "resume-fresh");
+    fs.utimesSync(OLD_PEND, oldT, oldT);
+    fs.utimesSync(OLD_CONS, oldT, oldT);
+    const sweepCountBefore = readLines().filter((l) => l.includes("queue-sweep=")).length;
+    const hooksSweep = await factory({ directory: proj, client: { session: c90Session, provider: { list: providerList }, app: { log: () => "log" } }, queueSweepDays: 3 });
+    const lSweep = readLines();
+    const sweepLine = lSweep.find((l) => l.includes("queue-sweep="));
+    chk("queue-sweep: the OLD pending + .consumed compact_message files are deleted at init (ONE queue-sweep= line, swept=2 maxAgeDays=3), the FRESH file survives",
+      !!hooksSweep?.event && !!sweepLine &&
+        lSweep.filter((l) => l.includes("queue-sweep=")).length === sweepCountBefore + 1 &&
+        sweepLine.includes("swept=2") && sweepLine.includes("maxAgeDays=3") &&
+        !fs.existsSync(OLD_PEND) && !fs.existsSync(OLD_CONS) && fs.existsSync(FRESH),
+      JSON.stringify(sweepLine));
+
     // ---- #96 (c): LINEAGE RESTORE on a TRIMMED TAIL — a FRESH node
     // process (the #90 restore is ONCE per process: this smoke process
     // already ran it on its FIRST factory call, with an empty log — so

@@ -187,7 +187,7 @@
 import type { Plugin, PluginInput } from "@opencode-ai/plugin";
 import type { Event } from "@opencode-ai/sdk";
 import { createHash } from "node:crypto";
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -1818,6 +1818,44 @@ function restoreLineageFromLog(): void {
   }
 }
 
+// compact-message sweep (2026-09-30, compact-message-delivery item 3):
+// AGE-based cleanup of .opencode/temp/compact_message_* — the
+// compact_memory tool's queued continuation messages (both the pending
+// form and the .consumed tombstones). Deletes any file whose mtime is
+// older than maxAgeDays days: a consumed tombstone is evidence for only
+// N days (the deliberate-vs-limit discriminator, the maintainer's Q2),
+// and a pending file older than N days is a zombie or a compaction that
+// never resumed (a sid-existence check would need a DB read — age alone
+// suffices: a session resumed after N days loses at most its 1-3-line
+// continuation hint). Runs at EVERY factory init (the live host loads
+// the plugin once per process; the smoke re-factories per section —
+// re-running on an already-swept dir is a no-op). The live host passes
+// no option → the 3-day default; the smoke passes it explicitly. ONE
+// `queue-sweep= swept=N maxAgeDays=D` line only when something was
+// deleted. Best-effort: a sweep failure must not break plugin load.
+function sweepQueuedMessages(maxAgeDays: number): void {
+  let entries: string[];
+  try {
+    entries = readdirSync(logDir);
+  } catch {
+    return; // no temp dir yet / unreadable → no-op
+  }
+  const cutoff = Date.now() - maxAgeDays * 24 * 3600 * 1000;
+  let swept = 0;
+  for (const name of entries) {
+    if (!name.startsWith("compact_message_")) continue;
+    try {
+      if (statSync(join(logDir, name)).mtimeMs <= cutoff) {
+        unlinkSync(join(logDir, name));
+        swept += 1;
+      }
+    } catch {
+      // best effort
+    }
+  }
+  if (swept > 0) log(`queue-sweep= swept=${swept} maxAgeDays=${maxAgeDays}`);
+}
+
 // One-shot init surface probe (runs ONCE at plugin load): the `surface=`
 // line. `typeof` ONLY — prototype methods are invisible to Object.keys.
 function probeSurface(input: PluginInput) {
@@ -1849,6 +1887,11 @@ export default (async (input: PluginInput) => {
   const logTailBytes = typeof tailOpt === "number" && Number.isFinite(tailOpt) && tailOpt > 0 ? tailOpt : 2 * 1024 * 1024;
   trimLogIfNeeded(maxLogBytes, logTailBytes); // #96: BEFORE the #90 restore (it then sees the surviving tail)
   restoreLineageFromLog(); // #90 part C: ONCE per process (before any routing can happen)
+  // compact-message sweep (item 3): the factory option queueSweepDays
+  // (the live host never passes it → the 3-day default).
+  const sweepOpt: unknown = (input as Record<string, unknown> | undefined)?.queueSweepDays;
+  const queueSweepDays = typeof sweepOpt === "number" && Number.isFinite(sweepOpt) && sweepOpt >= 0 ? sweepOpt : 3;
+  sweepQueuedMessages(queueSweepDays);
   probeSurface(input); // one-shot at load
   // The tick period is a per-factory-call option: the live host never
   // passes tickMs → the 5000ms default (live behavior unchanged); the

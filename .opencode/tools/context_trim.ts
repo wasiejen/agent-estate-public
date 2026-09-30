@@ -83,9 +83,7 @@
 // handover carries the registration snippet).
 import { existsSync } from "node:fs";
 import { tool } from "@opencode-ai/plugin";
-import { DEFAULT_DB_PATH } from "../plugin/scripts/gauge.mjs";
-
-const BUSY_TIMEOUT_MS = 2500;
+import { DEFAULT_DB_PATH, BUSY_TIMEOUT_MS } from "../plugin/scripts/gauge.mjs";
 // The keepMessages floor (round-2 ruling — stated in the description).
 const FLOOR = 6;
 

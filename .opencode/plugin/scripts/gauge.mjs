@@ -148,7 +148,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const BUSY_TIMEOUT_MS = 2500;
+export const BUSY_TIMEOUT_MS = 2500;
 const SPAWN_TIMEOUT_MS = 2500;
 const MAX_BUFFER = 1024 * 1024;
 const THIS_DIR = dirname(fileURLToPath(import.meta.url));

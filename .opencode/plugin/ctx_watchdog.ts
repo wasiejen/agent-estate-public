@@ -381,6 +381,17 @@ let client: PromptAsyncClient | undefined;
 // the number of sessions, negligible).
 const nudgeFired = new Map<string, Set<number>>();
 
+// The nudge-rung ladder (the #33 T2 rungs, documented behavior — NOT config):
+// rung 5 = REM < 5k; rungs 4/3/2 = the pct rung OR the REM rung; rung 1 = pct.
+const RUNG_5_REM = 5_000;
+const RUNG_4_PCT = 90;
+const RUNG_4_REM = 10_000;
+const RUNG_3_PCT = 80;
+const RUNG_3_REM = 20_000;
+const RUNG_2_PCT = 70;
+const RUNG_2_REM = 30_000;
+const RUNG_1_PCT = 50;
+
 // The HIGHEST rung met by a readout (0 = none). pct/REM exist only for a known window
 // (kind ok) — unknown window / no-total / db-error never fire (the stop line is defined in
 // pct/REM; an honest no-signal read is not a signal).
@@ -391,11 +402,11 @@ function computeRung(g: { ok?: boolean; kind?: string; ctx?: number; window?: nu
   const ctx = g.ctx ?? 0;
   const pct = Math.floor((ctx * 100) / w); // the exact formatGauge pct formula
   const rem = w - ctx;
-  if (rem < 5000) return 5;
-  if (pct >= 90 || rem <= 10_000) return 4;
-  if (pct >= 80 || rem <= 20_000) return 3;
-  if (pct >= 70 || rem <= 30_000) return 2;
-  if (pct >= 50) return 1;
+  if (rem < RUNG_5_REM) return 5;
+  if (pct >= RUNG_4_PCT || rem <= RUNG_4_REM) return 4;
+  if (pct >= RUNG_3_PCT || rem <= RUNG_3_REM) return 3;
+  if (pct >= RUNG_2_PCT || rem <= RUNG_2_REM) return 2;
+  if (pct >= RUNG_1_PCT) return 1;
   return 0;
 }
 

@@ -713,3 +713,6 @@ Spec's "greenfield" fact (zero test grep hits for the internal flags) missed tha
 ### 2026-09-30_02-59 planner_Q3S_slow ses_f105e5378ffelMLKGQ4lL6lB7q
 edit on projects/Free-Snap-Tap/repo/repo_commands.md: the fuzzy channel delivered the `hint rejected reason=d-too-high best-d=15` line yet the edit WAS applied (with a 2-space indentation artifact I had to read-back + fix) — the outcome-token line did not match the applied state; verify file state after a hint line, and audit whether the delivered line was the stale failure form for a successful mutating resolution
 
+### 2026-09-30_03-24 planner_Q3S_slow ses_f102c4a2dffezocrIY7kzd44YA
+plan40 queue-item wording ("knowledge line: the static model/agent switch mechanics (his 2eba484) → the opencode-plugins inbox") was ambiguous — the entry was already appended to knowledge_inbox.md by planner-39, only the curation remained; the next session nearly re-derived it. Queue items should carry an explicit PENDING/DONE status.
+

@@ -6,7 +6,9 @@ from the live file).
 
 **Numbering rule:** every ID used here is RESERVED and never reused — new entries in
 `TODO.md` continue from the last used ID (counter in the root `TODO.md` header:
-currently #118, next = #119). FST records moved to `projects/Free-Snap-Tap/
+currently #123, next = #124). FST records moved to `projects/Free-Snap-Tap/
+
+Pre-carve hash note (2026-09-30, plan45, #123): the 2026-09-29 filter-repo carve rewrote the entire history — every 7-hex hash cited below from before 2026-09-29 is a dead revision in the post-carve repo (historical text, not a live pointer). Measured remaps: cbbebf8→7a9e291 (#106), 0c90abe→60f031b (#115), 12e3262→fea1cbb (#114), 44c50a2→9e91878 (R3 import fix). The 4 pairs are re-pointed inline; the remaining dead citations are annotated by this line.
 todo_records.md` on 2026-09-29 (#117 per-project split).
 
 ## 12. v1.1 task spec "exactly 5 lines" off-by-one — CLOSED (planner record, 2026-09-08) — the off-by-one was on the spec side (the filter deterministically yields 4); the reusable invariant = "one line per unskipped payload" — used by the v2 tasks.
@@ -1267,9 +1269,9 @@ smokes, pytest 459+1w, ruff F=0).
 **Suggested scope:** opencode host (maintainer) + repo docs/prompts (agent-side).
 **Status:** open; root cause CONFIRMED per timeline (his 2026-09-21: PR #2470 merged ~4 days ago ≈ his ~48h onset; #2492 = same signature) — old ik_llama in place, workaround stays until the fork patches #2470; his update discipline: never adopt a fresh ik_llama build immediately — let it rest so others find the bugs first.
 
-## #95. (closed 2026-09-28, plan28 maintenance pass — all four sub-items LANDED 2026-09-26: (1) R6 acb6323, (2) edit-fuzzy 15761d8+78b68e7, (3) R3 3ec1c5c/44c50a2/20d5a48, (4) R8 + return-info #97 07bdd56/0d9b8e6; R3 live-acceptance COMPLETE 2026-09-26 (plan23 re-test: grep/glob pair + bash quoted-form + bt anchor-marker pair live-accepted; section-anchor pinned-only, schema-shadowed)) — fuzzy edit-oldstring track (PARENT entry)
+## #95. (closed 2026-09-28, plan28 maintenance pass — all four sub-items LANDED 2026-09-26: (1) R6 acb6323, (2) edit-fuzzy 15761d8+78b68e7, (3) R3 3ec1c5c/9e91878/20d5a48, (4) R8 + return-info #97 07bdd56/0d9b8e6; R3 live-acceptance COMPLETE 2026-09-26 (plan23 re-test: grep/glob pair + bash quoted-form + bt anchor-marker pair live-accepted; section-anchor pinned-only, schema-shadowed)) — fuzzy edit-oldstring track (PARENT entry)
 
-## #67. (closed 2026-09-28, plan30 maintenance pass — R3 build LANDED 2026-09-26 (3ec1c5c/44c50a2/20d5a48, gate 337/337 + io 77/77) + live acceptance COMPLETE 2026-09-26 (plan23 re-test: grep/glob pair + bash quoted-form + bt anchor-marker pair live-accepted; section-anchor pinned-only, schema-shadowed — dormant by design on this host; see #95 closed status)) — Fuzzy scope extension: glob / grep / section-anchor resolvers (2026-09-16, plan2 queue)
+## #67. (closed 2026-09-28, plan30 maintenance pass — R3 build LANDED 2026-09-26 (3ec1c5c/9e91878/20d5a48, gate 337/337 + io 77/77) + live acceptance COMPLETE 2026-09-26 (plan23 re-test: grep/glob pair + bash quoted-form + bt anchor-marker pair live-accepted; section-anchor pinned-only, schema-shadowed — dormant by design on this host; see #95 closed status)) — Fuzzy scope extension: glob / grep / section-anchor resolvers (2026-09-16, plan2 queue)
 - **Problem / evidence:** plan2 wired ONLY `read` (+string filePath) — the
   core matcher (`resolveReadPath`, corpus cache) is corpus-root-agnostic and
   ready for more read-scope tools (research §2.3/§2.6).
@@ -1292,11 +1294,11 @@ smokes, pytest 459+1w, ruff F=0).
   spec's "139 distinct session ids" was a substring census; the script's
   field-2 census reads 86 at 3130 lines — the field-2 census is the R4
   per-session basis (the gate is met on either basis). R3:
-   the build LANDED 2026-09-26 (3ec1c5c/44c50a2/20d5a48 — gate 337/337 + io
+   the build LANDED 2026-09-26 (3ec1c5c/9e91878/20d5a48 — gate 337/337 + io
    77/77; see #95 sub-item (3)). LIVE acceptance 2026-09-26 (plan22): 2 of 4
    channels live (grep/glob pair + bash quoted-form); the section-anchor +
    bt anchor-marker channels blocked — the live process predates the import
-   fix 44c50a2 (the 14-26 mid-incident restart) → pending the maintainer's
+   fix 9e91878 (the 14-26 mid-incident restart) → pending the maintainer's
    next restart.
 
 ## #70. (closed 2026-09-28, plan30 maintenance pass — all units LANDED + live-accepted: unit A 6864bc0 (2026-09-21) + unit B d4ef76e (2026-09-22); live acceptance 2026-09-21 (DUMP-OK PASS + config resolution; the cross model-read bug found+fixed 280b8d0 + re-accepted); the requested research-spec follow-on superseded by the #99/#101/#105 research tracks) — compact_memory rework: config-resolved summarizer + queued message + dump diagnostics (2026-09-16, new priority.md item; re-scoped 2026-09-21 by his priority.md #1)
@@ -1661,7 +1663,7 @@ smokes, pytest 459+1w, ruff F=0).
   (ses_f19fdb571ffeb0aoqGGu62wbzo) carried the injected `ctx:` line
   "1 compactions left" while its ctx_gauge self-read showed "5
   compactions left" — the live host process still PREDATES the fix
-  12e3262; live acceptance remains pending the maintainer's host restart
+  fea1cbb; live acceptance remains pending the maintainer's host restart
   (a fresh session's injected line should then read "5 compactions
   left").
 - **LIVE-ACCEPTED (2026-09-29, direct ses_f15c490bdffe9KsxVC3kDdLi1K,

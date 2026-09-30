@@ -734,3 +734,6 @@ Planner/worker/explorer prompt Instruction indexes + loop/README still cited the
 ### 2026-09-30_06-50 planner_Q3S_slow ses_f0f80b612ffeneJo8m83pxjJoy
 Role-prompt instruction indexes listed doc parts that don't exist in the agent repo (repo_map/repo_testgate/repo_gotchas live per-project under projects/<name>/repo/ only) — my init hit a File-not-found and the worker roster had to be derived from opencode.jsonc (plan46's batch fixed renamed-file refs but not missing-file refs); fixed f7f4100 (index now points repo_overview.md + per-project folder pointer + roster to opencode.jsonc).
 
+### 2026-09-30_07-28 planner_Q3S_slow ses_f0f47df47ffeMpsAnjDdX0F2PN
+compact_memory.ts lives in .opencode/plugin/ (not .opencode/tools/) — my first path guess failed (one wasted call); the tool/plugin split is not signposted in repo_overview's one-line folder listing — resolved via the folder README indexes, which a fresh session should use before guessing file homes.
+

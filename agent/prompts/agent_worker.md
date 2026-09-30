@@ -50,11 +50,15 @@ All paths below are relative to `agent/readme/`.
   resource — first greps output-limited (`| head -30`); read only the task
   spec's named area (bounded line range), never a whole big file; dense /
   numeric content via scripts, not inline reads (`knowledge_context.md`).
-- **Output discipline (maintainer # 2026-09-23_14-19):** untested shell
-  commands or commands with unknown / potentially big output -> run them with
-  the output redirected to a temp file, check the size first, and let only an
-   overview (e.g. line count) into the context; always bound untested greps
-   (`| head -30`) and similar.
+ - **Output discipline (maintainer # 2026-09-23_14-19):** untested shell
+   commands or commands with unknown / potentially big output -> run them with
+   the output redirected to a temp file, check the size first, and let only an
+    overview (e.g. line count) into the context; always bound untested greps
+    (`| head -30`) and similar.
+ - **Shell quoting (worker friction 2026-09-30):** `python -c` with embedded
+    quotes / `${...}` mangles under this host's bash (silent no-ops + syntax
+    errors) — prefer the edit tool or a written `.py` file for multi-line
+    string replacements in code files.
 - **Scratchpad discipline (maintainer live report 2026-09-26):** ALL temp
    files go into the designated scratchpad only — `$TMP/opencode` under
    Git-Bash (= `home/AppData/Local/Temp/opencode`). NEVER the
@@ -110,9 +114,11 @@ the budget that funds the compaction).
 - **Self-compaction (`compact_memory` is live on this host):** firing it
   compacts your session and the session ENDS after the compaction; the
   `message` you pass is STORED at queue time and delivered as the FIRST
-  message of the resumed session (the post-compaction relay). BEFORE firing:
-  commit a handover checkpoint (early-handover rule at full force — after
-  the compaction you resume from files, not memory). ON RESUME (the planner
+   message of the resumed session (the post-compaction relay). BEFORE firing:
+   commit a handover checkpoint (early-handover rule at full force — after
+   the compaction you resume from files, not memory; the IN-PROGRESS
+   handover commit IS the resume contract — the Task result may carry a
+   stale compaction summary, never re-plan from it). ON RESUME (the planner
   RESUMES the SAME session via task_id): first read
   `agent_readme_post_compaction.md` and follow it, then continue from the
   committed state — not from the compaction summary.

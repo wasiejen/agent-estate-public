@@ -291,6 +291,11 @@ one at a 90 %.
   session's section. No detailed section for a closed session may remain.
 - Baselines are UPDATED IN PLACE in `Standing` each session (never appended as
   new evidence lines); stale standing lines get condensed or removed.
+- **Queue status (feedback 2026-09-30):** the "Queue for the next session"
+  items carry an explicit status (OPEN / PENDING-CURATION / HELD-ON-<x>) — a
+  bare re-list gets re-derived by the next session (a plan40 queue item was
+  nearly re-derived: the entry was already in the inbox, only the curation
+  remained).
 
 ## maintainer calls/decisions
 - **Marker set (canonical — the worker prompts reference this table,

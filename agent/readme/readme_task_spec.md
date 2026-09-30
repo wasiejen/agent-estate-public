@@ -34,6 +34,11 @@
   settles a multi-item build.
 - **Claims in a spec are the planner's verified facts** (measured at spec
   time), not assignments for the worker to re-derive.
+- **Flag behaviour-pinning tests explicitly:** the spec's verified-facts
+  section must name existing tests that pin the OBSERVABLE behaviour the
+  change alters, and say that repurposing them is in-scope (worker-40
+  friction, 2026-09-30: a "zero test grep hits" fact missed a test pinning
+  the old rebind-repeat behaviour — the worker had to infer the scope).
 - **Full repo-relative paths for file references:** name proposal / spec /
   knowledge files by their FULL repo-relative path (`proposals/
   approved/…`, not `proposals/approved/…`) — a bare name costs the worker a

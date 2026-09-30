@@ -56,3 +56,8 @@ COMPACT line + queue file = deliberate self-compact; COMPACT line without
 file = limit-driven/auto; file without COMPACT line = failed dispatch
 (zombie, the compaction never happened). Signal, not proof (a self-compact
 without a `message` arg leaves no file).
+
+--wip
+--comment: so on a second or third compaction of the same session, how to you know that the queue file is from the last compaction and not from an earlier compaction? Thus leading (per Q2 answer) to a potentially wrong conclusion?
+
+Unit 4: this appending would be more truthful - so i am in favor of this. or do you see problems with interference with the planners instructions?

@@ -115,3 +115,6 @@ cross pass, count==cap+1 via the override). **Recommendation: approve Part 1 +
 awaiting approval — planner recommendation: approve Parts 1 + 2 + 4 (Part 3
 optional); one build unit (worker or planner-direct — the gate change is
 ~15-25 lines + pins).
+
+--comment:
+in favor of Option (b) ("raised by one temporarily"). "the limits do not apply" might have been adressed to model_budget. but to keep in in line only up to model_budget + emergency_budget can be spend via cross. the same as when self-compacting.

@@ -142,11 +142,11 @@
         //     "output": 135000
         //   }
         // },
-        "Qwen3.8-27B-Q3S-210K-slow-HQKV": {
+        "Qwen3.8-27B-Q3S-235K-slow-HQKV": {
           "name": "Qwen3.8-27B-Q3S-slowHQ",
           "limit": {
-            "context": 210000,
-            "output": 210000
+            "context": 235000,
+            "output": 235000
           }
         },
 
@@ -367,7 +367,7 @@
     "planner_Q3S_slow": {
       "description": "plans tasks and delegates to sub-agents: very high intelligence, speedrating 45, 245k context, high precision, highest general knowledge",
       "mode": "all",
-      "model": "llama-swap/Qwen3.8-27B-Q3S-210K-slow-HQKV",
+      "model": "llama-swap/Qwen3.8-27B-Q3S-235K-slow-HQKV",
       "prompt": "{file:./agent/prompts/agent_planner.md}\n{file:agent/memory/planner/destilled_mem.md}",
       // "prompt": "{file:./prompts/base.txt}\n{file:./prompts/rules.txt}\n{file:./prompts/examples.txt}"
       "temperature": 1.0,
@@ -386,7 +386,7 @@
     "worker_Q3S_slow": {
       "description": "very high intelligence, speedrating 45, 245k context, high precision, highest general knowledge: best for very complex coding and code review work",
       "mode": "all",
-      "model": "llama-swap/Qwen3.8-27B-Q3S-210K-slow-HQKV",
+      "model": "llama-swap/Qwen3.8-27B-Q3S-235K-slow-HQKV",
       "prompt": "{file:./agent/prompts/agent_worker.md}",
       "temperature": 1.0,
       "permission": {
@@ -408,7 +408,7 @@
     "explorer_Q3S_slow": {
       "description": "very high intelligence, speedrating 45, 245k context, high precision, highest general knowledge: for research and exploration of needed information",
       "mode": "all",
-      "model": "llama-swap/Qwen3.8-27B-Q3S-210K-slow-HQKV",
+      "model": "llama-swap/Qwen3.8-27B-Q3S-235K-slow-HQKV",
       "prompt": "{file:./agent/prompts/agent_worker.md}\n{file:./agent/prompts/agent_explorer.md}",
       "temperature": 1.0,
       "permission": {

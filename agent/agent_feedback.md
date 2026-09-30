@@ -728,3 +728,6 @@ Stale pre-carve commit hashes in TODO.md status lines cost a failed git call + r
 ### 2026-09-30_05-40 planner_Q3S_slow ses_f0fc7d5daffeVv6fOuHGVh6Nt2
 (1) The edit-fuzzy hint line "hint rejected line=145 d=0 gap=inf" fired on an edit that WAS actually applied (file state matched the newString) — a new signature in the hint-vs-state cluster (plan44: no-anchor-line / d-too-high); the tool should report apply-vs-reject consistently; agents should read-back after any hint line before trusting it. (2) node child_process execSync on win32 shells via cmd.exe — the '^' in git rev syntax ('<hash>^{commit}') is cmd-escaped, so git cat-file checks fail silently (my #123 sweep's first run reported all 340 hashes DEAD on this); use execFileSync (no shell) for git calls from node scripts — knowledge entry landed in knowledge_tools.md.
 
+### 2026-09-30_06-06 planner_Q3S_slow ses_f0f987895ffe9XriKa6gVZLn5s
+Planner/worker/explorer prompt Instruction indexes + loop/README still cited the pre-#118 filenames (`agent_readme_*.md`) — a fresh session following the index burns a failed read before finding the real `agent/readme/readme_*.md` (hit it this session; fixed 5c8d612). Suggest a grep-verify pass whenever the maintainer reorgs the tree, or a test pin that prompt index paths resolve.
+

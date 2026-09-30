@@ -4247,14 +4247,19 @@ let llRetA = null;
 // The lane-5.2 scriptlet (agent/scripts/numword/): ONE shared map
 // (numwords.json) read by BOTH entry points. The node CLI is SPAWNED (the
 // committed scriptlet IS the contract — no in-probe re-implementation), the
-// python twin is spawned via the repo venv python, and the module is required
-// DIRECT via createRequire (node -e usable). Grammar: research §3.2 +
+// python twin is spawned via the repo venv python (the agent repo has no
+// .venv of its own post-split — the FST workspace venv is the fallback,
+// #113 close 2026-09-30), and the module is required DIRECT via
+// createRequire (node -e usable). Grammar: research §3.2 +
 // addendum C4 — unknown input is LOUD, never a best-guess.
 
 const NUMWORD_DIR = path.join(REPO_ROOT, "agent", "scripts", "numword");
 const NUMWORD_JS = path.join(NUMWORD_DIR, "numword.cjs");
 const NUMWORDS_JSON = path.join(NUMWORD_DIR, "numwords.json");
-const VENV_PY = path.join(REPO_ROOT, ".venv", "Scripts", "python.exe");
+const FST_VENV_PY = "C:\\Users\\operator\\Repos\\Free-Snap-Tap\\.venv\\Scripts\\python.exe";
+const VENV_PY = existsSync(path.join(REPO_ROOT, ".venv", "Scripts", "python.exe"))
+  ? path.join(REPO_ROOT, ".venv", "Scripts", "python.exe")
+  : FST_VENV_PY;
 const runNumword = (args) => {
   try {
     const stdout = execFileSync(process.execPath, [NUMWORD_JS, ...args], { encoding: "utf8" });

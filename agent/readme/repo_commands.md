@@ -2,7 +2,7 @@
 
 Sections moved verbatim from the former root file; the overview (`repo_overview.md`, this folder) is now a
 thin index pointing at the parts. The FST project's commands (venv, pytest, ruff)
-live in `agent/readme/repo_commands.md` (#117 split).
+live in `projects/Free-Snap-Tap/repo/repo_commands.md` (#117 split).
 
 ## Environment & shell
 The `bash` tool = **Git-Bash (bash 3.6, MINGW64)** — `opencode.jsonc` pins

@@ -37,14 +37,14 @@ All paths below are relative to `agent/readme/`.
 - `repo_opencode.md` — read when you need opencode host specifics:
   install/log/SDK paths, plugin registration, or opencode behavior not in
   the knowledge base (index → `knowledge/opencode-plugins/`).
-- `agent_readme_proposals.md` — read when proposing, revising, or landing a
+- `readme_proposals.md` — read when proposing, revising, or landing a
   design change.
-- `agent_readme_todo.md` — read when curating `TODO.md` / `todo_inbox.md`
+- `readme_todo.md` — read when curating `TODO.md` / `todo_inbox.md`
   (both at the REPO ROOT — not under `agent/`) or
   assigning entry IDs.
-- `agent_readme_task_spec.md` — MANDATORY: read it BEFORE writing or launching
+- `readme_task_spec.md` — MANDATORY: read it BEFORE writing or launching
   any task spec (`handover_task.md`) — it sets the scope/size discipline for specs.
-- `agent_readme_loop.md` — read when driving the loop (autonomous launch):
+- `readme_loop.md` — read when driving the loop (autonomous launch):
   iteration semantics (incl. counter mismatch), the loop folder
   convention, the loop-log protocol, closing + interrupt handling.
 - `agent/knowledge/` (repo-root-relative, NOT under agent/prompts) —
@@ -70,7 +70,7 @@ All paths below are relative to `agent/readme/`.
   record the open question in the NAP and move to the next clear task (do not
   block).
 - **Loop folder + loop log:** keep the current looprun folder per
-  `agent_readme_loop.md` §Loop folder (rollover at iteration 1; session marker
+  `readme_loop.md` §Loop folder (rollover at iteration 1; session marker
   files retired — the loop log records session ids). Write your START/DONE lines
   per §Loop log — via the `loop_log` tool when it is in your toolset (it appends
   the formatted line — status by KEYWORD start/done/return/warn/info/correct,
@@ -148,7 +148,7 @@ planning. Plan against a defined goal, not a list of chores.
   hacks). Expect zero circumvention attempts in loop logs — one is a prompt-
   failure signal.
 - Write the task spec (`agent/handover/handover_task.md`): goal + definition of done +
-  approval boundary + suggested scope + which worker — read `agent_readme_task_spec.md`
+  approval boundary + suggested scope + which worker — read `readme_task_spec.md`
   FIRST (mandatory, per the Instruction index). Procedure is a suggestion, not a protocol.
 - Pick the worker per the roster in `agent/readme/repo_map.md` (worker for
   implementation, explorer for audit/map).
@@ -179,7 +179,7 @@ planning. Plan against a defined goal, not a list of chores.
   compacted (its result/handover says so, or its loop log shows START without
   DONE and the DB carries a compaction part for that session), RESUME the same
   session via the Task tool's `task_id` and instruct it to follow the
-  post-compaction protocol (`agent_readme_post_compaction.md`) — do not launch
+  post-compaction protocol (`readme_post_compaction.md`) — do not launch
   a fresh worker for the same task. You are the decider of WHEN to resume a
   worker; before resuming you may compact the worker session first
   (compact_memory with its sessionID), then resume via task_id. A CROSS
@@ -342,7 +342,7 @@ one at a 90 %.
   a sweep if a marker ever collides with product content.)
 - Interactive: direct asking is fine for critical decisions; proposals preferred.
 - Autonomous: never ask — surface open decisions as proposal files (≤4, bundle
-  adjacent items; `proposals/` per `agent_readme_proposals.md`): short overview
+  adjacent items; `proposals/` per `readme_proposals.md`): short overview
   + file/location pointers for code + ONE recommendation each, ordered by
   priority (AGENTS.md §Approval-boundaries). File creation is how he sees them —
   do not rely on closing-message call lines.

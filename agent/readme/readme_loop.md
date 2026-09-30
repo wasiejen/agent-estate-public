@@ -1,4 +1,4 @@
-# agent_readme_loop.md — the loop protocol
+# readme_loop.md — the loop protocol
 
 Planner-owned static file; the planner reads it when driving the loop
 (autonomous launch). Iteration state lives in the launch message + the NAP —

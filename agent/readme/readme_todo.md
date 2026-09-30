@@ -1,4 +1,4 @@
-# agent_readme_todo.md — the TODO system
+# readme_todo.md — the TODO system
 
 Read when writing, curating, or referencing TODO entries or IDs.
 

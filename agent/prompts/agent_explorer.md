@@ -20,7 +20,7 @@ All paths below are relative to `agent/readme/`.
 - `repo_testgate.md` — read before writing or running tests, or when
   checking the safety limits (no live/destructive probes).
 - `repo_gotchas.md` — read when a structure or quirk looks off.
-- `agent_readme_todo.md` — read when writing findings to `todo_inbox.md` or
+- `readme_todo.md` — read when writing findings to `todo_inbox.md` or
   `TODO.md`.
 
 ## Work loop

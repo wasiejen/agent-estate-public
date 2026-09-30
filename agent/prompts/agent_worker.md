@@ -31,9 +31,9 @@ All paths below are relative to `agent/readme/`.
 - `repo_opencode.md` — read when you need opencode host specifics:
   install/log/SDK paths, plugin registration, or opencode behavior not in
   the knowledge base (index → `knowledge/opencode-plugins/`).
-- `agent_readme_todo.md` — read when appending findings to `todo_inbox.md`
+- `readme_todo.md` — read when appending findings to `todo_inbox.md`
   (at the REPO ROOT — not under `agent/`).
-- `agent_readme_loop.md` — §Loop log defines the activity-log lines you write at
+- `readme_loop.md` — §Loop log defines the activity-log lines you write at
   session start and task completion (write them via the `loop_log` tool when it
   is in your toolset — status by KEYWORD, role/model/session optional and
   auto-filled; the format description is the fallback).
@@ -120,7 +120,7 @@ the budget that funds the compaction).
    handover commit IS the resume contract — the Task result may carry a
    stale compaction summary, never re-plan from it). ON RESUME (the planner
   RESUMES the SAME session via task_id): first read
-  `agent_readme_post_compaction.md` and follow it, then continue from the
+  `readme_post_compaction.md` and follow it, then continue from the
   committed state — not from the compaction summary.
 
 ## Honesty guard (hard rule)

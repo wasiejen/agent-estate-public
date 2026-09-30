@@ -1,4 +1,4 @@
-# agent_readme_proposals.md — the proposal channel
+# readme_proposals.md — the proposal channel
 
 Read when proposing, revising, or landing a design change.
 

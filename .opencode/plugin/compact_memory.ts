@@ -26,8 +26,11 @@
 //   - the queued-message path (the `message` arg is STORED at queue time —
 //     one per-session file under .opencode/temp/ — and delivered as the
 //     FIRST message on the compacted session's next resume by the
-//     auto_resume unit-4 CONTINUE relay; NO promptAsync at queue time —
-//     the maintainer's temp fix 0f192e5 stays gone — spec 2+11, 526e7e1);
+//     auto_resume unit-4 CONTINUE relay (in-scope) / the post-compaction
+//     protocol STEP 0 (scope-none); NO promptAsync at queue time — the
+//     maintainer's temp fix 0f192e5 stays gone — spec 2+11, 526e7e1;
+//     2026-09-30 zombie guard: the file is DELETED on a verified dispatch
+//     failure — file presence ≠ a compaction happened);
 //   - the dispatch response (NEVER a success claim — the budget increment
 //     + the COMPACT line land ONLY in the verified-success callback).
 //
@@ -46,7 +49,7 @@
 // Self-location depth: this file lives at <root>/.opencode/plugin/
 // compact_memory.ts (the root fallback is the core's SELF_ROOT).
 
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { tool } from "@opencode-ai/plugin";
@@ -313,6 +316,21 @@ function storeMessage(root: string, sessionID: string, message: string): void {
   }
 }
 
+// Zombie guard (2026-09-30, compact-message-delivery item 2): the queue
+// file is written BEFORE the fire-and-forget dispatch settles, so a
+// VERIFIED dispatch failure (the compaction never happened — no budget
+// increment, no COMPACT line) must delete the queued message: a stranded
+// file would otherwise be delivered on the session's next recovery idle
+// (file presence ≠ a compaction happened). Best-effort — an absent file
+// is already the desired state.
+function deleteQueuedMessage(root: string, sessionID: string): void {
+  try {
+    unlinkSync(queuedMessagePath(root, sessionID));
+  } catch {
+    // best effort
+  }
+}
+
 function queueMessage(root: string, sessionID: string, message: unknown, dispatch: string, modelNote: string): string {
   let body = dispatch;
   if (typeof message === "string" && message !== "") {
@@ -331,7 +349,7 @@ export default async function CompactMemoryPlugin(ctx: any) {
         args: {
           sessionID: tool.schema.string().optional().describe("Session to compact. Omit = your own session (the SELF path). An explicit id = ANOTHER session (the CROSS fire-and-forget path)."),
           keepMessages: tool.schema.number().optional().describe("Recent messages to retain (e.g. 18) — drives a keepTokens computation at dispatch time: the provider-token mass of the last N messages (S-diff: cumulative context size input+output+cache.read across the window; bytes/4 fallback) is sent as keep.tokens in the summarize body (the host retains the token budget, not the count); the budget file's keepTokens is the fallback when the read fails or the sum is 0."),
-           message: tool.schema.string().optional().describe("Post-compaction continuation message (1-3 lines: what to resume + which files to re-read) — stored at queue time (one per-session file under .opencode/temp/) and delivered as the FIRST message on the compacted session's next resume by the auto-resume relay (never awaited). ABSENT → nothing is queued."),
+            message: tool.schema.string().optional().describe("Post-compaction continuation message (1-3 lines: what to resume + which files to re-read) — stored at queue time (one per-session file under .opencode/temp/) and delivered as the FIRST message on the compacted session's next resume (the auto-resume relay for in-scope sessions; otherwise the session's own post-compaction protocol STEP 0) (never awaited); deleted on a verified dispatch failure. ABSENT → nothing is queued."),
           emergency: tool.schema.boolean().optional().describe("Consumes the once-per-session emergency compaction (allowed only when the normal budget is exhausted). Omit = a normal compaction."),
         },
         async execute(args: any, c: any) {
@@ -477,16 +495,18 @@ export default async function CompactMemoryPlugin(ctx: any) {
                   const error = compactionFailure(result);
                   if (error !== "") {
                     console.error(`compact_memory: background compaction FAILED for ${sessionID}: ${error}`);
+                    deleteQueuedMessage(root, sessionID); // zombie guard: the compaction never happened
                     return;
                   }
                    recordVerifiedSuccess(root, c, sessionID, model, messagesToKeep, keepRes, isEmergency);
                  })
-                 .catch((err: unknown) =>
-                   console.error(
-                     `compact_memory: background compaction rejected for ${sessionID}:`,
-                     err instanceof Error ? err.message : String(err),
-                   ),
-                 );
+                  .catch((err: unknown) => {
+                    console.error(
+                      `compact_memory: background compaction rejected for ${sessionID}:`,
+                      err instanceof Error ? err.message : String(err),
+                    );
+                    deleteQueuedMessage(root, sessionID); // zombie guard: the compaction never happened
+                  });
                 const dispatch =
                   `Compaction dispatched for ${sessionID} (background, fire-and-forget) — the compact call was sent ` +
                  `(model: ${model}); the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success.` +
@@ -505,17 +525,19 @@ export default async function CompactMemoryPlugin(ctx: any) {
                 .then(({ note, error }) => {
                   if (error !== "") {
                     console.error(`compact_memory: background compaction FAILED for ${sessionID}: ${error}`);
+                    deleteQueuedMessage(root, sessionID); // zombie guard: the compaction never happened
                     return;
                   }
                    if (note !== "") console.log(`compact_memory (${sessionID}): ${note}`);
                    recordVerifiedSuccess(root, c, sessionID, model, messagesToKeep, keepRes, isEmergency);
                 })
-                .catch((err: unknown) =>
+                .catch((err: unknown) => {
                   console.error(
                     `compact_memory: background compaction rejected for ${sessionID}:`,
                     err instanceof Error ? err.message : String(err),
-                  ),
-                );
+                  );
+                  deleteQueuedMessage(root, sessionID); // zombie guard: the compaction never happened
+                });
               const dispatch =
                 `Compaction dispatched for ${sessionID} (background, fire-and-forget) — the summarize call was sent ` +
                 `(model: ${model}); the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success.` +

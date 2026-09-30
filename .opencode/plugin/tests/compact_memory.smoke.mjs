@@ -553,6 +553,30 @@ const CFG_PATH = path.join(SANDBOX, "opencode.jsonc");
     rec.summarize.length === 1 && readStore().sessions.ses_sm_fail == null && !readLog().includes("COMPACT ses_sm_fail"));
 }
 
+// ---- zombie guard (2026-09-30, compact-message-delivery item 2): a
+// VERIFIED dispatch failure deletes the queued message file — the
+// write-before-dispatch no longer leaves a zombie the relay would
+// deliver on the next recovery idle (file presence ≠ a compaction
+// happened).
+{
+  const { rec, exec } = await withClient({ summarize: true, summarizeError: new Error("boom-zombie") });
+  const qz = path.join(SANDBOX, ".opencode", "temp", "compact_message_ses_sm_zombie");
+  const { res, errors } = await captureConsole(async () => {
+    const r = await exec({ keepMessages: 1, sessionID: "ses_sm_zombie", message: "resume-zombie" });
+    await drain();
+    return r;
+  });
+  const crossNote = "cross-session model read unavailable (no client.session.messages) — the calling session's model is used for the budget class";
+  chk("zombie: a queued message on a FAILED dispatch is DELETED (no zombie file; the response is unchanged)",
+    !existsSync(qz) &&
+      res === `${dispatchLine("ses_sm_zombie", "summarize", "Qwen3.8-27B-IQ4KT-120K")}\nThe message was queued for ses_sm_zombie (delivered on its resume).\n${crossNote}`,
+    JSON.stringify(res.slice(0, 160)));
+  chk("zombie: the failure is console.error'd + NO increment, NO COMPACT line (the compaction never happened)",
+    errors.some((l) => l.includes("FAILED for ses_sm_zombie") && l.includes("boom-zombie")) &&
+      readStore().sessions.ses_sm_zombie == null && !readLog().includes("COMPACT ses_sm_zombie"),
+    JSON.stringify(errors));
+}
+
 // ---- v2 schema + lenient v1 read (the schema bump lands on the next write)
 {
   const st = readStore();

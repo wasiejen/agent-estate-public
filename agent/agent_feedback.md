@@ -722,3 +722,6 @@ plan42: at 77% I spent the window on batch re-reads of 4 large code sections to 
 ### 2026-09-30_04-19 planner_Q3S_slow ses_f0fef54baffeQ1VEvi6Z0RuTtN
 llama-swap's repo identity (mostlygeek/llama-swap) was not in the knowledge base — my guessed owner 404'd and two web searches were needed to find it; a one-line pointer (repo URL + that config.example.yaml now lives at docs/config.example.yaml) in the knowledge base would save re-derivation on the next backend-config research.
 
+### 2026-09-30_04-49 planner_Q3S_slow ses_f0fe3564dffexpKURnnJ1KyXDg
+Stale pre-carve commit hashes in TODO.md status lines cost a failed git call + re-identification (pre-rewrite cbbebf8/0c90abe/12e3262/44c50a2 vs post-rewrite 7a9e291/60f031b/fea1cbb) — the #123 sweep should annotate every dead cite; live-build data points should cite post-carve hashes only.
+

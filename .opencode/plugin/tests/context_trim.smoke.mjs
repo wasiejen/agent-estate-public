@@ -179,6 +179,86 @@ chk(
 );
 
 // ---------------------------------------------------------------------------
+// 4b) the spawn-sqlite3 backend (TODO #126 — the forced-chain pins).
+// A SECOND fixture session (ses_ct_spx, its own quartet) carries the
+// spawn pins so the in-process pins' fixture state (ses_ct_fix) is
+// untouched. The chain is FORCED to ["spawn-sqlite3"] via the
+// setBackends test hook (the smoke host has node:sqlite — without the
+// hook the spawn path is never reached).
+// ---------------------------------------------------------------------------
+const EXPECT_SPX = [
+  "session ses_ct_spx",
+  "header: marker=msg_s13 summary=msg_s14 tail_start=msg_s07 retained=1 post-summary=2",
+  "row: msg_s07 700 user bytes4=1",
+  "row: msg_s15 15000 user bytes4=2",
+  "row: msg_s16 16000 assistant tokens=460",
+].join("\n");
+{
+  const W = new DatabaseSync(FX);
+  W.exec("PRAGMA foreign_keys = ON;");
+  W.prepare("INSERT INTO session (id, project_id, time_created, time_updated) VALUES ('ses_ct_spx', 'prj_ct', 0, 0)").run();
+  const putU = (id, time, text) => {
+    W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, 'ses_ct_spx', ?, ?, ?)").run(id, time, time, JSON.stringify({ role: "user", time: { created: time } }));
+    W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, 'ses_ct_spx', ?, ?, ?)").run(`p_${id}t`, id, time, time, JSON.stringify({ type: "text", text }));
+  };
+  const putA = (id, time, tok) => {
+    W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, 'ses_ct_spx', ?, ?, ?)").run(id, time, time, JSON.stringify({ role: "assistant", parentID: `p_${id}u`, finish: "stop", tokens: tok }));
+    W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, 'ses_ct_spx', ?, ?, ?)").run(`p_${id}a`, id, time, time, JSON.stringify({ type: "text", text: "ok" }));
+  };
+  putU("msg_s01", 100, "s one");
+  putA("msg_s02", 200, T({ i: 10, o: 5, cr: 100 }));
+  putU("msg_s03", 300, "s three");
+  putA("msg_s04", 400, T({ i: 20, o: 10, cr: 200 }));
+  putU("msg_s05", 500, "s five");
+  putA("msg_s06", 600, T({ i: 30, o: 15, cr: 300 }));
+  putU("msg_s07", 700, "s seven");
+  // The marker quartet (tail_start_id = msg_s07) + the summary child +
+  // 2 messages after the summary.
+  W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_s13', 'ses_ct_spx', 13000, 13000, ?)").run(JSON.stringify({ role: "user", time: { created: 13000 } }));
+  W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES ('p_s13c', 'msg_s13', 'ses_ct_spx', 13000, 13000, ?)").run(JSON.stringify({ type: "compaction", auto: false, tail_start_id: "msg_s07" }));
+  W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_s14', 'ses_ct_spx', 14000, 14000, ?)").run(JSON.stringify({ role: "assistant", parentID: "msg_s13", summary: true, finish: "stop" }));
+  putU("msg_s15", 15000, "s post one");
+  putA("msg_s16", 16000, T({ i: 40, o: 20, cr: 400 }));
+  W.close();
+}
+const spxDefault = await reportWindow(FX, "ses_ct_spx"); // in-process (the default chain)
+tool.setBackends(["spawn-sqlite3"]); // FORCED — the spawn-only pins below
+const spxSpawn = await reportWindow(FX, "ses_ct_spx");
+chk(
+  "spawn report = the in-process report byte-exact (the same key fields)",
+  spxSpawn === spxDefault && spxSpawn === EXPECT_SPX,
+  JSON.stringify(spxSpawn.split("\n")),
+);
+const tSpx = await tailSet(FX, "ses_ct_spx", "msg_s02");
+chk(
+  "spawn tail rewrite return line byte-exact (the ONE-CLI-call transaction)",
+  tSpx === "tail= msg_s07 -> msg_s02 keep=6",
+  JSON.stringify(tSpx),
+);
+{
+  const RO = new DatabaseSync(FX, { readOnly: true });
+  const partJson = RO.prepare("SELECT data FROM part WHERE id = 'p_s13c'").get().data;
+  RO.close();
+  chk(
+    "the part row carries the new tail_start_id (spawn path, readable back)",
+    partJson === '{"type":"compaction","auto":false,"tail_start_id":"msg_s02"}',
+    JSON.stringify(partJson),
+  );
+}
+chk(
+  "post-rewrite spawn report: retained=6 + the new tail head row (msg_s02)",
+  (await reportWindow(FX, "ses_ct_spx")).split("\n")[1] === "header: marker=msg_s13 summary=msg_s14 tail_start=msg_s02 retained=6 post-summary=2" &&
+    (await reportWindow(FX, "ses_ct_spx")).split("\n")[2] === "row: msg_s02 200 assistant tokens=115",
+  JSON.stringify((await reportWindow(FX, "ses_ct_spx")).split("\n").slice(0, 3)),
+);
+chk(
+  "spawn-path rejection: target AT the compaction row (validation still fires)",
+  (await tailSet(FX, "ses_ct_spx", "msg_s13")) === "tail= rejected: target-not-before-compaction",
+  JSON.stringify(await tailSet(FX, "ses_ct_spx", "msg_s13")),
+);
+tool.setBackends(); // restore the default chain for the in-process pins below
+
+// ---------------------------------------------------------------------------
 // 5) the tail rewrite lands (part JSON tail_start_id = target, return line
 //    byte-exact) — the fixture is mutated from here on
 // ---------------------------------------------------------------------------

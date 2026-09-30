@@ -69,21 +69,33 @@
 //     SQLITE_BUSY → one short-backoff retry (the gauge's busy_timeout
 //     pattern) → fail-closed (never a partial write).
 //
-// Backend (in-process, WRITABLE — the gauge chain is read-only and does
-// not apply): `bun:sqlite` first (the native module of the bun-compiled
-// host), then `node:sqlite` (system node v24+ — the smoke host). Both
-// opened read-write with `PRAGMA busy_timeout = 2500`; report mode
-// performs NO writes (a WAL shared read on the same connection). NO
-// spawn fallback for writes — a missing in-process backend is a
-// fail-closed db-error (never a blind CLI write). The core is exported
-// for the smoke (the smoke NEVER points it at the live DB).
+// Backend (WRITABLE — the gauge READ chain does not apply): a chain
+// tried in order, FIRST SUCCESS wins: (1) `bun:sqlite` (the native
+// module of the bun-compiled host), (2) `node:sqlite` (system node v24+
+// — the smoke host), (3) `spawn-sqlite3` — the LAST-RESORT maintainer-
+// placed CLI (TODO #126; the gauge core's proven spawn discipline):
+// execFileSync ARGS ARRAY (no shell — no quoting surface), a hard
+// 2500 ms KILL per call (a stuck child is a db-error, never a hang).
+// report mode = read-only queries, each ONE CLI invocation on a
+// READ-ONLY db URI (`mode=ro` — no journal write while the host writes
+// concurrently); the tail write = the BEGIN..COMMIT batch flushed as
+// ONE CLI invocation carrying `PRAGMA busy_timeout = 2500; BEGIN; …;
+// COMMIT;` (the single-transaction guarantee survives the process
+// boundary). When NO backend is available the open is a fail-closed
+// db-error (never a blind write) — a missing CLI exe, a spawn error, or
+// a timeout all land on that same path. Both in-process backends open
+// read-write with `PRAGMA busy_timeout = 2500`. The chain order is
+// test-steerable via `setBackends` (the gauge core's pattern — the
+// smoke forces `["spawn-sqlite3"]`). The core is exported for the
+// smoke (the smoke NEVER points it at the live DB).
 //
 // Registration is the maintainer's domain (the live opencode.jsonc —
 // this file is deliberately NOT registered in any repo config; the
 // handover carries the registration snippet).
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { tool } from "@opencode-ai/plugin";
-import { DEFAULT_DB_PATH, BUSY_TIMEOUT_MS } from "../plugin/scripts/gauge.mjs";
+import { DEFAULT_DB_PATH, BUSY_TIMEOUT_MS, DEFAULT_EXE_PATH } from "../plugin/scripts/gauge.mjs";
 // The keepMessages floor (round-2 ruling — stated in the description).
 const FLOOR = 6;
 
@@ -92,40 +104,194 @@ type Msg = { id: string; time: number; data: any; parts: Part[] };
 type Ctx = { db: any; backend: string };
 
 // ---------------------------------------------------------------------------
-// Backend resolution (in-process, writable) — see the header block.
+// Backend resolution (the writable chain: in-process → last-resort CLI)
+// — see the header block.
 // ---------------------------------------------------------------------------
+
+// The chain in selection order (the gauge core's DEFAULT_BACKENDS
+// pattern; spawn-sqlite3 is the last resort — TODO #126).
+export const TRIM_BACKENDS = Object.freeze(["bun:sqlite", "node:sqlite", "spawn-sqlite3"]);
+let backendList = [...TRIM_BACKENDS];
+// The backend-list test hook (the gauge core's setBackends pattern) —
+// the smoke restricts the chain to ["spawn-sqlite3"] to exercise the
+// spawn path; omit the arg to restore the default. The production host
+// never calls it.
+export function setBackends(list?: string[]) {
+  backendList = Array.isArray(list) ? [...list] : [...TRIM_BACKENDS];
+}
+
+// ---------------------------------------------------------------------------
+// Backend 3 — spawn-sqlite3 (the gauge core's proven spawn discipline;
+// read-only CLI calls for report, ONE-CLI-call transaction for tail).
+// ---------------------------------------------------------------------------
+const SPAWN_TIMEOUT_MS = 2500; // hard KILL per CLI call — never a hang
+const SPAWN_MAX_BUFFER = 1024 * 1024;
+
+// The positional `?` bindings inlined (the CLI takes ONE SQL text):
+// strings single-quoted ('' doubled), numbers/booleans as-is, null →
+// NULL. The schema's JSON columns are JSON.stringify output (control
+// bytes escaped — no raw tab/newline in a value), so the tab-separated
+// CLI rows parse cleanly.
+function bindSql(sql: string, args: any[]): string {
+  let out = "";
+  let ai = 0;
+  for (let i = 0; i < sql.length; i++) {
+    if (sql[i] === "?" && ai < args.length) {
+      const v = args[ai++];
+      if (v == null) out += "NULL";
+      else if (typeof v === "number" || typeof v === "boolean") out += String(v);
+      else out += `'${String(v).replace(/'/g, "''")}'`;
+    } else {
+      out += sql[i];
+    }
+  }
+  return out;
+}
+
+// ONE sqlite3 CLI invocation (the gauge core's discipline — ARGS ARRAY
+// via execFileSync, no shell, hard timeout KILL). The column separator
+// is forced to TAB (the CLI default is `|` — pipe can occur inside the
+// JSON data columns, a raw tab never does). `dbRef` is the READ-ONLY
+// URI for report reads, the plain path for the write call.
+function runCli(dbRef: string, sql: string): string {
+  try {
+    return String(
+      execFileSync(DEFAULT_EXE_PATH, ["-separator", "\t", dbRef, sql], {
+        timeout: SPAWN_TIMEOUT_MS,
+        maxBuffer: SPAWN_MAX_BUFFER,
+        encoding: "utf8",
+      }),
+    );
+  } catch (e: any) {
+    const isTimeout = e?.killed === true || /timed?\s*out/i.test(String(e?.message ?? ""));
+    const detail = isTimeout ? `timeout ${SPAWN_TIMEOUT_MS}ms kill` : String(e?.stderr ?? "").trim() || String(e?.message ?? e);
+    throw new Error(String(detail).replace(/\r?\n+/g, " | ").slice(0, 106));
+  }
+}
+
+// The tab-separated CLI rows → objects keyed by the SELECT-list column
+// names (the in-process backends return named rows — the adapter keeps
+// the same shape). An empty field = NULL (the schema's queried columns
+// are all NOT NULL, so the mapping is identity-safe).
+function parseRows(out: string, names: string[]): any[] {
+  const rows: any[] = [];
+  for (const line of String(out).split(/\r?\n/)) {
+    if (line === "") continue;
+    const cols = line.split("\t");
+    const row: any = {};
+    names.forEach((n, i) => {
+      row[n] = cols[i] === "" ? null : cols[i];
+    });
+    rows.push(row);
+  }
+  return rows;
+}
+
+// The SELECT-list column names (this schema's queries are flat
+// single-level selects — bare identifiers, no subqueries, no `AS`).
+function selectNames(sql: string): string[] {
+  const m = sql.match(/^\s*SELECT\s+([^;]*?)\s+FROM\s/i);
+  return m ? m[1].split(",").map((c) => c.trim()) : [];
+}
+
+// A thin Ctx-shaped adapter over the CLI: prepare().get/.all = ONE
+// read-only call each; run() inside the BEGIN..COMMIT batch is buffered
+// and flushed as ONE read-write call at COMMIT (the BEGIN opens the
+// batch with `PRAGMA busy_timeout` — the write's busy wait); ROLLBACK
+// discards the buffer (nothing was executed — the open transaction
+// dies with its process); close() is a no-op.
+function openSpawnDb(dbPath: string) {
+  const roUri = `file:${dbPath.replace(/\\/g, "/")}?mode=ro`;
+  const db: any = { tx: null as null | string[] };
+  db.prepare = (sql: string) => {
+    const bound = (...args: any[]) => bindSql(sql, args);
+    return {
+      get: (...args: any[]) => {
+        const rows = parseRows(runCli(roUri, bound(...args)), selectNames(sql));
+        return rows.length > 0 ? rows[0] : null;
+      },
+      all: (...args: any[]) => parseRows(runCli(roUri, bound(...args)), selectNames(sql)),
+      run: (...args: any[]) => {
+        const stmt = bound(...args);
+        const full = stmt.endsWith(";") ? stmt : stmt + ";";
+        if (db.tx != null) {
+          db.tx.push(full);
+        } else {
+          runCli(dbPath, full);
+        }
+        return {};
+      },
+    };
+  };
+  db.exec = (sql: string) => {
+    const t = sql.trim();
+    if (/^BEGIN\b/i.test(t)) {
+      db.tx = [`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS};`, t];
+      return;
+    }
+    if (/^COMMIT\b/i.test(t)) {
+      // The buffered statements + the COMMIT itself, ONE invocation.
+      const script = [...(db.tx ?? []), t].map((s) => (s.endsWith(";") ? s : s + ";")).join("\n");
+      db.tx = null;
+      runCli(dbPath, script);
+      return;
+    }
+    if (/^ROLLBACK\b/i.test(t)) {
+      // Nothing was executed (the flush happens at COMMIT) — discard.
+      db.tx = null;
+      return;
+    }
+    if (/^PRAGMA\s+busy_timeout/i.test(t)) {
+      // The write call carries its own busy_timeout (the BEGIN branch)
+      // — a bare open-time PRAGMA needs no connection.
+      return;
+    }
+    runCli(dbPath, t);
+  };
+  db.close = () => {
+    db.tx = null;
+  };
+  return db;
+}
 
 async function openDb(dbPath: string): Promise<Ctx> {
   if (!existsSync(dbPath)) throw new Error(`db-missing ${dbPath}`);
-  // 1. bun:sqlite — the native module of the bun-compiled host.
-  try {
-    const mod: any = await import("bun:sqlite");
-    const Database = mod?.Database ?? (typeof mod?.default === "function" ? mod.default : mod?.default?.Database);
-    if (typeof Database === "function") {
-      const db = new Database(dbPath, { timeout: BUSY_TIMEOUT_MS });
-      try {
-        db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS};`);
-      } catch {
-        // the native `timeout` option already covers the busy wait
+  const failures: string[] = [];
+  for (const name of backendList) {
+    try {
+      if (name === "bun:sqlite") {
+        // 1. bun:sqlite — the native module of the bun-compiled host.
+        const mod: any = await import("bun:sqlite");
+        const Database = mod?.Database ?? (typeof mod?.default === "function" ? mod.default : mod?.default?.Database);
+        if (typeof Database !== "function") throw new Error("module-shape");
+        const db = new Database(dbPath, { timeout: BUSY_TIMEOUT_MS });
+        try {
+          db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS};`);
+        } catch {
+          // the native `timeout` option already covers the busy wait
+        }
+        return { db, backend: "bun:sqlite" };
       }
-      return { db, backend: "bun:sqlite" };
+      if (name === "node:sqlite") {
+        // 2. node:sqlite — system node v24+ (the smoke/probe host).
+        const mod: any = await import("node:sqlite");
+        const DatabaseSync = mod?.DatabaseSync;
+        if (typeof DatabaseSync !== "function") throw new Error("module-shape");
+        const db = new DatabaseSync(dbPath);
+        db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS};`);
+        return { db, backend: "node:sqlite" };
+      }
+      if (name === "spawn-sqlite3") {
+        // 3. spawn-sqlite3 — the last-resort CLI (see the header block).
+        if (!existsSync(DEFAULT_EXE_PATH)) throw new Error(`exe-missing ${DEFAULT_EXE_PATH}`);
+        return { db: openSpawnDb(dbPath), backend: "spawn-sqlite3" };
+      }
+      throw new Error("unknown-backend");
+    } catch (e: any) {
+      failures.push(`${name} ${String(e?.message ?? e).replace(/\r?\n+/g, " | ").slice(0, 40)}`);
     }
-  } catch {
-    // module absent (plain node host) — fall through
   }
-  // 2. node:sqlite — system node v24+ (the smoke/probe host).
-  try {
-    const mod: any = await import("node:sqlite");
-    const DatabaseSync = mod?.DatabaseSync;
-    if (typeof DatabaseSync === "function") {
-      const db = new DatabaseSync(dbPath);
-      db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS};`);
-      return { db, backend: "node:sqlite" };
-    }
-  } catch {
-    // both backends unavailable
-  }
-  throw new Error("no in-process writable sqlite backend (bun:sqlite / node:sqlite both unavailable)");
+  throw new Error(`no writable sqlite backend (${failures.join("; ") || "no backends configured"})`);
 }
 
 // A busy/locked error → the gauge's retry discipline (one retry; the
@@ -477,7 +643,7 @@ export async function tailSet(dbPath: string, sessionID: string, targetID: strin
 // ---------------------------------------------------------------------------
 
 export default tool({
-  description: `Reports and trims a session's live model context over the opencode DB (the gauge's default db path). \`report <session> [target]\` — READ-ONLY: (1) the window state — the last completed compaction (marker present? compaction user row id, summary id, current tail_start_id, retained-tail count, post-summary count; no marker → the full history is the model window), (2) per-message rows for the messages INSIDE the model window (retained-tail slice + post-summary slice): id, time, role, and for tool parts: tool name + target (read: filePath + offset/limit; bash: command; webfetch: url), token mass (info.tokens input+output+cache.read when present, else bytes/4 of the part text), (3) with target: a dry-run of what a tail rewrite to it would remove/keep (counts + token mass) + the verdict — no write. \`tail <session> <messageID>\` — WRITE: rewrite the last completed compaction part's tail_start_id to the target id (the host's own lever, compaction.ts:461-466) so the retained tail shrinks/grows to it; the context re-derives from the DB at the next step — zero restart. Fail-closed validation mirrors the host's window guard exactly: the session exists, the last completed compaction exists (marker + summary child), the target id exists in the session, the target sits strictly BEFORE the compaction user row in (time_created, id) order, and the retained-tail count (target → compaction row, exclusive) is >= 6 — the keepMessages floor (a retained tail below 6 is rejected). Single transaction; WAL — the host reads on its own connection (concurrent read safe); SQLITE_BUSY → one short-backoff retry → fail-closed (never a partial write). Returns \`tail= <old> -> <new> keep=<count>\` or the rejection reason. \`report\` never writes the DB.`,
+  description: `Reports and trims a session's live model context over the opencode DB (the gauge's default db path). \`report <session> [target]\` — READ-ONLY: (1) the window state — the last completed compaction (marker present? compaction user row id, summary id, current tail_start_id, retained-tail count, post-summary count; no marker → the full history is the model window), (2) per-message rows for the messages INSIDE the model window (retained-tail slice + post-summary slice): id, time, role, and for tool parts: tool name + target (read: filePath + offset/limit; bash: command; webfetch: url), token mass (info.tokens input+output+cache.read when present, else bytes/4 of the part text), (3) with target: a dry-run of what a tail rewrite to it would remove/keep (counts + token mass) + the verdict — no write. \`tail <session> <messageID>\` — WRITE: rewrite the last completed compaction part's tail_start_id to the target id (the host's own lever, compaction.ts:461-466) so the retained tail shrinks/grows to it; the context re-derives from the DB at the next step — zero restart. Fail-closed validation mirrors the host's window guard exactly: the session exists, the last completed compaction exists (marker + summary child), the target id exists in the session, the target sits strictly BEFORE the compaction user row in (time_created, id) order, and the retained-tail count (target → compaction row, exclusive) is >= 6 — the keepMessages floor (a retained tail below 6 is rejected). Single transaction; WAL — the host reads on its own connection (concurrent read safe); SQLITE_BUSY → one short-backoff retry → fail-closed (never a partial write). Backend chain: in-process sqlite (bun:sqlite → node:sqlite) first, last resort the maintainer-placed sqlite3 CLI (one CLI invocation per query; the tail transaction is ONE invocation) — a missing CLI, spawn error, or timeout still lands the fail-closed db-error. Returns \`tail= <old> -> <new> keep=<count>\` or the rejection reason. \`report\` never writes the DB.`,
   args: {
     mode: tool.schema
       .string()

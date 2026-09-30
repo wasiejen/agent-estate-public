@@ -171,10 +171,12 @@
 // session.created events are tracked (sid → epoch) for the successor
 // check; the in-memory depth map + deactivation flags are restored at
 // init from the plugin's own log (part C, ONCE per host process). OVERLAP-ERA CAVEAT
-// (documented, not solved): the looprunner ALSO reacts to
-// `action: restart` — the successor check + the 5s tick grace window
-// mitigate a double-spawn; the residual race is accepted until the
-// maintainer retires the looprunner (his call).
+// (historical — the looprunner is RETIRED, commented out in the live
+// opencode.jsonc, 2026-09-30): while the overlap lasted, the looprunner
+// ALSO reacted to `action: restart` — the successor check + the 5s tick
+// grace window mitigated a double-spawn; the residual race was accepted
+// until the maintainer retired the looprunner (his call). It no longer
+// applies — no other live agent reacts to `action: restart`.
 //
 // DELIBERATELY ABSENT (later units / prompts): abort escalation,
 // subagent special-casing, magic-context handling, busy-silence stall
@@ -269,6 +271,17 @@ const MAX_RECOVERY_ATTEMPTS = 2;
 // plugin-spawned (a user session, a file-trigger spawn) is absent from
 // the `spawned` map → depth 0.
 const LINEAGE_DEFAULT_MAX_DEPTH = 10;
+// #125 (the #86 audit LOW batch): the #109 limitStopCheck literals
+// named — the (2) wall-ratio condition (lastTokenTotal >= this *
+// window) and the (3) idle threshold (ms since the last activity).
+const LIMIT_STOP_WINDOW_RATIO = 0.99;
+const LIMIT_STOP_IDLE_MS = 60_000;
+// #125: the #96 log-size-guard defaults + the tick period default —
+// factory options (the live host never passes any of them; the smokes
+// pass small values so the guards are testable — the tickMs pattern).
+const MAX_LOG_BYTES_DEFAULT = 20 * 1024 * 1024; // 20MiB
+const LOG_TAIL_BYTES_DEFAULT = 2 * 1024 * 1024; // 2MiB
+const TICK_MS_DEFAULT = 5000;
 // 2026-09-27 maintainer ruling: the cap is LIVE-READ on every spawn
 // decision — `.opencode/temp/lineage_max_depth` (one integer; -1 =
 // unbounded) can be changed while the autorun runs (e.g. a long
@@ -1533,9 +1546,9 @@ async function limitStopCheck(): Promise<void> {
         const limits = await getModelLimits(w.model);
         if (limits === null) continue; // unresolvable window → NO fire
         const window = limits.context;
-        if (!(w.lastTokenTotal >= 0.99 * window)) continue; // (2)
+        if (!(w.lastTokenTotal >= LIMIT_STOP_WINDOW_RATIO * window)) continue; // (2)
         if (w.status !== "idle") continue; // (3)
-        if (w.lastActivityAt == null || now - w.lastActivityAt < 60_000) continue; // (3)
+        if (w.lastActivityAt == null || now - w.lastActivityAt < LIMIT_STOP_IDLE_MS) continue; // (3)
         // (4) a NEW COMPACT line since the death step suppresses the fire
         // (lastFinishAt is structurally set whenever (1) holds — the
         // null arm is the conservative fail-closed for the impossible)
@@ -1882,9 +1895,9 @@ export default (async (input: PluginInput) => {
   // the log outgrew 20MB); the smoke passes small values so the trim is
   // testable without a multi-megabyte fixture — the tickMs pattern).
   const maxLogOpt: unknown = (input as Record<string, unknown> | undefined)?.maxLogBytes;
-  const maxLogBytes = typeof maxLogOpt === "number" && Number.isFinite(maxLogOpt) && maxLogOpt > 0 ? maxLogOpt : 20 * 1024 * 1024;
+  const maxLogBytes = typeof maxLogOpt === "number" && Number.isFinite(maxLogOpt) && maxLogOpt > 0 ? maxLogOpt : MAX_LOG_BYTES_DEFAULT;
   const tailOpt: unknown = (input as Record<string, unknown> | undefined)?.logTailBytes;
-  const logTailBytes = typeof tailOpt === "number" && Number.isFinite(tailOpt) && tailOpt > 0 ? tailOpt : 2 * 1024 * 1024;
+  const logTailBytes = typeof tailOpt === "number" && Number.isFinite(tailOpt) && tailOpt > 0 ? tailOpt : LOG_TAIL_BYTES_DEFAULT;
   trimLogIfNeeded(maxLogBytes, logTailBytes); // #96: BEFORE the #90 restore (it then sees the surviving tail)
   restoreLineageFromLog(); // #90 part C: ONCE per process (before any routing can happen)
   // compact-message sweep (item 3): the factory option queueSweepDays
@@ -1898,7 +1911,7 @@ export default (async (input: PluginInput) => {
   // smoke passes a short tick so its tick-waits stay sub-second
   // (test-only lever).
   const tickOpt: unknown = (input as Record<string, unknown> | undefined)?.tickMs;
-  const tickMs = typeof tickOpt === "number" && Number.isFinite(tickOpt) && tickOpt > 0 ? tickOpt : 5000;
+  const tickMs = typeof tickOpt === "number" && Number.isFinite(tickOpt) && tickOpt > 0 ? tickOpt : TICK_MS_DEFAULT;
   if (!tickTimer) {
     tickTimer = setInterval(() => {
       void tick(); // the tick (5000ms by default) — the only decision+send funnel

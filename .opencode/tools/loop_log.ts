@@ -124,7 +124,7 @@ export default tool({
     model: tool.schema
       .string()
       .optional()
-      .describe("Your model id, VERBATIM from your own launch context (e.g. 'Qwen3.8-27B-IQ4KT-120K'). OPTIONAL — auto-filled with the agent-identifier preference (context.agent first, context.extra.model.id as fallback); the literal 'unknown' when absent everywhere."),
+      .describe("Your model id, VERBATIM from your own launch context (e.g. 'Qwen3.8-27B-Q3S-170K'). OPTIONAL — auto-filled with the agent-identifier preference (context.agent first, context.extra.model.id as fallback); the literal 'unknown' when absent everywhere."),
     status: tool.schema
       .string()
       .describe("Free-form status word (Part C): must contain one of the keywords start / done / return / warn / info / correct (checked in that order) -> the established 8-char tokens (-->START / DONE<--- / -RETURN- / -WARNING / --INFO-- / CORRECT-). Case/dash/arrow variants all normalize (e.g. 'restart' -> -->START); an unrecognized status returns an error naming the keywords (never a silent INFO fallback, nothing is written)."),

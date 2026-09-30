@@ -31,7 +31,7 @@
 //                    (2026-09-29 approved proposal 2026-09-28_submit-
 //                    memory-channel.md: a FIFTH, ROLE-SCOPED channel —
 //                    <role> = the context.agent id BEFORE the first `_`
-//                    (`planner_Q3S_245K_slow` -> `planner`), fallback
+//                    (`planner_Q3S` -> `planner`), fallback
 //                    `agent` when the context carries no agent. Distinct
 //                    from `knowledge` (repo-general fact -> the shared
 //                    knowledge inbox) and `ideas` (maintainer-side
@@ -138,7 +138,7 @@ export default tool({
       context?.agent != null && String(context.agent).trim() !== "" ? String(context.agent) : "agent";
     const session =
       context?.sessionID != null && String(context.sessionID).trim() !== "" ? String(context.sessionID) : "unknown";
-    // <role> = the agent id BEFORE the first '_' (`planner_Q3S_245K_slow` ->
+    // <role> = the agent id BEFORE the first '_' (`planner_Q3S` ->
     // `planner`; an id without '_' keeps itself; the fallback role `agent`
     // maps to the `agent` namespace).
     const rolePrefix = role.split("_")[0];

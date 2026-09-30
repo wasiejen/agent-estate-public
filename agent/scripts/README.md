@@ -23,6 +23,16 @@ ruling, `analyse_helper_scripts.md`).
 Env overrides: `OPENCODE_EXE`, `OPENCODE_DB`, `OPENCODE_LOG`
 (see each category README).
 
+Machine-path single source of truth (#125, the #86 audit doc-only
+finding): each standalone CLI carries its default inline
+(`process.env.X || "<host value>"`) — the constants are DELIBERATELY
+duplicated per script (each script must stay standalone-runnable; no
+shared .cjs helper). The current host values: `OPENCODE_DB` =
+`home/.local/share/opencode/opencode.db` (canonical form:
+`DEFAULT_DB_PATH` in `.opencode/plugin/scripts/gauge.mjs`, derived from
+`os.homedir()`) and `OPENCODE_EXE` =
+`home/AppData/Roaming/npm/node_modules/opencode-ai/bin/opencode.exe`.
+
 ## grep_snippets.md
 
 [grep_snippets.md](grep_snippets.md) — ready-made, output-limited

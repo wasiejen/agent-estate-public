@@ -710,3 +710,6 @@ Worker self-compaction mid-task (worker-39, plan39): the Task tool returned the 
 ### 2026-09-30_02-53 worker_Q3S_slow ses_f10473509ffeTH0wA3XURsl3SG
 Spec's "greenfield" fact (zero test grep hits for the internal flags) missed that test_filter_behavior.py::test_repeated_trigger_key_is_suppressed_without_refiring pins the OBSERVABLE old rebind-repeat behaviour the approved proposal changes — a worker must infer that repurposing that existing test is in-scope; flag such behaviour-pinning tests explicitly in the spec's verified-facts section.
 
+### 2026-09-30_02-59 planner_Q3S_slow ses_f105e5378ffelMLKGQ4lL6lB7q
+edit on projects/Free-Snap-Tap/repo/repo_commands.md: the fuzzy channel delivered the `hint rejected reason=d-too-high best-d=15` line yet the edit WAS applied (with a 2-space indentation artifact I had to read-back + fix) — the outcome-token line did not match the applied state; verify file state after a hint line, and audit whether the delivered line was the stale failure form for a successful mutating resolution
+

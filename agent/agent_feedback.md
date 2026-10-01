@@ -749,3 +749,6 @@ knowledge_inbox curation log claims an entry is cured (plan28: AGENTS.md live-fi
 ### 2026-10-01_04-51 worker_Q3S ses_f0abc032dffenb1K8yrfXKOg5V
 #128 spec: the pin-audit scope named only the smoke Gate-M block, but the probe's S13 gate checks (92/93/95/222-226, all cross-shape) + S32 340 also needed re-pins — naming them in the spec would have avoided a red probe round-trip.
 
+### 2026-10-01_05-15 worker_Q3S ses_f0a8d978effem4PJrbIaas9Zfb
+#129 task spec's suggested test shape `QContextMenuEvent(QPoint(local_x, local_y))` doesn't work in PySide6 6.11.2 — the constructor needs `(Reason, pos[, globalPos])`, and the 2-arg `(reason, pos)` form is DEPRECATED (emits a warning that would break the 1-warning gate). The working pin used the 3-arg non-deprecated form.
+

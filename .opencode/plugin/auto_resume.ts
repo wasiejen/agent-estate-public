@@ -914,6 +914,41 @@ function restartText(sid: string, exhausted: boolean): string {
   );
 }
 
+// compact-message-delivery item 4 (TODO #127): CLOSING-INTENT
+// INHERITANCE for the restart branch — if the closing session stored a
+// queued continuation message at queue time
+// (`.opencode/temp/compact_message_<sid>` — the SAME file the item-2
+// CONTINUE relay delivers), the restart branch APPENDS it to the
+// successor's restart text as a LABELED INTENT HINT and marks the file
+// consumed (the `.consumed` tombstone — the item-3 age-sweep
+// convention). The hint is advisory: the successor's protocol rebuilds
+// reality from committed state FIRST (a stale intent is corrected by
+// the file check); the size is bounded to one queued message. Fail-open:
+// file absent / empty / unreadable → "" (the base text unchanged, no
+// throw, no tombstone); a failed rename is best-effort (the section
+// still carries the message already in hand).
+function restartIntentSection(sid: string): string {
+  let t: string;
+  try {
+    t = readFileSync(queuedMessagePath(sid), "utf-8");
+  } catch {
+    return ""; // absent / unreadable → the base text unchanged
+  }
+  if (t.trim() === "") return ""; // an empty file carries no intent
+  try {
+    renameSync(queuedMessagePath(sid), queuedMessagePath(sid) + ".consumed");
+  } catch {
+    // best effort — never throw out of a hook
+  }
+  log(`intent= sid=${sid}`);
+  return (
+    "\n" +
+    `closing-intent hint (compact-message-delivery item 4): the closing session (${sid}) queued this continuation message before its compaction — ` +
+    "treat it as an INTENT HINT only; verify state from committed state before acting.\n" +
+    t
+  );
+}
+
 // Item 11 (2026-09-24): the forced-new-session budget check — the budget
 // store (the SAME compact_budget.json the Unit-2 nudge reads; READ-ONLY,
 // per restart-branch call) shows the closing session's compaction count
@@ -1406,7 +1441,11 @@ async function routeScopedIdle(sid: string, w: Watch) {
   log(`route= restart spawn sid=${sid}`);
   // #85 part 2: the SOURCE session's fresh fetch — its current
   // agent+modelID carries over to the successor.
-  const newSid = await spawnPlanner(restartText(sid, exhausted), msgs); // Unit 3 helper (never throws outward)
+  // compact-message-delivery item 4: append the closing session's queued
+  // message (the labeled INTENT HINT) when present — fail-open to the
+  // base text.
+  const restart = restartText(sid, exhausted) + restartIntentSection(sid);
+  const newSid = await spawnPlanner(restart, msgs); // Unit 3 helper (never throws outward)
   // #90 part A+B: a SUCCESSFUL spawn records the successor's lineage
   // depth (trigger depth + 1) and STICKY-deactivates the TRIGGER
   // (part B: the fresh fetch is already in hand — its user-message

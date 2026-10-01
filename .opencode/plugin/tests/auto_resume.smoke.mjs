@@ -1086,6 +1086,69 @@ try {
     fs.rmSync(budget2, { force: true });
     fs.rmSync(path.join(tmp2, "compact_message_ses_u4_relay.consumed"), { force: true });
 
+    // ---- (5) compact-message-delivery item 4 (TODO #127) — the
+    // restart branch's CLOSING-INTENT INHERITANCE: the closing
+    // session's queued compact_message_<sid> is APPENDED to the
+    // successor's restart text as a labeled INTENT HINT and the file
+    // is renamed .consumed; fail-open (absent / unreadable → the base
+    // text unchanged, no tombstone).
+    const I4_MSG = "item-4: resume the probe section from the last green commit";
+    // (b) file ABSENT → the restart spawn text is byte-identical to the
+    // base — pinned on the emg scenario above (no queued file, not
+    // exhausted → the plain base text).
+    const emgText = (emgSpawn?.body?.parts?.[0]?.text) ?? "";
+    const BASE_RESTART =
+      "<|autonom|>\n" +
+      "Run autonomously. (auto-resume unit 4 restart branch: the previous planner closed with `action: restart`.) Your iteration number = the largest `planner-N` in the current loop folder's `loop_log.md` " +
+      "plus one (verify from the log; the counter-mismatch rule applies). Rebuild reality from committed state " +
+      "(git log, NAP, TODO.md) and continue per your planner prompt's autonomous mode.";
+    chk("ITEM 4: file ABSENT → the restart spawn text is byte-identical to the base (the emg scenario — no queued file)",
+      okR4 && emgText === BASE_RESTART,
+      JSON.stringify(emgText.slice(0, 200)));
+    // (a) file PRESENT → the restart spawn text carries the labeled
+    // INTENT HINT section and the file is renamed .consumed.
+    msgScript.set("ses_u4_i4", mkPairs([["user", MARK + " iteration 1"], ["assistant", "Done.\naction: restart"]], PLANNER_A));
+    fs.writeFileSync(path.join(tmp2, "compact_message_ses_u4_i4"), I4_MSG, "utf-8");
+    const cBeforeI4 = u4Creates.length;
+    await fire(hooksU4, "ses_u4_i4", [statusEv("ses_u4_i4", "busy"), statusEv("ses_u4_i4", "idle")]);
+    const okR5 = await waitUntil(
+      () => u4Creates.length === cBeforeI4 + 1 && readLines().some((l) => l.includes("route= restart spawn sid=ses_u4_i4")),
+      12000,
+    );
+    const i4Spawn = u4Sends.find((c) => ((c.body?.parts?.[0]?.text) ?? "").includes(I4_MSG));
+    const i4Text = i4Spawn?.body?.parts?.[0]?.text ?? "";
+    chk("ITEM 4: file PRESENT → the restart spawn text carries the labeled INTENT HINT section (the base text intact + the queued message)",
+      okR5 && i4Spawn != null &&
+        i4Text.startsWith(BASE_RESTART) &&
+        i4Text.includes("closing-intent hint") &&
+        i4Text.includes("ses_u4_i4") &&
+        i4Text.endsWith(I4_MSG),
+      JSON.stringify(i4Text.slice(0, 200)));
+    chk("ITEM 4: the queued file is marked consumed (renamed .consumed)",
+      okR5 && !fs.existsSync(path.join(tmp2, "compact_message_ses_u4_i4")) && fs.existsSync(path.join(tmp2, "compact_message_ses_u4_i4.consumed")), "");
+    chk("ITEM 4: the intent= line is logged", okR5 && readLines().some((l) => l.includes("intent= sid=ses_u4_i4")), "");
+    // (c) UNREADABLE file (a DIRECTORY at the queue path — readFileSync
+    // throws) → fail-open: the base text unchanged, no tombstone.
+    const UNREAD = path.join(tmp2, "compact_message_ses_u4_unread");
+    fs.mkdirSync(UNREAD, { recursive: true });
+    msgScript.set("ses_u4_unread", mkPairs([["user", MARK + " iteration 1"], ["assistant", "Done.\naction: restart"]], PLANNER_A));
+    const cBeforeUn = u4Creates.length;
+    await fire(hooksU4, "ses_u4_unread", [statusEv("ses_u4_unread", "busy"), statusEv("ses_u4_unread", "idle")]);
+    const okR6 = await waitUntil(
+      () => u4Creates.length === cBeforeUn + 1 && readLines().some((l) => l.includes("route= restart spawn sid=ses_u4_unread")),
+      12000,
+    );
+    const unSpawn = u4Sends.filter((c) => {
+      const t = c.body?.parts?.[0]?.text ?? "";
+      return t.startsWith(MARK) && t.includes("auto-resume unit 4 restart branch") && !t.includes("compaction budget exhausted");
+    }).at(-1);
+    chk("ITEM 4: UNREADABLE file (a directory at the queue path) → the base text unchanged (no hint section), no tombstone (the directory survives)",
+      okR6 && unSpawn != null && (unSpawn.body?.parts?.[0]?.text ?? "") === BASE_RESTART && fs.existsSync(UNREAD),
+      JSON.stringify((unSpawn?.body?.parts?.[0]?.text ?? "").slice(0, 200)));
+    // leave the sandbox clean (later sections read no queued file)
+    fs.rmSync(path.join(tmp2, "compact_message_ses_u4_i4.consumed"), { force: true });
+    fs.rmSync(UNREAD, { recursive: true, force: true }); // an empty directory
+
     // ============================================================
     // UNIT 2 #85 part 3 — the nudge's scope gate (the factory is re-
     // invoked with a fresh spying client — promptAsync + messages both

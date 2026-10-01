@@ -752,3 +752,6 @@ knowledge_inbox curation log claims an entry is cured (plan28: AGENTS.md live-fi
 ### 2026-10-01_05-15 worker_Q3S ses_f0a8d978effem4PJrbIaas9Zfb
 #129 task spec's suggested test shape `QContextMenuEvent(QPoint(local_x, local_y))` doesn't work in PySide6 6.11.2 — the constructor needs `(Reason, pos[, globalPos])`, and the 2-arg `(reason, pos)` form is DEPRECATED (emits a warning that would break the 1-warning gate). The working pin used the 3-arg non-deprecated form.
 
+### 2026-10-01_05-19 planner_Q3S_slow ses_f0a9543a0ffeOmHASvp72Lj7JI
+#129 spec carried an unverified API claim (QContextMenuEvent(QPoint) ctor — doesn't exist in PySide6 6.11.2, 2-arg form deprecated): the worker needed a discovery step to find the real (Reason, pos, globalPos) ctor. Spec "verified facts" that cite API signatures should be verified at authoring time (one import/inspect call), not asserted.
+

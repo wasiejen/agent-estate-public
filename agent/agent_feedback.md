@@ -773,3 +773,6 @@ worker scratchpad rule vs host: in this host's git-bash `$TMP` expands to `/tmp`
 ### 2026-10-01_08-37 explorer_Q3S_slow ses_f09d877e4ffe7sI5ZnOHKWKBQ6
 Bounded web research on GitHub: fetch raw.githubusercontent.com (clean), not the repo HTML page (≈30% of the fetched page is GitHub nav boilerplate); large doc pages truncate to a saved tool-output file — grep that file in place instead of re-fetching.
 
+### 2026-10-01_08-41 planner_Q3S_slow ses_f09f48614ffeJs1nvJnOonTFxO
+plan6 bookkeeping slip: the loop-folder handover copy (plan6_ho_task_to_planner.md) was cp'd but left out of the bookkeeping commit's git add — it sat untracked until the explorer's later handover cycle. The "copy handover to loop folder" step and its commit should be one verified unit (git add the copy + confirm `git status` clean of loop/ before the commit).
+

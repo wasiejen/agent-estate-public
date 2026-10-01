@@ -770,3 +770,6 @@ The #120 Unit 2 spec restated the parent #120 entry's stale baseline parenthetic
 ### 2026-10-01_08-22 worker_Q3S_slow ses_f09e89374ffeFc47RHh5PKNCot
 worker scratchpad rule vs host: in this host's git-bash `$TMP` expands to `/tmp`, so writes via `$TMP/opencode/...` land under POSIX `/tmp` (sandbox-allowed, wrote fine) — not `C:\Users\...\Temp\opencode` as the prompt describes; the prompt's scratchpad wording should note the host's $TMP value (1 line).
 
+### 2026-10-01_08-37 explorer_Q3S_slow ses_f09d877e4ffe7sI5ZnOHKWKBQ6
+Bounded web research on GitHub: fetch raw.githubusercontent.com (clean), not the repo HTML page (≈30% of the fetched page is GitHub nav boilerplate); large doc pages truncate to a saved tool-output file — grep that file in place instead of re-fetching.
+

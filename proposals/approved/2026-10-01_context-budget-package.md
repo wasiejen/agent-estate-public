@@ -179,3 +179,6 @@ order the maintainer prefers.
 ## Status
 Awaiting approval. U0 already approved in the source proposal; U2 = fork →
 effort L acknowledged + his bat-script run is the live gate.
+
+--comment:
+approved in direct session ses_f0999d65dffeFxiJylRzecRbhu

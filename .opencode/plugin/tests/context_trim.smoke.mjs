@@ -12,7 +12,13 @@
 // strictly before the compaction user row) + the 5 rejections (floor /
 // keep-exceeds-history / no-completed-compaction / session-not-found /
 // keep-invalid), a dedicated ses_ct_k fixture, the spawn chain FORCED
-// via setBackends.
+// via setBackends. Section 10: the TOOL SURFACE keepMessages argument on
+// `tail` mode (U0 of the context budget package, 2026-10-01 — mutually
+// exclusive with target, delegating to the existing tailSetKeep core):
+// the keep-form pins THROUGH the tool() execute() surface (the gauge's
+// setDbPath test hook steers the surface at THIS fixture), a dedicated
+// ses_ct_sfc fixture: valid + the 5 rejections (no DB write) + the
+// surface guards (mutual exclusion / neither form).
 // Run: node .opencode/plugin/tests/context_trim.smoke.mjs (plain node, exit 0 iff green).
 import { DatabaseSync } from "node:sqlite";
 import { rmSync } from "node:fs";
@@ -458,6 +464,103 @@ tool.setBackends(["spawn-sqlite3"]); // FORCED — the spawn-only pins (this sec
   );
 }
 tool.setBackends(); // restore the default chain
+
+// ---------------------------------------------------------------------------
+// 10) TOOL SURFACE keep form (U0 of the context budget package, 2026-10-01
+// — the keepMessages argument on `tail` mode, mutually exclusive with
+// target, delegating to the existing tailSetKeep core): pins THROUGH the
+// tool() execute() surface. The gauge's setDbPath test hook steers the
+// surface at THIS fixture DB (the live opencode.db is NEVER touched). A
+// FOURTH dedicated fixture session (ses_ct_sfc — 10 messages before the
+// marker, the marker quartet tail_start_id=msg_f05, the summary child,
+// 2 after) so the earlier pins' fixture state is untouched.
+// ---------------------------------------------------------------------------
+{
+  const W = new DatabaseSync(FX);
+  W.exec("PRAGMA foreign_keys = ON;");
+  W.prepare("INSERT INTO session (id, project_id, time_created, time_updated) VALUES ('ses_ct_sfc', 'prj_ct', 0, 0)").run();
+  const putF = (id, time, text) => {
+    W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, 'ses_ct_sfc', ?, ?, ?)").run(id, time, time, JSON.stringify({ role: "user", time: { created: time } }));
+    W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, 'ses_ct_sfc', ?, ?, ?)").run(`p_${id}t`, id, time, time, JSON.stringify({ type: "text", text }));
+  };
+  const putFa = (id, time) => {
+    W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, 'ses_ct_sfc', ?, ?, ?)").run(id, time, time, JSON.stringify({ role: "assistant", parentID: `p_${id}u`, finish: "stop" }));
+    W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, 'ses_ct_sfc', ?, ?, ?)").run(`p_${id}a`, id, time, time, JSON.stringify({ type: "text", text: "ok" }));
+  };
+  // 10 messages before the marker (msg_f01..msg_f10).
+  putF("msg_f01", 100, "f one"); putFa("msg_f02", 200);
+  putF("msg_f03", 300, "f three"); putFa("msg_f04", 400);
+  putF("msg_f05", 500, "f five"); putFa("msg_f06", 600);
+  putF("msg_f07", 700, "f seven"); putFa("msg_f08", 800);
+  putF("msg_f09", 900, "f nine"); putFa("msg_f10", 1000);
+  // The marker quartet (tail_start_id = msg_f05) + the summary child +
+  // 2 messages after the summary.
+  W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_f11', 'ses_ct_sfc', 13000, 13000, ?)").run(JSON.stringify({ role: "user", time: { created: 13000 } }));
+  W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES ('p_f11c', 'msg_f11', 'ses_ct_sfc', 13000, 13000, ?)").run(JSON.stringify({ type: "compaction", auto: false, tail_start_id: "msg_f05" }));
+  W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_f12', 'ses_ct_sfc', 14000, 14000, ?)").run(JSON.stringify({ role: "assistant", parentID: "msg_f11", summary: true, finish: "stop" }));
+  putF("msg_f13", 15000, "f post one");
+  putFa("msg_f14", 16000);
+  W.close();
+}
+const gauge = await loadRepo(".opencode/plugin/scripts/gauge.mjs");
+const surf = tool.default;
+const dbBefore = gauge.getDbPath();
+gauge.setDbPath(FX); // steer the tool surface at the fixture (restored after)
+{
+  const k = await surf.execute({ mode: "tail", session: "ses_ct_sfc", keepMessages: 8 }, {});
+  chk(
+    "surface keep form VALID: keep=8 → the 8th message STRICTLY before the compaction user row (msg_f03), the return line byte-exact (the same shape as the messageID form)",
+    k === "tail-set= msg_f05 -> msg_f03 keep=8",
+    JSON.stringify(k),
+  );
+}
+{
+  const RO = new DatabaseSync(FX, { readOnly: true });
+  const partJson = RO.prepare("SELECT data FROM part WHERE id = 'p_f11c'").get().data;
+  RO.close();
+  const rep = await surf.execute({ mode: "report", session: "ses_ct_sfc" }, {});
+  chk(
+    "surface keep form LANDED: the part row carries the new tail_start_id (byte-exact) + the SURFACE report shows retained=8",
+    partJson === '{"type":"compaction","auto":false,"tail_start_id":"msg_f03"}' &&
+      rep.split("\n")[1] === "header: marker=msg_f11 summary=msg_f12 tail_start=msg_f03 retained=8 post-summary=2",
+    JSON.stringify({ partJson, h: rep.split("\n")[1] }),
+  );
+}
+{
+  const r1 = await surf.execute({ mode: "tail", session: "ses_ct_sfc", keepMessages: 5 }, {});
+  const r2 = await surf.execute({ mode: "tail", session: "ses_ct_sfc", keepMessages: 50 }, {});
+  const r3 = await surf.execute({ mode: "tail", session: "ses_ct_nomark", keepMessages: 8 }, {});
+  const r4 = await surf.execute({ mode: "tail", session: "ses_ct_dne", keepMessages: 8 }, {});
+  const r5 = await surf.execute({ mode: "tail", session: "ses_ct_sfc", keepMessages: 0 }, {});
+  chk(
+    "surface keep form rejections (fail-closed, exact reasons): floor 5 / keep-exceeds-history 50 / no-completed-compaction / session-not-found / keep-invalid 0",
+    r1 === "tail-set= rejected: retained-tail-below-floor 5" &&
+      r2 === "tail-set= rejected: keep-exceeds-history 50" &&
+      r3 === "tail-set= rejected: no-completed-compaction" &&
+      r4 === "tail-set= rejected: session-not-found" &&
+      r5 === "tail-set= rejected: keep-invalid 0",
+    JSON.stringify({ r1, r2, r3, r4, r5 }),
+  );
+  const RO = new DatabaseSync(FX, { readOnly: true });
+  const partJson = RO.prepare("SELECT data FROM part WHERE id = 'p_f11c'").get().data;
+  RO.close();
+  chk(
+    "surface keep form rejections performed NO DB write (the part row unchanged after the 5 rejections)",
+    partJson === '{"type":"compaction","auto":false,"tail_start_id":"msg_f03"}',
+    JSON.stringify(partJson),
+  );
+}
+{
+  const both = await surf.execute({ mode: "tail", session: "ses_ct_sfc", target: "msg_f03", keepMessages: 8 }, {});
+  const neither = await surf.execute({ mode: "tail", session: "ses_ct_sfc" }, {});
+  chk(
+    "surface guards: target + keepMessages mutually exclusive; neither form → the exact error lines",
+    both === "error: tail mode: target and keepMessages are mutually exclusive (use one or the other)" &&
+      neither === "error: tail mode requires target (the new tail_start_id message id) or keepMessages (the retained-tail message count)",
+    JSON.stringify({ both, neither }),
+  );
+}
+gauge.setDbPath(dbBefore); // restore the original db path
 
 rmSync(SANDBOX, { recursive: true, force: true });
 finish();

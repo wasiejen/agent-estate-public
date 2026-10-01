@@ -8231,10 +8231,12 @@ let n33 = 346;
 
 // 346 — the tool surface: the tool file imports (type-stripped, direct)
 //      and exposes the tool() default export: description (non-empty
-//      string) + the 3 args IN ORDER (mode = REQUIRED string; session =
-//      REQUIRED string; target = OPTIONAL string) + async execute + NO
-//      `name` field (the host names the tool by FILENAME) + the CORE
-//      exports reportWindow/tailSet are functions (the smoke's surface)
+//      string) + the 4 args IN ORDER (mode = REQUIRED string; session =
+//      REQUIRED string; target = OPTIONAL string; keepMessages = OPTIONAL
+//      number — the U0 keep-COUNT form, mutually exclusive with target)
+//      + async execute + NO `name` field (the host names the tool by
+//      FILENAME) + the CORE exports reportWindow/tailSet are functions
+//      (the smoke's surface)
 {
   const toolMod = await import(pathToFileURL(CT_TOOL_TS).href);
   ctTool = toolMod.default;
@@ -8242,18 +8244,21 @@ let n33 = 346;
   const modeSch = ctTool?.args?.mode;
   const sessSch = ctTool?.args?.session;
   const targSch = ctTool?.args?.target;
+  const keepSch = ctTool?.args?.keepMessages;
   check(
     String(n33),
     "S33",
-    "tool file imports (type-stripped, direct) and exposes the tool() default export (description + args [mode, session, target] + async execute, NO name field) + the core exports reportWindow/tailSet are functions",
+    "tool file imports (type-stripped, direct) and exposes the tool() default export (description + args [mode, session, target, keepMessages] + async execute, NO name field) + the core exports reportWindow/tailSet are functions",
     ctTool != null && typeof ctTool.description === "string" && ctTool.description.length > 0 &&
-      JSON.stringify(argKeys) === JSON.stringify(["mode", "session", "target"]) &&
+      JSON.stringify(argKeys) === JSON.stringify(["mode", "session", "target", "keepMessages"]) &&
       modeSch != null && typeof modeSch.safeParse === "function" &&
       modeSch.safeParse(undefined).success === false && modeSch.safeParse("report").success === true && modeSch.safeParse("tail").success === true &&
       sessSch != null && typeof sessSch.safeParse === "function" &&
       sessSch.safeParse(undefined).success === false && sessSch.safeParse("ses_x").success === true &&
       targSch != null && typeof targSch.safeParse === "function" &&
       targSch.safeParse(undefined).success === true && targSch.safeParse("msg_x").success === true && targSch.safeParse(42).success === false &&
+      keepSch != null && typeof keepSch.safeParse === "function" &&
+      keepSch.safeParse(undefined).success === true && keepSch.safeParse(8).success === true && keepSch.safeParse("8").success === false &&
       typeof ctTool.execute === "function" && ctTool.execute.constructor.name === "AsyncFunction" &&
       !("name" in ctTool) &&
       typeof toolMod.reportWindow === "function" && typeof toolMod.tailSet === "function",

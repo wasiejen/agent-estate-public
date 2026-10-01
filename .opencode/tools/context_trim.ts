@@ -2,8 +2,9 @@
 // 2026-09-28_context-trim-tool.md — the maintainer's "1. + 2. are approved" +
 // round-2 "go :-); Unit 1 = this tool, `turns` (row-deletion) Ruled out):
 // the `context_trim` custom tool — report + trim a session's LIVE model
-// context over the opencode DB (the gauge's DEFAULT_DB_PATH — the same
-// resolution as the gauge core; nothing re-derived here).
+// context over the opencode DB (the gauge's CURRENT db path via
+// getDbPath — the same resolution as the gauge core; the smoke/probe
+// steer it via setDbPath; nothing re-derived here).
 //
 // Design authority (do not re-research):
 //   - agent/research/2026-09-28_context-erase-tail-trim.md §3 + §5 — the
@@ -68,6 +69,20 @@
 //     host reads on its own connection (concurrent read safe);
 //     SQLITE_BUSY → one short-backoff retry (the gauge's busy_timeout
 //     pattern) → fail-closed (never a partial write).
+//   - tail <session> keepMessages=N — the keep-COUNT form (WRITE, the
+//     same single transaction): N = the retained-tail MESSAGE count —
+//     the N-th message STRICTLY before the compaction user row becomes
+//     the new tail head (the compact_memory keepMessages count semantics
+//     — a message COUNT, not a token budget). Mutually exclusive with
+//     the <messageID> form. Delegates to the existing tailSetKeep core
+//     export (zero new validation logic — its existing rejections:
+//     keep-invalid / keep-exceeds-history / floor 6 / no-completed-
+//     compaction / session-not-found); the return line is the core's
+//     `tail-set= <old> -> <new> keep=N` (the same shape as the
+//     messageID form). Primarily a SHRINK lever (the post-compaction
+//     trim); growing stays available (it re-reads raw messages you no
+//     longer remember — nothing is lost, the DB keeps them); keep=0
+//     stays rejected by the floor 6.
 //
 // Backend (WRITABLE — the gauge READ chain does not apply): a chain
 // tried in order, FIRST SUCCESS wins: (1) `bun:sqlite` (the native
@@ -97,7 +112,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 import { existsSync } from "node:fs";
 import { tool } from "@opencode-ai/plugin";
-import { DEFAULT_DB_PATH, BUSY_TIMEOUT_MS, DEFAULT_EXE_PATH } from "../plugin/scripts/gauge.mjs";
+import { getDbPath, BUSY_TIMEOUT_MS, DEFAULT_EXE_PATH } from "../plugin/scripts/gauge.mjs";
 // The keepMessages floor (round-2 ruling — stated in the description).
 const FLOOR = 6;
 
@@ -723,36 +738,52 @@ export async function tailSetKeep(dbPath: string, sessionID: string, keep: numbe
 }
 
 // ---------------------------------------------------------------------------
-// The tool() wrapper — the gauge's default DB path (the live opencode DB).
+// The tool() wrapper — the gauge's CURRENT db path (getDbPath — the live
+// opencode DB on the live host; the smoke/probe steer it via setDbPath).
 // The live DB is only ever written by `tail` mode (validated, single
 // transaction); `report` mode performs no writes.
 // ---------------------------------------------------------------------------
 
 export default tool({
-  description: `Reports and trims a session's live model context over the opencode DB (the gauge's default db path). \`report <session> [target]\` — READ-ONLY: (1) the window state — the last completed compaction (marker present? compaction user row id, summary id, current tail_start_id, retained-tail count, post-summary count; no marker → the full history is the model window), (2) per-message rows for the messages INSIDE the model window (retained-tail slice + post-summary slice): id, time, role, and for tool parts: tool name + target (read: filePath + offset/limit; bash: command; webfetch: url), token mass (info.tokens input+output+cache.read when present, else bytes/4 of the part text), (3) with target: a dry-run of what a tail rewrite to it would remove/keep (counts + token mass) + the verdict — no write. \`tail <session> <messageID>\` — WRITE: rewrite the last completed compaction part's tail_start_id to the target id (the host's own lever, compaction.ts:461-466) so the retained tail shrinks/grows to it; the context re-derives from the DB at the next step — zero restart. Fail-closed validation mirrors the host's window guard exactly: the session exists, the last completed compaction exists (marker + summary child), the target id exists in the session, the target sits strictly BEFORE the compaction user row in (time_created, id) order, and the retained-tail count (target → compaction row, exclusive) is >= 6 — the keepMessages floor (a retained tail below 6 is rejected). Single transaction; WAL — the host reads on its own connection (concurrent read safe); SQLITE_BUSY → one short-backoff retry → fail-closed (never a partial write). Backend chain: in-process sqlite (bun:sqlite → node:sqlite) first, last resort the maintainer-placed sqlite3 CLI (one CLI invocation per query; the tail transaction is ONE invocation) — a missing CLI, spawn error, or timeout still lands the fail-closed db-error. Rejections return as plain lines — \`report= rejected: <cause>\` / \`tail= rejected: <cause>\` (a valid fail-closed outcome, NOT a malfunction — do not retry); genuine backend failures return \`db-error:\` / \`error:\` lines. The (2) rows include the CURRENT in-flight message (its token mass is not yet committed — typically 0, not a zero-mass message); row fields: \`time\` = an epoch-ms number, mass label \`tokens=\` (provider-true) or \`bytes4=\` (bytes/4 fallback), a read target shows filePath (+ offset/limit only when set). The (3) dry-run shares the tail call's fail-closed validation — on a rejected rewrite the dry-run returns the rejection in place of the counts. Returns \`tail= <old> -> <new> keep=<count>\` or the rejection reason. \`report\` never writes the DB.`,
+  description: `Reports and trims a session's live model context over the opencode DB (the gauge's current db path — the live opencode DB on the live host). \`report <session> [target]\` — READ-ONLY: (1) the window state — the last completed compaction (marker present? compaction user row id, summary id, current tail_start_id, retained-tail count, post-summary count; no marker → the full history is the model window), (2) per-message rows for the messages INSIDE the model window (retained-tail slice + post-summary slice): id, time, role, and for tool parts: tool name + target (read: filePath + offset/limit; bash: command; webfetch: url), token mass (info.tokens input+output+cache.read when present, else bytes/4 of the part text), (3) with target: a dry-run of what a tail rewrite to it would remove/keep (counts + token mass) + the verdict — no write. \`tail <session> <messageID>\` — WRITE: rewrite the last completed compaction part's tail_start_id to the target id (the host's own lever, compaction.ts:461-466) so the retained tail shrinks/grows to it; the context re-derives from the DB at the next step — zero restart. \`tail <session> keepMessages=N\` — the keep-COUNT form (WRITE, same single transaction): N = the retained-tail MESSAGE count — the N-th message strictly before the compaction user row becomes the new tail head (the compact_memory keepMessages count semantics — a message COUNT, NOT a token budget); mutually exclusive with the <messageID> form. The core returns it as a \`tail-set= <old> -> <new> keep=N\` line of the same shape as the messageID form; it is primarily a SHRINK lever (the post-compaction trim) — growing stays available, but re-reads raw messages you no longer remember (nothing is lost — the DB keeps them, the report restores the knowledge); keep=0 stays rejected by the floor 6. Fail-closed validation mirrors the host's window guard exactly: the session exists, the last completed compaction exists (marker + summary child), the target id exists in the session, the target sits strictly BEFORE the compaction user row in (time_created, id) order, and the retained-tail count (target → compaction row, exclusive) is >= 6 — the keepMessages floor (a retained tail below 6 is rejected; the keep form's computed boundary re-runs these same checks, plus its own keep-invalid and keep-exceeds-history rejections). Single transaction; WAL — the host reads on its own connection (concurrent read safe); SQLITE_BUSY → one short-backoff retry → fail-closed (never a partial write). Backend chain: in-process sqlite (bun:sqlite → node:sqlite) first, last resort the maintainer-placed sqlite3 CLI (one CLI invocation per query; the tail transaction is ONE invocation) — a missing CLI, spawn error, or timeout still lands the fail-closed db-error. Rejections return as plain lines — \`report= rejected: <cause>\` / \`tail= rejected: <cause>\` / \`tail-set= rejected: <cause>\` (a valid fail-closed outcome, NOT a malfunction — do not retry); genuine backend failures return \`db-error:\` / \`error:\` lines. The (2) rows include the CURRENT in-flight message (its token mass is not yet committed — typically 0, not a zero-mass message); row fields: \`time\` = an epoch-ms number, mass label \`tokens=\` (provider-true) or \`bytes4=\` (bytes/4 fallback), a read target shows filePath (+ offset/limit only when set). The (3) dry-run shares the tail call's fail-closed validation — on a rejected rewrite the dry-run returns the rejection in place of the counts. Returns \`tail= <old> -> <new> keep=<count>\`, or for the keep form \`tail-set= <old> -> <new> keep=<count>\`, or the rejection reason. \`report\` never writes the DB.`,
   args: {
     mode: tool.schema
       .string()
-      .describe("The mode: 'report' (read-only window map + optional dry-run) or 'tail' (the validated tail_start_id rewrite)."),
+      .describe("The mode: 'report' (read-only window map + optional dry-run) or 'tail' (the validated tail_start_id rewrite — the <messageID> form or the keepMessages form)."),
     session: tool.schema
       .string()
       .describe("The session id (e.g. ses_…)."),
     target: tool.schema
       .string()
       .optional()
-      .describe("report: the message id a tail rewrite would point at (dry-run, no write). tail (REQUIRED): the new tail_start_id — the id of the first message of the retained tail; it must sit strictly before the compaction marker and leave a retained tail of >= 6 messages (the floor)."),
+      .describe("report: the message id a tail rewrite would point at (dry-run, no write). tail (<messageID> form): the new tail_start_id — the id of the first message of the retained tail; it must sit strictly before the compaction marker and leave a retained tail of >= 6 messages (the floor). Omit when using the keepMessages form (mutually exclusive)."),
+    keepMessages: tool.schema
+      .number()
+      .optional()
+      .describe("tail (keep form): the retained-tail MESSAGE count N — the N-th message strictly before the compaction user row becomes the new tail head (the compact_memory keepMessages count semantics: a message COUNT, not a token budget). Mutually exclusive with target — use exactly one of the two forms. Rejected fail-closed: non-integer or non-positive (keep-invalid), below the floor 6 (retained-tail-below-floor), above the pre-compaction message count (keep-exceeds-history), plus the shared no-completed-compaction / session-not-found; a rejection performs no DB write. The core returns a `tail-set= <old> -> <new> keep=N` line (the same shape as the <messageID> form). Primarily a SHRINK lever (the post-compaction trim) — growing re-reads raw messages you no longer remember (nothing is lost, the DB keeps them)."),
   },
 
   execute: async (args: any, context: any) => {
+    // The gauge's current db path (the gauge core's resolution — the live
+    // opencode DB on the live host; the smoke/probe steer it via
+    // setDbPath).
+    const dbPath = getDbPath();
     const mode = args?.mode;
     const session = String(args?.session ?? "").trim();
     const target =
       args?.target != null && String(args.target).trim() !== "" ? String(args.target).trim() : undefined;
+    // The keep-COUNT form (mutually exclusive with target — the surface
+    // decides the form; the core's keep-invalid guard covers the rest).
+    const keep = args?.keepMessages != null ? args.keepMessages : undefined;
     if (!session) return "error: missing session";
-    if (mode === "report") return reportWindow(DEFAULT_DB_PATH, session, target);
+    if (mode === "report") return reportWindow(dbPath, session, target);
     if (mode === "tail") {
-      if (!target) return "error: tail mode requires target (the new tail_start_id message id)";
-      return tailSet(DEFAULT_DB_PATH, session, target);
+      if (keep != null && target != null)
+        return "error: tail mode: target and keepMessages are mutually exclusive (use one or the other)";
+      if (keep != null) return tailSetKeep(dbPath, session, keep);
+      if (!target)
+        return "error: tail mode requires target (the new tail_start_id message id) or keepMessages (the retained-tail message count)";
+      return tailSet(dbPath, session, target);
     }
     return "error: mode must be 'report' or 'tail'";
   }

@@ -72,6 +72,13 @@ import {
   resolveModel,
   resolveRoot,
 } from "./compaction_core.ts";
+// U3 (2026-10-01 context-budget package): the marker-quartet write core —
+// the SAME sqlite access context_trim tail uses (openDb backend chain +
+// loadSession + the single-transaction discipline, imported from the tool
+// file — an import adds no plugin surface; the tool() default export is
+// never registered by the plugin loader).
+import { markerSet } from "../tools/context_trim.ts";
+import { getDbPath } from "./scripts/gauge.mjs";
 
 // Re-exports for the smoke / probe (the import surface moved to the core —
 // the entries stay pinned AT THE ENTRY POINT):
@@ -350,12 +357,15 @@ export default async function CompactMemoryPlugin(ctx: any) {
   return {
     tool: {
       compact_memory: tool({
-        description: "Compacts a session to free context space. Two paths: SELF (sessionID omitted) — your own session ENDS after the compaction; you resume from committed files via the post-compaction protocol. CROSS (explicit sessionID) — a fire-and-forget dispatch: it returns immediately and never blocks (an await would deadlock on the single llama-swap model slot); success is verified ASYNCHRONOUSLY — the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success, and a failed dispatch burns NO budget. The budget is per TARGET session, per model — the cap comes from the compact_budget.json model_budget map (bare model id → cap; unlisted models get the configured default; CPU models denied — cap 0). The total budget per session is the cap + ONE emergency compaction: once the normal cap is drained, the `emergency` arg may consume the 1 (count → cap+1 = fully exhausted). A CROSS caller (explicit sessionID ≠ the calling session) gets an effective cap of cap + 1 (the caller-scoped override, ruling 2026-09-30) — but the spendable TOTAL stays THE SAME AS SELF (cap + the one emergency): a cross at count == cap dispatches via the override slot, and a cross at count == cap + 1 stays REFUSED (no second slot). Use it at the stop line / near-limit triage (self) or before a task_id resume of a session that died at its limit (cross); do NOT use it as a restart substitute — the recent head stays INTACT and a summary of the dropped tail is auto-created. The summarizer model pair is NOT an argument: it resolves from the root opencode.jsonc agent.compaction.model when set, else from the compacting session's own model.",
+        description: "Compacts a session to free context space. Two paths: SELF (sessionID omitted) — your own session ENDS after the compaction; you resume from committed files via the post-compaction protocol. CROSS (explicit sessionID) — a fire-and-forget dispatch: it returns immediately and never blocks (an await would deadlock on the single llama-swap model slot); success is verified ASYNCHRONOUSLY — the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success, and a failed dispatch burns NO budget. The budget is per TARGET session, per model — the cap comes from the compact_budget.json model_budget map (bare model id → cap; unlisted models get the configured default; CPU models denied — cap 0). The total budget per session is the cap + ONE emergency compaction: once the normal cap is drained, the `emergency` arg may consume the 1 (count → cap+1 = fully exhausted). A CROSS caller (explicit sessionID ≠ the calling session) gets an effective cap of cap + 1 (the caller-scoped override, ruling 2026-09-30) — but the spendable TOTAL stays THE SAME AS SELF (cap + the one emergency): a cross at count == cap dispatches via the override slot, and a cross at count == cap + 1 stays REFUSED (no second slot). Use it at the stop line / near-limit triage (self) or before a task_id resume of a session that died at its limit (cross); do NOT use it as a restart substitute — the recent head stays INTACT and a summary of the dropped tail is auto-created. The summarizer model pair is NOT an argument: it resolves from the root opencode.jsonc agent.compaction.model when set, else from the compacting session's own model. MARKER mode (args mode:'marker' + summary + boundary): the agent writes the summary itself (compaction style, the current model) + the boundary message id (the first message of the retained tail); the tool writes the marker quartet (the compaction user row + the summary child carrying the summary text) into the target session's DB (the same sqlite access context_trim tail uses) and runs the FULL protocol synchronously (budget increment + the COMPACT line + the pre-compaction dump + the queued-message relay) — NO host summarize call, NO session end. It consumes ONE budget compaction (the normal cap applies — no new budget line). The window re-derives at the NEXT STEP (zero restart — the session continues unbroken; no task_id resume needed). Use it at the cap / full-window case — when the U2 filter can't free enough mass (many medium-weight messages) or a summary handover is wanted; the vanilla host compaction stays the auto-at-cap path.",
         args: {
           sessionID: tool.schema.string().optional().describe("Session to compact. Omit = your own session (the SELF path). An explicit id = ANOTHER session (the CROSS fire-and-forget path)."),
           keepMessages: tool.schema.number().optional().describe("Recent messages to retain (e.g. 18) — drives a keepTokens computation at dispatch time: the provider-token mass of the last N messages (S-diff: cumulative context size input+output+cache.read across the window; bytes/4 fallback) is sent as keep.tokens in the summarize body (the host retains the token budget, not the count); the budget file's keepTokens is the fallback when the read fails or the sum is 0."),
             message: tool.schema.string().optional().describe("Post-compaction continuation message (1-3 lines: what to resume + which files to re-read) — stored at queue time (one per-session file under .opencode/temp/) and delivered as the FIRST message on the compacted session's next resume (the auto-resume relay for in-scope sessions; otherwise the session's own post-compaction protocol STEP 0) (never awaited); deleted on a verified dispatch failure. ABSENT → nothing is queued."),
           emergency: tool.schema.boolean().optional().describe("Consumes the once-per-session emergency compaction (allowed only when the normal budget is exhausted). Omit = a normal compaction."),
+          mode: tool.schema.string().optional().describe("The dispatch mode. Omit = the standard compaction (the host summarizes the dropped history — SELF ends the session, CROSS is fire-and-forget). 'marker' = the U3 marker compaction (the cap backstop): the agent supplies the summary text itself (the `summary` arg, compaction style) + the boundary message id (`boundary`, the first message of the retained tail); the tool writes the marker quartet (the compaction user row + the summary child) into the target session's DB — the same sqlite access context_trim tail uses — and runs the FULL protocol SYNCHRONOUSLY (budget increment + the COMPACT line + the pre-compaction dump + the queued-message relay; no host summarize call, no session end). It consumes ONE budget compaction (the normal cap applies). The window re-derives at the NEXT STEP (zero restart — no task_id resume needed). Use it at the cap / full-window case — when the U2 filter can't free enough mass (many medium-weight messages) or a summary handover is wanted. Requires `summary` + `boundary`; `keepMessages` is NOT applicable in marker mode (the boundary IS the retention)."),
+          summary: tool.schema.string().optional().describe("marker mode only: the summary text the agent wrote itself (compaction style, the current model) — stored as the summary child's text part. Required in marker mode (absent/empty → rejected before any write)."),
+          boundary: tool.schema.string().optional().describe("marker mode only: the boundary message id — the first message of the retained tail (the quartet's tail_start_id); it must exist in the target session. Required in marker mode (absent/empty → rejected before any write)."),
         },
         async execute(args: any, c: any) {
           try {
@@ -398,6 +408,103 @@ export default async function CompactMemoryPlugin(ctx: any) {
             // 2026-09-30): an explicit id != the calling session is a CROSS
             // caller (an explicit id EQUAL to the caller is still SELF).
             const isCross = explicitID != null && !isSelf;
+
+            // 1b. the U3 MARKER mode (2026-10-01 context-budget package,
+            //     §U3): the agent supplies the summary text (compaction
+            //     style, the current model) + the boundary; the tool writes
+            //     the marker quartet into the target session's DB (the
+            //     same sqlite access context_trim tail uses) and runs the
+            //     FULL protocol SYNCHRONOUSLY — no host summarize call
+            //     (no deadlock risk), no session end. The budget gate is
+            //     the standard one (ONE budget compaction consumed — the
+            //     normal cap applies); the increment + the verified-
+            //     success COMPACT line land AFTER the write settles (the
+            //     write IS the verification — no async callback). The
+            //     window re-derives at the NEXT STEP (zero restart).
+            if (args?.mode === "marker") {
+              const summaryText = typeof args?.summary === "string" ? args.summary : "";
+              const boundaryID = typeof args?.boundary === "string" ? args.boundary.trim() : "";
+              if (summaryText === "") {
+                return "marker= rejected: summary-empty (the marker mode requires the summary text — write the summary yourself, compaction style)";
+              }
+              if (boundaryID === "") {
+                return "marker= rejected: boundary-missing (the marker mode requires the boundary message id — the first message of the retained tail)";
+              }
+              if (args?.keepMessages != null) {
+                return "marker= rejected: keepMessages is not applicable in marker mode (the boundary IS the retention)";
+              }
+              // resolve the model pair (the BUDGET CLASS + the COMPACT
+              // line's model field only — the host summarize call is
+              // SKIPPED, so the config summarizer pair is NOT applied).
+              const root = resolveRoot(c);
+              const resolved = await resolveModel(ctx?.client, c, sessionID, isSelf);
+              const model = resolved.model;
+              const modelNote = resolved.note;
+              // the standard budget gate (the normal cap applies — marker
+              // compaction consumes ONE budget compaction; the emergency
+              // arg semantics are the gate's standard ones).
+              const cfg = readCompactionConfig(root);
+              const { cap, label } = resolveCap(root, model);
+              const count = budgetCount(root, sessionID);
+              const effCap = isCross ? cap + 1 : cap;
+              const emergencyArg = args?.emergency === true;
+              let isEmergency = false;
+              let isOverride = false;
+              if (count >= effCap) {
+                if (count === cap && emergencyArg && cfg.emergency_budget >= 1) {
+                  isEmergency = true;
+                } else {
+                  const emergencyNote =
+                    count === cap && !emergencyArg && cfg.emergency_budget >= 1
+                      ? " The emergency compaction (once per session) is available via the `emergency` argument."
+                      : " The emergency compaction is unavailable or already consumed — the budget is fully exhausted.";
+                  const ovrNote = isCross
+                    ? " The caller-scoped cross override slot is consumed — the budget is fully exhausted."
+                    : "";
+                  return (
+                    `Compaction refused: the compaction budget for ${sessionID} is exhausted — ` +
+                    `model class ${label} (cap ${cap}), used ${count}/${cap}. ` +
+                    `Hand over and start fresh — write the handover summary and let the loop restart with a fresh session.` +
+                    ovrNote +
+                    emergencyNote +
+                    (modelNote !== "" ? `\n${modelNote}` : "")
+                  );
+                }
+              }
+              if (isCross && count === cap) isOverride = true;
+              // the pre-compaction dump hook (the corpus dump before ANY
+              // dispatch — best-effort, NEVER blocks).
+              const dump = preCompactionDump(root, sessionID, count);
+              const dumpWarning = dump.ok ? "" : `\nWARNING: pre-compaction dump failed for ${sessionID} (${dump.error})`;
+              // the quartet write (the same sqlite access context_trim
+              // tail uses — single transaction, fail-closed, WAL).
+              const res = await markerSet(getDbPath(), sessionID, boundaryID, summaryText);
+              if (res.startsWith("marker= rejected:") || res.startsWith("marker= db-error:")) {
+                console.error(`compact_memory: marker compaction FAILED for ${sessionID}: ${res}`);
+                // the write never settled — NO increment, NO COMPACT line,
+                // the queued message is NEVER stored (no zombie possible).
+                return res + (modelNote !== "" ? `\n${modelNote}` : "") + dumpWarning;
+              }
+              // verified success (SYNCHRONOUS — the write IS the
+              // verification): the budget increment + the COMPACT line.
+              // The line records the RETAINED message count as the keep
+              // (the boundary IS the retention; no token budget is
+              // resolved in marker mode — tok=- none).
+              const keepMatch = /keep=(\d+)$/.exec(res);
+              const retained = keepMatch != null ? Number(keepMatch[1]) : 0;
+              recordVerifiedSuccess(root, c, sessionID, model, retained, { tokens: undefined, source: "none" }, isEmergency, isOverride);
+              // the queued-message relay (the `message` arg — stored at
+              // queue time, delivered on the session's next resume by the
+              // auto-resume relay; the write already settled, so no
+              // zombie guard is needed here).
+              // The response LEADS with the exact `marker= ...` core line
+              // (the tailSet line family) + the verified-protocol prose.
+              const dispatch =
+                `${res} — the marker quartet was written for ${sessionID}; ` +
+                `the budget increment + the COMPACT line in .opencode/temp/ctx.log are verified (the synchronous write); the window re-derives at the NEXT STEP (zero restart).` +
+                dumpWarning;
+              return queueMessage(root, sessionID, args?.message, dispatch, modelNote);
+            }
 
             // 2. resolve the model pair — resolveModel is the FALLBACK (self:
             //    extra.model; cross: the messages-RPC read of the LAST entry —

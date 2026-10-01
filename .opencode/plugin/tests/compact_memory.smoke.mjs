@@ -179,9 +179,12 @@ const withClient = async (spec = {}) => {
   const { t } = await withClient({ summarize: true });
   chk("factory returns { tool: { compact_memory } }", t != null);
   chk("reg shape: description string + async execute", typeof t.description === "string" && typeof t.execute === "function" && t.execute.constructor.name === "AsyncFunction");
-  chk("reg args: FOUR keys (sessionID, keepMessages, message, emergency)",
-    JSON.stringify(Object.keys(t.args)) === JSON.stringify(["sessionID", "keepMessages", "message", "emergency"]),
+  chk("reg args: SEVEN keys (the original four + the U3 marker-mode trio mode/summary/boundary)",
+    JSON.stringify(Object.keys(t.args)) === JSON.stringify(["sessionID", "keepMessages", "message", "emergency", "mode", "summary", "boundary"]),
     JSON.stringify(Object.keys(t.args)));
+  chk("reg description: the MARKER mode is documented (the cap backstop + one budget compaction + the next-step re-derivation)",
+    t.description.includes("MARKER mode") && t.description.includes("ONE budget compaction") && t.description.includes("NEXT STEP"),
+    t.description.slice(-400));
   chk("reg args: every value is a zod schema (safeParse)", Object.values(t.args).every((s) => typeof s.safeParse === "function"));
 }
 
@@ -856,6 +859,192 @@ const CFG_PATH = path.join(SANDBOX, "opencode.jsonc");
     stS.version === 2 && stS.sessions.ses_sm_survive.count === 1 && stS.sessions.ses_sm_survive.model === "Survive-M" &&
       Object.keys(stS.sessions).length === 1,
     JSON.stringify(stS.sessions));
+}
+
+// ---------------------------------------------------------------------------
+// U3 — the MARKER compaction mode (2026-10-01 context-budget package,
+// §U3): the agent supplies the summary text (compaction style) + the
+// boundary; the tool writes the marker quartet into the target session's
+// DB (the SAME sqlite access context_trim tail uses — markerSet) and runs
+// the FULL protocol SYNCHRONOUSLY (budget increment + the verified-
+// success COMPACT line + the pre-compaction dump + the queued-message
+// relay). ONE budget compaction consumed (the normal cap applies). Pins
+// THROUGH THE TOOL SURFACE: the fixture DB is built with the
+// context_trim.smoke.mjs row shapes (never hand-derived) and the gauge's
+// setDbPath steers the tool surface at the fixture (restored after).
+{
+  const { DatabaseSync } = await import("node:sqlite");
+  const FXMK = path.join(SANDBOX, "fixture_marker.db");
+  if (existsSync(FXMK)) rmSync(FXMK);
+  const DBMK = new DatabaseSync(FXMK);
+  DBMK.exec("PRAGMA foreign_keys = ON;");
+  DBMK.exec(`
+    CREATE TABLE project (id TEXT PRIMARY KEY);
+    CREATE TABLE session (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE, time_created INTEGER NOT NULL, time_updated INTEGER NOT NULL);
+    CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE, time_created INTEGER NOT NULL, time_updated INTEGER NOT NULL, data TEXT NOT NULL);
+    CREATE TABLE part (id TEXT PRIMARY KEY, message_id TEXT NOT NULL REFERENCES message(id) ON DELETE CASCADE, session_id TEXT NOT NULL, time_created INTEGER NOT NULL, time_updated INTEGER NOT NULL, data TEXT NOT NULL);
+  `);
+  DBMK.prepare("INSERT INTO project (id) VALUES (?)").run("prj_mk");
+  const insS = DBMK.prepare("INSERT INTO session (id, project_id, time_created, time_updated) VALUES (?, ?, ?, ?)");
+  const insM = DBMK.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?)");
+  const insP = DBMK.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?, ?)");
+  // ses_mk_fix — 4 messages (boundary msg_01 = the whole history retained;
+  // boundary msg_03 = the last 2 messages).
+  insS.run("ses_mk_fix", "prj_mk", 0, 0);
+  insM.run("msg_01", "ses_mk_fix", 1000, 1000, JSON.stringify({ role: "user", time: { created: 1000 } }));
+  insP.run("p_01t", "msg_01", "ses_mk_fix", 1000, 1000, JSON.stringify({ type: "text", text: "one" }));
+  insM.run("msg_02", "ses_mk_fix", 2000, 2000, JSON.stringify({ role: "assistant", parentID: "p_01t", finish: "stop", tokens: { total: 0, input: 100, output: 50, reasoning: 0, cache: { write: 0, read: 2000 } } }));
+  insP.run("p_02a", "msg_02", "ses_mk_fix", 2000, 2000, JSON.stringify({ type: "text", text: "ok" }));
+  insM.run("msg_03", "ses_mk_fix", 3000, 3000, JSON.stringify({ role: "user", time: { created: 3000 } }));
+  insP.run("p_03t", "msg_03", "ses_mk_fix", 3000, 3000, JSON.stringify({ type: "text", text: "three" }));
+  insM.run("msg_04", "ses_mk_fix", 4000, 4000, JSON.stringify({ role: "assistant", parentID: "p_03t", finish: "stop", tokens: { total: 0, input: 200, output: 100, reasoning: 0, cache: { write: 0, read: 4000 } } }));
+  insP.run("p_04a", "msg_04", "ses_mk_fix", 4000, 4000, JSON.stringify({ type: "text", text: "ok" }));
+  DBMK.close();
+
+  // the #119 section above replaced the store's model_budget (its config-
+  // only fixture) — restore the self-model cap 3 for this section's gate
+  // pins (saved + restored, the emg-section pattern).
+  const stMk0 = readStore();
+  const savedMbMk = stMk0.model_budget;
+  stMk0.model_budget = { "Qwen3.8-27B-IQ4KT-120K": 3, default: 1 };
+  writeFileSync(storePath, JSON.stringify(stMk0, null, 2) + "\n");
+
+  const gauge = await loadRepo(".opencode/plugin/scripts/gauge.mjs");
+  const dbBefore = gauge.getDbPath();
+  gauge.setDbPath(FXMK); // steer the tool surface at the fixture (restored after)
+  const ctTool = await loadRepo(".opencode/tools/context_trim.ts");
+
+  // marker mode, SELF shape (ctx sessionID == the target — no client RPC
+  // needed; the marker path never calls the client).
+  const mkExec = (args) =>
+    factory({ client: {} }).then((reg) => reg.tool.compact_memory.execute(args, toolCtx({ sessionID: "ses_mk_fix" })));
+
+  // (a) the VALID marker compaction — the quartet written + the full
+  // protocol (budget increment + the COMPACT line + the dump artifacts).
+  const resA = await mkExec({ mode: "marker", summary: "U3 marker summary text", boundary: "msg_01" });
+  const mA = /^marker= (msg_[0-9a-f]{12}[A-Za-z0-9]{14}) summary=(msg_[0-9a-f]{12}[A-Za-z0-9]{14}) tail=msg_01 keep=4 — the marker quartet was written for ses_mk_fix;/.exec(resA);
+  chk("marker valid: the response leads with the exact `marker= <mid> summary=<sid> tail=msg_01 keep=4` core line (the synchronous verified write)", mA != null, JSON.stringify(resA.slice(0, 160)));
+  chk("marker valid: the response names the verified protocol + the next-step re-derivation (never a dispatch claim)",
+    /verified \(the synchronous write\)/.test(resA) && /NEXT STEP \(zero restart\)/.test(resA) && !/dispatched/i.test(resA),
+    JSON.stringify(resA.slice(0, 220)));
+
+  // the quartet in the fixture DB (the exact fixture row shapes):
+  const DBR = new DatabaseSync(FXMK);
+  const q = (sql, ...args) => DBR.prepare(sql).all(...args);
+  const mkMsgs = q("SELECT id, time_created, data FROM message WHERE session_id = ? ORDER BY time_created ASC, id ASC", "ses_mk_fix");
+  const mkParts = q("SELECT id, message_id, data FROM part WHERE session_id = ? ORDER BY message_id ASC, id ASC", "ses_mk_fix");
+  const markerRow = mkMsgs.find((m) => JSON.parse(m.data).role === "user" && mkParts.some((p) => p.message_id === m.id && JSON.parse(p.data).type === "compaction"));
+  const markerPart = mkParts.find((p) => p.message_id === markerRow.id && JSON.parse(p.data).type === "compaction");
+  const partJson = JSON.parse(markerPart.data);
+  const summaryRow = mkMsgs.find((m) => m.id === mA[2]);
+  const summaryData = JSON.parse(summaryRow.data);
+  const summaryPart = JSON.parse(mkParts.find((p) => p.message_id === mA[2]).data);
+  const mkIdx = mkMsgs.findIndex((m) => m.id === markerRow.id);
+  const sumIdx = mkMsgs.findIndex((m) => m.id === mA[2]);
+  chk("quartet: the compaction user row part is EXACTLY the fixture shape {type, auto:false, tail_start_id:msg_01} (host-format msg_ id)",
+    partJson.type === "compaction" && partJson.auto === false && partJson.tail_start_id === "msg_01" && Object.keys(partJson).length === 3 &&
+      /^msg_/.test(markerRow.id) && markerRow.id.length === 30,
+    JSON.stringify(partJson));
+  chk("quartet: the summary child is STRICTLY AFTER the marker with parentID = the marker id, summary/finish set, mode/agent compaction",
+    sumIdx === mkIdx + 1 && summaryData.role === "assistant" && summaryData.parentID === markerRow.id &&
+      summaryData.summary === true && summaryData.finish === "stop" && summaryData.mode === "compaction" && summaryData.agent === "compaction",
+    JSON.stringify(summaryData));
+  chk("quartet: the summary text is the agent-provided text in ONE text part (the fixture text-part shape)",
+    summaryPart.type === "text" && summaryPart.text === "U3 marker summary text" &&
+      mkParts.filter((p) => p.message_id === mA[2]).length === 1,
+    JSON.stringify(summaryPart));
+
+  // the window re-derives: context_trim report afterwards shows the new
+  // marker + tail (the retained window = msg_01..msg_04, the summary
+  // child documented in the header, post-summary 0).
+  const reportA = await ctTool.reportWindow(FXMK, "ses_mk_fix");
+  const linesA = reportA.split("\n");
+  chk("window re-derives: the report header shows the new marker + summary + tail_start=msg_01 retained=4 post-summary=0 (hostGuard clean — no degenerate suffix) + exactly the 4 retained rows (full form)",
+    linesA[0] === "session ses_mk_fix" &&
+      linesA[1] === `header: marker=${markerRow.id} summary=${mA[2]} tail_start=msg_01 retained=4 post-summary=0` &&
+      linesA[2] === "row: msg_01 1000 user bytes4=0" && linesA[5] === "row: msg_04 4000 assistant tokens=4300" && linesA.length === 6,
+    JSON.stringify(linesA.slice(0, 7)));
+
+  // the FULL protocol landed (fixture equivalents):
+  const stA = readStore();
+  chk("protocol: the budget increment landed in the fixture budget file (count 1 — ONE budget compaction, the normal increment, no new budget line)",
+    stA.sessions.ses_mk_fix?.count === 1 && stA.sessions.ses_mk_fix?.model === "Qwen3.8-27B-IQ4KT-120K" && !("markerCount" in stA),
+    JSON.stringify(stA.sessions.ses_mk_fix));
+  const lineA = readLog().trim().split("\n").find((l) => l.includes("COMPACT ses_mk_fix"));
+  chk("protocol: the verified-success COMPACT line (model field + keep=4m — the retained count — tok=- none, no emergency/ovr)",
+    lineA != null && / COMPACT ses_mk_fix keep=4m tok=- none$/.test(lineA) && lineA.includes("Qwen3.8-27B-IQ4KT-120K"),
+    JSON.stringify(lineA));
+  const mkDump = path.join(SANDBOX, "archive", "sessions", "compaction_dumps", "ses_mk_fix_c0.md");
+  const mkDumpJson = path.join(SANDBOX, "archive", "sessions", "compaction_dumps", "ses_mk_fix_c0.json");
+  const DT = "\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}";
+  const dumpOkMk = readLog().trim().split("\n").find((l) => new RegExp(`^${DT} DUMP-OK ses_mk_fix archive/sessions/compaction_dumps/ses_mk_fix_c0\\.md ms=\\d+$`).test(l));
+  chk("protocol: the pre-compaction dump fired (BOTH artifacts — the stub dump, the DUMP-OK md line byte-exact, the json artifact present)",
+    existsSync(mkDump) && existsSync(mkDumpJson) && dumpOkMk != null,
+    JSON.stringify({ md: existsSync(mkDump), json: existsSync(mkDumpJson), line: dumpOkMk }));
+
+  // (b) the fail-closed rejections — NO write, NO increment, NO COMPACT line.
+  const rej1 = await mkExec({ mode: "marker", summary: "x", boundary: "nope" });
+  chk("rejection: boundary-not-found (fail-closed — no write, no increment)",
+    rej1 === "marker= rejected: boundary-not-found" && readStore().sessions.ses_mk_fix?.count === 1,
+    JSON.stringify(rej1));
+  const rej2 = await mkExec({ mode: "marker", boundary: "msg_01" });
+  chk("rejection: empty summary (rejected before any write)", rej2.startsWith("marker= rejected: summary-empty"), JSON.stringify(rej2));
+  const rej3 = await mkExec({ mode: "marker", summary: "x" });
+  chk("rejection: missing boundary (rejected before any write)", rej3.startsWith("marker= rejected: boundary-missing"), JSON.stringify(rej3));
+  const rej4 = await mkExec({ mode: "marker", summary: "x", boundary: "msg_01", keepMessages: 2 });
+  chk("rejection: keepMessages is not applicable in marker mode (the boundary IS the retention)",
+    rej4 === "marker= rejected: keepMessages is not applicable in marker mode (the boundary IS the retention)",
+    JSON.stringify(rej4));
+  const msgsAfterRej = q("SELECT COUNT(*) AS n FROM message WHERE session_id = 'ses_mk_fix'");
+  chk("rejections: the fixture is UNCHANGED (still 4 + the quartet 2 = 6 messages, NO new rows, no new COMPACT line)",
+    msgsAfterRej[0].n === 6 && readStore().sessions.ses_mk_fix?.count === 1 &&
+      readLog().trim().split("\n").filter((l) => l.includes("COMPACT ses_mk_fix")).length === 1,
+    JSON.stringify(msgsAfterRej));
+
+  // (c) a SECOND marker compaction (the new marker appends LAST — the
+  // window re-derives on it; the queued-message relay stores on success).
+  // NOTE: the retained tail is boundary..new-marker over the CURRENT
+  // history — after the first write that INCLUDES the previous marker +
+  // summary child rows (4 messages: msg_04, marker1, summary1 for
+  // boundary msg_04) — the host window slice keeps them (only the NEW
+  // marker/summary pair is the header-documented exclusion).
+  const resC = await mkExec({ mode: "marker", summary: "second marker summary", boundary: "msg_04", message: "resume marker unit" });
+  const mC = /^marker= (msg_[0-9a-f]{12}[A-Za-z0-9]{14}) summary=(msg_[0-9a-f]{12}[A-Za-z0-9]{14}) tail=msg_04 keep=3 — the marker quartet was written for ses_mk_fix;/.exec(resC);
+  chk("marker second: the line `tail=msg_04 keep=3` (msg_04 + the previous marker/summary rows retained) + the queued note appended",
+    mC != null && resC.endsWith("The message was queued for ses_mk_fix (delivered on its resume)."),
+    JSON.stringify(resC.slice(0, 260)));
+  const reportC = (await ctTool.reportWindow(FXMK, "ses_mk_fix")).split("\n");
+  chk("marker second: the report header shows the NEW marker (the LAST one) + tail_start=msg_04 retained=3 — the window re-derives again",
+    reportC[1] === `header: marker=${mC[1]} summary=${mC[2]} tail_start=msg_04 retained=3 post-summary=0`,
+    JSON.stringify(reportC[1]));
+  chk("marker second: budget count 2 (each marker compaction consumes ONE) + the queued message STORED (the relay's source file, content exact)",
+    readStore().sessions.ses_mk_fix?.count === 2 &&
+      existsSync(path.join(SANDBOX, ".opencode", "temp", "compact_message_ses_mk_fix")) &&
+      readFileSync(path.join(SANDBOX, ".opencode", "temp", "compact_message_ses_mk_fix"), "utf-8") === "resume marker unit",
+    JSON.stringify(readStore().sessions.ses_mk_fix));
+  const lineC = readLog().trim().split("\n").filter((l) => l.includes("COMPACT ses_mk_fix"));
+  chk("marker second: exactly 2 COMPACT lines (keep=4m then keep=3m, both tok=- none)",
+    lineC.length === 2 && /COMPACT ses_mk_fix keep=4m tok=- none$/.test(lineC[0]) && /COMPACT ses_mk_fix keep=3m tok=- none$/.test(lineC[1]),
+    JSON.stringify(lineC));
+
+  // (d) the normal cap applies (the seed store's self-model cap is 3):
+  // call 3 lands (count 3 == cap), call 4 is REFUSED (no write, no line).
+  const resD1 = await mkExec({ mode: "marker", summary: "third", boundary: "msg_03" });
+  chk("cap: the 3rd marker compaction lands (count 3 == cap 3)", /^marker= /.test(resD1) && readStore().sessions.ses_mk_fix?.count === 3,
+    JSON.stringify({ res: String(resD1).slice(0, 60), count: readStore().sessions.ses_mk_fix?.count }));
+  const resD2 = await mkExec({ mode: "marker", summary: "fourth", boundary: "msg_03" });
+  chk("cap: the 4th is REFUSED (cap 3, 3/3 — hand-over note; no write, count stays 3, no 4th COMPACT line)",
+    /refused/i.test(resD2) && resD2.includes("cap 3") && resD2.includes("3/3") && /hand over/i.test(resD2) &&
+      readStore().sessions.ses_mk_fix?.count === 3 &&
+      readLog().trim().split("\n").filter((l) => l.includes("COMPACT ses_mk_fix")).length === 3,
+    resD2.slice(0, 220));
+
+  gauge.setDbPath(dbBefore); // restore the original db path
+  DBR.close();
+  // restore the model_budget fixture for any later reader
+  const stMkR = readStore();
+  if (savedMbMk === undefined) delete stMkR.model_budget; else stMkR.model_budget = savedMbMk;
+  writeFileSync(storePath, JSON.stringify(stMkR, null, 2) + "\n");
 }
 
 finish();

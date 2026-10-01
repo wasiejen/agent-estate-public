@@ -603,18 +603,25 @@ export async function tailSet(dbPath: string, sessionID: string, targetID: strin
     if (retained < FLOOR) return `tail= rejected: retained-tail-below-floor ${retained}`;
 
     // The single-field JSON edit on the ONE compaction part row (the host
-    // does exactly this itself — compaction.ts:461-466). The spread
-    // preserves the field order (type, auto, tail_start_id).
+    // does exactly this itself — compaction.ts:461-466). The edit happens
+    // INSIDE sqlite via json_set (JSON1, verified on the bundled CLI
+    // 3.53.4): only the new tail_start_id (a plain alphanumeric id) is
+    // bound — the SQL text carries NO double quotes. The old design
+    // inlined JSON.stringify's output as a string literal; the double
+    // quotes break the Bun live host's Windows command-line join, the
+    // CLI loses its SQL arg and drops to interactive mode → the
+    // deterministic 2500 ms kill (measured 2026-10-01: identical call
+    // 19 ms from bash). json_set preserves the field order and every
+    // other field (byte-exact output — the smoke pins verify).
     const marker = msgs[w.compactionIndex];
     const part = marker.parts.find((p) => p.data.type === "compaction" && p.data.tail_start_id !== undefined)!;
     const oldTail = part.data.tail_start_id;
-    const newJson = JSON.stringify({ ...part.data, tail_start_id: targetID });
     const now = Date.now();
 
     const attempt = () => {
       ctx.db.exec("BEGIN IMMEDIATE;");
       try {
-        ctx.db.prepare("UPDATE part SET data = ?, time_updated = ? WHERE id = ?").run(newJson, now, part.id);
+        ctx.db.prepare("UPDATE part SET data = json_set(data, '$.tail_start_id', ?), time_updated = ? WHERE id = ?").run(targetID, now, part.id);
         ctx.db.exec("COMMIT;");
       } catch (e) {
         try {

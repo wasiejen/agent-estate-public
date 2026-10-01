@@ -188,7 +188,13 @@ planning. Plan against a defined goal, not a list of chores.
   `.opencode/temp/ctx.log` / the terminal; a failure burns NO budget. The
   summarizer is the target's OWN model (same-model — `agent.compaction.model`
   commented out in opencode.jsonc) → budget ONE flush delegation after the
-  dispatch (llama-swap single slot; knowledge_tools.md).
+  dispatch (llama-swap single slot; knowledge_tools.md). Cross-override
+  (#128, 2026-10-01): a CROSS caller (explicit sessionID ≠ the calling
+  session) gets an effective cap of `cap + 1` — the cross spendable total
+  (cap + 1) stays THE SAME AS SELF; a cross at `count == cap + 1` stays
+  REFUSED (no second slot), and a successful cross-override dispatch
+  (pre-dispatch `count == cap`) is marked with the `ovr` token on the
+  verified-success COMPACT line.
 - **Failure-message interpretation:** `Task cancelled` / `the request exceeds
   the available context size` (or similar) = a CONTEXT-LIMIT HIT in a RUNNING
   session — the sub-agent ran normally and died at the window limit; it is NOT

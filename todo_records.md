@@ -1682,3 +1682,128 @@ smokes, pytest 459+1w, ruff F=0).
    session's real cap (5), not the default 1. Both surfaces agree; root
    cause + fix history in the bullets above (knowledge entry in
    knowledge_plugins.md). CLOSED.
+
+## #126. (open, 2026-09-30, direct session ses_f0e129deeffeqmM5rc8mpnTY2Q — live acceptance run of #120U1 after the maintainer's restart; pre-approved class — agent-usage tool fix) context_trim's in-process-only sqlite backend fails in the live host process (no spawn fallback)
+- **Problem / evidence:** the first live `report` call (2026-09-30 ~15:55; the
+  live process is the current build — `context_trim` IS in the live toolset,
+  registration confirmed) returned `db-error: no in-process writable sqlite
+  backend (bun:sqlite / node:sqlite both unavailable)`. The header design
+  (`context_trim.ts` L72-79) deliberately has no spawn fallback (a "no blind
+  CLI write" rule). The gauge core proves the third backend works in this
+  live host: `spawn-sqlite3` via `.opencode/plugin/tools/sqlite3.exe`
+  (`gauge.mjs` `DEFAULT_BACKENDS` L163, `DEFAULT_EXE_PATH` L161, the
+  "PROVEN IN PRODUCTION" comment L42-44) — all live gauge reads use it.
+- **Desired outcome:** `context_trim` works in the live host process
+  (`report` AND `tail`), staying fail-closed when NO backend is available at
+  all (no blind write).
+- **Acceptance:** the existing 20/20 fixture pins stay green; 2-3 new pins
+  forcing the spawn-sqlite3-only backend (report content parity with the
+  in-process path on the fixture DB; a tail rewrite lands in the fixture DB;
+  at least one validation rejection still fires via the spawn path); the
+  standard gate green (probe 352/352 + all 11 smokes); live re-acceptance =
+  the maintainer's NEXT restart (the live process lags HEAD — the planner
+  runs `report` on a real session; `tail`'s live test stays the maintainer's
+  throwaway-session call).
+- **Suggested scope:** `.opencode/tools/context_trim.ts` (`openDb` L98-129 +
+  a backend-list test hook), `.opencode/plugin/tests/context_trim.smoke.mjs`;
+  reference (read-only): `.opencode/plugin/scripts/gauge.mjs` (the
+  spawn-sqlite3 cascade region).
+- **Status:** LANDED 2026-09-30 (worker session ses_f0d49cb6bffeNMhGpmF7O3DyjU,
+  code+smoke commit `a43311a`): `openDb` chain bun→node→spawn-sqlite3 (the
+  gauge core's execFileSync discipline; the tail transaction = ONE CLI
+  invocation `PRAGMA busy_timeout; BEGIN; UPDATE; COMMIT;`) + the
+  `setBackends` test hook; report/tail logic unchanged; fail-closed end
+  kept. Standard gate green: probe 352/352 + all 11 smokes (context_trim
+  25/25 — the 20 old pins + 5 forced spawn-only pins on a second fixture
+  session). LIVE-ACCEPTED (`report`) 2026-09-30 post-restart — the planner
+  ran a live `report` on a real session (ses_f0e129deeffeqmM5rc8mpnTY2Q):
+  a valid window map via the spawn-sqlite3 fallback, no db-error (code unit
+  a43311a). LIVE DEBUG (2026-09-30/10-01, the forked test session): two
+  further live-only failures found and fixed in the planner's direct
+  session — (1) the TAB separator arg is whitespace-collapsed in the
+  Bun-compiled live host's Windows command-line join → CLI arg shift →
+  interactive mode → the deterministic 2500 ms kill (the gauge's
+  separator-less call worked live — same exe, same ro-URI; fixed:
+  `\x01` SOH separator, live-verified post-fix: the fork report reached
+  the big query and produced output); (2) the 1 MB SPAWN_MAX_BUFFER was
+  too small — the report pulls the window's part JSON through the CLI
+  (measured: fork 1271 KB, main 921 KB of parts) → ENOBUFS (fixed:
+  16 MB + a >1 MB smoke pin + stderr on the timeout error; smoke
+  26/26). 16 MB build loaded on the maintainer's 2026-10-01 restart:
+  **`report` LIVE-ACCEPTED** (valid window map: marker + retained=31 +
+  post-summary=51 on the fork).   `tail` live WRITE was blocked by a
+  live-process-specific RW hang — MECHANISM FOUND: the tail SQL
+  inlined a JSON.stringify literal (double quotes); Bun's Windows
+  command-line join mangles double-quote-bearing argv (same family as
+  the TAB collapse) → the CLI loses its SQL arg → interactive mode →
+  the deterministic 2500 ms kill (the report's single-quote-only SQL
+  works live; the identical call 19 ms from bash with correct quoting;
+  the 81 MB stale WAL ruled out; the fork's DB layer checked —
+  bun:sqlite static import works there, semaphore-scoped short
+  executes, no transaction across tool execution, so the earlier
+  deadlock candidate is withdrawn). FIX LANDED (2026-10-01): the
+  single-field edit now happens INSIDE sqlite via json_set (JSON1,
+  bundled CLI 3.53.4 verified) — only the new tail_start_id binds, the
+  SQL text carries no double quotes; smoke 26/26 (byte-exact JSON
+  output via both the in-process and the spawn path). **tail LIVE-
+  ACCEPTED** (2026-10-01, json_set build): the rewrite returned
+  `tail= msg_0f46d581… -> msg_0f46d58e… keep=6`; DB readback confirms
+  the part row carries the new tail_start_id (JSON byte-exact); the
+  host re-derived the shrunken window — context 204k → ~169k (the
+  lever; the maintainer's prediction confirmed). Floor-6 refusal:
+  smoke-verified byte-exact; the live attempts were blocked by a NEW
+  post-tail hang mode (report + floor-tail 2500 ms-killed after the
+  successful tail, while the identical report worked live before it —
+  trigger unknown; candidates: a checkpoint window under the host's
+  streaming writes / an AV rescan of the just-modified DB — noted,
+  not chased at the stop line).   Unit 2 UNHELD (its hold was the tail
+  live test). POST-TAIL HANG RESOLVED (2026-10-01, same session): the
+  pattern across all restarts was FIRST spawned CLI call per process
+  succeeds, every later one 2500 ms-kills (the maintainer's "first
+  call poisons the following" guess, confirmed: bash/node parents and
+  the gauge's async execFile keep working — the gauge's ctx lines
+  never failed). Cause: the live Bun host's execFileSync spawns only
+  once per process (compiled-Bun Windows stdio-handle issue). Fix:
+  the spawn path now uses the ASYNC execFile — the gauge's proven
+  pattern (gauge.mjs readSpawnSqlite3) — smoke 26/26. LIVE-RE-VERIFIED
+  (2026-10-01, after the restart): THREE in-process spawn calls in
+  one process, all green — report ✓, report again ✓ (pre-fix: every
+  call after the first 2500 ms-killed), floor-6 refusal
+  `tail= rejected: retained-tail-below-floor 5` ✓ (byte-exact) —
+  #120 U1 context_trim FULLY LIVE-ACCEPTED (report + tail rewrite +
+  floor refusal, live + smoke). The residual fork question (dynamic
+  bun:sqlite/node:sqlite imports fail in the live tool context while
+  the host's static import works) stays in the todo-inbox finding.
+  (The final hash rides the planner's follow-up bookkeeping commit.)
+## 72. Write-scope residual hazard: new-file near-miss (maintainer decision; 2026-09-17)
+- **Problem / evidence:** the write-fuzzy channel (and the pair gate) cannot
+  distinguish "a mistyped path to an EXISTING file" from "a deliberately
+  NEW filename that happens to sit within d<=1 of an existing sibling" —
+  a legitimate new-file write (e.g. creating `file-5.txt` next to
+  `file-4.txt`) can be mutated onto the sibling and overwrite it. Read
+  scope has no such hazard (non-destructive). Pinned as behavior: S20
+  checks 200/201 + smoke 8f (worker R2, commit 35f8143).
+- **Outcome (decision needed):** accept as designed (audit lines carry
+  the ORIGINAL arg — re-targeting verifiable after the fact), OR mitigate
+  later with an intent signal the interceptor does not currently have
+  (e.g. agent confirms the log line before the write lands — R6-era
+  surface).
+- **Acceptance:** your ruling recorded; if mitigate: spec'd as a follow-on
+  stage (R6-adjacent), not built before approval.
+- **Status:** RULING 2026-09-17 (direct session): **M1 approved** — restrict
+  the implicit write-fuzzy to `edit`/`block_transfer` (no new-file intent is
+  legal there → redirect is unambiguous); `write` loses the implicit channel
+  (new-file IS a legal intent → every degraded outcome becomes a visible
+  stray file, never a silent overwrite); the pair channel stays unchanged
+  (strict existence, fail-closed). **M1 LANDED (commit 9ec4c0b, 2026-09-17,
+  worker):** dispatch guard in intercept_observer.ts (write excluded from the
+  fuzzy channel); S20 re-pinned (196/198 no fuzzy line, 200/201 NOT mutated +
+  zero lines) + new edit counter-pins 208/209; probe 208/208, smoke 36/36,
+   pytest 459+1w, ruff F=0. **LIVE ACCEPTED 2026-09-17 (post-restart one-
+   shot, scratchpad fixture, torn down):** the d=1 new-file write landed
+   LITERAL (zero fuzzy lines — the guard live; the d=1 sibling untouched —
+   the hazard is dead) AND the `edit` d=1 typo was still corrected
+   (`fuzzy scope=write … d=1 gap=inf`, no stray file). Follow-on: R7
+   (segment resolver) + R8 (root re-anchoring) STAGED + design agreed
+   (substitution bar approved 09-17, decision-record §5); R9 documented-
+   optional. See NAP 2026-09-17 direct session.

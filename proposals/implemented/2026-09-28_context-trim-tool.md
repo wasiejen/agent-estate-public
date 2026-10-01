@@ -356,3 +356,12 @@ questions:
 1. go :-)
 2. agree, let see that the "easy" part works and we have an immediate gain
 3. not needed as described above in comment to 5. Model toggling
+
+VERDICT (2026-10-01, plan1 maintenance pass): IMPLEMENTED + FULLY LIVE-ACCEPTED.
+- Unit 1 (report + tail, floor 6) LANDED (worker-39, plan39; probe S33 + fixture smoke);
+  the live-host spawn-fallback saga (#126: spawn-sqlite3 chain, \x01 separator,
+  16 MB buffer, json_set tail, async execFile) closed with #126 (2026-10-01):
+  report ×2 + tail rewrite + floor-6 refusal all live-verified post-restart.
+- Unit 2 (the plugin-side post-compaction tail-set, zero fork) is tracked in
+  TODO #120 (UNHELD — its hold was the #126 tail live test). Moved to
+  `implemented/`.

@@ -127,3 +127,14 @@ comment:
 in favor of Option (b) ("raised by one temporarily"). "the limits do not apply" might have been adressed to model_budget. but to keep in in line only up to model_budget + emergency_budget can be spend via cross. the same as when self-compacting.
 
 comment: part 3 can be implemented as well.
+
+## Verdict (2026-10-01, plan3 bookkeeping)
+LANDED (2026-10-01, #128 worker, code 5c1af35): the `isCross`/`effCap` gate
+(emergency branch SELF-only — the cross spendable total = cap+1, no second
+slot at cap+1) + the Part-3 `ovr` budget token + Part-2 worker-part docs;
+compact_memory smoke 89/89 (82 + 7 pins), probe 352/352 (S13/S32 cross-shape
+pins re-pinned), all 11 smokes green. Planner-verified (spot re-run
+compact_memory 89/89). Live acceptance pending: his next real cross-
+override dispatch (the `ovr` token on the budget line is the detector) +
+the AGENTS.md Budgets paste (staged at the repo root
+`AGENTS_pending_2026-10-01.md` — his domain).

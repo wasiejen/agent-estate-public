@@ -57,6 +57,19 @@ file = limit-driven/auto; file without COMPACT line = failed dispatch
 (zombie, the compaction never happened). Signal, not proof (a self-compact
 without a `message` arg leaves no file).
 
---comment: so on a second or third compaction of the same session, how to you know that the queue file is from the last compaction and not from an earlier compaction? Thus leading (per Q2 answer) to a potentially wrong conclusion?
+comment: so on a second or third compaction of the same session, how to you know that the queue file is from the last compaction and not from an earlier compaction? Thus leading (per Q2 answer) to a potentially wrong conclusion?
 
 Unit 4: this appending would be more truthful - so i am in favor of this. or do you see problems with interference with the planners instructions?
+
+## Verdict (2026-10-01, plan3 bookkeeping)
+ALL 4 ITEMS LANDED. Items 1–3 (2026-09-30, plan42 planner-direct): f96a39c
+STEP 0 protocol delivery / b025159 zombie guard / 0a89e7c init age-sweep +
+1b58eae bookkeeping (gate green at the time). Item 4 (2026-10-01, #127
+worker, code 5ed36cf): `restartIntentSection` fail-open append of
+`compact_message_<sid>` at the restart-branch spawn call site (absent/
+empty/unreadable → base text) + `.consumed` tombstone rename (best-effort)
++ `intent=` log line; `restartText` stays pure. auto_resume smoke 152/152
+(147 + 5 pins), probe 352/352, all 11 smokes green. Planner-verified
+(planner-2 spot re-run auto_resume 152/152). Live acceptance pending a
+natural occurrence: the `intent=` log line on the restart-branch spawn is
+the detector.

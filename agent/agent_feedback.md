@@ -740,3 +740,6 @@ compact_memory.ts lives in .opencode/plugin/ (not .opencode/tools/) — my first
 ### 2026-09-30_16-57 planner_Q3S_slow ses_f0e129deeffeqmM5rc8mpnTY2Q
 The injected ctx budget suffix read "1 compactions left" while the self-gauge read 5 after the maintainer's model swap (row model 210K stale → unlisted in model_budget after his key swap → the silent default-cap-1 fallback, compaction_core.ts:205-211; no "default" key in the file) — it cost ~4 tool calls to diagnose; a visible marker for the default-1 fallback (or a "default" key convention) would have made it immediate.
 
+### 2026-10-01_02-59 planner_Q3S_slow ses_f0b92a96fffeTf969H1IQU0pMs
+The live Bun host's execFileSync succeeds only ONCE per process (every later spawned CLI call 2500 ms-kills; bash/node parents and the async execFile are unaffected) — cost 3+ restarts and a long diagnosis to root-cause; the countermeasure (spawn-based tools must use the gauge's async execFile pattern) is now in the knowledge inbox + context_trim, but it is a host-level defect that any future sync-spawn tool will hit again.
+

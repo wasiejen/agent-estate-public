@@ -43,20 +43,45 @@
 //
 // Surface (the tool() form — the shape of submit.ts / ctx_gauge.ts; the
 // host names the tool by FILENAME — no `name` field):
-//   - report <session> [target] — READ-ONLY: (1) the window-state header
-//     (the last completed compaction: marker present? compaction user row
-//     id, summary id, current tail_start_id, retained-tail count,
-//     post-summary count; no marker → say so), (2) per-message rows for
-//     the messages INSIDE the model window (the retained-tail slice + the
-//     post-summary slice; no marker / guard-degenerate → the full
-//     history): id, time, role, and for tool parts: tool name + target
+//   - report <session> [target] — READ-ONLY. TWO forms (the surface
+//     returns the CUT-DOWN form — the cheap default; the FULL form stays
+//     available through the core export reportWindow — byte-identical to
+//     the pre-U1 shape): (1) the window-state header (the last completed
+//     compaction: marker present? compaction user row id, summary id,
+//     current tail_start_id, retained-tail count, post-summary count; no
+//     marker → say so), (2) per-message rows for the messages INSIDE the
+//     model window (the retained-tail slice + the post-summary slice; no
+//     marker / guard-degenerate → the full history), token mass per row
+//     (info.tokens input+output+cache.read when all present, else bytes/4
+//     of the part text — text parts' `text` + tool parts' string
+//     `state.output`); FULL form: id, time, role + tool name/target
 //     (`read`: input filePath + offset/limit; `bash`: command;
-//     `webfetch`: url — other tools: name only), token mass (info.tokens
-//     input+output+cache.read when all present, else bytes/4 of the part
-//     text — text parts' `text` + tool parts' string `state.output`);
-//     (3) with target: a dry-run of what a tail rewrite to it would
-//     remove/keep (counts + token mass) + whether the tail write would be
-//     accepted — no write.
+//     `webfetch`: url — other tools: name only); CUT-DOWN form (U1,
+//     2026-10-01 context budget package): NUMBERED rows 1..N from the
+//     window start (the number → messageID map stays internal — the agent
+//     never sees/enters dense ids in the row list), role + mass +
+//     tool-target detail ONLY (no content echoes, no id, no time), then
+//     the `last: N` flag (the current last row number); (3) the
+//     RECOMMENDATION block (cut-down form only — emitted when the window
+//     is a proper completed-compaction window, hostGuard + strict
+//     summary): 3 retention options low / medium / high, each ANCHORED AT
+//     A MESSAGE ID (stable across pre/post-compaction deliberation —
+//     the row number shifts, the id doesn't) + its keep count (the
+//     tail-mode keepMessages value) + the read/thought/shell mass split
+//     of retained vs dropped (retained = anchor → just before the
+//     compaction row + the always-in-window post-summary slice; dropped =
+//     strictly before the anchor; the marker + summary pair is in neither)
+//     + the oldest-kept (anchor) message's one-line hint; low = the
+//     current tail head (status quo), high = the earliest floor-valid
+//     anchor (index 0), medium = the midpoint index (omitted when it
+//     coincides with an end); (4) the BIGGEST-DROPPABLE list (cut-down
+//     form only): the top-N (default 5, the core opts allow another)
+//     heaviest finished turns (finished, no error — the call-result
+//     pairs carry their tool parts' inputs + outputs) in the window as
+//     window row number + mass — the U2 filter's target list; (5) with
+//     target: a dry-run of what a tail rewrite to it would remove/keep
+//     (counts + token mass) + whether the tail write would be accepted —
+//     no write (both forms).
 //   - tail <session> <messageID> — WRITE: rewrite the last completed
 //     compaction part's `tail_start_id` to the target id. Validation,
 //     fail-closed (mirrors the guard exactly): (1) session exists;
@@ -514,11 +539,137 @@ function rowOf(m: Msg): string {
   return s;
 }
 
+// The cut-down (brief) row (U1): the FULL row without id + time — the
+// caller prefixes the 1-based window row number (the number → messageID
+// map stays internal; the agent never sees/enters dense ids).
+function briefRowOf(m: Msg): string {
+  let s = `${m.data?.role ?? "?"} ${massKindOf(m)}=${massOf(m)}`;
+  for (const p of m.parts) {
+    if (p.data?.type !== "tool") continue;
+    s += ` tool=${p.data.tool}`;
+    const t = toolTarget(p);
+    if (t != null) s += ` target=${t}`;
+  }
+  return s;
+}
+
+// The read / thought / shell mass split of a message SET (U1
+// recommendation leg) — a composition estimate: the part bytes per
+// category, floored to /4 per category. The message totals stay the
+// spec's massOf rule (provider tokens when present) — the split does NOT
+// have to sum to the total. Categories: read = the string
+// `state.output` of the `read` + `webfetch` tool parts (pulled-in
+// content: files / URLs); thought = the text parts' `text` (conversation
+// text, all roles); shell = the string `state.output` of the `bash` tool
+// parts.
+function splitOf(set: Msg[]): { read: number; thought: number; shell: number } {
+  let read = 0;
+  let thought = 0;
+  let shell = 0;
+  for (const m of set) {
+    for (const p of m.parts) {
+      const d = p.data;
+      if (d?.type === "text" && typeof d?.text === "string") {
+        thought += Buffer.byteLength(d.text, "utf8");
+      } else if (d?.type === "tool" && typeof d?.state?.output === "string") {
+        if (d.tool === "read" || d.tool === "webfetch") read += Buffer.byteLength(d.state.output, "utf8");
+        else if (d.tool === "bash") shell += Buffer.byteLength(d.state.output, "utf8");
+      }
+    }
+  }
+  return { read: Math.floor(read / 4), thought: Math.floor(thought / 4), shell: Math.floor(shell / 4) };
+}
+
+// The one-line hint of a message (U1 recommendation leg): the first text
+// part's text, else the first tool part's target, else the role —
+// escaped to one line, truncated at 48 chars.
+function hintOf(m: Msg): string {
+  for (const p of m.parts) {
+    if (p.data?.type === "text" && typeof p.data?.text === "string") {
+      return p.data.text.replace(/\r?\n/g, "\\n").replace(/\t/g, "\\t").slice(0, 48);
+    }
+  }
+  for (const p of m.parts) {
+    if (p.data?.type !== "tool") continue;
+    const t = toolTarget(p);
+    if (t != null) return t.slice(0, 48);
+  }
+  return String(m.data?.role ?? "?");
+}
+
+// The U1 recommendation block: the 3 retention options (low / medium /
+// high), each anchored at a MESSAGE ID (stable across pre/post-compaction
+// deliberation — the row number shifts, the id doesn't), each with its
+// keep count (the tail-mode keepMessages value), the mass (the spec's
+// massOf rule) + the read/thought/shell split of retained vs dropped, and
+// the oldest-kept (anchor) message's one-line hint. retained = anchor →
+// just before the compaction row + the always-in-window post-summary
+// slice; dropped = strictly before the anchor; the marker + summary pair
+// is in neither (they never sit in the model window). low = the current
+// tail head (the status-quo boundary — no write needed); high = the
+// earliest floor-valid anchor (index 0, when the pre-compaction history
+// leaves >= FLOOR messages — else omitted); medium = the midpoint index
+// (omitted when it coincides with an end). Emitted only for a proper
+// completed-compaction window (hostGuard + the strict summary).
+function retentionOptions(w: WindowState, msgs: Msg[]): string[] {
+  if (!(w.hostGuard && w.strictSummaryIndex >= 0)) return [];
+  const postStart = w.summaryIndex + 1;
+  const opts: { idx: number; label: string }[] = [{ idx: w.tailIndex, label: "low" }];
+  const highIdx = w.compactionIndex >= FLOOR ? 0 : -1;
+  if (highIdx >= 0) {
+    const mid = Math.floor((w.tailIndex + highIdx) / 2);
+    if (mid !== w.tailIndex && mid !== highIdx) opts.push({ idx: mid, label: "medium" });
+    if (highIdx !== w.tailIndex) opts.push({ idx: highIdx, label: "high" });
+  }
+  const out: string[] = [];
+  for (const o of opts) {
+    const retainedSet = [...msgs.slice(o.idx, w.compactionIndex), ...msgs.slice(postStart)];
+    const droppedSet = msgs.slice(0, o.idx);
+    const keep = w.compactionIndex - o.idx;
+    const rSplit = splitOf(retainedSet);
+    const dSplit = splitOf(droppedSet);
+    const rMass = retainedSet.reduce((a, m) => a + massOf(m), 0);
+    const dMass = droppedSet.reduce((a, m) => a + massOf(m), 0);
+    out.push(
+      `option ${o.label}: msg=${msgs[o.idx].id} keep=${keep}` +
+        ` retained=${rMass} (read=${rSplit.read} thought=${rSplit.thought} shell=${rSplit.shell})` +
+        ` dropped=${dMass} (read=${dSplit.read} thought=${dSplit.thought} shell=${dSplit.shell})` +
+        ` hint=${hintOf(msgs[o.idx])}`,
+    );
+  }
+  return out;
+}
+
+// The U1 biggest-droppable list: the top-N heaviest COMPLETED assistant
+// turns (finished, no error — a "call-result pair" is such a turn
+// carrying its tool parts' inputs + outputs) in the window, as window row
+// number + mass (the U2 filter's target list). Tie → the lower row
+// number first.
+function biggestDroppable(windowMsgs: Msg[], top: number): { row: number; mass: number }[] {
+  const turns: { row: number; mass: number }[] = [];
+  windowMsgs.forEach((m, i) => {
+    if (m.data?.role !== "assistant" || !m.data?.finish || m.data?.error) return;
+    turns.push({ row: i + 1, mass: massOf(m) });
+  });
+  turns.sort((a, b) => b.mass - a.mass || a.row - b.row);
+  return turns.slice(0, top);
+}
+
 // ---------------------------------------------------------------------------
 // reportWindow (READ-ONLY — no write statement is ever executed).
 // ---------------------------------------------------------------------------
 
-export async function reportWindow(dbPath: string, sessionID: string, target?: string): Promise<string> {
+// `opts.brief` = the U1 cut-down form (numbered rows + `last: N` + the
+// recommendation block + the biggest-droppable list) — the cheap default
+// the TOOL SURFACE returns; omitted/false → the FULL form (byte-identical
+// to the pre-U1 shape — the existing pins' contract). `opts.top` = the
+// biggest-droppable list size (default 5 — the surface passes no opts).
+export async function reportWindow(
+  dbPath: string,
+  sessionID: string,
+  target?: string,
+  opts?: { brief?: boolean; top?: number },
+): Promise<string> {
   let ctx: Ctx;
   try {
     ctx = await openDb(dbPath);
@@ -530,6 +681,8 @@ export async function reportWindow(dbPath: string, sessionID: string, target?: s
     if (!loaded.exists) return `session ${sessionID}\nreport= rejected: session-not-found`;
     const msgs = loaded.msgs;
     const w = computeWindow(msgs);
+    const brief = opts?.brief === true;
+    const top = opts?.top != null && Number.isFinite(opts.top) ? Math.max(1, Math.floor(opts.top)) : 5;
 
     const lines: string[] = [];
     lines.push(`session ${sessionID}`);
@@ -549,7 +702,20 @@ export async function reportWindow(dbPath: string, sessionID: string, target?: s
     const windowMsgs: Msg[] = w.hostGuard
       ? [...msgs.slice(w.tailIndex, w.compactionIndex), ...msgs.slice(w.summaryIndex + 1)]
       : [...msgs];
-    for (const m of windowMsgs) lines.push(`row: ${rowOf(m)}`);
+    if (brief) {
+      // The U1 cut-down form: numbered rows (1..N from the window start —
+      // the number → messageID map stays internal), tool-target detail
+      // only (no content echoes), then the `last: N` flag.
+      windowMsgs.forEach((m, i) => lines.push(`row: ${i + 1} ${briefRowOf(m)}`));
+      lines.push(`last: ${windowMsgs.length}`);
+      // The recommendation block (proper completed-compaction window only).
+      for (const o of retentionOptions(w, msgs)) lines.push(o);
+      // The biggest-droppable list (top-N heavy finished turns).
+      const big = biggestDroppable(windowMsgs, top);
+      if (big.length > 0) lines.push(`biggest: ${big.map((b) => `${b.row}=${b.mass}`).join(" ")}`);
+    } else {
+      for (const m of windowMsgs) lines.push(`row: ${rowOf(m)}`);
+    }
 
     if (target != null) {
       let dry: string;
@@ -745,11 +911,11 @@ export async function tailSetKeep(dbPath: string, sessionID: string, keep: numbe
 // ---------------------------------------------------------------------------
 
 export default tool({
-  description: `Reports and trims a session's live model context over the opencode DB (the gauge's current db path — the live opencode DB on the live host). \`report <session> [target]\` — READ-ONLY: (1) the window state — the last completed compaction (marker present? compaction user row id, summary id, current tail_start_id, retained-tail count, post-summary count; no marker → the full history is the model window), (2) per-message rows for the messages INSIDE the model window (retained-tail slice + post-summary slice): id, time, role, and for tool parts: tool name + target (read: filePath + offset/limit; bash: command; webfetch: url), token mass (info.tokens input+output+cache.read when present, else bytes/4 of the part text), (3) with target: a dry-run of what a tail rewrite to it would remove/keep (counts + token mass) + the verdict — no write. \`tail <session> <messageID>\` — WRITE: rewrite the last completed compaction part's tail_start_id to the target id (the host's own lever, compaction.ts:461-466) so the retained tail shrinks/grows to it; the context re-derives from the DB at the next step — zero restart. \`tail <session> keepMessages=N\` — the keep-COUNT form (WRITE, same single transaction): N = the retained-tail MESSAGE count — the N-th message strictly before the compaction user row becomes the new tail head (the compact_memory keepMessages count semantics — a message COUNT, NOT a token budget); mutually exclusive with the <messageID> form. The core returns it as a \`tail-set= <old> -> <new> keep=N\` line of the same shape as the messageID form; it is primarily a SHRINK lever (the post-compaction trim) — growing stays available, but re-reads raw messages you no longer remember (nothing is lost — the DB keeps them, the report restores the knowledge); keep=0 stays rejected by the floor 6. Fail-closed validation mirrors the host's window guard exactly: the session exists, the last completed compaction exists (marker + summary child), the target id exists in the session, the target sits strictly BEFORE the compaction user row in (time_created, id) order, and the retained-tail count (target → compaction row, exclusive) is >= 6 — the keepMessages floor (a retained tail below 6 is rejected; the keep form's computed boundary re-runs these same checks, plus its own keep-invalid and keep-exceeds-history rejections). Single transaction; WAL — the host reads on its own connection (concurrent read safe); SQLITE_BUSY → one short-backoff retry → fail-closed (never a partial write). Backend chain: in-process sqlite (bun:sqlite → node:sqlite) first, last resort the maintainer-placed sqlite3 CLI (one CLI invocation per query; the tail transaction is ONE invocation) — a missing CLI, spawn error, or timeout still lands the fail-closed db-error. Rejections return as plain lines — \`report= rejected: <cause>\` / \`tail= rejected: <cause>\` / \`tail-set= rejected: <cause>\` (a valid fail-closed outcome, NOT a malfunction — do not retry); genuine backend failures return \`db-error:\` / \`error:\` lines. The (2) rows include the CURRENT in-flight message (its token mass is not yet committed — typically 0, not a zero-mass message); row fields: \`time\` = an epoch-ms number, mass label \`tokens=\` (provider-true) or \`bytes4=\` (bytes/4 fallback), a read target shows filePath (+ offset/limit only when set). The (3) dry-run shares the tail call's fail-closed validation — on a rejected rewrite the dry-run returns the rejection in place of the counts. Returns \`tail= <old> -> <new> keep=<count>\`, or for the keep form \`tail-set= <old> -> <new> keep=<count>\`, or the rejection reason. \`report\` never writes the DB.`,
+  description: `Reports and trims a session's live model context over the opencode DB (the gauge's current db path — the live opencode DB on the live host). \`report <session> [target]\` — READ-ONLY, CUT-DOWN form (the cheap default): (1) the window state — the last completed compaction (marker present? compaction user row id, summary id, current tail_start_id, retained-tail count, post-summary count; no marker → the full history is the model window), (2) NUMBERED rows 1..N from the window start for the messages INSIDE the model window (retained-tail slice + post-summary slice) — role + token mass (info.tokens input+output+cache.read when present, else bytes/4 of the part text) + tool-target detail ONLY (read: filePath + offset/limit; bash: command; webfetch: url; no content echoes — the number → messageID map stays internal, you never see/enter dense ids here), then the \`last: N\` flag (the current last row number), (3) the RECOMMENDATION block (only for a proper completed-compaction window): 3 retention options low / medium / high, each ANCHORED AT A MESSAGE ID (stable across pre/post-compaction deliberation — the row number shifts, the id doesn't), each with its keep count (the tail-mode keepMessages value), the read / thought / shell mass split of retained (anchor → before the compaction row + the always-in-window post-summary slice) vs dropped (strictly before the anchor) + the oldest-kept message's one-line hint — low = the current tail head (status quo), high = the earliest floor-valid anchor, medium = the midpoint, (4) the BIGGEST-DROPPABLE list: the top-5 heaviest finished turns (no error) in the window as window row number + mass (the U2 filter's target list), (5) with target: a dry-run of what a tail rewrite to it would remove/keep (counts + token mass) + the verdict — no write. The FULL report form (id + time per row, no extras) stays available and byte-identical through the core reportWindow export (the smoke/probe shape). \`tail <session> <messageID>\` — WRITE: rewrite the last completed compaction part's tail_start_id to the target id (the host's own lever, compaction.ts:461-466) so the retained tail shrinks/grows to it; the context re-derives from the DB at the next step — zero restart. \`tail <session> keepMessages=N\` — the keep-COUNT form (WRITE, same single transaction): N = the retained-tail MESSAGE count — the N-th message strictly before the compaction user row becomes the new tail head (the compact_memory keepMessages count semantics — a message COUNT, NOT a token budget); mutually exclusive with the <messageID> form. The core returns it as a \`tail-set= <old> -> <new> keep=N\` line of the same shape as the messageID form; it is primarily a SHRINK lever (the post-compaction trim) — growing stays available, but re-reads raw messages you no longer remember (nothing is lost — the DB keeps them, the report restores the knowledge); keep=0 stays rejected by the floor 6. Fail-closed validation mirrors the host's window guard exactly: the session exists, the last completed compaction exists (marker + summary child), the target id exists in the session, the target sits strictly BEFORE the compaction user row in (time_created, id) order, and the retained-tail count (target → compaction row, exclusive) is >= 6 — the keepMessages floor (a retained tail below 6 is rejected; the keep form's computed boundary re-runs these same checks, plus its own keep-invalid and keep-exceeds-history rejections). Single transaction; WAL — the host reads on its own connection (concurrent read safe); SQLITE_BUSY → one short-backoff retry → fail-closed (never a partial write). Backend chain: in-process sqlite (bun:sqlite → node:sqlite) first, last resort the maintainer-placed sqlite3 CLI (one CLI invocation per query; the tail transaction is ONE invocation) — a missing CLI, spawn error, or timeout still lands the fail-closed db-error. Rejections return as plain lines — \`report= rejected: <cause>\` / \`tail= rejected: <cause>\` / \`tail-set= rejected: <cause>\` (a valid fail-closed outcome, NOT a malfunction — do not retry); genuine backend failures return \`db-error:\` / \`error:\` lines. The (2) rows include the CURRENT in-flight message (its token mass is not yet committed — typically 0, not a zero-mass message); row fields: \`time\` = an epoch-ms number, mass label \`tokens=\` (provider-true) or \`bytes4=\` (bytes/4 fallback), a read target shows filePath (+ offset/limit only when set). The (3) dry-run shares the tail call's fail-closed validation — on a rejected rewrite the dry-run returns the rejection in place of the counts. Returns \`tail= <old> -> <new> keep=<count>\`, or for the keep form \`tail-set= <old> -> <new> keep=<count>\`, or the rejection reason. \`report\` never writes the DB.`,
   args: {
     mode: tool.schema
       .string()
-      .describe("The mode: 'report' (read-only window map + optional dry-run) or 'tail' (the validated tail_start_id rewrite — the <messageID> form or the keepMessages form)."),
+      .describe("The mode: 'report' (read-only window map — the U1 cut-down form: numbered rows 1..N + `last: N` flag + the low/medium/high recommendation block + the top-5 biggest-droppable list — + optional dry-run; the full id/time-per-row form stays available through the core reportWindow export) or 'tail' (the validated tail_start_id rewrite — the <messageID> form or the keepMessages form)."),
     session: tool.schema
       .string()
       .describe("The session id (e.g. ses_…)."),
@@ -776,7 +942,11 @@ export default tool({
     // decides the form; the core's keep-invalid guard covers the rest).
     const keep = args?.keepMessages != null ? args.keepMessages : undefined;
     if (!session) return "error: missing session";
-    if (mode === "report") return reportWindow(dbPath, session, target);
+    // The surface returns the U1 CUT-DOWN form (the cheap default —
+    // numbered rows + `last: N` + the recommendation block + the
+    // biggest-droppable list); the FULL form stays available through the
+    // core reportWindow export (byte-identical to the pre-U1 shape).
+    if (mode === "report") return reportWindow(dbPath, session, target, { brief: true });
     if (mode === "tail") {
       if (keep != null && target != null)
         return "error: tail mode: target and keepMessages are mutually exclusive (use one or the other)";

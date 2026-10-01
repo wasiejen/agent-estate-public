@@ -791,3 +791,12 @@ A typo'd host write to an out-of-sandbox path (C:\Users\Users\...) reached the h
 ### 2026-10-01_14-07 planner_Q3S_slow ses_f0999d65dffeFxiJylRzecRbhu
 95% stopline not self-executed — at ~11k REM I kept deliberating (edits + runs) instead of committing + self-compacting per the ">=95% commit + compact NOW, do NOT deliberate" rule; the maintainer had to compact me manually. Actionable: the 95% rung needs to be mechanical (stop all non-bookkeeping work on first gauge read >=95%), or the nudge leg fires earlier (the gauge-nudge-bands proposal covers the early side).
 
+### 2026-10-01_16-44 planner_Q3S_slow ses_f0999d65dffeFxiJylRzecRbhu
+I cited a planner edit-deny on agent/prompts/** that does not exist — the planner has edit access (only .git and .github are denied for it); the deny I knew was the worker's (opencode.jsonc edit-deny). Over-generalized the worker rule onto the planner and proposed a workable-but-slower copy/paste dance. Fix landed: U4 will edit the prompt files directly (copy pattern only if the text is in doubt).
+
+### 2026-10-01_17-45 planner_Q3S_slow ses_f0999d65dffeFxiJylRzecRbhu
+Spot re-run blocked: ~5 min after the worker's green bun gate, bun.exe vanished from the global npm install (shim pointed at a missing exe) — ran the unit smoke under node v24.19.0 instead (it works: the smoke has no direct bun:sqlite import). What would help: a stable bun install, or a documented node fallback for the smoke/gate commands in repo_commands.md.
+
+### 2026-10-01_18-12 worker_Q3S ses_f07db31deffe1TtbkY88HzBYBH
+U1 spec friction: the DoD's "top-N (default 5)" implied a surface arg, but probe pin 346 pins the exact tool args key list and the gate is fixed at 355/355 — specs that change a tool surface should state the probe-pin arg-list constraint explicitly (it forced core-only opts; a surface form/top flag needs a probe-pin change first).
+

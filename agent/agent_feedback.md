@@ -761,3 +761,6 @@ knowledge_inbox curation log claims an entry is cured (plan28: AGENTS.md live-fi
 ### 2026-10-01_06-22 planner_Q3S_slow ses_f0a800624ffe8CVXBLVwWX7y4N
 #131 spec verified-fact undercount: grepping `logging\.` alone for "logging calls outside tests" missed the module-logger calls (`logger.info/warning/…`) — stated 4, actual ~14 (explorer-4 corrected). Verified-facts greps must cover both the `logging.` and `logger.` forms (or the logger definitions) before being claimed as measured counts.
 
+### 2026-10-01_07-47 worker_Q3S_slow ses_f0a1d6a5affeFgN9YsdlKV7LNr
+TODO #120 spec DoD carried two stale parentheticals ("the 11 #113 env-fails unchanged", "pytest per #113 blocked") — #113 closed 2026-09-30 (plan40 VENV_PY re-point); the measured probe is fully green and FST pytest is runnable (466+1w baseline). Spec DoD gates should be re-verified against the current TODO status before delegation.
+

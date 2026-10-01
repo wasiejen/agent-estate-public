@@ -904,6 +904,148 @@ export async function tailSetKeep(dbPath: string, sessionID: string, keep: numbe
 }
 
 // ---------------------------------------------------------------------------
+// markerSet (WRITE — the U3 marker compaction, 2026-10-01 context-budget
+// package, §U3 of proposals/approved/2026-10-01_context-budget-package.md).
+// The agent supplies the summary text itself (compaction style, the current
+// model) + a boundary; this function writes the MARKER QUARTET directly —
+// the compaction USER row (carrying the compaction part
+// { type: "compaction", auto: false, tail_start_id: <boundary> }) + the
+// summary ASSISTANT child STRICTLY AFTER it (role assistant, parentID =
+// the marker id, mode/agent "compaction", summary true, finish "stop", the
+// summary text in ONE text part) — the EXACT row shapes of
+// context_trim.smoke.mjs's fixture builder (never hand-derived). The new
+// marker is APPENDED LAST with a time_created strictly after every existing
+// row (and the summary child strictly after the marker), so the host guard
+// `tailIndex < compactionIndex && summaryIndex > compactionIndex`
+// (message-v2.ts:568, mirrored above) is STRUCTURAL: the boundary just has
+// to exist in the session (the retained tail is boundary..new-marker,
+// exclusive). No floor — the agent chose the boundary (the deliberate
+// full-window backstop; the tail floor is a rewrite-only guard).
+//
+// The write is the SAME single-transaction discipline as tailSet
+// (BEGIN IMMEDIATE → the four inserts → COMMIT; WAL; one busy retry;
+// fail-closed — a rejection performs NO write). The id generator mirrors
+// the host's Identifier.ascending format (id.ts create: prefix + 12 hex
+// chars of (BigInt(now) * 0x1000 + counter) + 14 base62 random chars —
+// 26 chars after the prefix, the host's MessageID.ascending /
+// PartID.ascending).
+// Returns `marker= <markerId> summary=<summaryId> tail=<boundary>
+// keep=<N>` on success, else `marker= rejected: <reason>` /
+// `marker= db-error: <detail>` (the same line shapes as tailSet).
+// ---------------------------------------------------------------------------
+
+let markerIdCounter = 0;
+function ascendingId(prefix: string): string {
+  const now = Date.now();
+  markerIdCounter += 1;
+  const enc = (BigInt(now) * BigInt(0x1000) + BigInt(markerIdCounter)).toString(16);
+  const timeHex = enc.length > 12 ? enc.slice(-12) : enc.padStart(12, "0");
+  const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  let rand = "";
+  for (let i = 0; i < 14; i++) rand += chars[Math.floor(Math.random() * 62)];
+  return `${prefix}_${timeHex}${rand}`;
+}
+
+export async function markerSet(
+  dbPath: string,
+  sessionID: string,
+  boundaryID: string,
+  summaryText: string,
+): Promise<string> {
+  if (typeof summaryText !== "string" || summaryText === "") return `marker= rejected: summary-empty`;
+  let ctx: Ctx;
+  try {
+    ctx = await openDb(dbPath);
+  } catch (e: any) {
+    return `marker= db-error: ${String(e?.message ?? e).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
+  }
+  try {
+    const loaded = await loadSession(ctx, sessionID);
+    if (!loaded.exists) return `marker= rejected: session-not-found`;
+    const msgs = loaded.msgs;
+    // (2) the boundary exists in the session. The new marker is appended
+    // LAST (time strictly after every existing row), so the guard is
+    // structural from here on.
+    const boundaryIndex = msgs.findIndex((m) => m.id === boundaryID);
+    if (boundaryIndex < 0) return `marker= rejected: boundary-not-found`;
+    const retained = msgs.length - boundaryIndex;
+
+    // The quartet (the fixture builder's exact row shapes). The marker's
+    // time_created is strictly after every existing row (max existing + 1);
+    // the summary child is strictly after the marker (+2) — the (time, id)
+    // window order never falls back to the id tiebreak.
+    const lastTime = msgs.reduce((a, m) => Math.max(a, m.time), Date.now());
+    const markerTime = lastTime + 1;
+    const summaryTime = lastTime + 2;
+    const markerId = ascendingId("msg");
+    const summaryId = ascendingId("msg");
+    const markerPartId = ascendingId("prt");
+    const summaryPartId = ascendingId("prt");
+    const markerData = JSON.stringify({ role: "user", time: { created: markerTime } });
+    const markerPart = JSON.stringify({ type: "compaction", auto: false, tail_start_id: boundaryID });
+    const summaryData = JSON.stringify({
+      role: "assistant",
+      parentID: markerId,
+      mode: "compaction",
+      agent: "compaction",
+      summary: true,
+      finish: "stop",
+    });
+    const summaryPart = JSON.stringify({ type: "text", text: summaryText });
+
+    const attempt = async () => {
+      await ctx.db.exec("BEGIN IMMEDIATE;");
+      try {
+        await ctx.db
+          .prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?)")
+          .run(markerId, sessionID, markerTime, markerTime, markerData);
+        await ctx.db
+          .prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?, ?)")
+          .run(markerPartId, markerId, sessionID, markerTime, markerTime, markerPart);
+        await ctx.db
+          .prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?)")
+          .run(summaryId, sessionID, summaryTime, summaryTime, summaryData);
+        await ctx.db
+          .prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?, ?)")
+          .run(summaryPartId, summaryId, sessionID, summaryTime, summaryTime, summaryPart);
+        await ctx.db.exec("COMMIT;");
+      } catch (e) {
+        try {
+          await ctx.db.exec("ROLLBACK;");
+        } catch {
+          // best effort
+        }
+        throw e;
+      }
+    };
+    try {
+      await attempt();
+    } catch (e: any) {
+      if (isBusy(e)) {
+        // SQLITE_BUSY → ONE short-backoff retry (the gauge's pattern) →
+        // fail-closed.
+        try {
+          await attempt();
+        } catch (e2: any) {
+          return `marker= db-error: ${String(e2?.message ?? e2).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
+        }
+      } else {
+        return `marker= db-error: ${String(e?.message ?? e).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
+      }
+    }
+    return `marker= ${markerId} summary=${summaryId} tail=${boundaryID} keep=${retained}`;
+  } catch (e: any) {
+    return `marker= db-error: ${String(e?.message ?? e).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
+  } finally {
+    try {
+      ctx.db.close();
+    } catch {
+      // best effort
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The tool() wrapper — the gauge's CURRENT db path (getDbPath — the live
 // opencode DB on the live host; the smoke/probe steer it via setDbPath).
 // The live DB is only ever written by `tail` mode (validated, single

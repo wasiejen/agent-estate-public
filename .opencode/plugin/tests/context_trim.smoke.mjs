@@ -362,8 +362,8 @@ chk(
   JSON.stringify(await reportWindow(path.join(SANDBOX, "missing.db"), "ses_ct_fix")),
 );
 chk(
-  "unknown session report → the session-not-found error line",
-  (await reportWindow(FX, "ses_ct_dne")) === "session ses_ct_dne\nerror: session-not-found",
+  "unknown session report → the plain report= rejected: line (no error surface)",
+  (await reportWindow(FX, "ses_ct_dne")) === "session ses_ct_dne\nreport= rejected: session-not-found",
   JSON.stringify(await reportWindow(FX, "ses_ct_dne")),
 );
 

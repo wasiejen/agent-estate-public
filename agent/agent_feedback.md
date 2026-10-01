@@ -788,3 +788,6 @@ Editing the tail of a >2000-char single-line tool description (context_trim.ts L
 ### 2026-10-01_10-40 planner_Q3S_slow ses_f0999d65dffeFxiJylRzecRbhu
 A typo'd host write to an out-of-sandbox path (C:\Users\Users\...) reached the host filesystem unguarded: the intercept layer only logged the `out-of-sandbox` note (R8 redirect is fail-closed pass-through on unmappable forms for host write/edit) and the host's external_directory permission gate did not stop the call in this plugin-spawned session — the save was accidental (Windows refused to create C:\Users\Users). A typo to an EXISTING unlisted external path would write silently. Wasted one call + exposed the gap; now TODO #134.
 
+### 2026-10-01_14-07 planner_Q3S_slow ses_f0999d65dffeFxiJylRzecRbhu
+95% stopline not self-executed — at ~11k REM I kept deliberating (edits + runs) instead of committing + self-compacting per the ">=95% commit + compact NOW, do NOT deliberate" rule; the maintainer had to compact me manually. Actionable: the 95% rung needs to be mechanical (stop all non-bookkeeping work on first gauge read >=95%), or the nudge leg fires earlier (the gauge-nudge-bands proposal covers the early side).
+

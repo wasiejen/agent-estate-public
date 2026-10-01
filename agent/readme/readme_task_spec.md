@@ -90,4 +90,8 @@
   undercounted); (c) the pin-audit scope names EVERY pin surface the change
   touches — smoke blocks AND probe sections (the #128 spec named only the
   smoke Gate-M block; the probe's S13 gate checks + S32 340 also needed
-  re-pins — a red probe round-trip).
+  re-pins — a red probe round-trip); (d) baseline / env-fail / blocked-suite
+  parentheticals carried from a PARENT TODO entry are re-verified against a
+  fresh gate at authoring, never restated (the #120 U2 spec carried the #120
+  entry's "the 11 #113 env-fails unchanged" + "pytest per #113 (blocked)" —
+  #113 had been closed 2026-09-30; the worker flagged the discrepancy).

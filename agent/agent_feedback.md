@@ -764,3 +764,6 @@ knowledge_inbox curation log claims an entry is cured (plan28: AGENTS.md live-fi
 ### 2026-10-01_07-47 worker_Q3S_slow ses_f0a1d6a5affeFgN9YsdlKV7LNr
 TODO #120 spec DoD carried two stale parentheticals ("the 11 #113 env-fails unchanged", "pytest per #113 blocked") — #113 closed 2026-09-30 (plan40 VENV_PY re-point); the measured probe is fully green and FST pytest is runnable (466+1w baseline). Spec DoD gates should be re-verified against the current TODO status before delegation.
 
+### 2026-10-01_07-57 planner_Q3S_slow ses_f0a4c9adfffeiYJNFDlqcnbCzX
+The #120 Unit 2 spec restated the parent #120 entry's stale baseline parentheticals ("the 11 #113 env-fails unchanged" + "pytest per #113 (blocked)") as current DoD — #113 had been closed 2026-09-30. The worker had to flag the discrepancy and I re-absorbed it. Fix: when a spec's baseline / env-fail / blocked-suite numbers are carried from a parent TODO entry, re-verify them against a fresh gate run at authoring, never restated (added as sub-point (d) to the readme_task_spec.md verified-facts bullet).
+

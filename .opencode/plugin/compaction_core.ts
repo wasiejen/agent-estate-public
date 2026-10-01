@@ -51,7 +51,8 @@ import { fileURLToPath } from "node:url";
 //    hook's activation flag, read PER FIRE)
 //   model_budget: { "<bare model ID>": <cap number>, "default": <cap number> }
 // — the cap for an unlisted / typo'd model id is model_budget.default (else
-// the default 1). Read PER CALL (a mid-run edit applies to the next call);
+// the default 1 — the silent built-in fallback; the gauge readout suffix then
+// appends the marker ` (unlisted)` after `left`, #132). Read PER CALL (a mid-run edit applies to the next call);
 // an absent file / unparseable JSON / malformed key fails open to the
 // defaults (never a throw).
 //

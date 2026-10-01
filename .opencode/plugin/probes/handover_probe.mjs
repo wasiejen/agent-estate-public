@@ -183,7 +183,7 @@
 //      non-string) / parseModelId (JSON id / plain / malformed / empty) /
 //      setDbPath+getDbPath global plumbing with explicit-path override
 //   S6b item 3 (2026-09-24): the "N compactions left" budget suffix on the
-//      readout line (7): the 3 states (count < cap → plural ` | N
+//      readout line (8): the 3 states (count < cap → plural ` | N
 //      compactions left` / count === cap + key ABSENT → ` | 1 compaction
 //      left` (the fail-open default-1 emergency — NOT 0) / count > cap →
 //      ` | 0 compactions left`) + the emergency_budget-0 explicit case +
@@ -192,7 +192,9 @@
 //      byte-identical) + the no-total SESSION-ROW-model cap (#114, 2026-09-28
 //      — the row model resolves the cap, path-discriminating vs the entry
 //      model) + the no-total model-nowhere default-1 fallback (row model
-//      NULL + no budget entry)
+//      NULL + no budget entry) + the silent built-in cap-1 fallback
+//      readout marker ` (unlisted)` (#132, 2026-10-01 — model unlisted + no
+//      finite `model_budget.default` key)
 //   S7 backend chain (11) — the #37 chain IS contract: each backend is
 //      FORCED via setBackends([...]) and verified against the sandbox
 //      fixtures (the list is cleared/restored between sections):
@@ -1024,7 +1026,7 @@
 //      (353) the 5 fail-closed rejections (exact reasons).
 //
 // EXPECTED OUTPUT:
-//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=7 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=8 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 S33=6 S34=2 hygiene=6  →  "PROBE handover: 354/354 PASS",
+//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=8 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=8 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 S33=6 S34=2 hygiene=6  →  "PROBE handover: 355/355 PASS",
 //   exit code 0. Anything else with THIS file = behavior drift or broken
 //   environment — read the failures, do not "fix" the plugin for the probe.
 //   On failure the sandbox root is KEPT (printed) for forensics.
@@ -1537,7 +1539,7 @@ check(
 }
 
 // ------------------------------------------------------------------ S6b item 3 (2026-09-24): the "N compactions
-// left" budget suffix on the readout line (7) — the formatGauge extension:
+// left" budget suffix on the readout line (8) — the formatGauge extension:
 // remaining = max(0, cap - count) PLUS 1 iff the once-per-session emergency
 // compaction is still available (count === cap && the effective
 // emergency_budget >= 1 — the key read LENIENTLY: absent → the fail-open
@@ -1667,6 +1669,27 @@ const FX_OK_LINE = "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655";
     "S6b",
     "no-total + model nowhere (row model NULL, no budget entry): modelId '' → the default cap 1 — `SESSION=ses_fx_nomodel CTX=notAvailable | 1 compaction left`",
     r.ok === false && r.kind === "no-total" && r.sid === "ses_fx_nomodel" && r.modelId === "" && formatGauge(r) === "SESSION=ses_fx_nomodel CTX=notAvailable | 1 compaction left",
+    JSON.stringify({ r, line: formatGauge(r) }),
+  );
+}
+
+// 28.8 — the silent built-in fallback (#132, 2026-10-01): the resolved model
+//      is UNLISTED in the budget map (the entry-model fallback carries it)
+//      and the map has NO `model_budget.default` key → the built-in cap 1
+//      applies and the readout carries the marker ` (unlisted)` after `left`
+{
+  const BUDGET_UNLISTED = path.join(SANDBOX, "budget_fx_unlisted.json");
+  writeFileSync(BUDGET_UNLISTED, JSON.stringify({
+    model_budget: { "probe-model-120K_MTP": 3, "probe-model-256K_MTP": 2 },
+    sessions: { ses_fx_nomodel: { count: 0, updated: "fx", model: "probe-model-unlisted" } },
+  }), "utf-8");
+  setBudgetFileForTest(BUDGET_UNLISTED);
+  const r = await readGauge(FX_NOTAL, "ses_fx_nomodel");
+  check(
+    "28.8",
+    "S6b",
+    "no-total + model unlisted (map present with other entries, NO default key): the silent cap-1 fallback — `SESSION=ses_fx_nomodel CTX=notAvailable | 1 compaction left (unlisted)`",
+    r.ok === false && r.kind === "no-total" && r.sid === "ses_fx_nomodel" && r.modelId === "" && formatGauge(r) === "SESSION=ses_fx_nomodel CTX=notAvailable | 1 compaction left (unlisted)",
     JSON.stringify({ r, line: formatGauge(r) }),
   );
 }

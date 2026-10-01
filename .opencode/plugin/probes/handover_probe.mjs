@@ -88,7 +88,16 @@
 // S12/S15 load pattern) + the report/dry-run/tail contract pins on the
 // probe's own fixture DB (the opencode-like session/message/part shapes
 // from the bounded read-only live-DB inspection) + the 4 fail-closed
-// rejection reasons + the no-marker full-history report):
+// rejection reasons + the no-marker full-history report + EXTENDED
+// 2026-10-01 (TODO #120 Unit 2: the plugin-side post-compaction
+// tail-set — the zero fork): the new S34 section, checks 352-353: the
+// context_trim core's tailSetKeep keep-count boundary export on the
+// probe's own fixture DB (a fresh ses_ct_k2 session — 10 messages
+// before the marker, the marker quartet, 2 after): the valid rewrite
+// (keep=8 → the 8th message STRICTLY before the compaction user row,
+// the part row byte-exact — the EXACT tailSet write path reused) + the
+// 5 fail-closed rejections (floor / keep-exceeds-history /
+// no-completed-compaction / session-not-found / keep-invalid):
 // the
 // pre-rebuild
 // probe
@@ -1002,9 +1011,20 @@
 //          retained-tail-below-floor 5;
 //      (351) the no-marker session report: byte-exact (marker=none,
 //          window=full-history).
+//   S34 post-compaction tail-set (2) — 2026-10-01 (TODO #120 Unit 2:
+//      the plugin-side zero-fork tail-set — the context_trim core's
+//      tailSetKeep, the auto-resume plugin's post-compaction leg write
+//      path): keep=N → the N-th message STRICTLY before the compaction
+//      user row (targetIndex = compactionIndex - keep), the EXACT
+//      tailSet validation + the json_set single-transaction write
+//      reused (delegated; the `tail= ` prefix remapped to
+//      `tail-set= `) on a fresh ses_ct_k2 session in the probe's own
+//      fixture DB:
+//      (352) the valid rewrite + landed part row (byte-exact);
+//      (353) the 5 fail-closed rejections (exact reasons).
 //
 // EXPECTED OUTPUT:
-//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=7 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=8 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 S33=6 hygiene=6  →  "PROBE handover: 352/352 PASS",
+//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=7 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=8 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 S33=6 S34=2 hygiene=6  →  "PROBE handover: 354/354 PASS",
 //   exit code 0. Anything else with THIS file = behavior drift or broken
 //   environment — read the failures, do not "fix" the plugin for the probe.
 //   On failure the sandbox root is KEPT (printed) for forensics.
@@ -8319,6 +8339,98 @@ let n33 = 346;
     JSON.stringify(r),
   );
   n33++;
+}
+
+// ------------------------------------------------------------------ S34 post-compaction tail-set (2) — 2026-10-01 (TODO #120 Unit 2: the plugin-side zero-fork tail-set): the context_trim core's tailSetKeep
+//
+// The auto-resume plugin's post-compaction tail-set leg calls
+// tailSetKeep: keep=N → the N-th message STRICTLY before the
+// compaction user row (targetIndex = compactionIndex - keep), then the
+// EXACT existing tailSet path (the same 5 fail-closed validations +
+// the json_set single-transaction write — reused via delegation; the
+// `tail= ` return prefix is remapped to `tail-set= `). A fresh
+// ses_ct_k2 session in the SAME fixture DB (10 messages before the
+// marker, the marker quartet tail_start_id=msg_k25, the summary
+// child, 2 after) so S33's pins and their mutations are untouched.
+// The db is the probe's sandbox fixture — NEVER the live one.
+{
+  const db = new DatabaseSync(CT_DB);
+  db.exec("PRAGMA foreign_keys = ON;");
+  db.prepare("INSERT INTO session (id, project_id, time_created, time_updated) VALUES ('ses_ct_k2', 'prj_ct', 0, 0)").run();
+  const putK2 = (id, time, text) => {
+    db.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, 'ses_ct_k2', ?, ?, ?)").run(id, time, time, JSON.stringify({ role: "user", time: { created: time } }));
+    db.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, 'ses_ct_k2', ?, ?, ?)").run(`p_${id}t`, id, time, time, JSON.stringify({ type: "text", text }));
+  };
+  const putK2a = (id, time) => {
+    db.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, 'ses_ct_k2', ?, ?, ?)").run(id, time, time, JSON.stringify({ role: "assistant", parentID: `p_${id}u`, finish: "stop" }));
+    db.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, 'ses_ct_k2', ?, ?, ?)").run(`p_${id}a`, id, time, time, JSON.stringify({ type: "text", text: "ok" }));
+  };
+  // 10 messages before the marker (msg_k21..msg_k30).
+  putK2("msg_k21", 100, "k one"); putK2a("msg_k22", 200);
+  putK2("msg_k23", 300, "k three"); putK2a("msg_k24", 400);
+  putK2("msg_k25", 500, "k five"); putK2a("msg_k26", 600);
+  putK2("msg_k27", 700, "k seven"); putK2a("msg_k28", 800);
+  putK2("msg_k29", 900, "k nine"); putK2a("msg_k30", 1000);
+  // The marker quartet (tail_start_id = msg_k25) + the summary child +
+  // 2 messages after the summary.
+  db.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_k31', 'ses_ct_k2', 13000, 13000, ?)").run(JSON.stringify({ role: "user", time: { created: 13000 } }));
+  db.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES ('p_k31c', 'msg_k31', 'ses_ct_k2', 13000, 13000, ?)").run(JSON.stringify({ type: "compaction", auto: false, tail_start_id: "msg_k25" }));
+  db.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_k32', 'ses_ct_k2', 14000, 14000, ?)").run(JSON.stringify({ role: "assistant", parentID: "msg_k31", summary: true, finish: "stop" }));
+  putK2("msg_k33", 15000, "k post one");
+  putK2a("msg_k34", 16000);
+  db.close();
+}
+let n34 = 352;
+
+// 352 — tailSetKeep VALID + LANDED: keep=8 → the 8th message STRICTLY
+//      before the compaction user row (compactionIndex 10 - 8 = index
+//      2 → msg_k23), the return line byte-exact + the part row
+//      carries the new tail_start_id (the EXACT tailSet write path,
+//      reused)
+{
+  const { tailSetKeep } = await import(pathToFileURL(CT_TOOL_TS).href);
+  const k = await tailSetKeep(CT_DB, "ses_ct_k2", 8);
+  let partJson = null;
+  {
+    const RO = new DatabaseSync(CT_DB, { readOnly: true });
+    partJson = RO.prepare("SELECT data FROM part WHERE id = 'p_k31c'").get().data;
+    RO.close();
+  }
+  check(
+    String(n34),
+    "S34",
+    "tailSetKeep valid + landed: keep=8 → the 8th message strictly before the compaction row (msg_k23), the return line byte-exact + the part row carries the new tail_start_id (the exact tailSet write path, reused)",
+    k === "tail-set= msg_k25 -> msg_k23 keep=8" &&
+      partJson === '{"type":"compaction","auto":false,"tail_start_id":"msg_k23"}',
+    JSON.stringify({ k, partJson }),
+  );
+  n34++;
+}
+
+// 353 — the REJECTIONS (fail-closed, exact reasons; no write
+//      anywhere): keep below the floor (5 → retained 5 < 6, the exact
+//      tailSet floor message) / keep above the pre-compaction message
+//      count (50 → keep-exceeds-history) / no completed compaction
+//      (ses_ct_nomark) / unknown session / keep <= 0 (keep-invalid)
+{
+  const { tailSetKeep } = await import(pathToFileURL(CT_TOOL_TS).href);
+  const r1 = await tailSetKeep(CT_DB, "ses_ct_k2", 5);
+  const r2 = await tailSetKeep(CT_DB, "ses_ct_k2", 50);
+  const r3 = await tailSetKeep(CT_DB, "ses_ct_nomark", 8);
+  const r4 = await tailSetKeep(CT_DB, "ses_ct_dne", 8);
+  const r5 = await tailSetKeep(CT_DB, "ses_ct_k2", 0);
+  check(
+    String(n34),
+    "S34",
+    "rejections (fail-closed, exact reasons): retained-tail-below-floor 5 / keep-exceeds-history 50 / no-completed-compaction / session-not-found / keep-invalid 0",
+    r1 === "tail-set= rejected: retained-tail-below-floor 5" &&
+      r2 === "tail-set= rejected: keep-exceeds-history 50" &&
+      r3 === "tail-set= rejected: no-completed-compaction" &&
+      r4 === "tail-set= rejected: session-not-found" &&
+      r5 === "tail-set= rejected: keep-invalid 0",
+    JSON.stringify({ r1, r2, r3, r4, r5 }),
+  );
+  n34++;
 }
 
 // ------------------------------------------------------------------ summary

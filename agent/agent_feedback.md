@@ -767,3 +767,6 @@ TODO #120 spec DoD carried two stale parentheticals ("the 11 #113 env-fails unch
 ### 2026-10-01_07-57 planner_Q3S_slow ses_f0a4c9adfffeiYJNFDlqcnbCzX
 The #120 Unit 2 spec restated the parent #120 entry's stale baseline parentheticals ("the 11 #113 env-fails unchanged" + "pytest per #113 (blocked)") as current DoD — #113 had been closed 2026-09-30. The worker had to flag the discrepancy and I re-absorbed it. Fix: when a spec's baseline / env-fail / blocked-suite numbers are carried from a parent TODO entry, re-verify them against a fresh gate run at authoring, never restated (added as sub-point (d) to the readme_task_spec.md verified-facts bullet).
 
+### 2026-10-01_08-22 worker_Q3S_slow ses_f09e89374ffeFc47RHh5PKNCot
+worker scratchpad rule vs host: in this host's git-bash `$TMP` expands to `/tmp`, so writes via `$TMP/opencode/...` land under POSIX `/tmp` (sandbox-allowed, wrote fine) — not `C:\Users\...\Temp\opencode` as the prompt describes; the prompt's scratchpad wording should note the host's $TMP value (1 line).
+

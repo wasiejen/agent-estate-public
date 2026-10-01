@@ -743,3 +743,6 @@ The injected ctx budget suffix read "1 compactions left" while the self-gauge re
 ### 2026-10-01_02-59 planner_Q3S_slow ses_f0b92a96fffeTf969H1IQU0pMs
 The live Bun host's execFileSync succeeds only ONCE per process (every later spawned CLI call 2500 ms-kills; bash/node parents and the async execFile are unaffected) — cost 3+ restarts and a long diagnosis to root-cause; the countermeasure (spawn-based tools must use the gauge's async execFile pattern) is now in the knowledge inbox + context_trim, but it is a host-level defect that any future sync-spawn tool will hit again.
 
+### 2026-10-01_03-51 planner_Q3S_slow ses_f0af35202ffeX6nthxp8kWxtPv
+knowledge_inbox curation log claims an entry is cured (plan28: AGENTS.md live-file protocol → knowledge_tools.md) but the entry was actually MISSING from the target file — the log recorded the intent, not the landing; curation should grep-verify the target before/while logging the cure (plan1 found + landed it).
+

@@ -43,3 +43,8 @@ behavior confirmed by the maintainer (it is an observable behavior change).
 GO (Parts 1+2 as the unit; Part 3 as a second unit of the same worker run or
 a follow-up). It retires 5 flags = observable behavior change, hence this
 call; the research doc's recommendation stands as written.
+
+--comment:
+approved in full
++ a guideline for me after implementation on how to use to effectively :-)
+  - just put it in maintainer/feedback ^^

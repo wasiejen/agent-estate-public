@@ -55,6 +55,8 @@ read them there when working in that project.
   (append-only inbox; the planner cures it into the area files) when the
   placement is unclear, or the area file directly when it is obvious (format in
   the folder README).
+On any tool/plugin work: 
+- read `agent/knowledge/plugin_tools/2026-09-18_tool-plugin-design-handout.md` first
 
 ## .opencode layout
 - Creating a new sub-folder under `.opencode/` requires its README (≤20 lines:

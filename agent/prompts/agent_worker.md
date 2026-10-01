@@ -42,6 +42,8 @@ read them there when working in that project.
   your task's area (e.g. `knowledge_tools.md`, `knowledge_context.md`) before
   starting; append an entry when you gain verified, actionable knowledge
   (format in the folder README).
+On any tool/plugin work: 
+- read `agent/knowledge/plugin_tools/2026-09-18_tool-plugin-design-handout.md` first
 
 ## Work loop
 - Follow existing conventions: read the neighboring code first, mimic style, reuse existing

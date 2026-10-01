@@ -62,3 +62,21 @@ validation surface), and closes the only real gap of the Magic Context
 adoption list that our machinery already covers. No model-facing surface; no
 behavior change beyond exposing already-pinned mechanics — hence the call is
 about the new agent-facing control surface itself, per the research doc.
+
+--comment
+- approved P1 and P2:
+- Part 1: make it pls keepMessages to be clear that it is not a keepToken and bring it in line with the keepMessages of compact_memory
+
+Part 3 proposal request:
+- can we have more token efficient forms of the report? 
+  - e.g. replace the messageIDs with plain message numbers an let the plugin handle the messageID internally on placing the marker. 
+  - and/or only display detailed content for tool call returns only (e.g. which file was read)
+  - have an option to only display last <N> messages before the compaction line
+  - have an option to display the last <N> messages as info for the next compaction?
+
+- make sure on every tool/plugin work agent\knowledge\plugin_tools\2026-09-18_tool-plugin-design-handout.md is read and used as guideline for interface (description, parameter (count, names, clear function) design, etc.)
+
+
+- downside i see is that agents might think they can use a smaller keepMessages and if they think they need more after to increase it. But they do not know anymore what was in these prior dropped messages thus can not do an informed choice anymore. the only viable way it to reduce the number of kept messages i think. what is your take? allow keepmessages=0 to drop all before the last compaction if enough new messages are their already?
+
+- this interacts also with my ideas and questions in proposals\commented\2026-10-01_usage-adaptive-keep.md and via first file indirectly with proposals\commented\2026-10-01_gauge-nudge-bands.md

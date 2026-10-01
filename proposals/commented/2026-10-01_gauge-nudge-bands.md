@@ -64,3 +64,12 @@ prompt-visible line itself (per the research doc's borderline note), and
 the live acceptance is a config flip + one crossing. It codifies the
 existing 80 % triage rule into the passive channel at exactly the point
 where prompt-memory is weakest, without touching the late ladder.
+
+
+--comment: need feedback
+- need information first what our current nudges actually do show and what the settings in the compact_bugget.json actually control:
+-  "autoCompact": true,
+  "saturationThreshold": 0.85,
+  "outputReserve": 0,
+- i was of the opinion that this controls when the nudges start. so at these settings above at 85%
+- not sure how much this crosses with the already existing functionality. also i have not seen any real problems with compaction ignored on close to context limit anymore.

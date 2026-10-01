@@ -51,6 +51,10 @@
     "opencode": {
       "path": "home/Repos/opencode",
       "description": "forked opencode repo"
+    },
+    "copied_repos": {
+      "path": "home/Repos/copied_repos",
+      "description": "containing copies of repos that might be worth for research or as reference on a more permanent basis"
     }
   },
   // test to see if this is still triggering a rejection

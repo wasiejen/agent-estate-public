@@ -61,3 +61,8 @@ unpresented. Note on the one "Open" item: tool registration is likely
 moot — the host auto-detects `.opencode/tools/*.ts` (plan39 precedent —
 the context_trim tool landed with no registration); the remaining call
 would be the per-role permission in opencode.jsonc (your domain).
+
+--comment:
+- approved
+- and like always: tool+registration + tool per role permission is not needed to be configurated in opencode.json. (only for permissions or tools "*": "deny" I need to manually add a tool to a role)
+  - this is a basic opencode function - autoregistration when in folder tools/plugin/plugins (not recursive) and this hint for tool registration comes up everytime :-) so save this maybe somewhere you read every time a tool or plugin is planned? :-)

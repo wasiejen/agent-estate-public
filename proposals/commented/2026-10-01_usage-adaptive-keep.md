@@ -65,3 +65,22 @@ fill slowdown) at its source, reuses per-call machinery that already
 exists, and composes with the pending keep-N surface proposal
 (`2026-10-01_explicit-keep-N-surface.md`) — the adaptive formula sets
 the default, the keep-N surface is the explicit override.
+
+--comment: need feeback
+- why is this needed? in my opinion is clashes with proposals\commented\2026-10-01_explicit-keep-N-surface.md?
+  - the after compaction adaptation if to much or too less was kept - enables more control to the agent
+  - on the other side this looks like a default keepMessages just in a adaptive form - but no longer costumizable by the agent? or did i miss something?
+    - or is this here a default variable option to be used by the agent when in doubt?
+
+- on another note: i could image to set a default informed keepMessages (nachtrag: based on messageID). present the agent based on the actual content of the messages a default keepMessages to use or a range of keepMessages options that show how much is gained and what is removed. e.g. 50k token in read, 30k token in tought, 20k token shell output, oldest retaiend message: messages detail (e.g. starting row or messageID if the agent can reference this without extra knowledge.)
+  - better would be to base it on the compaction on something based on messageID and no longer keepMessages in general if the tail setting works reliably
+    - so the deliberation and next steps before compaction and after getting the recommendation or getting info about the messages does not change the starting points of the after compaction keepMessages
+
+- BIG QUESTION!!!:
+  - can we set a compact marker ourselfes that is recognized by opencode and thus activate the start_tail_id???
+  - general Idea is as follows: (still based on keepMessages just to get the idea across - needs to be adapted to include above messageID and report details)
+    - at 90% quere a direct maintainer message (or better the appended tool call form as the nudge) that instructs the create a summery in the style of the compaction (we have the original prompt for this)
+    - after completions the agent fires our OWN implementation of compact with the keepMessages that just sets the compaction line marker and the start_tail_id via DB write actions
+    - trigger a restart that will then dropt the head due to the presense of the compaction line marker
+  - idea 2 (not feasable i guess - just here for documentation):
+    - if this works we can create our own selective massage keep by writing compaction line markers and start_tail_id and select which messages and ranges of messages to keep and also to remove these in pairs ... mh no the old compactions markers are overwritten by the position of the new compaction marker and thus all previous defined compaction line marker ald start_tail_id will be dropped by the presence of the pair in later messages ... so not feasable

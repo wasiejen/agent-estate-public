@@ -17,3 +17,21 @@ in AGENTS.md is unchanged. The matching planner-prompt line already landed in
   is marked with the `ovr` token on the verified-success COMPACT line.
 - Both exhausted → the next limit hit forces a clean NEW session (new planner + directive to
   scan the last session's dump). You are never hard-killed at the wall.
+
+---
+
+# AGENTS.md staged change (2026-10-01, plan9, #135 U4) — for the maintainer's paste
+
+Adds one note under §Context budget (the live nudge is primary when the
+`nudge1-4` keys are enabled; the static thresholds become the semantics
+fallback). Everything else in AGENTS.md is unchanged.
+
+## (note, after the §Context budget stop-line paragraph)
+When the `nudge1-4` keys are enabled in `.opencode/temp/compact_budget.json`
+(`nudge1_triage 0.80` / `nudge2_stop 0.90` / `nudge3_emergency 0.95` /
+`nudge4_maintainer 0.98`; absent = that rung off), the ctx-line nudge
+(auto_resume) is the PRIMARY compaction trigger — one key per rung, the
+triage line carries the `context_trim` recommendation one-liner. The static
+80/90/95 thresholds in §Context budget + §Compaction Guidelines remain the
+SEMANTICS FALLBACK for Direct/suppressed sessions (the nudge is suppressed
+there) and whenever all keys are absent (zero drift).

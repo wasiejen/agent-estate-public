@@ -92,13 +92,21 @@ files and CONTINUE). Your section = the worker-specific mechanics:
 **Stop line: gauge readout ≈90 %** (the readout lags true usage by ≈1 tool
 call / ~5k — the in-flight step's output; the gauge reads the last FINISHED
 step's in+out+cr, #103 — treat it as optimistic; the gauge-lag note also
-lives in the `ctx_gauge` tool description). Stop lines are TRIAGE thresholds, not the only
-compaction moments: at ≥80 % estimate the tool calls still needed to finish
-the current unit (estimates near the limit are optimistic — round up); if
-more than ~10 remain, checkpoint (handover current + commit) and compact
-INSTEAD of starting the next unit. At ≥95 %: commit + compact NOW, do not
+lives in the `ctx_gauge` tool description). **The live nudge is the primary trigger (U4, 2026-10-01 package):** the
+ctx-line nudge fires per config key (`nudge1_triage` / `nudge2_stop` /
+`nudge3_emergency` / `nudge4_maintainer` in `compact_budget.json`; absent =
+off) — act on the rung's SEMANTICS: **triage** — estimate the tool calls
+still needed to finish the current unit (estimates near the limit are
+optimistic — round up); if more than ~10 remain, checkpoint (handover
+current + commit) and compact INSTEAD of starting the next unit. **stop** —
+close and compact NOW (or emergency handover: handover current + commit +
+compact to continue). **emergency** — commit + compact NOW, do not
 deliberate (keepMessages keeps the recent head intact — deliberation burns
-the budget that funds the compaction).
+the budget that funds the compaction). **maintainer** — surface the context
+state. **Fallback (Direct/suppressed sessions, or all keys absent):** the
+static thresholds of the same semantics — triage ≥80 %, stop ≈90 %,
+emergency ≥95 % (stop lines are TRIAGE thresholds, not the only compaction
+moments).
 - **Drop distilled output mid-unit:** once you have read the files and formed
   the plan, raw tool output is dead weight — compacting it out reclaims
   speed and extends the window; compaction almost always REDUCES total

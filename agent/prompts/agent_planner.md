@@ -219,21 +219,32 @@ optimistic; plan with margin). AGENTS.md
 - **Distilled → drop (mid-unit ok):** once your tool output is distilled
   (files read, plan formed, the raw output dead weight), compact — mid-unit,
   no stop line needed.
-- **Stop lines are triage thresholds (maintainer ruling 2026-09-18 —
-  CANONICAL for all roles), not the only compaction moments:**
-  - ≥ 80 % — BEFORE starting any unit, estimate the tool calls still needed
-    to finish the current work. Estimates near the limit are optimistic by
-    construction (context rot + gauge lag) — when in doubt, round up. If the
-    estimate exceeds ~10 calls, stop at the last verified checkpoint and fire
-    `compact_memory` INSTEAD of starting the unit.
-  - ≥ 90 % — same estimate: if more than ~6 calls remain, close and compact
-    NOW; otherwise EMERGENCY handover — stop starting new work, bring the NAP
-    current + COMMIT, then self-compact (compaction ENABLES further work, it
-    does not end it). If the tool refuses (budget exhausted) → end clean per
-    the stop line.
-  - ≥ 95 % — commit the current status + self-compact NOW, and DO NOT
-    DELIBERATE while budget remains — deliberation burns the budget that
-    funds the compaction.
+- **The live nudge is the primary trigger (U4, 2026-10-01 package):** the
+  auto_resume ctx-line nudge fires per config key in `compact_budget.json`
+  — `nudge1_triage` / `nudge2_stop` / `nudge3_emergency` /
+  `nudge4_maintainer` (absent = that rung off) — with the live ratio; the
+  triage line carries the context_trim recommendation one-liner (the keep
+  options). Act on the rung's SEMANTICS:
+  - **triage** — BEFORE starting any unit, estimate the tool calls still
+    needed to finish the current work. Estimates near the limit are
+    optimistic by construction (context rot + gauge lag) — when in doubt,
+    round up. If the estimate exceeds ~10 calls, stop at the last verified
+    checkpoint and fire `compact_memory` INSTEAD of starting the unit (the
+    one-liner's options anchor the keep boundary).
+  - **stop** — same estimate: if more than ~6 calls remain, close and
+    compact NOW; otherwise EMERGENCY handover — stop starting new work,
+    bring the NAP current + COMMIT, then self-compact (compaction ENABLES
+    further work, it does not end it). If the tool refuses (budget
+    exhausted) → end clean per the stop line.
+  - **emergency** — commit the current status + self-compact NOW, and DO
+    NOT DELIBERATE while budget remains — deliberation burns the budget
+    that funds the compaction.
+  - **maintainer** — surface the context state to the maintainer (the
+    legacy `--maintainer` line).
+  **Fallback (Direct/suppressed sessions, or all keys absent):** the static
+  thresholds of the same semantics — triage ≈80 %, stop ≈90 %, emergency
+  ≈95 % (maintainer ruling 2026-09-18 — CANONICAL for all roles: stop
+  lines are triage thresholds, not the only compaction moments).
 - **Compaction is NOT a restart (clarity, 2026-09-15):** it trims OLD history
   only — the last `keepMessages` stay INTACT and a same-model summary of the
   dropped head is auto-created; on resume you re-read only the head files the

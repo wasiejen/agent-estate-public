@@ -803,3 +803,6 @@ U1 spec friction: the DoD's "top-N (default 5)" implied a surface arg, but probe
 ### 2026-10-01_19-21 worker_Q3S ses_f079f0150ffeQxgGCU7jtOKgCM
 auto_resume.smoke's final sandbox cleanup `fs.rmSync` throws EPERM when a DatabaseSync handle is still open, and that EPERM MASKS the original try-body error (cost one extra debug run on the U4 unit — a missing session-table FK row surfaced only as a cleanup crash).
 
+### 2026-10-01_19-33 planner_Q3S_slow ses_f0999d65dffeFxiJylRzecRbhu
+A `git add` with one invalid pathspec (loop/agent/ — typo, error suppressed by 2>/dev/null) aborted atomically and silently dropped 5 intended files from the commit — caught on the next status check, landed in a part-2 commit. What would help: nothing from the repo side; drop `2>/dev/null` on git add invocations (let a bad pathspec surface).
+

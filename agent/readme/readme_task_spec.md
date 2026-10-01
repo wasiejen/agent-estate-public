@@ -95,3 +95,10 @@
   fresh gate at authoring, never restated (the #120 U2 spec carried the #120
   entry's "the 11 #113 env-fails unchanged" + "pytest per #113 (blocked)" —
   #113 had been closed 2026-09-30; the worker flagged the discrepancy).
+- **Pin-audit: probe registration-shape pins (2026-10-01, U3):** a tool
+  mode that GAINS surface ARGS → the probe's registration-shape check
+  (the exact args key list — e.g. compact_memory check 86,
+  context_trim check 346) is a pin surface: the spec names it and the
+  in-scope re-pin. The U3 spec named only the smoke pins — the worker
+  committed with the probe RED, then died at the wall before the fix
+  (the planner re-pinned 86 in place; the gate is green again).

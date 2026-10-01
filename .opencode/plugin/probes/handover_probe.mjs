@@ -3093,9 +3093,9 @@ writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
   check(
     "86",
     "S13",
-    "registration shape: default factory → tool.compact_memory (description + args [sessionID, keepMessages, message, emergency] as zod schemas + execute)",
+    "registration shape: default factory → tool.compact_memory (description + args [sessionID, keepMessages, message, emergency, mode, summary, boundary] as zod schemas + execute)",
     t != null && typeof t.description === "string" && typeof t.execute === "function" &&
-      JSON.stringify(Object.keys(t.args)) === JSON.stringify(["sessionID", "keepMessages", "message", "emergency"]) &&
+      JSON.stringify(Object.keys(t.args)) === JSON.stringify(["sessionID", "keepMessages", "message", "emergency", "mode", "summary", "boundary"]) &&
       Object.values(t.args).every((s) => s != null && typeof s.safeParse === "function"),
     JSON.stringify({ tools: Object.keys(reg?.tool ?? {}), args: Object.keys(t?.args ?? {}) }),
   );

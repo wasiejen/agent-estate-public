@@ -776,3 +776,6 @@ Bounded web research on GitHub: fetch raw.githubusercontent.com (clean), not the
 ### 2026-10-01_08-41 planner_Q3S_slow ses_f09f48614ffeJs1nvJnOonTFxO
 plan6 bookkeeping slip: the loop-folder handover copy (plan6_ho_task_to_planner.md) was cp'd but left out of the bookkeeping commit's git add — it sat untracked until the explorer's later handover cycle. The "copy handover to loop folder" step and its commit should be one verified unit (git add the copy + confirm `git status` clean of loop/ before the commit).
 
+### 2026-10-01_09-04 planner_Q3S_slow ses_f09cca546ffee8SOxAWdjFOtmC
+git mv pre-stages the rename in the index: a subsequent commit swept ALL four staged draft renames into the P6-build commit (only one was intended there) and the post-mv `cat >>` verdict/reply text missed that staging, splitting the triage into a second commit. Actionable: after a batch of git mv, check `git status --short` staged scope before committing (or stage the appended text in the same add), so rename + content land together.
+

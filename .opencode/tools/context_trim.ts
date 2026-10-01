@@ -668,6 +668,61 @@ export async function tailSet(dbPath: string, sessionID: string, targetID: strin
 }
 
 // ---------------------------------------------------------------------------
+// tailSetKeep (WRITE — the keep-COUNT boundary form of tailSet; TODO #120
+// Unit 2). The auto-resume plugin's post-compaction tail-set leg calls
+// this: after ANY host compaction lands, the fresh compaction part's
+// tail_start_id is rewritten to the agent-requested keep boundary (the
+// exact count-based retention — the `keep`-th message STRICTLY before
+// the compaction user row, targetIndex = compactionIndex - keep),
+// replacing the host's default token-budget tail. The boundary
+// computation is the ONLY new logic here; the validated write is the
+// EXACT existing tailSet path, reused — the same 5 fail-closed
+// validations (the delegated call re-runs them on its own fresh read —
+// fail-closed against a compaction that lands between the two reads) +
+// the json_set single-transaction write; the `tail= ` return prefix is
+// remapped to `tail-set= `.
+// ---------------------------------------------------------------------------
+
+export async function tailSetKeep(dbPath: string, sessionID: string, keep: number): Promise<string> {
+  // The count guard: keep must be a positive integer (a non-positive or
+  // non-integer keep has no boundary at all).
+  if (!Number.isInteger(keep) || keep <= 0) return `tail-set= rejected: keep-invalid ${keep}`;
+  let ctx: Ctx;
+  try {
+    ctx = await openDb(dbPath);
+  } catch (e: any) {
+    return `tail-set= db-error: ${String(e?.message ?? e).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
+  }
+  try {
+    const loaded = await loadSession(ctx, sessionID);
+    if (!loaded.exists) return `tail-set= rejected: session-not-found`;
+    const w = computeWindow(loaded.msgs);
+    // (2) the last COMPLETED compaction exists (marker + strict summary
+    // child — needed to locate the boundary at all).
+    if (w.compactionIndex < 0 || w.strictSummaryIndex < 0) return `tail-set= rejected: no-completed-compaction`;
+    // (1) the boundary target = the keep-th message STRICTLY before the
+    // compaction user row; keep exceeding the pre-compaction message
+    // count has no target.
+    const targetIndex = w.compactionIndex - keep;
+    if (targetIndex < 0) return `tail-set= rejected: keep-exceeds-history ${keep}`;
+    const targetID = loaded.msgs[targetIndex].id;
+    // The exact tailSet path from here (its own (3)-(5) validations —
+    // the floor check IS the kept count, retained == keep — + the
+    // single-transaction write).
+    const res = await tailSet(dbPath, sessionID, targetID);
+    return res.replace(/^tail= /, "tail-set= ");
+  } catch (e: any) {
+    return `tail-set= db-error: ${String(e?.message ?? e).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
+  } finally {
+    try {
+      ctx.db.close();
+    } catch {
+      // best effort
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The tool() wrapper — the gauge's default DB path (the live opencode DB).
 // The live DB is only ever written by `tail` mode (validated, single
 // transaction); `report` mode performs no writes.

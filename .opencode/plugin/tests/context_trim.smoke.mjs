@@ -7,7 +7,12 @@
 // ON), ONE session carrying the full compaction quartet (~12 messages before
 // the marker incl. 2 read parts with filePath/offset/limit, one bash, one
 // webfetch; the marker + summary child; >=4 messages after the summary) and
-// ONE no-marker session.
+// ONE no-marker session. Section 9: tailSetKeep (TODO #120 Unit 2 — the
+// keep-COUNT boundary form): a valid rewrite (keep=N → the N-th message
+// strictly before the compaction user row) + the 5 rejections (floor /
+// keep-exceeds-history / no-completed-compaction / session-not-found /
+// keep-invalid), a dedicated ses_ct_k fixture, the spawn chain FORCED
+// via setBackends.
 // Run: node .opencode/plugin/tests/context_trim.smoke.mjs (plain node, exit 0 iff green).
 import { DatabaseSync } from "node:sqlite";
 import { rmSync } from "node:fs";
@@ -108,7 +113,7 @@ putUser("ses_ct_nomark", "msg_n3", 300, "c");
 DB.close();
 
 const tool = await loadRepo(".opencode/tools/context_trim.ts");
-const { reportWindow, tailSet } = tool;
+const { reportWindow, tailSet, tailSetKeep } = tool;
 
 // ---------------------------------------------------------------------------
 // 1) report window fields exact (the marker session)
@@ -376,6 +381,83 @@ chk(
   W.close();
   chk("FK cascade: deleting the message cascades its part rows", orphan === 0, String(orphan));
 }
+
+// ---------------------------------------------------------------------------
+// 9) tailSetKeep (TODO #120 Unit 2 — the keep-COUNT boundary form of
+// tailSet): a THIRD dedicated fixture session (ses_ct_k — 10 messages
+// before the marker, the marker quartet tail_start_id=msg_k05, the
+// summary child, 2 after) so the earlier pins' fixture state is
+// untouched. The chain is FORCED to ["spawn-sqlite3"] via the
+// setBackends test hook. Valid case (keep=8 → the 8th message STRICTLY
+// before the compaction user row, msg_k03) + the rejections (keep below
+// the floor 6; keep above the pre-compaction message count; no
+// completed compaction; unknown session; keep <= 0).
+// ---------------------------------------------------------------------------
+{
+  const W = new DatabaseSync(FX);
+  W.exec("PRAGMA foreign_keys = ON;");
+  W.prepare("INSERT INTO session (id, project_id, time_created, time_updated) VALUES ('ses_ct_k', 'prj_ct', 0, 0)").run();
+  const putK = (id, time, text) => {
+    W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, 'ses_ct_k', ?, ?, ?)").run(id, time, time, JSON.stringify({ role: "user", time: { created: time } }));
+    W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, 'ses_ct_k', ?, ?, ?)").run(`p_${id}t`, id, time, time, JSON.stringify({ type: "text", text }));
+  };
+  const putKa = (id, time) => {
+    W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, 'ses_ct_k', ?, ?, ?)").run(id, time, time, JSON.stringify({ role: "assistant", parentID: `p_${id}u`, finish: "stop" }));
+    W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, 'ses_ct_k', ?, ?, ?)").run(`p_${id}a`, id, time, time, JSON.stringify({ type: "text", text: "ok" }));
+  };
+  // 10 messages before the marker (msg_k01..msg_k10).
+  putK("msg_k01", 100, "k one"); putKa("msg_k02", 200);
+  putK("msg_k03", 300, "k three"); putKa("msg_k04", 400);
+  putK("msg_k05", 500, "k five"); putKa("msg_k06", 600);
+  putK("msg_k07", 700, "k seven"); putKa("msg_k08", 800);
+  putK("msg_k09", 900, "k nine"); putKa("msg_k10", 1000);
+  // The marker quartet (tail_start_id = msg_k05) + the summary child +
+  // 2 messages after the summary.
+  W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_k11', 'ses_ct_k', 13000, 13000, ?)").run(JSON.stringify({ role: "user", time: { created: 13000 } }));
+  W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES ('p_k11c', 'msg_k11', 'ses_ct_k', 13000, 13000, ?)").run(JSON.stringify({ type: "compaction", auto: false, tail_start_id: "msg_k05" }));
+  W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_k12', 'ses_ct_k', 14000, 14000, ?)").run(JSON.stringify({ role: "assistant", parentID: "msg_k11", summary: true, finish: "stop" }));
+  putK("msg_k13", 15000, "k post one");
+  putKa("msg_k14", 16000);
+  W.close();
+}
+tool.setBackends(["spawn-sqlite3"]); // FORCED — the spawn-only pins (this section)
+{
+  const k = await tailSetKeep(FX, "ses_ct_k", 8);
+  chk(
+    "tailSetKeep valid: keep=8 → the 8th message STRICTLY before the compaction user row (msg_k03), the return line byte-exact",
+    k === "tail-set= msg_k05 -> msg_k03 keep=8",
+    JSON.stringify(k),
+  );
+}
+{
+  const RO = new DatabaseSync(FX, { readOnly: true });
+  const partJson = RO.prepare("SELECT data FROM part WHERE id = 'p_k11c'").get().data;
+  RO.close();
+  const rep = await reportWindow(FX, "ses_ct_k");
+  chk(
+    "tailSetKeep landed: the part row carries the new tail_start_id (single-field JSON edit, byte-exact) + the re-report shows retained=8",
+    partJson === '{"type":"compaction","auto":false,"tail_start_id":"msg_k03"}' &&
+      rep.split("\n")[1] === "header: marker=msg_k11 summary=msg_k12 tail_start=msg_k03 retained=8 post-summary=2",
+    JSON.stringify({ partJson, h: rep.split("\n")[1] }),
+  );
+}
+{
+  const r1 = await tailSetKeep(FX, "ses_ct_k", 5);
+  const r2 = await tailSetKeep(FX, "ses_ct_k", 50);
+  const r3 = await tailSetKeep(FX, "ses_ct_nomark", 8);
+  const r4 = await tailSetKeep(FX, "ses_ct_dne", 8);
+  const r5 = await tailSetKeep(FX, "ses_ct_k", 0);
+  chk(
+    "tailSetKeep rejections (fail-closed, exact reasons): floor 5 / keep-exceeds-history 50 / no-completed-compaction / session-not-found / keep-invalid 0",
+    r1 === "tail-set= rejected: retained-tail-below-floor 5" &&
+      r2 === "tail-set= rejected: keep-exceeds-history 50" &&
+      r3 === "tail-set= rejected: no-completed-compaction" &&
+      r4 === "tail-set= rejected: session-not-found" &&
+      r5 === "tail-set= rejected: keep-invalid 0",
+    JSON.stringify({ r1, r2, r3, r4, r5 }),
+  );
+}
+tool.setBackends(); // restore the default chain
 
 rmSync(SANDBOX, { recursive: true, force: true });
 finish();

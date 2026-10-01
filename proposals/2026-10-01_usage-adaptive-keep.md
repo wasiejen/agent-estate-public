@@ -82,5 +82,32 @@ the default, the keep-N surface is the explicit override.
     - at 90% quere a direct maintainer message (or better the appended tool call form as the nudge) that instructs the create a summery in the style of the compaction (we have the original prompt for this)
     - after completions the agent fires our OWN implementation of compact with the keepMessages that just sets the compaction line marker and the start_tail_id via DB write actions
     - trigger a restart that will then dropt the head due to the presense of the compaction line marker
-  - idea 2 (not feasable i guess - just here for documentation):
-    - if this works we can create our own selective massage keep by writing compaction line markers and start_tail_id and select which messages and ranges of messages to keep and also to remove these in pairs ... mh no the old compactions markers are overwritten by the position of the new compaction marker and thus all previous defined compaction line marker ald start_tail_id will be dropped by the presence of the pair in later messages ... so not feasable
+- idea 2 (not feasable i guess - just here for documentation):
+  - if this works we can create our own selective massage keep by writing compaction line markers and start_tail_id and select which messages and ranges of messages to keep and also to remove these in pairs ... mh no the old compactions markers are overwritten by the position of the new compaction marker and thus all previous defined compaction line marker ald start_tail_id will be dropped by the presence of the pair in later messages ... so not feasable
+
+Planner replies (2026-10-01, direct session ses_f0999d65dffeFxiJylRzecRbhu):
+- "Why is this needed / does it clash with keep-N?": no clash (precedence —
+  the explicit keep always wins; the formula would only be the default when
+  nothing is specified), but given your two newer ideas it is PARKED: the
+  informed choice (U1 recommendation) beats a blind adaptive cap; the
+  formula's residual value is only the auto-at-cap case (the static 30/40k is
+  good enough there). Revisit if auto-at-cap keeps ever prove bad.
+- Your informed-default idea (content-based keep recommendation,
+  messageID-anchored so deliberation doesn't shift the boundary) is folded
+  into **U1** of the package proposal (3 low/medium/high options + mass split
+  + oldest-kept hint).
+- Your BIG QUESTION (set our own compaction marker): YES feasible — the
+  marker quartet schema is fully known (context_trim.ts mirrors the host
+  guard) and the window re-derives per step (zero restart — your restart step
+  is unnecessary). It lands in the package as **U3** (the cap backstop):
+  agent-written summary + quartet write via a compact_memory mode, full
+  protocol (budget/ctx.log/dump/relay), consumes one budget compaction.
+- Idea 2 (selective keep via multiple markers): your infeasibility conclusion
+  is CONFIRMED by the mechanism — the window is always the LATEST marker's
+  summary + one contiguous slice (host findLastIndex); older markers are
+  dead once a newer one exists. Non-contiguous retention needs the
+  per-message filter (the package core, U2 — your non-destructive fork
+  version per your 2026-10-01 ruling; the destructive safe-zone drop channel
+  stays the documented fallback if the fork fails).
+- SUPERSEDED by the package proposal (this file keeps the full
+  comment/reply record).

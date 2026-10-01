@@ -80,3 +80,19 @@ Part 3 proposal request:
 - downside i see is that agents might think they can use a smaller keepMessages and if they think they need more after to increase it. But they do not know anymore what was in these prior dropped messages thus can not do an informed choice anymore. the only viable way it to reduce the number of kept messages i think. what is your take? allow keepmessages=0 to drop all before the last compaction if enough new messages are their already?
 
 - this interacts also with my ideas and questions in proposals\commented\2026-10-01_usage-adaptive-keep.md and via first file indirectly with proposals\commented\2026-10-01_gauge-nudge-bands.md
+
+Planner replies (2026-10-01, direct session ses_f0999d65dffeFxiJylRzecRbhu):
+- P1+P2 approved and folded into the package proposal
+  `proposals/2026-10-01_context-budget-package.md` **U0** — with your ruling:
+  the argument is named `keepMessages` (a message count, aligned with
+  compact_memory — not a keepToken).
+- Your Part 3 report forms (numbered rows + internal id mapping /
+  tool-target detail only / last-N / last-N-as-info) are folded into
+  **U1** (the recommendation leg — the "last N as info for the next
+  compaction" form is exactly the recommendation block).
+- Your downside insight (shrinking is informed, growing re-reads what you no
+  longer remember) is recorded in U0 — the surface is primarily a shrink
+  lever; keep=0 stays rejected by the floor (the post-compaction protocol
+  needs a raw tail); at dispatch keep=0 already exists (the 25.8k floor).
+- SUPERSEDED by the package proposal (this file keeps the full
+  comment/reply record).

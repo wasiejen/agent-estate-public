@@ -73,3 +73,20 @@ where prompt-memory is weakest, without touching the late ladder.
   "outputReserve": 0,
 - i was of the opinion that this controls when the nudges start. so at these settings above at 85%
 - not sure how much this crosses with the already existing functionality. also i have not seen any real problems with compaction ignored on close to context limit anymore.
+
+Planner replies (2026-10-01, direct session ses_f0999d65dffeFxiJylRzecRbhu):
+- Your facts question, measured: `saturationThreshold: 0.85` (live) IS the
+  nudge start (your guess was right; the code default is 0.95, the live
+  config 0.85) — so the "silent 80-95 zone" premise was stale (live: 80-85).
+  `autoCompact: true` gates the leg; `outputReserve: 0` caps `usable`; the
+  line is `self-compact now (ratio=X.XXX)` (≥0.98: the `--maintainer` form),
+  once per busy cycle, Direct-suppressed.
+- "No real problems anymore" is consistent with the live 0.85 — so the band
+  is reframed (folded into the package **U4**): not a new band alone, but
+  **ONE CONFIG KEY PER RUNG** (`nudge_triage: 0.80`, `nudge_stop: 0.90`,
+  `nudge_emergency: 0.95`, `nudge_maintainer: 0.98`) + the triage rung
+  carries the **recommendation one-liner** (U1) + the prompt's static
+  ladders are mostly replaced by the live nudges (prompt keeps the semantics
+  as fallback for Direct/suppressed sessions).
+- SUPERSEDED by the package proposal (this file keeps the full
+  comment/reply record).

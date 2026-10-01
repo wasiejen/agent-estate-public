@@ -746,3 +746,6 @@ The live Bun host's execFileSync succeeds only ONCE per process (every later spa
 ### 2026-10-01_03-51 planner_Q3S_slow ses_f0af35202ffeX6nthxp8kWxtPv
 knowledge_inbox curation log claims an entry is cured (plan28: AGENTS.md live-file protocol → knowledge_tools.md) but the entry was actually MISSING from the target file — the log recorded the intent, not the landing; curation should grep-verify the target before/while logging the cure (plan1 found + landed it).
 
+### 2026-10-01_04-51 worker_Q3S ses_f0abc032dffenb1K8yrfXKOg5V
+#128 spec: the pin-audit scope named only the smoke Gate-M block, but the probe's S13 gate checks (92/93/95/222-226, all cross-shape) + S32 340 also needed re-pins — naming them in the spec would have avoided a red probe round-trip.
+

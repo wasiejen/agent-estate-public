@@ -386,23 +386,28 @@
 //      classifier fixtures incl. the trap; (88) summarize path (SELF sync) +
 //          default response BYTE-EXACT; (89) keep retry-once (cross dispatch,
 //          async-verified); (90) compact flat; (91) no-client error naming
-//          both probes; (92) gate (cap−1 dispatched, cap denied, zero side
-//          effects); (93) CPU always denied; (94) increment-on-verified-
+//          both probes; (92) gate (cross: cap−1 + cap (the override)
+//          dispatched, cap+1 denied, zero side effects); (93) CPU cap 0
+//          plain SELF call always denied; (94) increment-on-verified-
 //          success only (cross dispatch); (95) v2 store schema on disk (model
-//          populated); (96) COMPACT line WITH model; (97) message + dispatch
+//          populated, count 4 — the override slot); (96) COMPACT line WITH
+//          model; (97) message + dispatch
 //          line (cross, NO trailer); (98) cross-session model read (the LAST
 //          entry, pair-less); (100 REMOVED 2026-09-21 unit A — the explicit
 //          pair override is GONE, the S25 section pins the config resolver);
 //          (99) failing RPC (default cap + note, no throw);
-//          (222) emergency-1 gate part 1 (item 10: fixture {Gate-M: 2} +
-//          emergency_budget 1 — calls 1-2 dispatched, call 3 no-arg DENIED
-//          naming the `emergency`-arg availability, zero side effects);
-//          (223) call 3 emergency:true DISPATCHES (count → cap+1, the
-//          COMPACT line carries ` emergency`, the normal lines carry NO
-//          suffix); (224) call 4 emergency:true DENIED (fully exhausted) +
-//          the state survives a FRESH module instance (cache-busted
-//          re-import); (225) emergency_budget 0 → DENIED; (226) key ABSENT
-//          → fail-open default 1 (the emergency is consumed);
+//          (222) emergency-1 + cross override gate part 1 (item 10 +
+//          TODO #128: fixture {Gate-M: 2} + emergency_budget 1 — calls 1-2
+//          dispatched, call 3 no-arg CROSS DISPATCHED via the override
+//          (count → cap+1, the COMPACT line carries `ovr`, the normal
+//          lines carry NO suffix)); (223) call 4 emergency:true DENIED at
+//          count == cap+1 (the override named consumed — no second slot,
+//          no ` emergency` line); (224) call 5 emergency:true DENIED
+//          (fully exhausted) + the state survives a FRESH module instance
+//          (cache-busted re-import); (225) emergency_budget 0 → the CROSS
+//          override is UNCONDITIONAL (dispatched at count == cap, the
+//          `ovr` line, then DENIED); (226) key ABSENT (SELF shape) →
+//          fail-open default 1 (the self emergency is consumed);
 //          (287) keepTokens computed (S-diff, metric v2 2026-09-26, tool
 //          path): messages carry a token series (wrapper shape, last 2,
 //          S = 400 + 250 + 6000 = 6650, no assistant before the window) →
@@ -3156,11 +3161,13 @@ writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
 }
 
 // 92 — the gate (configured cap 3 in the model_budget map, increment-on-
-//      verified-success): count=cap−1 (the 3rd call) is DISPATCHED;
-//      count=cap (the 4th) is DENIED naming class+cap+count with ZERO
+//      verified-success, CROSS shape): count=cap−1 (the 3rd call) is
+//      DISPATCHED; count=cap (the 4th) is DISPATCHED via the caller-scoped
+//      override (TODO #128 — the total spendable stays THE SAME AS SELF);
+//      count=cap+1 (the 5th) is DENIED naming class+cap+count with ZERO
 //      side effects (no compact call, no increment, no line); the cross
 //      increments land in the background chain (the tick drains it before
-//      the 4th call sees count=cap)
+//      the 5th call sees count=cap+1)
 {
   const { client, rec } = qcMakeClient({ summarize: true });
   const t = (await qcMod.default({ client })).tool.compact_memory;
@@ -3168,29 +3175,35 @@ writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
   await run({ keepMessages: 1, sessionID: "ses_qc_gate" });
   await run({ keepMessages: 1, sessionID: "ses_qc_gate" });
   const res3 = await run({ keepMessages: 1, sessionID: "ses_qc_gate" }); // count=cap−1 → dispatched
-  const callsBefore4 = rec.summarize.length;
-  const res4 = await t.execute({ keepMessages: 1, sessionID: "ses_qc_gate" }, qcCtx({})); // count=cap → denied
+  const res4 = await run({ keepMessages: 1, sessionID: "ses_qc_gate" }); // count=cap → override
+  const callsBefore5 = rec.summarize.length;
+  const res5 = await t.execute({ keepMessages: 1, sessionID: "ses_qc_gate" }, qcCtx({})); // count=cap+1 → denied
   const st = qcStore();
   check(
     "92",
     "S13",
-    "gate (configured cap 3, cross dispatch): count=cap−1 dispatched (the 3rd); count=cap DENIED (the 4th) naming class+cap+count with ZERO side effects; the increments land only on the verified background success",
-    /dispatched/i.test(res3) && rec.summarize.length === 3 && rec.summarize.length === callsBefore4 &&
-      /refused/.test(res4) && res4.includes("cap 3") && res4.includes("3/3") &&
-      st.sessions.ses_qc_gate?.count === 3,
-    JSON.stringify({ calls: rec.summarize.length, res4: String(res4).slice(0, 160) }),
+    "gate (configured cap 3, cross dispatch): count=cap−1 dispatched (the 3rd); count=cap dispatched via the override (the 4th); count=cap+1 DENIED (the 5th) naming class+cap+count with ZERO side effects; the increments land only on the verified background success",
+    /dispatched/i.test(res3) && /dispatched/i.test(res4) && rec.summarize.length === 4 && rec.summarize.length === callsBefore5 &&
+      /refused/.test(res5) && res5.includes("cap 3") && res5.includes("4/3") && /override slot is consumed/i.test(res5) &&
+      st.sessions.ses_qc_gate?.count === 4,
+    JSON.stringify({ calls: rec.summarize.length, res5: String(res5).slice(0, 160) }),
   );
 }
 
-// 93 — the CPU model is ALWAYS denied (the cap-0 ruling, cross read): refused
-//      naming cap 0, zero side effects (no compact call, no store entry)
+// 93 — the CPU model is cap 0 (excluded — the safety invariant): a PLAIN
+//      call (SELF shape, no `emergency` arg) is ALWAYS denied — refused
+//      naming cap 0, zero side effects (no compact call, no store entry).
+//      The cap-0 corner (TODO #128 corrected fact — the ONE slot a cap-0
+//      model still gets: self-emergency / cross-override) is pinned in the
+//      smoke's cap-0 corner.
 {
-  const { rec, res } = await qcExec({ summarize: true, messages: [{ info: { modelID: "CPU-Qwen3-0.6B" } }] }, { sessionID: "ses_qc_cpu" });
+  const { rec, res } = await qcExec({ summarize: true }, { sessionID: "ses_qc_cpu" },
+    { sessionID: "ses_qc_cpu", extra: { model: { id: "CPU-Qwen3-0.6B", providerID: "llama-swap" } } });
   const st = qcStore();
   check(
     "93",
     "S13",
-    "CPU model ALWAYS denied (cap 0, cross read): refused naming cap 0, zero side effects (no call, no store entry)",
+    "CPU model cap 0 (plain SELF call, no emergency arg): refused naming cap 0, zero side effects (no call, no store entry)",
     /refused/.test(res) && res.includes("cap 0") && rec.summarize.length === 0 && st.sessions.ses_qc_cpu == null,
     JSON.stringify({ res: String(res).slice(0, 160) }),
   );
@@ -3224,8 +3237,8 @@ writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
   check(
     "95",
     "S13",
-    "v2 store schema on disk: version 2 + entry {count, updated, model} with the model POPULATED",
-    st.version === 2 && e?.count === 3 && e?.model === "Qwen3.8-27B-IQ4KT-120K" && !Number.isNaN(Date.parse(e?.updated ?? "")),
+    "v2 store schema on disk: version 2 + entry {count, updated, model} with the model POPULATED (count 4 — the cross override slot consumed once)",
+    st.version === 2 && e?.count === 4 && e?.model === "Qwen3.8-27B-IQ4KT-120K" && !Number.isNaN(Date.parse(e?.updated ?? "")),
     JSON.stringify({ version: st.version, e }),
   );
 }
@@ -3310,12 +3323,14 @@ writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
   );
 }
 
-// 222 — the EMERGENCY-1 gate sequence, part 1 (item 10, 2026-09-24): the
-//      fixture model_budget { "Gate-M": 2 } + emergency_budget 1 — calls
-//      1-2 DISPATCH (count 2 == cap); call 3 (no arg) is DENIED naming
-//      class+cap+count + the `emergency`-arg availability note, with ZERO
-//      side effects (no call, no increment). The cross read of the last
-//      messages-RPC entry resolves the Gate-M model (cap 2).
+// 222 — the EMERGENCY-1 gate + the caller-scoped CROSS override (TODO
+//      #128, ruling 2026-09-30), part 1 (item 10, 2026-09-24): the fixture
+//      model_budget { "Gate-M": 2 } + emergency_budget 1 — calls 1-2
+//      DISPATCH (count 2 == cap); call 3 (no arg, CROSS shape — ctx
+//      ses_qc_self != the target) is DISPATCHED via the caller-scoped
+//      override (count → cap+1 = 3): the COMPACT line carries `ovr`
+//      (Part 3), the normal lines carry NO suffix. The cross read of the
+//      last messages-RPC entry resolves the Gate-M model (cap 2).
 {
   const stEmg = qcStore();
   stEmg.model_budget = { "Gate-M": 2, default: 1 };
@@ -3328,43 +3343,46 @@ writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
   const r2 = await run({ keepMessages: 2, sessionID: "ses_qc_emg" });
   const r3 = await run({ keepMessages: 2, sessionID: "ses_qc_emg" });
   const st = qcStore();
+  const lineOvr = ctxLogLines().find((l) => l.includes("COMPACT ses_qc_emg keep=2m tok=- none ovr"));
+  const lineNorm = ctxLogLines().filter((l) => l.includes("COMPACT ses_qc_emg keep=2m tok=- none") && !l.includes(" ovr") && !l.includes(" emergency"));
   check(
     "222",
     "S13",
-    "emergency-1 gate part 1 (fixture {Gate-M: 2}, emergency_budget 1): calls 1-2 dispatched (count 2 == cap); call 3 (no arg) DENIED naming class+cap+count + the `emergency`-arg availability note, zero side effects",
-    /dispatched/i.test(r1) && /dispatched/i.test(r2) && rec.summarize.length === 2 &&
-      /refused/.test(r3) && r3.includes("cap 2") && r3.includes("2/2") && /hand over/i.test(r3) &&
-      r3.includes("`emergency` argument") && st.sessions.ses_qc_emg?.count === 2,
-    JSON.stringify({ r3: String(r3).slice(0, 220) }),
+    "emergency-1 + cross override gate part 1 (fixture {Gate-M: 2}): calls 1-2 dispatched (count 2 == cap); call 3 (no arg, CROSS) dispatched via the override (count → cap+1 = 3) — the COMPACT line carries `ovr` (Part 3), the normal lines carry NO suffix",
+    /dispatched/i.test(r1) && /dispatched/i.test(r2) && /dispatched/i.test(r3) && rec.summarize.length === 3 &&
+      lineOvr != null && new RegExp(`^${DT} Gate-M COMPACT ses_qc_emg keep=2m tok=- none ovr$`).test(lineOvr) &&
+      lineNorm.length === 2 && lineNorm.every((l) => new RegExp(`^${DT} Gate-M COMPACT ses_qc_emg keep=2m tok=- none$`).test(l)) &&
+      st.sessions.ses_qc_emg?.count === 3,
+    JSON.stringify({ r3: String(r3).slice(0, 220), lineOvr }),
   );
 }
 
-// 223 — the EMERGENCY-1 gate sequence, part 2: at count == cap the
-//      `emergency` arg DISPATCHES the once-per-session emergency (count →
-//      cap+1 = 3); the COMPACT line carries the ` emergency` suffix; the
-//      earlier NORMAL lines carry NO suffix
+// 223 — the CROSS override gate, part 2: at count == cap + 1 (the override
+//      consumed) the `emergency` arg does NOT grant a second slot — DENIED
+//      naming the override consumed (the cross total spendable = cap + the
+//      one emergency = THE SAME AS SELF, ruling 2026-09-30); NO
+//      ` emergency` line was ever written for this session
 {
   const { client } = qcMakeClient({ summarize: true, messages: [{ info: { modelID: "Gate-M", providerID: "llama-swap" } }] });
   const t = (await qcMod.default({ client })).tool.compact_memory;
   const r3e = await t.execute({ keepMessages: 2, sessionID: "ses_qc_emg", emergency: true }, qcCtx({}));
   await qcTick();
   const st = qcStore();
-  const lineEmg = ctxLogLines().find((l) => l.includes("COMPACT ses_qc_emg keep=2m tok=- none emergency"));
-  const lineNorm = ctxLogLines().filter((l) => l.includes("COMPACT ses_qc_emg keep=2m tok=- none") && !l.includes(" emergency"));
+  const lineEmg = ctxLogLines().find((l) => l.includes("COMPACT ses_qc_emg") && l.includes(" emergency"));
   check(
     "223",
     "S13",
-    "emergency-1: at count == cap the `emergency` arg dispatches the once-per-session emergency (count → cap+1 = 3); the COMPACT line carries ` emergency`; the normal lines carry NO suffix",
-    /dispatched/i.test(r3e) && st.sessions.ses_qc_emg?.count === 3 && lineEmg != null &&
-      new RegExp(`^${DT} Gate-M COMPACT ses_qc_emg keep=2m tok=- none emergency$`).test(lineEmg) &&
-      lineNorm.length === 2 && lineNorm.every((l) => new RegExp(`^${DT} Gate-M COMPACT ses_qc_emg keep=2m tok=- none$`).test(l)),
-    JSON.stringify({ lineEmg, lineNorm }),
+    "cross override: at count == cap + 1 the `emergency` arg does NOT grant a second slot — DENIED naming the override consumed (fully exhausted, no ` emergency` line, count stays 3)",
+    /refused/.test(r3e) && r3e.includes("cap 2") && r3e.includes("3/2") && /override slot is consumed/i.test(r3e) &&
+      /fully exhausted/i.test(r3e) && st.sessions.ses_qc_emg?.count === 3 && lineEmg == null,
+    JSON.stringify({ r3e: String(r3e).slice(0, 220), lineEmg }),
   );
 }
 
-// 224 — the EMERGENCY-1 gate sequence, part 3: call 4 with the `emergency`
-//      arg is DENIED (count 3 > cap 2 — FULLY exhausted, the item 11
-//      directive state) and the state SURVIVES a fresh module instance
+// 224 — the gate sequence, part 3 (cross-shape): call 5 with the
+//      `emergency` arg is DENIED (count 3 == cap+1 > cap 2 — FULLY
+//      exhausted, the item 11 directive state; the override named
+//      consumed) and the state SURVIVES a fresh module instance
 //      (cache-busted re-import — the count lives on disk, not in module
 //      memory): the re-imported tool still refuses
 {
@@ -3379,16 +3397,18 @@ writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
   check(
     "224",
     "S13",
-    "emergency-1: call 4 with `emergency` DENIED (count 3 > cap 2 — fully exhausted); the state survives a FRESH module instance (cache-busted re-import still refuses)",
+    "gate: call 5 with `emergency` DENIED (count 3 == cap+1 — fully exhausted, the override named consumed); the state survives a FRESH module instance (cache-busted re-import still refuses)",
     /refused/.test(r4) && r4.includes("cap 2") && r4.includes("3/2") && /fully exhausted/i.test(r4) && st.sessions.ses_qc_emg?.count === 3 &&
       /refused/.test(rFresh) && /fully exhausted/i.test(rFresh),
     JSON.stringify({ r4: String(r4).slice(0, 220), rFresh: String(rFresh).slice(0, 220) }),
   );
 }
 
-// 225 — emergency_budget 0: the emergency is NOT available — at count == cap
-//      the `emergency` arg is DENIED (a fresh session is drained to the cap
-//      first)
+// 225 — emergency_budget 0: the override is UNCONDITIONAL (eb 0 removes
+//      only the SELF emergency) — a CROSS caller is STILL dispatched at
+//      count == cap (the `emergency` arg is moot — one increment, the
+//      `ovr` line), then DENIED at cap+1 (the override consumed + the
+//      emergency unavailable)
 {
   const stE0 = qcStore();
   stE0.emergency_budget = 0;
@@ -3399,29 +3419,35 @@ writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
   const a1 = await run({ keepMessages: 1, sessionID: "ses_qc_emg0" });
   const a2 = await run({ keepMessages: 1, sessionID: "ses_qc_emg0" });
   const r0 = await run({ keepMessages: 1, sessionID: "ses_qc_emg0", emergency: true });
+  const r0b = await run({ keepMessages: 1, sessionID: "ses_qc_emg0", emergency: true });
   const st = qcStore();
+  const line0 = ctxLogLines().find((l) => l.includes("COMPACT ses_qc_emg0 keep=1m tok=- none ovr"));
   check(
     "225",
     "S13",
-    "emergency_budget 0: at count == cap the `emergency` arg is DENIED (no emergency available — the unavailable/consumed note)",
-    /dispatched/i.test(a1) && /dispatched/i.test(a2) &&
-      /refused/.test(r0) && r0.includes("cap 2") && r0.includes("2/2") && /hand over/i.test(r0) &&
-      /unavailable or already consumed/i.test(r0) && st.sessions.ses_qc_emg0?.count === 2,
-    JSON.stringify({ r0: String(r0).slice(0, 220) }),
+    "emergency_budget 0: the CROSS override is UNCONDITIONAL (eb 0 removes only the SELF emergency) — at count == cap the `emergency`-arg call is DISPATCHED (the arg is moot, the `ovr` line, count 3), then DENIED (the override consumed + the emergency unavailable)",
+    /dispatched/i.test(a1) && /dispatched/i.test(a2) && /dispatched/i.test(r0) && line0 != null &&
+      new RegExp(`^${DT} Gate-M COMPACT ses_qc_emg0 keep=1m tok=- none ovr$`).test(line0) &&
+      /refused/.test(r0b) && r0b.includes("cap 2") && r0b.includes("3/2") && /override slot is consumed/i.test(r0b) &&
+      /unavailable or already consumed/i.test(r0b) && st.sessions.ses_qc_emg0?.count === 3,
+    JSON.stringify({ r0b: String(r0b).slice(0, 220), line0 }),
   );
 }
 
-// 226 — the emergency_budget key ABSENT: the fail-open default 1 applies —
-//      at count == cap the `emergency` arg DISPATCHES (a fresh session is
-//      drained to the cap first), count → cap+1, the COMPACT line carries
-//      ` emergency`
+// 226 — the emergency_budget key ABSENT (SELF shape — the cross override
+//      would dispatch regardless of eb, so the fail-open default 1 is only
+//      observable on the self path): the default 1 applies — at count ==
+//      cap the `emergency` arg DISPATCHES the once-per-session self
+//      emergency (a fresh session is drained to the cap first), count →
+//      cap+1, the COMPACT line carries ` emergency` and NO `ovr`
 {
   const stEd = qcStore();
   delete stEd.emergency_budget;
   writeFileSync(path.join(SANDBOX, ".opencode", "temp", "compact_budget.json"), JSON.stringify(stEd, null, 2) + "\n", "utf8");
   const { client } = qcMakeClient({ summarize: true, messages: [{ info: { modelID: "Gate-M", providerID: "llama-swap" } }] });
   const t = (await qcMod.default({ client })).tool.compact_memory;
-  const run = async (args) => { const r = await t.execute(args, qcCtx({})); await qcTick(); return r; };
+  const selfOver = { sessionID: "ses_qc_emgdf", extra: { model: { id: "Gate-M", providerID: "llama-swap" } } };
+  const run = async (args) => { const r = await t.execute(args, qcCtx(selfOver)); await qcTick(); return r; };
   await run({ keepMessages: 1, sessionID: "ses_qc_emgdf" });
   await run({ keepMessages: 1, sessionID: "ses_qc_emgdf" });
   const rD = await run({ keepMessages: 1, sessionID: "ses_qc_emgdf", emergency: true });
@@ -3430,9 +3456,9 @@ writeFileSync(QC_DUMP_SCRIPT, QC_FAKE_DUMP, "utf8");
   check(
     "226",
     "S13",
-    "emergency_budget key ABSENT → fail-open default 1: at count == cap the `emergency` arg dispatches (count → cap+1), the COMPACT line carries ` emergency`",
+    "emergency_budget key ABSENT (SELF shape) → fail-open default 1: at count == cap the `emergency` arg dispatches the self emergency (count → cap+1), the COMPACT line carries ` emergency` and NO `ovr`",
     /dispatched/i.test(rD) && st.sessions.ses_qc_emgdf?.count === 3 && lineD != null &&
-      new RegExp(`^${DT} Gate-M COMPACT ses_qc_emgdf keep=1m tok=- none emergency$`).test(lineD),
+      new RegExp(`^${DT} Gate-M COMPACT ses_qc_emgdf keep=1m tok=- none emergency$`).test(lineD) && !lineD.includes("ovr"),
     JSON.stringify({ rD: String(rD).slice(0, 120), lineD }),
   );
 }
@@ -7944,8 +7970,10 @@ n29++;
 // session/model fixture — no sandbox opencode.jsonc — the pair must
 // come from the session's OWN model, the 14-26 incident fix), (3) the
 // EQUIVALENCE of the cap semantics (a cap-2 pinned model: the tool
-// allows 2 then refuses without the emergency arg; the hook allows 2
-// normal, then auto-consumes the emergency 1, then clean-fails).
+// dispatch (CROSS shape) allows 2 normal + 1 override (TODO #128 — the
+// caller-scoped override at count == cap) then refuses; the hook allows
+// 2 normal, then auto-consumes the emergency 1, then clean-fails — THE
+// SAME TOTAL: cap + 1).
 // Reuses S13's tool import (qcMod) + S11's hook import (rcMod) + the
 // shared sandbox (the store is written per block; fresh ses_eq_* ids;
 // the S14 dump stub keeps the tool dispatch responses byte-exact).
@@ -8004,12 +8032,14 @@ n29++;
   }
 
   // 340 — EQUIVALENCE: the cap semantics (the cap-2 pinned model — the
-  //      tool's arg path + the hook's auto path): the tool dispatches
-  //      twice then REFUSES (no emergency arg — naming the
-  //      availability, count stays 2); the hook fires twice normal
-  //      (count → 2 == cap), then AUTO-CONSUMES the emergency 1 (the
-  //      ` emergency` line suffix, count → 3), then CLEAN-FAILS (no 4th
-  //      compact) — NO prompt anywhere (Part B)
+  //      tool's arg path + the hook's auto path): the tool dispatch
+  //      (CROSS shape) dispatches twice normal + once via the
+  //      caller-scoped override (count → 3 == cap+1, TODO #128), then
+  //      REFUSES the 4th (count 3 — the override consumed, no second
+  //      slot); the hook fires twice normal (count → 2 == cap), then
+  //      AUTO-CONSUMES the emergency 1 (the ` emergency` line suffix,
+  //      count → 3), then CLEAN-FAILS (no 4th compact) — THE SAME TOTAL
+  //      (cap + 1), NO prompt anywhere (Part B)
   {
     rcSetStore((store) => { store.emergencyRecovery = true; store.keepMessages = 1; store.emergency_budget = 1; store.model_budget = { [EQ_MODEL]: 2, default: 1 }; delete store.keepTokens; });
     const { res: c1 } = await qcExec({ summarize: true, messages: eqMsgs }, { sessionID: "ses_eq_cap_tool", keepMessages: 1 }, {});
@@ -8017,6 +8047,8 @@ n29++;
     const { res: c2 } = await qcExec({ summarize: true, messages: eqMsgs }, { sessionID: "ses_eq_cap_tool", keepMessages: 1 }, {});
     await qcTick();
     const { res: c3 } = await qcExec({ summarize: true, messages: eqMsgs }, { sessionID: "ses_eq_cap_tool", keepMessages: 1 }, {});
+    await qcTick();
+    const { res: c4 } = await qcExec({ summarize: true, messages: eqMsgs }, { sessionID: "ses_eq_cap_tool", keepMessages: 1 }, {});
     const toolCount = rcReadBudget()?.sessions?.ses_eq_cap_tool?.count;
     const hBefore = { s: rcCalls.summarize.length, p: rcCalls.prompt.length };
     await rcFireError("ses_eq_cap_hook", rcOVF("exceeds the available context size"));
@@ -8034,14 +8066,14 @@ n29++;
     check(
       String(n32),
       "S32",
-      "EQUIVALENCE cap semantics (cap 2): the tool dispatches 2 then refuses (no emergency arg — naming the availability, count 2); the hook fires 2 normal, auto-consumes the emergency 1 (the ` emergency` line, count 3), then clean-fails (count stays 3) — NO prompt (Part B)",
-      /dispatched/i.test(c1) && /dispatched/i.test(c2) &&
-        /refused/i.test(c3) && c3.includes("cap 2") && c3.includes("2/2") && c3.includes("`emergency` argument") &&
-        toolCount === 2 &&
+      "EQUIVALENCE cap semantics (cap 2): the tool (CROSS) dispatches 2 normal + 1 override (count 3), then refuses (the override named consumed); the hook fires 2 normal, auto-consumes the emergency 1 (the ` emergency` line, count 3), then clean-fails (count stays 3) — THE SAME TOTAL (cap + 1) — NO prompt (Part B)",
+      /dispatched/i.test(c1) && /dispatched/i.test(c2) && /dispatched/i.test(c3) &&
+        /refused/i.test(c4) && c4.includes("cap 2") && c4.includes("3/2") && /override slot is consumed/i.test(c4) &&
+        toolCount === 3 &&
         rcCalls.summarize.length - hBefore.s === 3 && rcCalls.prompt.length === hBefore.p &&
         hCount2 === 2 && hCount3 === 3 && emgLine != null &&
         rcCalls.summarize.length === hBefore4.s && hCount4 === 3,
-      JSON.stringify({ c3: String(c3).slice(0, 160), toolCount, hCount2, hCount3, hCount4, emgLine, dp: rcCalls.prompt.length - hBefore.p }),
+      JSON.stringify({ c4: String(c4).slice(0, 160), toolCount, hCount2, hCount3, hCount4, emgLine, dp: rcCalls.prompt.length - hBefore.p }),
     );
     n32++;
   }

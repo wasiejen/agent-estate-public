@@ -54,6 +54,15 @@ import { fileURLToPath } from "node:url";
 // the default 1). Read PER CALL (a mid-run edit applies to the next call);
 // an absent file / unparseable JSON / malformed key fails open to the
 // defaults (never a throw).
+//
+// The caller-scoped CROSS override (TODO #128, ruling 2026-09-30): a CROSS
+// caller (an explicit session id != the calling session) gets an effective
+// cap of cap + 1 — the total spendable per target session stays
+// model_budget + emergency_budget, THE SAME AS SELF (the override is NOT a
+// second slot — cross at count == cap + 1 stays refused; at cap 0 the
+// uniform arithmetic allows exactly 1). Enforced at the caller's gate
+// (compact_memory.ts) — the store schema is UNCHANGED (the count tracks
+// both slots).
 const DEFAULT_KEEP_MESSAGES = 12;
 const DEFAULT_EMERGENCY_BUDGET = 1;
 const DEFAULT_MODEL_BUDGET = 1;
@@ -326,7 +335,12 @@ export function recordSuccess(root: string, sessionID: string, model: string): v
 // `computed` = the sum of the last m messages' tokens, `budget` = the
 // budget file's keepTokens fallback, `none` = neither available (tok=-))
 // + the optional ` emergency` suffix (the once-per-session emergency
-// compaction was consumed — item 10, 2026-09-24) + the optional pre-readout
+// compaction was consumed — item 10, 2026-09-24) + the optional ` ovr`
+// suffix (the caller-scoped cross override slot was consumed — the CROSS
+// dispatch succeeded with pre-dispatch count == cap, the target's normal
+// cap already spent; TODO #128, ruling 2026-09-30 — mutually exclusive
+// with ` emergency`: the override slot is cross-only, the emergency slot
+// is self-only) + the optional pre-readout
 // (the tool's context carries it — the hook's context does not). The model
 // field is POPULATED from the RESOLVED model id; m is the keep arg WHEN
 // GIVEN, else the config keepMessages (default 12).
@@ -347,6 +361,7 @@ export function appendCompactLine(
   messages: number,
   resolved: { tokens: number | undefined; source: "computed" | "budget" | "none" },
   emergency = false,
+  override = false,
 ): void {
   try {
     const dir = tempDir(root);
@@ -361,6 +376,7 @@ export function appendCompactLine(
       `${localStamp()}${modelField !== "" ? ` ${modelField}` : ""} ` +
       `COMPACT ${sessionID} keep=${messages}m tok=${tok} ${source}` +
       (emergency ? " emergency" : "") +
+      (override ? " ovr" : "") +
       `${preField !== "" ? ` (${preField})` : ""}\n`;
     appendFileSync(p, line, "utf8");
   } catch {
@@ -370,7 +386,9 @@ export function appendCompactLine(
 
 // The VERIFIED-SUCCESS handling (shared by both entry points): the budget
 // increment + the COMPACT line, in that order — called ONLY from a
-// verified-success callback (increment-on-verified-success).
+// verified-success callback (increment-on-verified-success). isOverride
+// (TODO #128, Part 3): the caller-scoped cross override slot was consumed
+// — the COMPACT line gains the `ovr` token (zero behavior).
 export function recordVerifiedSuccess(
   root: string,
   context: any,
@@ -379,9 +397,10 @@ export function recordVerifiedSuccess(
   messages: number,
   resolved: { tokens: number | undefined; source: "computed" | "budget" | "none" },
   isEmergency = false,
+  isOverride = false,
 ): void {
   recordSuccess(root, sessionID, model);
-  appendCompactLine(root, context, sessionID, model, messages, resolved, isEmergency);
+  appendCompactLine(root, context, sessionID, model, messages, resolved, isEmergency, isOverride);
 }
 
 // ------------------------------------------------------------------ the summarizer pair (the v1 body REQUIRES providerID + modelID)

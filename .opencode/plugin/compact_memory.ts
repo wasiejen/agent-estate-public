@@ -16,7 +16,12 @@
 //   - the budget gate + the EMERGENCY-1 arg (denial → the hand-over note —
 //     ZERO side effects: no increment, no compact call, no COMPACT line;
 //     at count == cap the `emergency` arg consumes the configured
-//     emergency_budget 1, count → cap+1; count > cap = fully exhausted);
+//     emergency_budget 1, count → cap+1; count > cap = fully exhausted) +
+//     the caller-scoped CROSS override (TODO #128, ruling 2026-09-30): a
+//     CROSS caller gets an effective cap of cap + 1 — the total spendable
+//     stays cap + the one emergency, THE SAME AS SELF (cross at
+//     count == cap+1 stays refused — no second slot); the override slot
+//     consumed is audited with the `ovr` COMPACT-line token (Part 3);
 //   - the v2 session.compact dispatch path (fire-and-forget, NO await —
 //     the generated v2 types mark the options body `never`, no keep
 //     fields);
@@ -345,7 +350,7 @@ export default async function CompactMemoryPlugin(ctx: any) {
   return {
     tool: {
       compact_memory: tool({
-        description: "Compacts a session to free context space. Two paths: SELF (sessionID omitted) — your own session ENDS after the compaction; you resume from committed files via the post-compaction protocol. CROSS (explicit sessionID) — a fire-and-forget dispatch: it returns immediately and never blocks (an await would deadlock on the single llama-swap model slot); success is verified ASYNCHRONOUSLY — the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success, and a failed dispatch burns NO budget. The budget is per TARGET session, per model — the cap comes from the compact_budget.json model_budget map (bare model id → cap; unlisted models get the configured default; CPU models denied — cap 0). The total budget per session is the cap + ONE emergency compaction: once the normal cap is drained, the `emergency` arg may consume the 1 (count → cap+1 = fully exhausted). Use it at the stop line / near-limit triage (self) or before a task_id resume of a session that died at its limit (cross); do NOT use it as a restart substitute — the recent head stays INTACT and a summary of the dropped tail is auto-created. The summarizer model pair is NOT an argument: it resolves from the root opencode.jsonc agent.compaction.model when set, else from the compacting session's own model.",
+        description: "Compacts a session to free context space. Two paths: SELF (sessionID omitted) — your own session ENDS after the compaction; you resume from committed files via the post-compaction protocol. CROSS (explicit sessionID) — a fire-and-forget dispatch: it returns immediately and never blocks (an await would deadlock on the single llama-swap model slot); success is verified ASYNCHRONOUSLY — the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success, and a failed dispatch burns NO budget. The budget is per TARGET session, per model — the cap comes from the compact_budget.json model_budget map (bare model id → cap; unlisted models get the configured default; CPU models denied — cap 0). The total budget per session is the cap + ONE emergency compaction: once the normal cap is drained, the `emergency` arg may consume the 1 (count → cap+1 = fully exhausted). A CROSS caller (explicit sessionID ≠ the calling session) gets an effective cap of cap + 1 (the caller-scoped override, ruling 2026-09-30) — but the spendable TOTAL stays THE SAME AS SELF (cap + the one emergency): a cross at count == cap dispatches via the override slot, and a cross at count == cap + 1 stays REFUSED (no second slot). Use it at the stop line / near-limit triage (self) or before a task_id resume of a session that died at its limit (cross); do NOT use it as a restart substitute — the recent head stays INTACT and a summary of the dropped tail is auto-created. The summarizer model pair is NOT an argument: it resolves from the root opencode.jsonc agent.compaction.model when set, else from the compacting session's own model.",
         args: {
           sessionID: tool.schema.string().optional().describe("Session to compact. Omit = your own session (the SELF path). An explicit id = ANOTHER session (the CROSS fire-and-forget path)."),
           keepMessages: tool.schema.number().optional().describe("Recent messages to retain (e.g. 18) — drives a keepTokens computation at dispatch time: the provider-token mass of the last N messages (S-diff: cumulative context size input+output+cache.read across the window; bytes/4 fallback) is sent as keep.tokens in the summarize body (the host retains the token budget, not the count); the budget file's keepTokens is the fallback when the read fails or the sum is 0."),
@@ -389,6 +394,10 @@ export default async function CompactMemoryPlugin(ctx: any) {
               return "Compaction request failed: no session id available (pass the sessionID argument or a context session id).";
             }
             const isSelf = sessionID === c?.sessionID;
+            // The caller-scoped CROSS override (TODO #128, ruling
+            // 2026-09-30): an explicit id != the calling session is a CROSS
+            // caller (an explicit id EQUAL to the caller is still SELF).
+            const isCross = explicitID != null && !isSelf;
 
             // 2. resolve the model pair — resolveModel is the FALLBACK (self:
             //    extra.model; cross: the messages-RPC read of the LAST entry —
@@ -419,9 +428,18 @@ export default async function CompactMemoryPlugin(ctx: any) {
             // consumes the configured emergency_budget 1 (count → cap+1);
             // count > cap is the fully-exhausted refusal state (item 11
             // directive). No store-schema bump — the count tracks it.
+            // The caller-scoped CROSS override (TODO #128, ruling
+            // 2026-09-30): a CROSS caller gets an effective cap of cap + 1 —
+            // the total spendable stays cap + the one emergency, THE SAME
+            // AS SELF (the override is NOT a second slot: cross at
+            // count == cap+1 stays refused; at cap 0 the uniform arithmetic
+            // allows exactly 1 — the cap-0 correction, no special CPU
+            // denial).
+            const effCap = isCross ? cap + 1 : cap;
             const emergencyArg = args?.emergency === true;
             let isEmergency = false;
-            if (count >= cap) {
+            let isOverride = false; // the Part-3 audit token: the cross override slot consumed
+            if (count >= effCap) {
               if (count === cap && emergencyArg && cfg.emergency_budget >= 1) {
                 isEmergency = true;
               } else {
@@ -429,15 +447,24 @@ export default async function CompactMemoryPlugin(ctx: any) {
                   count === cap && !emergencyArg && cfg.emergency_budget >= 1
                     ? " The emergency compaction (once per session) is available via the `emergency` argument."
                     : " The emergency compaction is unavailable or already consumed — the budget is fully exhausted.";
+                const ovrNote = isCross
+                  ? " The caller-scoped cross override slot is consumed — the budget is fully exhausted."
+                  : "";
                 return (
                   `Compaction refused: the compaction budget for ${sessionID} is exhausted — ` +
                   `model class ${label} (cap ${cap}), used ${count}/${cap}. ` +
                   `Hand over and start fresh — write the handover summary and let the loop restart with a fresh session.` +
+                  ovrNote +
                   emergencyNote +
                   (modelNote !== "" ? `\n${modelNote}` : "")
                 );
               }
             }
+            // Part 3 (TODO #128, zero behavior): the CROSS dispatch that
+            // SUCCEEDS with pre-dispatch count == cap consumed the override
+            // slot (the target's normal cap was already spent) — the
+            // verified-success COMPACT line gains the `ovr` token.
+            if (isCross && count === cap) isOverride = true;
 
             // Pre-compaction dump hook (TODO #152): before ANY dispatch, dump
             // the target session's full pre-compaction content into the corpus
@@ -498,9 +525,9 @@ export default async function CompactMemoryPlugin(ctx: any) {
                     deleteQueuedMessage(root, sessionID); // zombie guard: the compaction never happened
                     return;
                   }
-                   recordVerifiedSuccess(root, c, sessionID, model, messagesToKeep, keepRes, isEmergency);
-                 })
-                  .catch((err: unknown) => {
+                    recordVerifiedSuccess(root, c, sessionID, model, messagesToKeep, keepRes, isEmergency, isOverride);
+                  })
+                   .catch((err: unknown) => {
                     console.error(
                       `compact_memory: background compaction rejected for ${sessionID}:`,
                       err instanceof Error ? err.message : String(err),
@@ -528,8 +555,8 @@ export default async function CompactMemoryPlugin(ctx: any) {
                     deleteQueuedMessage(root, sessionID); // zombie guard: the compaction never happened
                     return;
                   }
-                   if (note !== "") console.log(`compact_memory (${sessionID}): ${note}`);
-                   recordVerifiedSuccess(root, c, sessionID, model, messagesToKeep, keepRes, isEmergency);
+                    if (note !== "") console.log(`compact_memory (${sessionID}): ${note}`);
+                    recordVerifiedSuccess(root, c, sessionID, model, messagesToKeep, keepRes, isEmergency, isOverride);
                 })
                 .catch((err: unknown) => {
                   console.error(

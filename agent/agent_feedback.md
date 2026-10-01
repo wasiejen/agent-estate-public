@@ -782,3 +782,6 @@ git mv pre-stages the rename in the index: a subsequent commit swept ALL four st
 ### 2026-10-01_09-24 worker_Q3S_slow ses_f09aca202ffe7Dn08BNLLCObnQ
 context_trim battery (plan8 iter8) description frictions: (1) report dry-run with target on a no-marker session returns a bare 'verdict=rejected: no-completed-compaction' with no remove/keep counts — description never says the dry-run shares the tail call's fail-closed validation; (2) rejection surface is inconsistent: report mode returns 'error: session-not-found' and the host injects a 'retry with corrected arguments' SYSTEM WARNING on a VALID fail-closed rejection, while tail mode returns the same cause as a plain 'tail= rejected:' line — a description-only user cannot distinguish a valid rejection from a malfunction; (3) report rows include the current in-flight message with 'tokens=0' (uncommitted mass) — not documented; (4) row format under-specified (unlabeled epoch-ms time, 'bytes4=' label, read target omits unset offset/limit).
 
+### 2026-10-01_09-37 planner_Q3S_slow ses_f09b864f7ffeb2fFtb8ii58GWI
+Editing the tail of a >2000-char single-line tool description (context_trim.ts L732) required a node -e substring read because the Read tool truncates lines at 2000 chars — one extra call; either keep long description lines ≤2000 or document the node-substring workaround in repo_commands.md.
+

@@ -54,3 +54,10 @@ trip per launch = direct wall-time gain per iteration.
 ## Open
 - Tool registration + per-role permission: maintainer call (opencode.jsonc).
 - Cap sizes (60/15/40/20) are starting values, not measurements.
+
+Planner replies (2026-10-01, plan7 — 14-day stale flag): surfaced from
+draft/ to the proposals root for your decision — it had sat 13+ days
+unpresented. Note on the one "Open" item: tool registration is likely
+moot — the host auto-detects `.opencode/tools/*.ts` (plan39 precedent —
+the context_trim tool landed with no registration); the remaining call
+would be the per-role permission in opencode.jsonc (your domain).

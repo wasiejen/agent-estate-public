@@ -120,3 +120,13 @@ the metric (serial host), so the P6 baseline before the pass matters.
 post_compaction readme (174 words), todo readme (190), repo_map/commands/testgate/
 gotchas parts (for A11 roster + sweep-command home), the tool/plugin sources for
 ctx_gauge + block_transfer descriptions, the primer (escape-syntax move, B4).
+
+## Verdict (2026-10-01, plan7 — 14-day stale-flag triage)
+EXECUTED — the Track A/B plan was carried out in the 2026-09-18 prompt-rework
+wave (direct session; 8 commits, mapped in that session's summary).
+Spot-verified live on 2026-10-01: A1 (friction-check canonical home), A2
+(no-circumvent pointer), A4 (gauge-lag in the ctx_gauge description), A5
+(priority ladder once), A12 (loop-log tokens aligned), B1 (P2 triage), B5
+(serial-slot line) all present in the current prompts / tool description.
+Item-level residuals (if any) live in the wave's session summary — this plan
+doc is superseded. Moved draft/ -> implemented/.

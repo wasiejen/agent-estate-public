@@ -46,3 +46,10 @@ Next ≥3 worker/planner sessions reaching ≥80 %: check via loop_log + compact
 whether triage fired (compaction BEFORE the 90 % emergency tier) — expected delta:
 fewer emergency handovers at 90/95 %, no task abandonment. Calibrate the 10/6 values
 from the first measured runs (P6 script).
+
+## Verdict (2026-10-01, plan7 — 14-day stale-flag triage)
+IMPLEMENTED — per the status line above: the canonical triage text landed
+directly in the role prompts per maintainer direction (2026-09-18).
+Spot-verified live on 2026-10-01: the 80/90/95 triage thresholds sit in the
+planner prompt §Context-budget trigger (canonical for all roles) and the
+90 % stop line in AGENTS.md §Context budget. Moved draft/ -> implemented/.

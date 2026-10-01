@@ -51,6 +51,14 @@
 // the current looprun's loop_log.md (+ one `limit-stop=` attribution
 // line in auto_resume.log) on the tick (the 60 s silence gate is tested
 // with a GLOBAL Date.now offset — no real 60 s waits).
+// TODO #120 Unit 2: the post-compaction TAIL-SET leg (the tick leg AFTER
+// #98 part B, BEFORE #109) — the NEW ctx.log COMPACT lines' keep counts
+// (EVERY line, watched or not) drive the context_trim core's tailSetKeep
+// against the FIXTURE db (the factory's dbPath option, set on the FIRST
+// factory call — the live opencode.db is NEVER written by this smoke):
+// the fresh compaction part's tail_start_id is rewritten to the keep
+// boundary + a `tail-set=` log line; no fire for a COMPACT line WITHOUT
+// a keep field or for a non-COMPACT line.
 // The plugin factory is called with a SCRATCHPAD sandbox `directory` —
 // auto_resume.log lands in the sandbox (.opencode/temp/auto_resume.log
 // under the sandbox project), NEVER the live .opencode/temp/. Run:
@@ -59,6 +67,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { DatabaseSync } from "node:sqlite";
 import { REPO_ROOT, loadRepo, freshSandbox, makeChecker } from "./_smoke_base.mjs";
 
 const base = freshSandbox("auto_resume");
@@ -126,9 +135,70 @@ try {
     create: function () {},
     // NOTE: no `compact` — the v1-generation client surface
   };
+  // TODO #120 Unit 2: the tail-set leg's FIXTURE db (the factory's
+  // dbPath option — the live opencode.db is NEVER written by this
+  // smoke). ses_tail_fix: 10 messages before the marker, the marker
+  // quartet (tail_start_id = msg_t05), the summary child, 2 after —
+  // built BEFORE the first factory call (a tail-set attempt against a
+  // later ctx.log line must find the db, even if the sid is absent).
+  const TAILDB = path.join(base, "tail_fix.db");
+  {
+    const W = new DatabaseSync(TAILDB);
+    W.exec("PRAGMA foreign_keys = ON;");
+    W.exec(`
+      CREATE TABLE project (id TEXT PRIMARY KEY);
+      CREATE TABLE session (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+        time_created INTEGER NOT NULL,
+        time_updated INTEGER NOT NULL
+      );
+      CREATE TABLE message (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+        time_created INTEGER NOT NULL,
+        time_updated INTEGER NOT NULL,
+        data TEXT NOT NULL
+      );
+      CREATE TABLE part (
+        id TEXT PRIMARY KEY,
+        message_id TEXT NOT NULL REFERENCES message(id) ON DELETE CASCADE,
+        session_id TEXT NOT NULL,
+        time_created INTEGER NOT NULL,
+        time_updated INTEGER NOT NULL,
+        data TEXT NOT NULL
+      );
+    `);
+    W.prepare("INSERT INTO project (id) VALUES (?)").run("prj_tail");
+    W.prepare("INSERT INTO session (id, project_id, time_created, time_updated) VALUES ('ses_tail_fix', 'prj_tail', 0, 0)").run();
+    const putT = (id, time, text) => {
+      W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, 'ses_tail_fix', ?, ?, ?)").run(id, time, time, JSON.stringify({ role: "user", time: { created: time } }));
+      W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, 'ses_tail_fix', ?, ?, ?)").run(`p_${id}t`, id, time, time, JSON.stringify({ type: "text", text }));
+    };
+    const putTa = (id, time) => {
+      W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, 'ses_tail_fix', ?, ?, ?)").run(id, time, time, JSON.stringify({ role: "assistant", parentID: `p_${id}u`, finish: "stop" }));
+      W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, 'ses_tail_fix', ?, ?, ?)").run(`p_${id}a`, id, time, time, JSON.stringify({ type: "text", text: "ok" }));
+    };
+    // 10 messages before the marker (msg_t01..msg_t10).
+    putT("msg_t01", 100, "t one"); putTa("msg_t02", 200);
+    putT("msg_t03", 300, "t three"); putTa("msg_t04", 400);
+    putT("msg_t05", 500, "t five"); putTa("msg_t06", 600);
+    putT("msg_t07", 700, "t seven"); putTa("msg_t08", 800);
+    putT("msg_t09", 900, "t nine"); putTa("msg_t10", 1000);
+    // The marker quartet (tail_start_id = msg_t05) + the summary child +
+    // 2 messages after the summary.
+    W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_t11', 'ses_tail_fix', 13000, 13000, ?)").run(JSON.stringify({ role: "user", time: { created: 13000 } }));
+    W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES ('p_t11c', 'msg_t11', 'ses_tail_fix', 13000, 13000, ?)").run(JSON.stringify({ type: "compaction", auto: false, tail_start_id: "msg_t05" }));
+    W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_t12', 'ses_tail_fix', 14000, 14000, ?)").run(JSON.stringify({ role: "assistant", parentID: "msg_t11", summary: true, finish: "stop" }));
+    putT("msg_t13", 15000, "t post one");
+    putTa("msg_t14", 16000);
+    W.close();
+  }
   // tickMs: the test-only short tick (the module-level tick is set by the
   // FIRST factory call — later re-factories don't re-arm it).
-  const hooks = await factory({ directory: proj, tickMs: TICK, client: mkClient(v1Session, () => "log") });
+  // dbPath: the tail-set leg's FIXTURE db (test-only lever — the live
+  // host never passes the option, the live DB is the only target).
+  const hooks = await factory({ directory: proj, tickMs: TICK, dbPath: TAILDB, client: mkClient(v1Session, () => "log") });
   chk("factory returns the event hook (function)", typeof hooks === "object" && typeof hooks.event === "function");
   const l0 = readLines();
   const surf = l0.find((l) => l.includes("surface="));
@@ -2213,6 +2283,47 @@ try {
       okLs6 && lsWarn("ses_ls_fire").length === 2 && lsSends.length === 0 && lsCreates.length === 0,
       `warn=${lsWarn("ses_ls_fire").length} sends=${lsSends.length} creates=${lsCreates.length}`);
 
+    // ============================================================
+    // TODO #120 Unit 2 — the post-compaction TAIL-SET leg (the tick
+    // leg AFTER #98 part B, BEFORE #109): a NEW ctx.log COMPACT line
+    // (keep=<n>m) rewrites the fresh compaction part's tail_start_id
+    // to the keep boundary via tailSetKeep against the FIXTURE db
+    // (the factory's dbPath option — the live opencode.db is NEVER
+    // written by this smoke) + a `tail-set=` log line. The leg does
+    // NOT fire for a COMPACT line without a keep= field nor for a
+    // non-COMPACT line. (The #109(2) COMPACT line keep=5m already
+    // fired against the fixture with sid ses_ls_compact → the
+    // fail-closed session-not-found rejection line is the expected
+    // pre-existing `tail-set=` line below.)
+    // ============================================================
+    const tsLog = () => readLines().filter((l) => l.includes("tail-set= sid=ses_tail_fix"));
+    const tsAll = () => readLines().filter((l) => l.includes("tail-set="));
+    // The NEW ctx.log batch: the keep line (ses_tail_fix) + a no-keep
+    // COMPACT line (ses_tail_nok) + a non-COMPACT gauge line.
+    const tsCtxLog = path.join(proj, ".opencode", "temp", "ctx.log");
+    fs.appendFileSync(tsCtxLog,
+      "2026-10-01_10-00 Qwen3.8-27B-Q3S-235K COMPACT ses_tail_fix keep=7m tok=12345 computed\n" +
+      "2026-10-01_10-01 Qwen3.8-27B-Q3S-235K COMPACT ses_tail_nok messages=9\n" +
+      "2026-10-01_10-02 SESSION=ses_tail_fix CTX=12345 (61%) REM=87655 | 5 compactions left\n", "utf-8");
+    const okTs = await waitUntil(() => tsLog().length === 1, 12000);
+    await tickWait(); // settle: the no-fire absences must be settled
+    chk("#120 (1): a NEW ctx.log COMPACT line (keep=7m) rewrites the fixture tail to the 7th message strictly before the compaction row (msg_t04) + the `tail-set=` log line landed",
+      okTs && tsLog().length === 1 &&
+        tsLog()[0].includes("tail-set= sid=ses_tail_fix tail-set= msg_t05 -> msg_t04 keep=7"),
+      `n=${tsLog().length} line=${tsLog()[0] ?? ""}`);
+    {
+      const RO = new DatabaseSync(TAILDB, { readOnly: true });
+      const partJson = RO.prepare("SELECT data FROM part WHERE id = 'p_t11c'").get().data;
+      RO.close();
+      chk("#120 (2): the fixture part row carries the new tail_start_id (single-field JSON edit, byte-exact — the live opencode.db was never touched)",
+        partJson === '{"type":"compaction","auto":false,"tail_start_id":"msg_t04"}',
+        JSON.stringify(partJson));
+    }
+    chk("#120 (3): the leg does NOT fire for a COMPACT line without a keep= field (ses_tail_nok) nor for a non-COMPACT line (exactly TWO tail-set= lines total: the #109(2) session-not-found rejection + this success)",
+      tsAll().length === 2 && !tsAll().some((l) => l.includes("ses_tail_nok")) &&
+        tsAll().some((l) => l.includes("tail-set= sid=ses_ls_compact tail-set= rejected: session-not-found")),
+      `n=${tsAll().length} lines=${JSON.stringify(tsAll().map((l) => l.split(" ").slice(1, 3).join(" ")))}`);
+
     // ---- the live log received NO smoke line. The LIVE plugin instance
   // (this host) keeps appending ITS OWN live-session lines in real time
   // while the smoke runs, so the live size may legitimately grow — the
@@ -2228,7 +2339,7 @@ try {
   } else if (liveBefore === null && liveSizeNow > 0) {
     appended = fs.readFileSync(LIVE_LOG, "utf-8"); // did not exist before — all new
   }
-  const smokeSids = ["ses_smoke_ar1", "ses_throwing", "ses_u2_sat", "ses_u2_low", "ses_u2_over", "ses_u2_nomodel", "ses_u2_noprov",     "ses_u2_sendfail", "ses_u2_noprov2", "ses_u2_str", "ses_u2_tgnof", "ses_u2_tgoff", "ses_u2_tgon", "ses_u2_tgmal", "ses_u3_new", "ses_u3_chk2", "ses_u4_stop", "ses_u4_ask", "ses_u4_restart", "ses_u4_sux", "ses_u4_succ", "ses_u4_noline", "ses_u4_plain", "ses_u4_wrap", "ses_u4_throw", "ses_u4_spawn", "ses_u4_cap", "ses_u4_relay", "ses_u4_exh", "ses_u4_emg", "ses_u2_agnet", "ses_u2_agnone", "ses_u4_worker", "ses_u4_worker_on", "ses_u4_pb", "ses_u4_lastoff", "ses_u4_mid", "ses_p2_cur", "ses_p2_rs", "ses_p2_fb", "ses_p2_dm", "ses_p2_spawn", "ses_u2_hi98", "ses_u2_two", "ses_u2_direct", "ses_u2_stale", "ses_u2_cfa_low", "ses_u2_cfa_hi", "ses_u2_cfb_edit", "ses_u2_cfb_fire", "ses_u2_cfb_no", "ses_u2_cfc_fire", "ses_u2_cfc_no", "ses_u2_cfd_low", "ses_u2_cfd_hi", "ses_p3_pldirect", "ses_90_worker", "ses_90_spawn", "ses_90_trig", "ses_90_t0", "ses_90_d1", "ses_90_d2", "ses_90_fail", "ses_90_file", "ses_p98_prose", "ses_p98_own", "ses_p98_spawn", "ses_p98_compact", "ses_p98_unwatched", "ses_ls_fire", "ses_ls_compact", "ses_ls_low", "ses_ls_direct", "ses_ls_spawn"];
+  const smokeSids = ["ses_smoke_ar1", "ses_throwing", "ses_u2_sat", "ses_u2_low", "ses_u2_over", "ses_u2_nomodel", "ses_u2_noprov",     "ses_u2_sendfail", "ses_u2_noprov2", "ses_u2_str", "ses_u2_tgnof", "ses_u2_tgoff", "ses_u2_tgon", "ses_u2_tgmal", "ses_u3_new", "ses_u3_chk2", "ses_u4_stop", "ses_u4_ask", "ses_u4_restart", "ses_u4_sux", "ses_u4_succ", "ses_u4_noline", "ses_u4_plain", "ses_u4_wrap", "ses_u4_throw", "ses_u4_spawn", "ses_u4_cap", "ses_u4_relay", "ses_u4_exh", "ses_u4_emg", "ses_u2_agnet", "ses_u2_agnone", "ses_u4_worker", "ses_u4_worker_on", "ses_u4_pb", "ses_u4_lastoff", "ses_u4_mid", "ses_p2_cur", "ses_p2_rs", "ses_p2_fb", "ses_p2_dm", "ses_p2_spawn", "ses_u2_hi98", "ses_u2_two", "ses_u2_direct", "ses_u2_stale", "ses_u2_cfa_low", "ses_u2_cfa_hi", "ses_u2_cfb_edit", "ses_u2_cfb_fire", "ses_u2_cfb_no", "ses_u2_cfc_fire", "ses_u2_cfc_no", "ses_u2_cfd_low", "ses_u2_cfd_hi", "ses_p3_pldirect", "ses_90_worker", "ses_90_spawn", "ses_90_trig", "ses_90_t0", "ses_90_d1", "ses_90_d2", "ses_90_fail", "ses_90_file", "ses_p98_prose", "ses_p98_own", "ses_p98_spawn", "ses_p98_compact", "ses_p98_unwatched", "ses_ls_fire", "ses_ls_compact", "ses_ls_low", "ses_ls_direct", "ses_ls_spawn", "ses_tail_fix", "ses_tail_nok"];
   chk("LIVE .opencode/temp/auto_resume.log received no smoke line (sandbox got every smoke line)",
     liveBefore === liveSizeNow || !smokeSids.some((s) => appended.includes(s)), `before=${liveBefore} after=${liveSizeNow}`);
   chk("sandbox log path is under the sandbox", sandboxLog.startsWith(base), sandboxLog);

@@ -178,6 +178,19 @@
 // until the maintainer retired the looprunner (his call). It no longer
 // applies — no other live agent reacts to `action: restart`.
 //
+// POST-COMPACTION TAIL-SET (TODO #120 Unit 2 — the plugin-side
+// zero-fork follow-up to the context-trim build): on the tick, AFTER
+// the #98 part B re-arm leg, the NEW ctx.log COMPACT lines' keep
+// counts (EVERY line — watched or not) drive the context_trim core's
+// tailSetKeep: the fresh compaction part's tail_start_id is rewritten
+// to the agent-requested keep boundary (the exact count-based
+// retention, replacing the host's default token-budget tail) via the
+// same fail-closed validated single-transaction write (the host's own
+// lever, compaction.ts:461-466 — the context re-derives from the DB at
+// the next step, zero restart). One `tail-set=` attribution line per
+// COMPACT line; a COMPACT line without a keep field (or a non-COMPACT
+// line) never fires.
+//
 // DELIBERATELY ABSENT (later units / prompts): abort escalation,
 // subagent special-casing, magic-context handling, busy-silence stall
 // detection, NAP/TODO/maintainer file access.
@@ -192,6 +205,14 @@ import { createHash } from "node:crypto";
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+// TODO #120 Unit 2: the post-compaction tail-set leg's write path — the
+// context_trim core's tailSetKeep (the exact 5 fail-closed validations +
+// the json_set single-transaction write, reused — the host's own lever,
+// compaction.ts:461-466) + the gauge's default DB path (the live
+// opencode DB — the factory's dbPath option overrides it for the smoke's
+// FIXTURE db; the live host never passes the option).
+import { tailSetKeep } from "../tools/context_trim.ts";
+import { DEFAULT_DB_PATH } from "./scripts/gauge.mjs";
 
 // The v1 candidate session.* methods probed at init (the design's
 // candidate list; the live typeof verdicts land in the surface report).
@@ -317,6 +338,16 @@ let jsoncAgentsCache: Record<string, unknown> | null | undefined;
 // is a single UTF-8 byte), so a byte offset is a character boundary;
 // a size REGRESSION (rotation/trim) resets it to 0).
 let ctxLogOffset = 0;
+// TODO #120 Unit 2: the pending tail-set pairs — EVERY new ctx.log
+// COMPACT line carrying a keep field (watched or NOT — the tail-set is
+// DB-side, not watch-side). Queued by tailCompactRearm, drained by
+// tailSetLeg on the SAME tick (a same-tick COMPACT is visible). A line
+// without the keep field queues nothing (the leg does not fire for it).
+const tailSetQueue: Array<{ sid: string; keep: number }> = [];
+// TODO #120 Unit 2: the tail-set leg's DB path — the gauge's
+// DEFAULT_DB_PATH (the live opencode DB) unless the factory overrides it
+// (the smoke's FIXTURE db — the live DB is NEVER written by the smokes).
+let tailSetDbPath = DEFAULT_DB_PATH;
 
 // Unit 2 module-level state (all state at module level — the file's
 // Unit 1 shape): per-session watches, the re-entrancy latch, the
@@ -1459,10 +1490,16 @@ async function routeScopedIdle(sid: string, w: Watch) {
   }
 }
 
-// #98 part B: the COMPACT-line sid extractor (the measured ctx.log
-// line format: `<YYYY-MM-DD_HH-MM> <model> COMPACT <sid>
-// [tok=<n> <source>] messages=<n>`).
+// #98 part B: the COMPACT-line sid extractor (the measured ctx.log line
+// form — the #99 writer, compaction_core.ts appendCompactLine:
+// `<YYYY-MM-DD_HH-MM> [model] COMPACT <sid> keep=<n>m tok=<tok>
+// <source>[ emergency][ ovr][( preField)]`; the keep count is ALWAYS
+// present on a live line).
 const COMPACT_SID_RE = /\bCOMPACT\s+(ses_[A-Za-z0-9_]+)/;
+// TODO #120 Unit 2: the keep-count extractor (the `keep=<n>m` field of
+// the #99 line form — a synthetic / hand-written line WITHOUT the field
+// yields no pair, so the tail-set leg does not fire for it).
+const COMPACT_KEEP_RE = /\bkeep=(\d+)m\b/;
 
 // #98 part B: the RE-ARM tail-read — on EVERY tick, read only the NEW
 // content of `.opencode/temp/ctx.log` since the last tick (the
@@ -1512,13 +1549,46 @@ function tailCompactRearm(): void {
   }
   for (const line of complete.split("\n")) {
     const m = line.match(COMPACT_SID_RE);
-    if (!m) continue;
+    if (!m) continue; // non-COMPACT lines queue nothing
+    // TODO #120 Unit 2: EVERY new COMPACT line carrying a keep field
+    // queues a (sid, keep) pair (watched or not — the tail-set is
+    // DB-side); a line without the field queues nothing.
+    const km = line.match(COMPACT_KEEP_RE);
+    if (km) tailSetQueue.push({ sid: m[1], keep: Number(km[1]) });
     const w = watches.get(m[1]);
     if (!w) continue; // only watched sids
     w.lastCompactAt = Date.now(); // #109: this NEW COMPACT line's event time
     w.idlePending = true;
     w.recoveryCount = 0; // a FRESH recovery budget (the context changed)
     log(`rearm= compact sid=${m[1]}`);
+  }
+}
+
+// TODO #120 Unit 2: the post-compaction TAIL-SET leg — after ANY host
+// compaction lands, rewrite the fresh compaction part's tail_start_id
+// to the agent-requested keep boundary (the exact count-based retention
+// — the `keep`-th message strictly before the compaction user row),
+// replacing the host's default token-budget tail. Drains the pairs
+// queued by tailCompactRearm (same tick): for each (sid, keep) the
+// context_trim core's tailSetKeep (the exact 5 fail-closed validations
+// + the json_set single-transaction write — the host's own lever,
+// compaction.ts:461-466; the context re-derives from the DB at the top
+// of the next loop step — zero restart) against the gauge's
+// DEFAULT_DB_PATH (the factory's dbPath option overrides it — the
+// smoke's fixture; the live host never passes it). One `tail-set=`
+// attribution line per COMPACT line; rejections (session-not-found,
+// floor, …) are logged the same way (fail-closed, no write). Never
+// throws (the tick's never-throw contract — tailSetKeep itself never
+// throws, the catch is belt-and-braces).
+async function tailSetLeg(): Promise<void> {
+  while (tailSetQueue.length > 0) {
+    const pair = tailSetQueue.shift()!;
+    try {
+      const result = await tailSetKeep(tailSetDbPath, pair.sid, pair.keep);
+      log(`tail-set= sid=${pair.sid} ${result}`);
+    } catch {
+      // never throw (the tick's never-throw contract)
+    }
   }
 }
 
@@ -1615,8 +1685,11 @@ async function limitStopCheck(): Promise<void> {
 // the only decision+send funnel. Unit 3's
 // trigger check runs first (the spawn is a high-priority action), then
 // #98 part B re-arms the watched sids on a NEW ctx.log COMPACT line,
-// then #109 checks the silent limit-stop, then Unit 4 routes every
-// scoped session with a pending idle decision.
+// then TODO #120 Unit 2 rewrites the fresh compaction part's tail to
+// the keep boundary (the NEW COMPACT lines' keep counts, every line —
+// a same-tick COMPACT is visible), then #109 checks the silent
+// limit-stop, then Unit 4 routes every scoped session with a pending
+// idle decision.
 // (#85 part 3: Unit 2 has no tick leg anymore — the nudge is a passive
 // ctx-line suffix on the tool-call return, gated per tool result in
 // onToolAfterNudge.) Never throws out (an unhandled rejection from the
@@ -1633,7 +1706,12 @@ async function tick() {
     // swallow — the timer callback must never reject
   }
   try {
-    await limitStopCheck(); // #109 — AFTER tailCompactRearm (a same-tick COMPACT is visible), BEFORE the routing loop
+    await tailSetLeg(); // TODO #120 Unit 2 — AFTER tailCompactRearm (a same-tick COMPACT is visible), BEFORE limitStopCheck
+  } catch {
+    // swallow — the timer callback must never reject
+  }
+  try {
+    await limitStopCheck(); // #109 — AFTER the tail-set leg (a same-tick COMPACT is visible), BEFORE the routing loop
   } catch {
     // swallow — the timer callback must never reject
   }
@@ -1951,6 +2029,12 @@ export default (async (input: PluginInput) => {
   // (test-only lever).
   const tickOpt: unknown = (input as Record<string, unknown> | undefined)?.tickMs;
   const tickMs = typeof tickOpt === "number" && Number.isFinite(tickOpt) && tickOpt > 0 ? tickOpt : TICK_MS_DEFAULT;
+  // TODO #120 Unit 2: the tail-set leg's DB path — the gauge's
+  // DEFAULT_DB_PATH default (the live host never passes the option);
+  // the smoke passes its FIXTURE db so the live opencode.db is NEVER
+  // written by the smokes (test-only lever, the tickMs pattern).
+  const dbPathOpt: unknown = (input as Record<string, unknown> | undefined)?.dbPath;
+  if (typeof dbPathOpt === "string" && dbPathOpt !== "") tailSetDbPath = dbPathOpt;
   if (!tickTimer) {
     tickTimer = setInterval(() => {
       void tick(); // the tick (5000ms by default) — the only decision+send funnel

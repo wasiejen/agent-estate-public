@@ -92,7 +92,9 @@
 // Registration is the maintainer's domain (the live opencode.jsonc —
 // this file is deliberately NOT registered in any repo config; the
 // handover carries the registration snippet).
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+const execFileAsync = promisify(execFile);
 import { existsSync } from "node:fs";
 import { tool } from "@opencode-ai/plugin";
 import { DEFAULT_DB_PATH, BUSY_TIMEOUT_MS, DEFAULT_EXE_PATH } from "../plugin/scripts/gauge.mjs";
@@ -166,15 +168,21 @@ function bindSql(sql: string, args: any[]): string {
 // gauge's separator-less call works live — same exe, same ro-URI).
 // `dbRef` is the READ-ONLY URI for report reads, the plain path for the
 // write call.
-function runCli(dbRef: string, sql: string): string {
+// ASYNC (the gauge's proven pattern): the live Bun host's execFileSync
+// works ONCE per process and every later spawn 2500 ms-kills (a
+// compiled-Bun Windows stdio-handle issue — measured 2026-10-01: the
+// first CLI call after each restart succeeds, every later one hangs,
+// while bash/node parents and the gauge's async execFile keep working).
+async function runCli(dbRef: string, sql: string): Promise<string> {
   try {
-    return String(
-      execFileSync(DEFAULT_EXE_PATH, ["-separator", "\x01", dbRef, sql], {
-        timeout: SPAWN_TIMEOUT_MS,
-        maxBuffer: SPAWN_MAX_BUFFER,
-        encoding: "utf8",
-      }),
-    );
+    // promisified execFile resolves with an {stdout, stderr} object (the
+    // node special case — the gauge reads res.stdout the same way).
+    const res = (await execFileAsync(DEFAULT_EXE_PATH, ["-separator", "\x01", dbRef, sql], {
+      timeout: SPAWN_TIMEOUT_MS,
+      maxBuffer: SPAWN_MAX_BUFFER,
+      encoding: "utf8",
+    })) as any;
+    return String(res?.stdout ?? res);
   } catch (e: any) {
     const isTimeout = e?.killed === true || /timed?\s*out/i.test(String(e?.message ?? ""));
     const stderr = String(e?.stderr ?? "").trim();
@@ -222,24 +230,24 @@ function openSpawnDb(dbPath: string) {
   db.prepare = (sql: string) => {
     const bound = (...args: any[]) => bindSql(sql, args);
     return {
-      get: (...args: any[]) => {
-        const rows = parseRows(runCli(roUri, bound(...args)), selectNames(sql));
+      get: async (...args: any[]) => {
+        const rows = parseRows(await runCli(roUri, bound(...args)), selectNames(sql));
         return rows.length > 0 ? rows[0] : null;
       },
-      all: (...args: any[]) => parseRows(runCli(roUri, bound(...args)), selectNames(sql)),
-      run: (...args: any[]) => {
+      all: async (...args: any[]) => parseRows(await runCli(roUri, bound(...args)), selectNames(sql)),
+      run: async (...args: any[]) => {
         const stmt = bound(...args);
         const full = stmt.endsWith(";") ? stmt : stmt + ";";
         if (db.tx != null) {
           db.tx.push(full);
         } else {
-          runCli(dbPath, full);
+          await runCli(dbPath, full);
         }
         return {};
       },
     };
   };
-  db.exec = (sql: string) => {
+  db.exec = async (sql: string) => {
     const t = sql.trim();
     if (/^BEGIN\b/i.test(t)) {
       db.tx = [`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS};`, t];
@@ -249,7 +257,7 @@ function openSpawnDb(dbPath: string) {
       // The buffered statements + the COMMIT itself, ONE invocation.
       const script = [...(db.tx ?? []), t].map((s) => (s.endsWith(";") ? s : s + ";")).join("\n");
       db.tx = null;
-      runCli(dbPath, script);
+      await runCli(dbPath, script);
       return;
     }
     if (/^ROLLBACK\b/i.test(t)) {
@@ -262,7 +270,7 @@ function openSpawnDb(dbPath: string) {
       // — a bare open-time PRAGMA needs no connection.
       return;
     }
-    runCli(dbPath, t);
+    await runCli(dbPath, t);
   };
   db.close = () => {
     db.tx = null;
@@ -330,13 +338,13 @@ function parseJsonSafe(raw: string, what: string): any {
 
 // Loads the session's messages + parts in the host's ASCENDING
 // (time_created, id) order (the window-math order, see the header).
-function loadSession(ctx: Ctx, sessionID: string): { exists: boolean; msgs: Msg[] } {
-  const sess = ctx.db.prepare("SELECT id FROM session WHERE id = ?").get(sessionID);
+async function loadSession(ctx: Ctx, sessionID: string): Promise<{ exists: boolean; msgs: Msg[] }> {
+  const sess = await ctx.db.prepare("SELECT id FROM session WHERE id = ?").get(sessionID);
   if (sess == null) return { exists: false, msgs: [] };
-  const mRows: any[] = ctx.db
+  const mRows: any[] = await ctx.db
     .prepare("SELECT id, time_created, data FROM message WHERE session_id = ? ORDER BY time_created ASC, id ASC")
     .all(sessionID);
-  const pRows: any[] = ctx.db
+  const pRows: any[] = await ctx.db
     .prepare("SELECT id, message_id, data FROM part WHERE session_id = ? ORDER BY message_id ASC, id ASC")
     .all(sessionID);
   const partsByMsg = new Map<string, Part[]>();
@@ -503,7 +511,7 @@ export async function reportWindow(dbPath: string, sessionID: string, target?: s
     return `db-error: ${String(e?.message ?? e).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
   }
   try {
-    const loaded = loadSession(ctx, sessionID);
+    const loaded = await loadSession(ctx, sessionID);
     if (!loaded.exists) return `session ${sessionID}\nerror: session-not-found`;
     const msgs = loaded.msgs;
     const w = computeWindow(msgs);
@@ -583,7 +591,7 @@ export async function tailSet(dbPath: string, sessionID: string, targetID: strin
     return `tail= db-error: ${String(e?.message ?? e).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
   }
   try {
-    const loaded = loadSession(ctx, sessionID);
+    const loaded = await loadSession(ctx, sessionID);
     if (!loaded.exists) return `tail= rejected: session-not-found`;
     const msgs = loaded.msgs;
     const w = computeWindow(msgs);
@@ -618,14 +626,14 @@ export async function tailSet(dbPath: string, sessionID: string, targetID: strin
     const oldTail = part.data.tail_start_id;
     const now = Date.now();
 
-    const attempt = () => {
-      ctx.db.exec("BEGIN IMMEDIATE;");
+    const attempt = async () => {
+      await ctx.db.exec("BEGIN IMMEDIATE;");
       try {
-        ctx.db.prepare("UPDATE part SET data = json_set(data, '$.tail_start_id', ?), time_updated = ? WHERE id = ?").run(targetID, now, part.id);
-        ctx.db.exec("COMMIT;");
+        await ctx.db.prepare("UPDATE part SET data = json_set(data, '$.tail_start_id', ?), time_updated = ? WHERE id = ?").run(targetID, now, part.id);
+        await ctx.db.exec("COMMIT;");
       } catch (e) {
         try {
-          ctx.db.exec("ROLLBACK;");
+          await ctx.db.exec("ROLLBACK;");
         } catch {
           // best effort
         }
@@ -633,13 +641,13 @@ export async function tailSet(dbPath: string, sessionID: string, targetID: strin
       }
     };
     try {
-      attempt();
+      await attempt();
     } catch (e: any) {
       if (isBusy(e)) {
         // SQLITE_BUSY → ONE short-backoff retry (the gauge's pattern) →
         // fail-closed.
         try {
-          attempt();
+          await attempt();
         } catch (e2: any) {
           return `tail= db-error: ${String(e2?.message ?? e2).replace(/\r?\n+/g, " | ").slice(0, 120)}`;
         }

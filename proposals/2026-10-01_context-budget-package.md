@@ -78,11 +78,14 @@ proposal)
   quartet / last-turn protection is enforced at the plugin's write time —
   fail-closed validation mirroring the plan36 safe zone: never the current
   last turn, never the marker quartet rows).
-- **Filter state**: recommended — a per-session JSON file
-  `.opencode/temp/session_filter/<sessionID>.json` (zero DB surface; the fork
-  reads it per step; trivially inspectable by agent and maintainer).
-  Alternative: a dedicated filter table (non-destructive rows) — decide in
-  the fork spec.
+- **Filter state** (maintainer ruling 2026-10-01: DB, not a file — the
+  canonical location, works for later-retrieved sessions): a small JSON
+  field on the existing message row's `data` blob (e.g. `data.included:
+  false`) — NO schema change, no new table; a non-destructive additive
+  annotation (same class as the live `context_trim tail` in-place JSON
+  field edit). Mainline opencode ignores unknown blob fields (key access,
+  no schema validation — the field is inert outside the fork); fork smoke
+  pins the spread-survival caveat (`updatePart` `{...part}` preserves it).
 - **Plugin surface**: `context_trim filter <session> <targets…>` (toggle
   on/off by U1 row numbers — per finished turn or per call-result pair) + the
   report shows the filtered state.

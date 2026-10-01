@@ -49,3 +49,15 @@ read-only DB pass per looprun. Negligible against what it gates.
 Run it on the current/next looprun; the table's start/end CTX and warning counts must
 reconcile with the loop_log lines (structural check). First use is also the first
 before-baseline for P2/P4/rework.
+
+## Verdict (2026-10-01, plan7)
+IMPLEMENTED — `agent/scripts/db/loop_stats.cjs` (read-only: loop_log.md +
+ctx.log COMPACT lines + the session DB). Verified: the current looprun
+(autorun-2026-10-01_03-27) -> 15/15 sessions in DB, 7 iterations, 1 scoped
+compaction, gauge readouts reconciled from the loop_log lines; an archived
+run (autorun-2026-09-21_15-33) -> 107/107 sessions + the planner-N token
+cross-check surfaced a planner-49 vs 48-sessions anomaly. README/INVENTORY
+entries landed. Deviations from the draft: iterations = DISTINCT PLANNER
+SESSIONS (the max planner-N token kept as an informational cross-check —
+recent role tokens carry no digit); `--write` writes `_loop_stats.md` into
+the loop folder (first use committed alongside).

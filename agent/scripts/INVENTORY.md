@@ -20,6 +20,7 @@ the helper-script collection was curated from. **Originals are NOT deleted**
 | summarize_intercept.cjs | agent/scripts/log/ |
 | numword.cjs | agent/scripts/numword/ |
 | w2n.py | agent/scripts/numword/ |
+| loop_stats.cjs | agent/scripts/db/ (new 2026-10-01, plan7 — the P6 looprun-measurement draft; read-only) |
 
 Not promoted (dedup/superseded): `findbin.ps1` (PowerShell twin of binwin.cjs),
 `find_ctx*.mjs` (binary context one-shots superseded by binary/), `dump_session.py`

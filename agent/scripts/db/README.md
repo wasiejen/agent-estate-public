@@ -12,6 +12,7 @@ The host DB is LIVE and big (~1.9 GB). Every script here opens it
 | `sesdata.cjs` | `<sid>` → session row + one slim JSON line per message (role/mode/agent/summary/finish/error/tokens/modelID/providerID) | `node agent/scripts/db/sesdata.cjs ses_f59f7cff0ffer37uRICTRFiyS0` → `SESSION: {...}` + `message count: 43` + slim lines, exit 0 |
 | `compact_dir.cjs` | `<sid>` → compaction markers: assistant `mode=compaction` summary + user summary message (full data) + parts (4000-char cap) | `node agent/scripts/db/compact_dir.cjs ses_f6819fba7ffehzefuX23UIM11O` → `=== message ... ===` blocks, exit 0 |
 | `dump_session.cjs` | `<sid>` → LOSSLESS full-detail dump into the repo corpus `archive/sessions/<sid>.md` (tool `state.input`/`state.output` verbatim, no caps — #78); `<sid> --lite` → filtered markdown dump (text/reasoning verbatim, tool header-only, step-start/step-finish skipped); `<sid> --json` → RAW JSON dump (`<sid>.json`; `--out <relpath>` appends `.json` when the relpath has no extension); `<sid> --out <relpath>` → single-session dump to `OUT_DIR/<relpath>` (relpath must be relative, no `..`, safe chars — else exit 2); `--all [--slim\|--full]` corpus backfill. **Writes repo files** (corpus), read-only on the DB | `node agent/scripts/db/dump_session.cjs ses_f5d03802affekevrhzPdvLFaHQ` → `dumped ... messages=65 parts=304 mode=full`, exit 0 |
+| `loop_stats.cjs` | `<looprun-folder>` → looprun measurement (the P6 draft): per-session table (tool calls, parts, wall min, ctx first/last gauge readout from the loop_log lines, scoped COMPACT count from ctx.log) + looprun counters (iterations = distinct planner sessions, worker launches, log-line counts, the max planner-N token cross-check). `--write` also writes `_loop_stats.md` into the looprun folder. Read-only on the DB; writes at most `_loop_stats.md` | `node agent/scripts/db/loop_stats.cjs loop/autorun-2026-10-01_03-27` → per-session table + looprun section, exit 0 |
 
 Usage examples (one each):
 
@@ -22,6 +23,8 @@ node agent/scripts/db/sesdata.cjs ses_f59f7cff0ffer37uRICTRFiyS0
 node agent/scripts/db/compact_dir.cjs ses_f6819fba7ffehzefuX23UIM11O
 node agent/scripts/db/dump_session.cjs <sessionID>      # pre-compaction corpus dump
 node agent/scripts/db/dump_session.cjs <sessionID> --out compaction_dumps/ses_x_c0.md   # to a custom relpath
+node agent/scripts/db/loop_stats.cjs loop/autorun-2026-10-01_03-27            # looprun stats to stdout
+node agent/scripts/db/loop_stats.cjs loop/autorun-2026-10-01_03-27 --write    # + _loop_stats.md in the folder
 ```
 
 Note (2026-09-15, the dump-hook build): the single-session `<sid>` mode keeps

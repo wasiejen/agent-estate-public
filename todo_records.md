@@ -1807,3 +1807,4 @@ smokes, pytest 459+1w, ruff F=0).
    (segment resolver) + R8 (root re-anchoring) STAGED + design agreed
    (substitution bar approved 09-17, decision-record §5); R9 documented-
    optional. See NAP 2026-09-17 direct session.
+## 64. (closed 2026-09-16, plan9 planner-direct; backfilled by the plan5 maintenance pass 2026-10-01 — the record was missing) — stale "84/84" probe baseline in `.opencode/plugin/README.md` → replaced by the curate-don't-duplicate pointer to the probe's self-annotated header total (the #58 convention).

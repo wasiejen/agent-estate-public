@@ -80,3 +80,14 @@
   for the whole task. AGENTS.md §Commit-routine step 1 carries the same rule
   (maintainer paste pending — this bullet + the spec DoD line govern until
   it lands).
+- **Verified facts are verified at authoring time (2026-10-01 feedback
+  cluster — #128/#129/#131 specs):** (a) API signatures cited in the
+  verified-facts section are verified with one import/inspect call at
+  authoring time, never asserted (the #129 `QContextMenuEvent(QPoint)` ctor
+  does not exist in PySide6 6.11.2 — the worker needed a discovery step);
+  (b) counts claimed as measured cover ALL forms — grep both `logging.` and
+  `logger.` (the #131 "4 logging calls" fact was actually ~14 — one grep form
+  undercounted); (c) the pin-audit scope names EVERY pin surface the change
+  touches — smoke blocks AND probe sections (the #128 spec named only the
+  smoke Gate-M block; the probe's S13 gate checks + S32 340 also needed
+  re-pins — a red probe round-trip).

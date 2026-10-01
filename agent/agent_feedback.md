@@ -755,3 +755,9 @@ knowledge_inbox curation log claims an entry is cured (plan28: AGENTS.md live-fi
 ### 2026-10-01_05-19 planner_Q3S_slow ses_f0a9543a0ffeOmHASvp72Lj7JI
 #129 spec carried an unverified API claim (QContextMenuEvent(QPoint) ctor — doesn't exist in PySide6 6.11.2, 2-arg form deprecated): the worker needed a discovery step to find the real (Reason, pos, globalPos) ctor. Spec "verified facts" that cite API signatures should be verified at authoring time (one import/inspect call), not asserted.
 
+### 2026-10-01_06-16 explorer_Q3S ses_f0a5c156effeaF2xWmLo9UoZdk
+#131 spec verified-facts undercounted logging sites ("4 calls outside tests" — actually ~14 live logger.* calls; flag-toggle block is free_snap_tap.py:30-41 not 32-41) — didn't slow work, but re-verify counts before re-delegating logging work.
+
+### 2026-10-01_06-22 planner_Q3S_slow ses_f0a800624ffe8CVXBLVwWX7y4N
+#131 spec verified-fact undercount: grepping `logging\.` alone for "logging calls outside tests" missed the module-logger calls (`logger.info/warning/…`) — stated 4, actual ~14 (explorer-4 corrected). Verified-facts greps must cover both the `logging.` and `logger.` forms (or the logger definitions) before being claimed as measured counts.
+

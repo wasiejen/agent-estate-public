@@ -95,6 +95,14 @@ proposal)
 - **The build/swap bat for the maintainer**: one script that runs the bun
   build in the fork (`home\Repos\opencode`) and replaces the
   installed exe — he runs it; the unit is not live until his run.
+- **Live kill switch (debug tool, maintainer request 2026-10-01)**: a
+  sentinel file (`.opencode/temp/filter_off` — touch = disable, delete =
+  re-enable) that the fork checks per assembly (one `existsSync`, before the
+  filter read). Present → the fork ignores the filter fields entirely
+  (behaves exactly like mainline — the fields stay inert in the DB) with NO
+  rebuild and NO exe swap back; absent → the filter is active. The plugin's
+  report shows the switch state. Pinned in the fork smoke (switch present →
+  toggled-off rows are still assembled).
 - **Session dump update on every filter change**: ONE current dump file per
   session (the DB is not destructively changed, so a single updated dump
   suffices — no `_c<N>` version chain needed for filter changes).
@@ -137,6 +145,11 @@ proposal)
   nudges; the prompt keeps only the SEMANTICS (what a rung means to do) as
   fallback for Direct/suppressed sessions (the nudge is suppressed there by
   the existing scope gate).
+- **Prompt edits are the planner's to make directly** (maintainer
+  correction 2026-10-01: the planner HAS edit access to `agent/prompts/**` —
+  only `.git` and `.github` are denied; the edit-deny is the worker's). The
+  copy/pending-paste pattern is used only if the exact text is in doubt —
+  then the maintainer replaces the files when U2 goes live.
 - Acceptance: one pin per rung (band met + no higher rung → its line once per
   busy cycle; higher rung beats it; config key absent → never; Direct →
   suppressed); existing pins unchanged; standard gate green.

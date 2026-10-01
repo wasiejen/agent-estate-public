@@ -17,6 +17,13 @@
 // successful result — #106, 2026-09-28); else fail-closed → the R6 hint
 // verdict carrying the best-candidate d (`hint rejected …` — #106)) + the
 // journal's edit `old` = the ORIGINAL pre-mutation oldString)
+// (4b) 2026-10-01 (#134, maintainer ruling): the HARD-STOP — the mutating
+// typed path field (write/edit `filePath`) outside every allowed root
+// (the R8 set) whose containing directory is missing → the before hook
+// THROWS (the hook's catch re-throws a HardStopError; the agent sees the
+// error, one intercept-error line logs it) + the C fix: the doubled-folder
+// detector now sees the JSON-escaped typed Windows path (`\\` collapsed
+// back to one separator).
 // (.opencode/plugin/intercept_observer.ts
 // + _core.ts). The plugin factory is called with a SCRATCHPAD sandbox
 // `directory` — the intercept.log lands in the sandbox
@@ -322,14 +329,16 @@ try {
   fs.writeFileSync(argsS.filePath, argsS.newString, "utf-8");
   const lS = readLines();
   const fS = split8(lS[lS.length - 1]);
-  chk("edit doubled-segment → MUTATED + the edit lands where the log says + fuzzy-resolved kind=dedup scope=write d=0 (#73, the collapse pre-check before the R7 segment channel)",
+  const gS = split8(lS[lS.length - 2]);
+  chk("edit doubled-segment → MUTATED + the edit lands where the log says + the (C, 2026-10-01) path-anomaly now logs the escaped-form doubled segment (doubled=sx) + fuzzy-resolved kind=dedup scope=write d=0 (#73, the collapse pre-check before the R7 segment channel)",
     argsS.filePath === proj + "\\sx\\real-a.txt" &&
       fs.readFileSync(path.join(proj, "sx", "real-a.txt"), "utf-8") === "R7" &&
-      lS.length === countS + 1 && fS.length === 8 && fS[3] === "edit" && fS[7] === "fuzzy-resolved" &&
+      lS.length === countS + 2 && gS[7] === "path-anomaly" && gS[5] === "doubled=sx" &&
+      fS.length === 8 && fS[3] === "edit" && fS[7] === "fuzzy-resolved" &&
       // the evidence format is byte-exact; the log FIELD is cap-truncated
       // (MAX_FIELD_CHARS, the `...` marker) — expected via the SAME
       // flattenField the hook's log path uses
-      fS[5] === core.flattenField(`fuzzy kind=dedup scope=write orig=${proj}\\sx\\sx\\real-a.txt -> ${proj}\\sx\\real-a.txt d=0`), JSON.stringify(fS));
+      fS[5] === core.flattenField(`fuzzy kind=dedup scope=write orig=${proj}\\sx\\sx\\real-a.txt -> ${proj}\\sx\\real-a.txt d=0`), JSON.stringify([gS, fS]));
 
   // ---- (10) the R6 payload journal + edit hint channel (2026-09-25;
   //      observation-only): the journal is a SEPARATE file (journal-only
@@ -1125,6 +1134,97 @@ try {
           ft[5] === "pair=[2:two] canon=2 dist=0 gate=mutated line=1 arg=targetMarker" && ft[7] === "pair-resolved",
         JSON.stringify({ nx, nt }));
     }
+  }
+
+  // (4b) #134 HARD-STOP (2026-10-01, maintainer ruling) + the C JSON-escape
+  //      fix: the mutating typed path field (write/edit `filePath`) — the
+  //      effective path OUTSIDE every allowed root (the R8 set; here the
+  //      proj2 config roots rA/rB/rC/rRef + proj2) whose CONTAINING
+  //      DIRECTORY is missing → the hook THROWS. Existing external paths
+  //      (parent exists) and in-root new-dir writes pass untouched; read
+  //      is read-only; a doubled segment inside an allowed root is legal.
+  {
+    // (a) BLOCK: write to a missing out-of-sandbox path
+    const a = { filePath: path.join(tdir, "noexist", "deep", "x.txt"), content: "x" };
+    const c0 = read2().length;
+    let threw = null;
+    try {
+      await before2({ tool: "write", sessionID: "ses_smoke_io1", callID: "c14p" }, { args: a });
+    } catch (e) {
+      threw = e;
+    }
+    const nl = read2().slice(c0);
+    chk("(4b) hard-stop: write to a missing out-of-sandbox path → the hook THROWS (message carries the path) + the out-of-sandbox note lands first + ONE intercept-error line",
+      threw !== null && threw.message.includes("out-of-sandbox path with missing containing directory") &&
+        threw.message.includes(path.join(tdir, "noexist", "deep")) &&
+        nl.some((l) => split8(l)[7] === "out-of-sandbox") &&
+        nl.filter((l) => l.includes("intercept-error")).length === 1 &&
+        split8(nl.find((l) => l.includes("intercept-error")))[7] === "error",
+      JSON.stringify({ threw: threw ? threw.message : null, nl }));
+    // (b) no block: write to an out-of-sandbox path whose containing dir
+    //     EXISTS — the unmappable sibling of TWO config roots (rA + rB —
+    //     the (12g) fail-closed form, so no R8 redirect either)
+    const b = { filePath: path.join(tdir, "both-exists.txt"), content: "x" };
+    let threwB = null;
+    try {
+      await before2({ tool: "write", sessionID: "ses_smoke_io1", callID: "c14q" }, { args: b });
+    } catch (e) {
+      threwB = e;
+    }
+    chk("(4b) no hard-stop: write to an out-of-sandbox path whose containing dir EXISTS → untouched (no redirect — two-roots sibling; the host permission gate asks as today)",
+      threwB === null && b.filePath === path.join(tdir, "both-exists.txt"), JSON.stringify({ threw: threwB ? threwB.message : null, b }));
+    // (c) no block: write into a NEW subdirectory of the workspace root
+    const c = { filePath: path.join(proj2, "newsub", "y.txt"), content: "x" };
+    let threwC = null;
+    try {
+      await before2({ tool: "write", sessionID: "ses_smoke_io1", callID: "c14r" }, { args: c });
+    } catch (e) {
+      threwC = e;
+    }
+    chk("(4b) no hard-stop: write into a NEW subdirectory of the workspace root (writeWithDirs creates it) → untouched",
+      threwC === null && c.filePath === path.join(proj2, "newsub", "y.txt"), JSON.stringify({ threw: threwC ? threwC.message : null, c }));
+    // (d) the hard-stop applies to edit too (missing out-of-sandbox target)
+    const d = { filePath: path.join(tdir, "noexist", "deep", "y.txt"), oldString: "a", newString: "b" };
+    let threwD = null;
+    try {
+      await before2({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c14s" }, { args: d });
+    } catch (e) {
+      threwD = e;
+    }
+    chk("(4b) hard-stop applies to edit: edit target outside every allowed root with missing parent → the hook THROWS",
+      threwD !== null && threwD.message.includes("out-of-sandbox path with missing containing directory"), JSON.stringify({ threw: threwD ? threwD.message : null }));
+    // (e) no block on read (read-only: a missing external path just fails at the host)
+    const e = { filePath: path.join(tdir, "noexist", "z.txt") };
+    let threwE = null;
+    try {
+      await before2({ tool: "read", sessionID: "ses_smoke_io1", callID: "c14t" }, { args: e });
+    } catch (err) {
+      threwE = err;
+    }
+    chk("(4b) no hard-stop on read: read is read-only → no throw on a missing out-of-sandbox path",
+      threwE === null, JSON.stringify({ threw: threwE ? threwE.message : null }));
+    // (f) doubled segment inside an allowed root is LEGAL (no throw) + the
+    //     JSON-escaped path-anomaly now fires (the C fix, through the hook)
+    const f = { filePath: path.join(rA, "foo", "foo", "z.txt"), content: "x" };
+    const c1 = read2().length;
+    let threwF = null;
+    try {
+      await before2({ tool: "write", sessionID: "ses_smoke_io1", callID: "c14u" }, { args: f });
+    } catch (err) {
+      threwF = err;
+    }
+    const nfl = read2().slice(c1);
+    chk("(4b)+C: doubled segment inside an allowed root → NO throw (legal) + the escaped-form path-anomaly now logs (doubled=foo)",
+      threwF === null && nfl.some((l) => split8(l)[7] === "path-anomaly" && l.includes("doubled=foo")),
+      JSON.stringify({ threw: threwF ? threwF.message : null, nfl }));
+    // (g) the C fix on the pure core surface (escaped form fires, the
+    //     non-doubled raw form stays silent)
+    const esc = JSON.stringify({ filePath: "C:" + "\\" + "Users" + "\\" + "Users" + "\\" + "x" });
+    const ca = core.observePathAnomaly(esc);
+    chk("C: core observePathAnomaly fires on the JSON-ESCAPED doubled path (doubled=Users) + stays silent on the non-doubled raw form",
+      ca.length === 1 && ca[0].verdict === "path-anomaly" && ca[0].evidence === "doubled=Users" &&
+        core.observePathAnomaly("C:" + "\\" + "Users" + "\\" + "x").length === 0,
+      JSON.stringify(ca));
   }
 
   // ---- (9) the LIVE log is untouched by this smoke

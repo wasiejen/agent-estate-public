@@ -5639,17 +5639,19 @@ let n21 = 210;
   await ioBefore({ tool: "read", sessionID: "ses_fx_io2", callID: "c210" }, { args: s1 });
   const s1Lines = ioReadLines();
   const s1f = s1Lines[s1Lines.length - 1].split(" | ");
+  const s1g = s1Lines[s1Lines.length - 2].split(" | ");
   check(
     String(n21),
     "S21",
-    "hook read doubled-seg: dd\\dd\\real-a.txt → MUTATED to dd\\real-a.txt + fuzzy-resolved kind=dedup scope=read d=0 (the #73 collapse pre-check fires before the segment channel)",
-    s1.filePath === ioSegDir + "\\dd\\real-a.txt" && s1Lines.length === nL1 + 1 &&
+    "hook read doubled-seg: dd\\dd\\real-a.txt → MUTATED to dd\\real-a.txt + the (C, 2026-10-01) path-anomaly now logs the escaped doubled segment (doubled=dd) + fuzzy-resolved kind=dedup scope=read d=0 (the #73 collapse pre-check fires before the segment channel)",
+    s1.filePath === ioSegDir + "\\dd\\real-a.txt" && s1Lines.length === nL1 + 2 &&
+      s1g[7] === "path-anomaly" && s1g[5] === "doubled=dd" &&
       s1f[3] === "read" && s1f[7] === "fuzzy-resolved" &&
       // the evidence format is byte-exact; the log FIELD is cap-truncated
       // (MAX_FIELD_CHARS, the `...` marker) — expected via the SAME
       // flattenField the hook's log path uses
       s1f[5] === ioCore.flattenField(`fuzzy kind=dedup scope=read orig=${ioSegDir}\\dd\\dd\\real-a.txt -> ${ioSegDir}\\dd\\real-a.txt d=0`),
-    JSON.stringify({ after: s1.filePath, n: s1Lines.length - nL1, f: s1f }),
+    JSON.stringify({ after: s1.filePath, n: s1Lines.length - nL1, g: s1g, f: s1f }),
   );
   n21++;
 }
@@ -5662,14 +5664,16 @@ let n21 = 210;
   await ioBefore({ tool: "edit", sessionID: "ses_fx_io2", callID: "c211" }, { args: s2 });
   const s2Lines = ioReadLines();
   const s2f = s2Lines[s2Lines.length - 1].split(" | ");
+  const s2g = s2Lines[s2Lines.length - 2].split(" | ");
   check(
     String(n21),
     "S21",
-    "hook edit doubled-seg: MUTATED to dd\\real-a.txt + fuzzy-resolved kind=dedup scope=write d=0 (the #73 collapse pre-check fires before the segment channel)",
-    s2.filePath === ioSegDir + "\\dd\\real-a.txt" && s2Lines.length === nL2 + 1 &&
+    "hook edit doubled-seg: MUTATED to dd\\real-a.txt + the (C, 2026-10-01) path-anomaly now logs the escaped doubled segment (doubled=dd) + fuzzy-resolved kind=dedup scope=write d=0 (the #73 collapse pre-check fires before the segment channel)",
+    s2.filePath === ioSegDir + "\\dd\\real-a.txt" && s2Lines.length === nL2 + 2 &&
+      s2g[7] === "path-anomaly" && s2g[5] === "doubled=dd" &&
       s2f[3] === "edit" && s2f[7] === "fuzzy-resolved" &&
       s2f[5] === ioCore.flattenField(`fuzzy kind=dedup scope=write orig=${ioSegDir}\\dd\\dd\\real-a.txt -> ${ioSegDir}\\dd\\real-a.txt d=0`),
-    JSON.stringify({ after: s2.filePath, n: s2Lines.length - nL2, f: s2f }),
+    JSON.stringify({ after: s2.filePath, n: s2Lines.length - nL2, g: s2g, f: s2f }),
   );
   n21++;
 }
@@ -5681,12 +5685,15 @@ let n21 = 210;
   const s3Before = JSON.stringify(s3);
   const nL3 = ioReadLines().length;
   await ioBefore({ tool: "write", sessionID: "ses_fx_io2", callID: "c212" }, { args: s3 });
+  const s3Lines = ioReadLines();
+  const s3f = s3Lines[s3Lines.length - 1].split(" | ");
   check(
     String(n21),
     "S21",
-    "hook write doubled-seg: NOT mutated + ZERO new log lines (M1 — the exclusion extends to the segment channel)",
-    JSON.stringify(s3) === s3Before && ioReadLines().length === nL3,
-    JSON.stringify({ argsAfter: JSON.stringify(s3), n: ioReadLines().length - nL3 }),
+    "hook write doubled-seg: NOT mutated + the (C, 2026-10-01) path-anomaly observation logs (doubled=dd) — the M1 exclusion extends to the segment channel only (zero fuzzy lines)",
+    JSON.stringify(s3) === s3Before && s3Lines.length === nL3 + 1 &&
+      s3f[7] === "path-anomaly" && s3f[5] === "doubled=dd",
+    JSON.stringify({ argsAfter: JSON.stringify(s3), n: s3Lines.length - nL3, f: s3f }),
   );
   n21++;
 }
@@ -5798,14 +5805,16 @@ writeFileSync(path.join(ioRnDir, "OpenCodeProjects", "SiblingProj", "whatever.md
   await ioBefore({ tool: "read", sessionID: "ses_fx_io2", callID: "c218" }, { args: r1 });
   const r1Lines = ioReadLines();
   const r1f = r1Lines[r1Lines.length - 1].split(" | ");
+  const r1g = r1Lines[r1Lines.length - 2].split(" | ");
   check(
     String(n21),
     "S21",
-    "hook read doubled-nested (the realistic shape): MUTATED to the collapsed path + fuzzy-resolved kind=dedup scope=read d=0 (the seg channel REJECTS this shape — the parent-dir corpus entry kills the gap)",
-    r1.filePath === ioRnDir + "\\OpenCodeProjects\\Free-Snap-Tap\\TODO.md" && r1Lines.length === nR1 + 1 &&
+    "hook read doubled-nested (the realistic shape): MUTATED to the collapsed path + the (C, 2026-10-01) path-anomaly now logs the escaped doubled segment (doubled=OpenCodeProjects) + fuzzy-resolved kind=dedup scope=read d=0 (the seg channel REJECTS this shape — the parent-dir corpus entry kills the gap)",
+    r1.filePath === ioRnDir + "\\OpenCodeProjects\\Free-Snap-Tap\\TODO.md" && r1Lines.length === nR1 + 2 &&
+      r1g[7] === "path-anomaly" && r1g[5] === "doubled=OpenCodeProjects" &&
       r1f[3] === "read" && r1f[7] === "fuzzy-resolved" &&
       r1f[5] === ioCore.flattenField(`fuzzy kind=dedup scope=read orig=${ioRnDir}\\OpenCodeProjects\\OpenCodeProjects\\Free-Snap-Tap\\TODO.md -> ${ioRnDir}\\OpenCodeProjects\\Free-Snap-Tap\\TODO.md d=0`),
-    JSON.stringify({ after: r1.filePath, n: r1Lines.length - nR1, f: r1f }),
+    JSON.stringify({ after: r1.filePath, n: r1Lines.length - nR1, g: r1g, f: r1f }),
   );
   n21++;
 }
@@ -5818,14 +5827,16 @@ writeFileSync(path.join(ioRnDir, "OpenCodeProjects", "SiblingProj", "whatever.md
   await ioBefore({ tool: "edit", sessionID: "ses_fx_io2", callID: "c219" }, { args: r2 });
   const r2Lines = ioReadLines();
   const r2f = r2Lines[r2Lines.length - 1].split(" | ");
+  const r2g = r2Lines[r2Lines.length - 2].split(" | ");
   check(
     String(n21),
     "S21",
-    "hook edit doubled-nested: MUTATED to the collapsed path + fuzzy-resolved kind=dedup scope=write d=0",
-    r2.filePath === ioRnDir + "\\OpenCodeProjects\\Free-Snap-Tap\\TODO.md" && r2Lines.length === nR2 + 1 &&
+    "hook edit doubled-nested: MUTATED to the collapsed path + the (C, 2026-10-01) path-anomaly now logs the escaped doubled segment (doubled=OpenCodeProjects) + fuzzy-resolved kind=dedup scope=write d=0",
+    r2.filePath === ioRnDir + "\\OpenCodeProjects\\Free-Snap-Tap\\TODO.md" && r2Lines.length === nR2 + 2 &&
+      r2g[7] === "path-anomaly" && r2g[5] === "doubled=OpenCodeProjects" &&
       r2f[3] === "edit" && r2f[7] === "fuzzy-resolved" &&
       r2f[5] === ioCore.flattenField(`fuzzy kind=dedup scope=write orig=${ioRnDir}\\OpenCodeProjects\\OpenCodeProjects\\Free-Snap-Tap\\TODO.md -> ${ioRnDir}\\OpenCodeProjects\\Free-Snap-Tap\\TODO.md d=0`),
-    JSON.stringify({ after: r2.filePath, n: r2Lines.length - nR2, f: r2f }),
+    JSON.stringify({ after: r2.filePath, n: r2Lines.length - nR2, g: r2g, f: r2f }),
   );
   n21++;
 }
@@ -5841,14 +5852,16 @@ writeFileSync(path.join(ioRnDir, "OpenCodeProjects", "SiblingProj", "whatever.md
   await ioBefore({ tool: "read", sessionID: "ses_fx_io2", callID: "c220" }, { args: r3 });
   const r3Lines = ioReadLines();
   const r3f = r3Lines[r3Lines.length - 1].split(" | ");
+  const r3g = r3Lines[r3Lines.length - 2].split(" | ");
   check(
     String(n21),
     "S21",
-    "hook read doubled-nested, collapse target ABSENT: NOT mutated + fuzzy-rejected (NO kind=dedup — the fail-closed fall-through; NO kind=seg either)",
-    JSON.stringify(r3) === r3Before && r3Lines.length === nR3 + 1 &&
+    "hook read doubled-nested, collapse target ABSENT: NOT mutated + the (C, 2026-10-01) path-anomaly now logs the escaped doubled segment (doubled=OpenCodeProjects) + fuzzy-rejected (NO kind=dedup — the fail-closed fall-through; NO kind=seg either)",
+    JSON.stringify(r3) === r3Before && r3Lines.length === nR3 + 2 &&
+      r3g[7] === "path-anomaly" && r3g[5] === "doubled=OpenCodeProjects" &&
       r3f[3] === "read" && r3f[7] === "fuzzy-rejected" &&
       !r3f[5].includes("kind=dedup") && !r3f[5].includes("kind=seg"),
-    JSON.stringify({ argsAfter: JSON.stringify(r3), n: r3Lines.length - nR3, f: r3f }),
+    JSON.stringify({ argsAfter: JSON.stringify(r3), n: r3Lines.length - nR3, g: r3g, f: r3f }),
   );
   n21++;
 }
@@ -5861,12 +5874,15 @@ writeFileSync(path.join(ioRnDir, "OpenCodeProjects", "SiblingProj", "whatever.md
   const r4Before = JSON.stringify(r4);
   const nR4 = ioReadLines().length;
   await ioBefore({ tool: "write", sessionID: "ses_fx_io2", callID: "c221" }, { args: r4 });
+  const r4Lines = ioReadLines();
+  const r4f = r4Lines[r4Lines.length - 1].split(" | ");
   check(
     String(n21),
     "S21",
-    "hook write doubled-nested: NOT mutated + ZERO new log lines (M1 — the exclusion extends to the dedup pre-check)",
-    JSON.stringify(r4) === r4Before && ioReadLines().length === nR4,
-    JSON.stringify({ argsAfter: JSON.stringify(r4), n: ioReadLines().length - nR4 }),
+    "hook write doubled-nested: NOT mutated + the (C, 2026-10-01) path-anomaly observation logs (doubled=OpenCodeProjects) — the M1 exclusion extends to the dedup pre-check only (zero fuzzy lines)",
+    JSON.stringify(r4) === r4Before && r4Lines.length === nR4 + 1 &&
+      r4f[7] === "path-anomaly" && r4f[5] === "doubled=OpenCodeProjects",
+    JSON.stringify({ argsAfter: JSON.stringify(r4), n: r4Lines.length - nR4, f: r4f }),
   );
   n21++;
 }

@@ -84,6 +84,18 @@
 //   bufferName?}` (the string fields present). The journal is a SEPARATE
 //   file from intercept.log — journal-only calls add NO intercept line.
 //
+// (4b) HARD-STOP (2026-10-01, #134 maintainer ruling): the MUTATING typed
+//   path field (write/edit `filePath`) — the EFFECTIVE path OUTSIDE every
+//   allowed root (the R8 set) whose CONTAINING DIRECTORY does not exist →
+//   the before hook THROWS (a throwing before hook fails the tool call —
+//   the agent sees the error; an `intercept-error` line logs it first).
+//   Existing external paths stay untouched (the host permission gate asks
+//   as today — an allow on a MISSING external path would otherwise
+//   materialize the whole directory chain); in-root new-directory writes
+//   stay untouched (the write tool's writeWithDirs creates them). A
+//   doubled segment in itself is NEVER wrong (legal inside an allowed
+//   root) — it stays a log signal only (observation d).
+//
 // (5) THE EDIT CHANNEL (R6 2026-09-25 + the (2) MUTATING edit-fuzzy,
 //   2026-09-25, #95 sub-item 2 — `edit` only, the EFFECTIVE
 //   post-pair/fuzzy args): oldString occurring EXACTLY ONCE in
@@ -235,6 +247,7 @@ import {
   resolveSectionAnchor,
   resolveWritePath,
   SCRATCHPAD_ROOT,
+  underRoot,
 } from "./intercept_observer_core.ts";
 import type { NumwordMap, Observation, PairCheck } from "./intercept_observer_core.ts";
 import { stripJsoncComments } from "./compact_memory.ts";
@@ -1356,6 +1369,14 @@ function onToolAfter(
 
 // ------------------------------------------------------------------ the hook
 
+// #134 (4b, 2026-10-01): the DELIBERATE hard-stop error — the before hook
+// throws it for a write/edit target OUTSIDE every allowed root whose
+// containing directory is missing. The catch below distinguishes it from
+// unexpected errors: it logs ONE `intercept-error` line and RE-THROWS (a
+// throwing before hook fails the tool call — the agent sees the error;
+// everything else stays swallowed, never a throw out of a hook).
+class HardStopError extends Error {}
+
 async function onToolBefore(
   input: { tool?: string; sessionID?: string; callID?: string },
   output: { args?: unknown },
@@ -1483,7 +1504,36 @@ async function onToolBefore(
     for (const o of fuzzy) appendObservation(sid, model, tool, argStr, o);
     for (const o of anchorLines) appendObservation(sid, model, tool, argStr, o); // R3: the anchor channels (after the fuzzy channels — the effective args)
     if (hint !== null) appendObservation(sid, model, tool, argStr, hint);
+    // (4b) #134 HARD-STOP (2026-10-01, maintainer ruling): the MUTATING
+    // typed path field (write/edit `filePath`) — the EFFECTIVE path
+    // (post-redirect) OUTSIDE every allowed root (the R8 set) whose
+    // CONTAINING DIRECTORY does not exist → block. AFTER the logging (the
+    // out-of-sandbox note line lands first), BEFORE the tool runs.
+    // Existing external paths (parent exists) pass to the host permission
+    // gate as today; in-root paths (new subdirectories) pass to
+    // writeWithDirs; a doubled segment inside an allowed root is legal.
+    if ((tool === "write" || tool === "edit") && isObj) {
+      const fp = (output.args as { filePath?: unknown }).filePath;
+      if (typeof fp === "string" && fp.trim() !== "") {
+        const abs = isAbsolute(fp) ? fp : join(dir || ".", fp);
+        if (!allowedRoots.some((r) => underRoot(abs, r)) && !existsSync(dirname(abs))) {
+          throw new HardStopError(
+            `out-of-sandbox path with missing containing directory: ${abs} — request blocked (fix the path; a permission allow could not write there)`,
+          );
+        }
+      }
+    }
   } catch (e) {
+    // (4b): the DELIBERATE hard-stop logs its line and RE-THROWS (fails the
+    // tool call); unexpected errors stay swallowed as below.
+    if (e instanceof HardStopError) {
+      try {
+        appendError(sid, model, tool, e.message);
+      } catch {
+        // swallow the log failure — still re-throw
+      }
+      throw e;
+    }
     // at most ONE intercept-error line; the hook returns silently (the model
     // read may itself have failed — `unknown` then, never a throw)
     try {

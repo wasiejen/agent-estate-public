@@ -482,7 +482,13 @@ export function observeNumword(arg: string, map: NumwordMap | null): Observation
 const DOUBLED_RE = /(?:^|[\\/])([^\\/]{1,64})(?:[\\/]\1)(?=[\\/]|$)/gi;
 
 export function observePathAnomaly(arg: string): Observation[] {
-  const s = String(arg ?? "");
+  // #134 C (2026-10-01): the observation channel scans the JSON-SERIALIZED
+  // arg — a typed Windows path reads back with DOUBLED backslashes
+  // (`C:\\Users\\Users`), which broke the segment+separator+segment
+  // adjacency (the doubled-folder detector was blind to every typed
+  // Windows path). Collapse the escaped `\\` pairs back to one separator
+  // first (raw strings pass through unchanged; UNC prefixes survive).
+  const s = String(arg ?? "").replace(/\\\\/g, "\\");
   const segs: string[] = [];
   for (const m of s.matchAll(DOUBLED_RE)) {
     segs.push(m[1]);

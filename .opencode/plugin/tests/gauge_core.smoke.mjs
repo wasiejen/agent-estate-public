@@ -126,6 +126,22 @@ wb(4);
 chkS("state 3 (count 4 > cap 3 — fully exhausted)", `${base} | 0 compactions left`);
 wb(3, 0);
 chkS("state 2b (count === cap, emergency_budget 0 explicit)", `${base} | 0 compactions left`);
+// #132 (2026-10-01): the SILENT built-in cap-1 fallback — model unlisted /
+// empty + no finite `model_budget.default` key → the marker ` (unlisted)`
+// after `left` (both entry points: the map present-without-default and the
+// map key entirely absent).
+{
+  const rec = { model_budget: { "probe-model-120K_MTP": 2 }, sessions: { ses_fx_ok: { count: 0, updated: "fx", model: "probe-model-256K_MTP" } } };
+  fs.writeFileSync(bfx, JSON.stringify(rec), "utf-8");
+  m.setBudgetFileForTest(bfx);
+  chkS("silent fallback (model unlisted, map present, NO default key): ` | 1 compaction left (unlisted)`", `${base} | 1 compaction left (unlisted)`);
+}
+{
+  const rec = { sessions: { ses_fx_ok: { count: 0, updated: "fx", model: "probe-model-256K_MTP" } } };
+  fs.writeFileSync(bfx, JSON.stringify(rec), "utf-8");
+  m.setBudgetFileForTest(bfx);
+  chkS("silent fallback (model_budget key entirely ABSENT): ` | 1 compaction left (unlisted)`", `${base} | 1 compaction left (unlisted)`);
+}
 m.setBudgetFileForTest(path.join(tmpB, "absent.json")); // never created
 chkS("fail-open (budget file missing → no suffix)", base);
 wb(0);

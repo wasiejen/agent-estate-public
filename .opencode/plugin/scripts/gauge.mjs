@@ -433,18 +433,21 @@ export function compactionsLeftSuffix(sid, modelId) {
         : "";
   const mb = rec["model_budget"];
   let cap;
+  let unlisted = false; // #132: the SILENT built-in cap-1 fallback (model
+  // unlisted/empty + no finite model_budget.default key) — the readout
+  // carries the marker ` (unlisted)` ONLY on this branch
   if (/^cpu/i.test(model)) cap = 0; // the CPU safety invariant (mirror of resolveCap)
   else if (mb != null && typeof mb === "object" && !Array.isArray(mb)) {
     if (model !== "" && typeof mb[model] === "number" && Number.isFinite(mb[model])) cap = mb[model];
     else if (typeof mb["default"] === "number" && Number.isFinite(mb["default"])) cap = mb["default"];
-    else cap = 1;
+    else { cap = 1; unlisted = true; }
   } else {
-    cap = 1;
+    cap = 1; unlisted = true;
   }
   const eb = rec["emergency_budget"];
   const emergency = typeof eb === "number" && Number.isFinite(eb) && eb >= 0 ? eb : 1; // absent → fail-open default 1
   const remaining = Math.max(0, cap - count) + (count === cap && emergency >= 1 ? 1 : 0);
-  return ` | ${remaining} compaction${remaining === 1 ? "" : "s"} left`;
+  return ` | ${remaining} compaction${remaining === 1 ? "" : "s"} left${unlisted ? " (unlisted)" : ""}`;
 }
 
 // The ONE readout form (see the header). sid missing/undefined -> "unknown".

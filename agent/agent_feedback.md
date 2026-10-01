@@ -785,3 +785,6 @@ context_trim battery (plan8 iter8) description frictions: (1) report dry-run wit
 ### 2026-10-01_09-37 planner_Q3S_slow ses_f09b864f7ffeb2fFtb8ii58GWI
 Editing the tail of a >2000-char single-line tool description (context_trim.ts L732) required a node -e substring read because the Read tool truncates lines at 2000 chars — one extra call; either keep long description lines ≤2000 or document the node-substring workaround in repo_commands.md.
 
+### 2026-10-01_10-40 planner_Q3S_slow ses_f0999d65dffeFxiJylRzecRbhu
+A typo'd host write to an out-of-sandbox path (C:\Users\Users\...) reached the host filesystem unguarded: the intercept layer only logged the `out-of-sandbox` note (R8 redirect is fail-closed pass-through on unmappable forms for host write/edit) and the host's external_directory permission gate did not stop the call in this plugin-spawned session — the save was accidental (Windows refused to create C:\Users\Users). A typo to an EXISTING unlisted external path would write silently. Wasted one call + exposed the gap; now TODO #134.
+

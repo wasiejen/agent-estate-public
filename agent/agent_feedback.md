@@ -800,3 +800,6 @@ Spot re-run blocked: ~5 min after the worker's green bun gate, bun.exe vanished 
 ### 2026-10-01_18-12 worker_Q3S ses_f07db31deffe1TtbkY88HzBYBH
 U1 spec friction: the DoD's "top-N (default 5)" implied a surface arg, but probe pin 346 pins the exact tool args key list and the gate is fixed at 355/355 — specs that change a tool surface should state the probe-pin arg-list constraint explicitly (it forced core-only opts; a surface form/top flag needs a probe-pin change first).
 
+### 2026-10-01_19-21 worker_Q3S ses_f079f0150ffeQxgGCU7jtOKgCM
+auto_resume.smoke's final sandbox cleanup `fs.rmSync` throws EPERM when a DatabaseSync handle is still open, and that EPERM MASKS the original try-body error (cost one extra debug run on the U4 unit — a missing session-table FK row surfaced only as a cleanup crash).
+

@@ -40,6 +40,22 @@
 //     (Unit 1 surface report: `session.compact` is undefined) — the
 //     suffix reminds the session to self-compact per its own protocol
 //     (the compact_memory tool, SELF path, no sessionID).
+//   - U4 (2026-10-01 context-budget package): the ONE-CONFIG-KEY-PER-
+//     RUNG ladder in the SAME budget file — `nudge1_triage` /
+//     `nudge2_stop` / `nudge3_emergency` / `nudge4_maintainer` (each a
+//     finite number 0 < v < 1; absent / invalid key = that rung OFF —
+//     zero drift until enabled). When at least one rung key is present
+//     the ladder TAKES OVER the gate (the lowest present rung is the
+//     gate; the HIGHEST present rung met fires): rung 1 → `--triage:
+//     context at ratio=<3-decimals> — <the U1 recommendation one-liner>`
+//     (the recommendation is the U1 recommendation block in compact
+//     form — `recommendationOneLiner` from the context_trim core,
+//     READ-ONLY against the same DB path the tail-set leg uses —
+//     empty on a recommendation failure → the bare line), rung 2 →
+//     the `--stop` line, rungs 3 / 4 → the legacy self-compact /
+//     `--maintainer` lines byte-identical. ALL four keys absent → the
+//     legacy saturationThreshold behavior exactly (the backward-compat
+//     pin — the live config today carries only `saturationThreshold`).
 //   - SCOPE GATE (c): the suffix is NOT appended when the scope verdict
 //     is "none" (Direct / non-scoped). The verdict is RECOMPUTED from a
 //     FRESH messages() fetch per nudge-eligible tool result (last-
@@ -60,7 +76,9 @@
 //     saturated, actively-working session): a watch with a positive
 //     token total + a known model; autoCompact ON (per-call budget-file
 //     read); the model limits resolve (cached after the first fetch);
-//     a positive usable window; ratio >= threshold. Usable window =
+//     a positive usable window; the nudge gate (U4: a ladder present —
+//     at least one PRESENT rung met — else the legacy
+//     ratio >= the per-call saturation threshold). Usable window =
 //     context - Math.min(reserve, output ?? 0) (mirrors OpenCode's own
 //     overflow math).
 //   - Decision log lines (Unit 1 lines unchanged in format): `arm=`,
@@ -211,7 +229,7 @@ import { fileURLToPath } from "node:url";
 // compaction.ts:461-466) + the gauge's default DB path (the live
 // opencode DB — the factory's dbPath option overrides it for the smoke's
 // FIXTURE db; the live host never passes the option).
-import { tailSetKeep } from "../tools/context_trim.ts";
+import { tailSetKeep, recommendationOneLiner } from "../tools/context_trim.ts";
 import { DEFAULT_DB_PATH } from "./scripts/gauge.mjs";
 
 // The v1 candidate session.* methods probed at init (the design's
@@ -584,15 +602,28 @@ function autoCompactEnabled(): boolean {
   }
 }
 
-// Unit 2: the configurable saturation threshold + output reserve — a
-// per-nudge-eligible-call READ-ONLY parse of the SAME budget file (small
-// file — a live edit takes effect on the next tool result).
+// Unit 2: the configurable saturation threshold + output reserve + the
+// U4 nudge rungs — a per-nudge-eligible-call READ-ONLY parse of the SAME
+// budget file (small file — a live edit takes effect on the next tool
+// result).
 // Fail-open: file missing / unreadable / JSON parse failure / key
-// absent / not-a-number / out-of-range → the default (0.95 / 20_000).
-// Valid: `saturationThreshold` 0 < t < 1; `outputReserve` >= 0.
-function saturationConfig(): { threshold: number; reserve: number } {
+// absent / not-a-number / out-of-range → the default (0.95 / 20_000 /
+// every rung OFF).
+// Valid: `saturationThreshold` 0 < t < 1; `outputReserve` >= 0; each
+// rung key a finite number 0 < v < 1.
+// U4 (2026-10-01 context-budget package): ONE CONFIG KEY PER RUNG —
+// `nudge1_triage` / `nudge2_stop` / `nudge3_emergency` /
+// `nudge4_maintainer`. Absent / invalid key = that rung OFF (zero
+// drift until enabled). Ladder semantics: when at least one rung key
+// is present the ladder TAKES OVER the gate — the lowest present rung
+// is the gate and the HIGHEST present rung met (ratio >= its key)
+// fires. All four absent → the legacy saturationThreshold behavior
+// exactly (the backward-compat pin — the live config today carries
+// only `saturationThreshold`).
+function saturationConfig(): { threshold: number; reserve: number; rungs: (number | null)[] } {
   let threshold = DEFAULT_SATURATION_THRESHOLD;
   let reserve = DEFAULT_OUTPUT_RESERVE;
+  const rungs: (number | null)[] = [null, null, null, null];
   try {
     const data: unknown = JSON.parse(readFileSync(join(logDir, COMPACT_BUDGET_FILE), "utf-8"));
     if (typeof data === "object" && data !== null) {
@@ -601,11 +632,16 @@ function saturationConfig(): { threshold: number; reserve: number } {
       if (typeof t === "number" && Number.isFinite(t) && t > 0 && t < 1) threshold = t;
       const r = rec["outputReserve"];
       if (typeof r === "number" && Number.isFinite(r) && r >= 0) reserve = r;
+      const rungKeys = ["nudge1_triage", "nudge2_stop", "nudge3_emergency", "nudge4_maintainer"];
+      rungKeys.forEach((k, i) => {
+        const v = rec[k];
+        if (typeof v === "number" && Number.isFinite(v) && v > 0 && v < 1) rungs[i] = v;
+      });
     }
   } catch {
-    // missing / unreadable / malformed → fail OPEN (defaults)
+    // missing / unreadable / malformed → fail OPEN (defaults, all rungs off)
   }
-  return { threshold, reserve };
+  return { threshold, reserve, rungs };
 }
 
 // #85 part 3: the passive Unit-2 nudge (the ctx-line suffix ladder — the
@@ -617,6 +653,22 @@ function nudgeText(ratio: number): string {
   if (ratio >= MAINTAINER_NUDGE_RATIO)
     return `⚠⚠ --maintainer: context saturated at ratio=${ratio.toFixed(3)} — self-compact NOW`;
   return `self-compact now (ratio=${ratio.toFixed(3)})`;
+}
+
+// U4: the one-rung nudge-ladder line (the rung is resolved by the
+// caller — the HIGHEST present rung with ratio >= its key). Rungs 3 /
+// 4 are the legacy lines byte-identical (at the working-default keys
+// 0.95 / 0.98 the texts are exactly the old ladder's). Rung 1 (triage)
+// carries the recommendation one-liner (the U1 block in compact form —
+// computed by the caller, may be empty → the bare line). Rung 2 (stop)
+// is the stop-line semantics in one line.
+function ladderLine(rung: number, ratio: number, rec: string): string {
+  const rt = ratio.toFixed(3);
+  if (rung === 4) return `⚠⚠ --maintainer: context saturated at ratio=${rt} — self-compact NOW`;
+  if (rung === 3) return `self-compact now (ratio=${rt})`;
+  if (rung === 2)
+    return `--stop: context at ratio=${rt} — stop starting new work; checkpoint + handover, compact to continue`;
+  return rec !== "" ? `--triage: context at ratio=${rt} — ${rec}` : `--triage: context at ratio=${rt}`;
 }
 
 // #85 part 3: the ctx-line-suffix append rule (the gauge plugin's
@@ -642,7 +694,9 @@ function appendNudge(output: { output?: unknown }, suffix: string): boolean {
 // loop). GATES in order (cheap first): a watch with a positive token
 // total + a known model; autoCompact ON (per-call budget-file read);
 // the model limits resolve (cached after the first fetch); a positive
-// usable window; ratio >= the per-call saturation threshold. ONLY then
+// usable window; the nudge gate met (U4: a ladder present — at least
+// one PRESENT rung met — else the legacy ratio >= the per-call
+// saturation threshold). ONLY then
 // the ONE expensive step: the FRESH messages() fetch + scopeVerdict —
 // verdict "none" (Direct / non-scoped) → NO suffix (the (c) Direct
 // suppression — the verdict must be CURRENT, not the tick-era cached
@@ -661,11 +715,17 @@ async function onToolAfterNudge(
     if (!autoCompactEnabled()) return;
     const limits = await getModelLimits(w.model);
     if (limits === null) return;
-    const { threshold, reserve } = saturationConfig();
+    const { threshold, reserve, rungs } = saturationConfig();
     const usable = limits.context - Math.min(reserve, limits.output);
     if (!(usable > 0)) return;
     const ratio = w.lastTokenTotal / usable;
-    if (ratio < threshold) return;
+    // U4: the gate — ALL rung keys absent → the legacy
+    // saturationThreshold exactly (the backward-compat pin); otherwise
+    // the ladder TAKES OVER (at least one PRESENT rung met — the lowest
+    // present rung is the gate; the highest present rung met wins).
+    const ladder = rungs.some((r) => r !== null);
+    if (!ladder && ratio < threshold) return;
+    if (ladder && rungs.every((r) => r === null || ratio < r)) return;
     // The ONE expensive step — only a saturated, actively-working
     // session reaches here: the fresh fetch + scope verdict (the
     // Direct suppression (c) needs the CURRENT verdict — last-toggle-
@@ -681,7 +741,27 @@ async function onToolAfterNudge(
       w.attempts = MAX_ATTEMPTS_PER_BUSY_CYCLE; // once-per-cycle nudge-log dedup
       log(`nudge= sid=${sid} ratio=${ratio.toFixed(3)} tokens=${w.lastTokenTotal} usable=${usable}`);
     }
-    appendNudge(output, nudgeText(ratio));
+    // U4: the rung text — legacy (all rung keys absent) = the old
+    // ladder; otherwise the HIGHEST present rung with ratio >= its key.
+    let suffix: string;
+    if (!ladder) {
+      suffix = nudgeText(ratio);
+    } else {
+      let rung = 0;
+      for (let i = rungs.length - 1; i >= 0; i--) {
+        if (rungs[i] !== null && ratio >= (rungs[i] as number)) {
+          rung = i + 1;
+          break;
+        }
+      }
+      // The triage rung is the only one that needs the DB (the
+      // recommendation one-liner — the U1 core, READ-ONLY; a
+      // recommendation failure degrades to the bare line, never blocks
+      // the nudge).
+      const rec = rung === 1 ? await recommendationOneLiner(tailSetDbPath, sid) : "";
+      suffix = ladderLine(rung, ratio, rec);
+    }
+    appendNudge(output, suffix);
   } catch {
     // never throw out of a hook
   }

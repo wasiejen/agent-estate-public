@@ -655,6 +655,72 @@ function biggestDroppable(windowMsgs: Msg[], top: number): { row: number; mass: 
   return turns.slice(0, top);
 }
 
+// U4 (2026-10-01 context-budget package): the triage rung's recommendation
+// one-liner — the U1 recommendation block in compact form (the
+// auto_resume nudge's `--triage` line): the 3 retention options (low /
+// medium / high, the block's order) as `keep from <N> ≈<K>k | ...`
+// (N = the anchor message's 1-based position in the session's message
+// list — the anchors can sit BEFORE the window (medium/high extend the
+// retained tail), so it is the full-session number, not a window row;
+// K = the retained mass in whole k, rounded) + the biggest-droppable
+// single turn as `drop turn <row> (≈<K>k)` (the U1 window row number +
+// the total mass). Options + drop join on `; `. No proper
+// completed-compaction window → no options part; no finished turn → no
+// drop part; neither → "" (the caller emits the bare triage line).
+// READ-ONLY (no write statement is ever executed). Session missing /
+// db-error → "" (a nudge is never blocked by a recommendation failure).
+export async function recommendationOneLiner(dbPath: string, sessionID: string): Promise<string> {
+  let ctx: Ctx;
+  try {
+    ctx = await openDb(dbPath);
+  } catch {
+    return "";
+  }
+  try {
+    const loaded = await loadSession(ctx, sessionID);
+    if (!loaded.exists) return "";
+    const msgs = loaded.msgs;
+    const w = computeWindow(msgs);
+    const parts: string[] = [];
+    // The options (the anchor choice mirrors the U1 block exactly).
+    if (w.hostGuard && w.strictSummaryIndex >= 0) {
+      const opts: number[] = [w.tailIndex];
+      const highIdx = w.compactionIndex >= FLOOR ? 0 : -1;
+      if (highIdx >= 0) {
+        const mid = Math.floor((w.tailIndex + highIdx) / 2);
+        if (mid !== w.tailIndex && mid !== highIdx) opts.push(mid);
+        if (highIdx !== w.tailIndex) opts.push(highIdx);
+      }
+      const postStart = w.summaryIndex + 1;
+      parts.push(
+        "options: keep from " +
+          opts
+            .map((idx) => {
+              const retained = [...msgs.slice(idx, w.compactionIndex), ...msgs.slice(postStart)];
+              const mass = retained.reduce((a, m) => a + massOf(m), 0);
+              return `${idx + 1} ≈${Math.round(mass / 1000)}k`;
+            })
+            .join(" | "),
+      );
+    }
+    // The biggest-droppable single turn (the U1 rule, top-1).
+    const windowMsgs: Msg[] = w.hostGuard
+      ? [...msgs.slice(w.tailIndex, w.compactionIndex), ...msgs.slice(w.summaryIndex + 1)]
+      : [...msgs];
+    const big = biggestDroppable(windowMsgs, 1)[0];
+    if (big) parts.push(`drop turn ${big.row} (≈${Math.round(big.mass / 1000)}k)`);
+    return parts.join("; ");
+  } catch {
+    return "";
+  } finally {
+    try {
+      ctx.db.close();
+    } catch {
+      // best effort — the read outcome has already been captured
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // reportWindow (READ-ONLY — no write statement is ever executed).
 // ---------------------------------------------------------------------------

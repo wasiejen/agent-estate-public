@@ -658,9 +658,186 @@ try {
      hasSuffix(outCfgDHi) && hasSuffix(outCfgCNo2) && outCfgDHi.includes("0.952"), outCfgDHi.slice(-80));
    chk("UNIT 2 config: out-of-range values → 79000 (0.940 < 0.95 default) does NOT get the suffix",
      !hasSuffix(outCfgDLow), outCfgDLow.slice(-80));
-   fs.rmSync(budgetFile, { force: true }); // leave the sandbox clean
+    fs.rmSync(budgetFile, { force: true }); // leave the sandbox clean
 
-   // #85 part 2: the sandbox opencode.jsonc — the JSONC fallback
+    // ============================================================
+    // UNIT 2 (cont.) — U4: the one-config-key-per-rung nudge ladder
+    // (2026-10-01 context-budget package): ONE CONFIG KEY PER RUNG in
+    // the SAME budget file (`nudge1_triage` / `nudge2_stop` /
+    // `nudge3_emergency` / `nudge4_maintainer` — absent / invalid key
+    // = that rung OFF). At least one key present → the ladder TAKES
+    // OVER the gate (lowest present rung = the gate; the HIGHEST
+    // present rung met fires): rung 1 = the `--triage` line with the
+    // U1 recommendation one-liner, rung 2 = the `--stop` line, rungs
+    // 3 / 4 = the legacy lines byte-identical. ALL four absent → the
+    // legacy saturationThreshold behavior exactly (pinned explicitly
+    // below). Node-computed expectations (usable = 84000, the default
+    // reserve): 70000 → 0.833 (triage), 78000 → 0.929 (stop), 80000 →
+    // 0.952 (emergency — the stop rung is met too: the higher rung
+    // beats it), 83000 → 0.988 (maintainer).
+    // ============================================================
+    const L1 = (70000 / USABLE).toFixed(3); // 0.833
+    const L2 = (78000 / USABLE).toFixed(3); // 0.929
+    const L3 = (80000 / USABLE).toFixed(3); // 0.952
+    const L4 = (83000 / USABLE).toFixed(3); // 0.988
+    // The U4 recommendation fixture (ADDED to TAILDB — the shared
+    // ses_tail_fix fixture stays untouched): 10 messages before the
+    // marker, the marker quartet (tail_start_id = msg_r07), the
+    // summary child, 2 after — text-only parts (mass = bytes/4).
+    const U4_SID = "ses_u4_rec";
+    {
+      const W = new DatabaseSync(TAILDB);
+      W.prepare("INSERT INTO session (id, project_id, time_created, time_updated) VALUES ('ses_u4_rec', 'prj_tail', 0, 0)").run();
+      const putU4 = (id, time, text) => {
+        W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, 'ses_u4_rec', ?, ?, ?)").run(id, time, time, JSON.stringify({ role: "user", time: { created: time } }));
+        W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, 'ses_u4_rec', ?, ?, ?)").run(`p_${id}u`, id, time, time, JSON.stringify({ type: "text", text }));
+      };
+      const putU4a = (id, time, text) => {
+        W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, 'ses_u4_rec', ?, ?, ?)").run(id, time, time, JSON.stringify({ role: "assistant", parentID: `p_${id}u`, finish: "stop" }));
+        W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, 'ses_u4_rec', ?, ?, ?)").run(`p_${id}a`, id, time, time, JSON.stringify({ type: "text", text }));
+      };
+      const A4 = "A".repeat(4000); // 1000 mass
+      putU4("msg_r01", 100, "r one"); // 1
+      putU4a("msg_r02", 200, A4.repeat(2)); // 2000
+      putU4("msg_r03", 300, A4); // 1000
+      putU4a("msg_r04", 400, A4.repeat(3)); // 3000
+      putU4("msg_r05", 500, A4); // 1000
+      putU4a("msg_r06", 600, A4); // 1000
+      putU4("msg_r07", 700, A4); // 1000
+      putU4a("msg_r08", 800, A4.repeat(3)); // 3000
+      putU4("msg_r09", 900, A4); // 1000
+      putU4a("msg_r10", 1000, A4); // 1000
+      W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_r11', 'ses_u4_rec', 13000, 13000, ?)").run(JSON.stringify({ role: "user", time: { created: 13000 } }));
+      W.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES ('p_r11c', 'msg_r11', 'ses_u4_rec', 13000, 13000, ?)").run(JSON.stringify({ type: "compaction", auto: false, tail_start_id: "msg_r07" }));
+      W.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_r12', 'ses_u4_rec', 14000, 14000, ?)").run(JSON.stringify({ role: "assistant", parentID: "msg_r11", summary: true, finish: "stop" }));
+      putU4("msg_r13", 15000, A4.repeat(2)); // 2000
+      putU4a("msg_r14", 16000, A4); // 1000
+      W.close();
+    }
+    // Machine-recomputed expectation (#99 pin style): the U1 core's
+    // anchor choice + the massOf rule + the biggest-droppable rule,
+    // loaded from the fixture — no mass figure hardcoded.
+    const u4Mass = (m) => {
+      let bytes = 0;
+      for (const p of m.parts) {
+        if (p?.type === "text" && typeof p?.text === "string") bytes += Buffer.byteLength(p.text, "utf8");
+        else if (p?.type === "tool" && typeof p?.state?.output === "string") bytes += Buffer.byteLength(p.state.output, "utf8");
+      }
+      return Math.floor(bytes / 4);
+    };
+    const u4OneLiner = () => {
+      const R = new DatabaseSync(TAILDB, { readOnly: true });
+      const mRows = R.prepare("SELECT id, time_created, data FROM message WHERE session_id = ? ORDER BY time_created ASC, id ASC").all(U4_SID);
+      const pRows = R.prepare("SELECT message_id, data FROM part WHERE session_id = ? ORDER BY message_id ASC, id ASC").all(U4_SID);
+      R.close();
+      const byMsg = new Map();
+      for (const r of pRows) {
+        const list = byMsg.get(r.message_id);
+        if (list) list.push(JSON.parse(r.data));
+        else byMsg.set(r.message_id, [JSON.parse(r.data)]);
+      }
+      const msgs = mRows.map((r) => ({ id: r.id, time: Number(r.time_created), data: JSON.parse(r.data), parts: byMsg.get(r.id) ?? [] }));
+      let comp = -1;
+      for (let i = 0; i < msgs.length; i++)
+        if (msgs[i].data?.role === "user" && msgs[i].parts.some((p) => p.type === "compaction" && p.tail_start_id !== undefined)) comp = i;
+      const tailStart = msgs[comp].parts.find((p) => p.type === "compaction").tail_start_id;
+      const tail = msgs.findIndex((m) => m.id === tailStart);
+      let summ = -1;
+      for (let j = comp + 1; j < msgs.length; j++)
+        if (msgs[j].data?.role === "assistant" && msgs[j].data?.parentID === msgs[comp].id && msgs[j].data?.summary) { summ = j; break; }
+      const window = [...msgs.slice(tail, comp), ...msgs.slice(summ + 1)];
+      const opts = [tail];
+      const high = comp >= 6 ? 0 : -1; // the core's floor 6
+      if (high >= 0) {
+        const mid = Math.floor((tail + high) / 2);
+        if (mid !== tail && mid !== high) opts.push(mid);
+        if (high !== tail) opts.push(high);
+      }
+      const parts = [
+        "options: keep from " +
+          opts
+            .map((idx) => {
+              const retained = [...msgs.slice(idx, comp), ...msgs.slice(summ + 1)];
+              return `${idx + 1} ≈${Math.round(retained.reduce((a, m) => a + u4Mass(m), 0) / 1000)}k`;
+            })
+            .join(" | "),
+      ];
+      const big = window
+        .map((m, i) => ({ row: i + 1, mass: u4Mass(m), m }))
+        .filter((t) => t.m.data?.role === "assistant" && t.m.data?.finish && !t.m.data?.error)
+        .sort((a, b) => b.mass - a.mass || a.row - b.row)[0];
+      if (big) parts.push(`drop turn ${big.row} (≈${Math.round(big.mass / 1000)}k)`);
+      return parts.join("; ");
+    };
+    const EXPECT_U4_REC = u4OneLiner();
+
+    // ---- The full ladder (all four keys present): one pin per rung
+    for (const s of ["ses_u4_lad1", "ses_u4_lad2", "ses_u4_lad3", "ses_u4_lad4", U4_SID, "ses_u4_abs", "ses_u4_lad4b", "ses_u4_bc"])
+      tScript.set(s, u2Pairs([["user", TOG], ["assistant", "Working."]]));
+    tScript.set("ses_u4_laddir", u2Pairs([["user", TOG], ["user", OFF], ["assistant", "Working."]]));
+    const nU4 = tCalls.length;
+    writeBudget(JSON.stringify({ autoCompact: true, nudge1_triage: 0.8, nudge2_stop: 0.9, nudge3_emergency: 0.95, nudge4_maintainer: 0.98 }));
+    await fire(hooksUT, "ses_u4_lad1", [statusEv("ses_u4_lad1", "busy"), msgUpdated("ses_u4_lad1", "assistant", { total: 70000 }, MODEL)]);
+    const outL1 = await toolAfter(hooksUT, "ses_u4_lad1");
+    chk("U4 rung 1 (triage): ratio 0.833 in [0.80, 0.90) → the --triage line (bare — the session is NOT in the fixture db, no recommendation)",
+      outL1.endsWith(`--triage: context at ratio=${L1}`) && tCalls.length === nU4, outL1.slice(-120));
+    // rung 1 with the recommendation (the fixture session — the U1
+    // options in compact form + the biggest-droppable turn):
+    await fire(hooksUT, U4_SID, [statusEv(U4_SID, "busy"), msgUpdated(U4_SID, "assistant", { total: 70000 }, MODEL)]);
+    const outL1r = await toolAfter(hooksUT, U4_SID);
+    chk("U4 rung 1 (triage) carries the recommendation one-liner (fixture-pinned — machine-recomputed from TAILDB)",
+      outL1r.endsWith(`--triage: context at ratio=${L1} — ${EXPECT_U4_REC}`), outL1r.slice(-160));
+    // rung 2 (stop): the triage rung is met too — the HIGHER rung beats it
+    await fire(hooksUT, "ses_u4_lad2", [statusEv("ses_u4_lad2", "busy"), msgUpdated("ses_u4_lad2", "assistant", { total: 78000 }, MODEL)]);
+    const outL2 = await toolAfter(hooksUT, "ses_u4_lad2");
+    chk("U4 rung 2 (stop): ratio 0.929 in [0.90, 0.95) → the --stop line (the triage rung is met too: the HIGHER rung beats it)",
+      outL2.endsWith(`--stop: context at ratio=${L2} — stop starting new work; checkpoint + handover, compact to continue`), outL2.slice(-160));
+    // rung 3 (emergency): the legacy self-compact line byte-identical
+    await fire(hooksUT, "ses_u4_lad3", [statusEv("ses_u4_lad3", "busy"), msgUpdated("ses_u4_lad3", "assistant", { total: 80000 }, MODEL)]);
+    const outL3 = await toolAfter(hooksUT, "ses_u4_lad3");
+    chk("U4 rung 3 (emergency): ratio 0.952 in [0.95, 0.98) → the legacy self-compact line byte-identical",
+      outL3.endsWith(`self-compact now (ratio=${L3})`), outL3.slice(-80));
+    // rung 4 (maintainer): the legacy --maintainer line byte-identical
+    await fire(hooksUT, "ses_u4_lad4", [statusEv("ses_u4_lad4", "busy"), msgUpdated("ses_u4_lad4", "assistant", { total: 83000 }, MODEL)]);
+    const outL4 = await toolAfter(hooksUT, "ses_u4_lad4");
+    chk("U4 rung 4 (maintainer): ratio 0.988 >= 0.98 → the legacy --maintainer line byte-identical",
+      outL4.endsWith(`⚠⚠ --maintainer: context saturated at ratio=${L4} — self-compact NOW`), outL4.slice(-100));
+    // once-per-busy-cycle (rung 1): a second tool result in the same
+    // cycle → the suffix appends again (the per-step reminder) but
+    // only ONE nudge= log line for the cycle
+    const outL1b = await toolAfter(hooksUT, "ses_u4_lad1");
+    chk("U4 rung 1: second tool result in the same busy cycle → the --triage suffix appends again, ONE nudge= log line for the cycle",
+      outL1b.endsWith(`--triage: context at ratio=${L1}`) && nudgeLine("ses_u4_lad1") === 1, `n=${nudgeLine("ses_u4_lad1")}`);
+    // Direct suppression (the existing scope gate) — a triage-band
+    // session with a trailing own-line <Direct|>
+    await fire(hooksUT, "ses_u4_laddir", [statusEv("ses_u4_laddir", "busy"), msgUpdated("ses_u4_laddir", "assistant", { total: 70000 }, MODEL)]);
+    const outLDir = await toolAfter(hooksUT, "ses_u4_laddir");
+    chk("U4 ladder + Direct (scope none) → suppressed (no suffix, no nudge= line, no send)",
+      !outLDir.includes("--triage") && !hasSuffix(outLDir) && tCalls.length === nU4 && nudgeLine("ses_u4_laddir") === 0, outLDir.slice(-80));
+    // config key absent → that rung NEVER fires + the ladder takes
+    // over the legacy gate (only nudge4 present: 0.952 does NOT fire —
+    // the legacy 0.95 default WOULD have; the present rung fires at
+    // 0.988)
+    writeBudget(JSON.stringify({ autoCompact: true, nudge4_maintainer: 0.98 }));
+    await fire(hooksUT, "ses_u4_abs", [statusEv("ses_u4_abs", "busy"), msgUpdated("ses_u4_abs", "assistant", { total: 80000 }, MODEL)]);
+    const outLabs = await toolAfter(hooksUT, "ses_u4_abs");
+    chk("U4 absent key: only nudge4 present → ratio 0.952 does NOT fire (the absent emergency rung never fires; the legacy 0.95 default would have — the ladder took over the gate)",
+      !outLabs.includes("self-compact now") && !outLabs.includes("--maintainer") && nudgeLine("ses_u4_abs") === 0, outLabs.slice(-80));
+    await fire(hooksUT, "ses_u4_lad4b", [statusEv("ses_u4_lad4b", "busy"), msgUpdated("ses_u4_lad4b", "assistant", { total: 83000 }, MODEL)]);
+    const outLabs4 = await toolAfter(hooksUT, "ses_u4_lad4b");
+    chk("U4 absent keys: the PRESENT rung still fires (ratio 0.988 → the --maintainer line)",
+      outLabs4.endsWith(`⚠⚠ --maintainer: context saturated at ratio=${L4} — self-compact NOW`), outLabs4.slice(-100));
+    // backward compat: ALL nudge keys absent (only
+    // saturationThreshold — the live config's shape today) → the
+    // pre-change behavior exactly
+    writeBudget(JSON.stringify({ saturationThreshold: 0.85 }));
+    await fire(hooksUT, "ses_u4_bc", [statusEv("ses_u4_bc", "busy"), msgUpdated("ses_u4_bc", "assistant", { total: 80000 }, MODEL)]);
+    const outLbc = await toolAfter(hooksUT, "ses_u4_bc");
+    chk("U4 backward compat: ALL nudge keys absent (saturationThreshold 0.85 — the live shape) → the pre-change legacy line exactly (0.952 >= 0.85 → self-compact now)",
+      outLbc.endsWith(`self-compact now (ratio=${L3})`) && !outLbc.includes("--triage") && !outLbc.includes("--stop"), outLbc.slice(-80));
+    fs.rmSync(budgetFile, { force: true }); // leave the sandbox clean
+
+    // #85 part 2: the sandbox opencode.jsonc — the JSONC fallback
    // target (comments + trailing commas on purpose: the plugin's
    // parser must handle both). Written BEFORE the first fallback read
    // (the batch-A CONTINUE) so the module-level cache picks up THIS

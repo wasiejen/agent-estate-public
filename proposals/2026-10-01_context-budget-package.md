@@ -77,7 +77,10 @@ proposal)
   the DB is never touched** (reversible by toggle-on; the host guard's
   quartet / last-turn protection is enforced at the plugin's write time —
   fail-closed validation mirroring the plan36 safe zone: never the current
-  last turn, never the marker quartet rows).
+  last turn, never the marker quartet rows). **The fork double-guards
+  (defense in depth):** if a protected row ever carries the flag, the fork
+  ignores the flag (fail-open — protected rows are never skipped, even if
+  the plugin's validation were ever bypassed).
 - **Filter state** (maintainer ruling 2026-10-01: DB, not a file — the
   canonical location, works for later-retrieved sessions): a small JSON
   field on the existing message row's `data` blob (e.g. `data.included:
@@ -123,8 +126,10 @@ proposal)
 
 ### U4 — nudge policy reframe (S, plugin)
 - **ONE CONFIG KEY PER RUNG** in `compact_budget.json` (absent = that rung
-  off — zero drift until enabled): `nudge_triage: 0.80`, `nudge_stop: 0.90`,
-  `nudge_emergency: 0.95`, `nudge_maintainer: 0.98` (names/values adjustable).
+  off — zero drift until enabled): `nudge1_triage: 0.80`,
+  `nudge2_stop: 0.90`, `nudge3_emergency: 0.95`, `nudge4_maintainer: 0.98`
+  (the `N_` prefix makes the ordering explicit — maintainer ruling; the
+  values are the working defaults, adjustable later).
 - The **triage rung's line carries the recommendation one-liner** (the U1
   options in compact form: "options: keep from 214 ≈42k | 180 ≈68k | 120
   ≈120k; drop turn 14 (≈18k read)").

@@ -47,6 +47,13 @@ const trunc = (s: string, n: number): string => {
   return t.length > n ? t.slice(0, n) : t
 }
 
+// The first error line (the child's stderr when it carries text — the
+// informative line — else the thrown message), capped to 80 chars.
+const firstErrorLine = (e: any): string => {
+  const text = typeof e?.stderr === "string" && e.stderr.trim() !== "" ? e.stderr : String(e?.message ?? "unknown error")
+  return text.trim().split("\n")[0].slice(0, 80)
+}
+
 // `## git` — git log --oneline -20 (execFileSync, args array; on failure
 // the line `(git log failed: <first error line, 80 chars>)`).
 const gitSection = (root: string): string[] => {
@@ -55,8 +62,7 @@ const gitSection = (root: string): string[] => {
     const lines = out.split("\n").map((l) => l.trim()).filter((l) => l !== "")
     return lines.length > 0 ? lines : ["(none)"]
   } catch (e: any) {
-    const first = String(e?.message ?? "unknown error").split("\n")[0].slice(0, 80)
-    return [`(git log failed: ${first})`]
+    return [`(git log failed: ${firstErrorLine(e)})`]
   }
 }
 
@@ -139,8 +145,13 @@ const markersSection = (root: string): string[] => {
   try {
     out = execFileSync("bash", ["-c", MARKER_SWEEP], { cwd: root, encoding: "utf8" })
   } catch (e: any) {
-    const first = String(e?.message ?? "unknown error").split("\n")[0].slice(0, 80)
-    return [`(marker sweep failed: ${first})`]
+    // grep exits 1 on NO MATCHES (empty stdout) — that is an empty sweep,
+    // not a failure (the fail-closed line is only for a real error).
+    if (e?.status === 1 && (e?.stdout ?? "") === "" && (e?.stderr ?? "") === "") {
+      out = ""
+    } else {
+      return [`(marker sweep failed: ${firstErrorLine(e)})`]
+    }
   }
   const lines = out.split("\n").map((l) => l.trim()).filter((l) => l !== "")
   if (lines.length === 0) return ["(none)"]

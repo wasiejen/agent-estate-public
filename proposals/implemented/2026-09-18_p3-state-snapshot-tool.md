@@ -66,3 +66,14 @@ would be the per-role permission in opencode.jsonc (your domain).
 - approved
 - and like always: tool+registration + tool per role permission is not needed to be configurated in opencode.json. (only for permissions or tools "*": "deny" I need to manually add a tool to a role)
   - this is a basic opencode function - autoregistration when in folder tools/plugin/plugins (not recursive) and this hint for tool registration comes up everytime :-) so save this maybe somewhere you read every time a tool or plugin is planned? :-)
+
+Verdict (2026-10-04, plan10): LANDED (worker_Q3S_slow
+ses_ef7344940ffe0UNjdAHseO8WUZ — tool 8d332d7 + the no-match-grep fix
+025e9c5, smoke 6130a70 = 20/20, probe S35 checks 354-356 → tally 358/358;
+gate green under node v24.19.0, all 11 existing smokes byte-unchanged;
+planner spot re-ran the smoke 20/20). The prompt §Initialization edit
+(consolidated init via state_snapshot, manual fallback kept) landed as a
+separate planner commit per the proposal. Live acceptance = the next
+planner init after the host restart fires the tool (auto-detect). The
+"Open" registration item is moot per the maintainer's comment (host
+auto-detect, no per-role config).

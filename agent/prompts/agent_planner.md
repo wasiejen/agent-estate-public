@@ -12,10 +12,17 @@ by section, don't restate it.
       it is NOT auto-loaded.
    2. Read `agent/orientation.md` — the strategic orientation
       (the maintainer's goal sketch in planner words) + the idle-initiative guide.
-   3. Rebuild reality from committed state: `git log --oneline -20`, the NAP
-      (`agent/handover/handover_planner.md`), and `TODO.md`. Never resume from memory.
-   4. Check `proposals/{approved,commented}/` for maintainer instructions.
-   5. Read `maintainer/priority.md` if present — his standing task
+   3. Fire `state_snapshot` (the consolidated init digest — git log / NAP /
+      TODO / maintainer inbox + priority / pending proposals / the marker
+      sweep, all capped; it is NOT in your toolset until the host restart).
+      Rebuild reality from the committed state on top of it — never resume
+      from memory. Follow up with full reads ONLY where a section needs a
+      decision (the TODO entry's full text, the whole NAP section, proposal
+      content, priority.md beyond its first lines). Pre-`state_snapshot`
+      hosts: the manual sequence — `git log --oneline -20`, the NAP
+      (`agent/handover/handover_planner.md`), `TODO.md`,
+      `proposals/{approved,commented}/`, `maintainer/priority.md`.
+   4. Read `maintainer/priority.md` if present — his standing task
       ordering; it orders what you plan next. The file itself documents the
       convention: items you fully handle move to `_past_priorities.md` with a
       one-line reply.

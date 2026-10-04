@@ -7,10 +7,22 @@ not here.
 ## Iteration semantics
 - N is 1-based and counts across the whole looprun (it does not reset per
   planner session); it is given at the top of the launch message.
-- **Counter mismatch (loop-signals Part 2, approved 2026-09-15):** if the launch
-  N is smaller than the last `planner-N` in the loop log, use the BIGGER
-  number for the `plan<N>_*` files — never clobber existing ones; the planner
-   notes it in an `--INFO--` loop line and in its summary.
+- **The machine-side counter (2026-10-05, approved
+  2026-10-01_loop-iteration-counter):** `loop/<folder>/counter.json`
+  (`{"looprun": <folder>, "n": N}`) is the AUTHORITATIVE iteration state —
+  the auto_resume plugin writes it at every autorun spawn (a dead session
+  can never leave it behind): candidate = counter.n + 1 (absent /
+  foreign-looprun counter → 1), N_final = max(candidate, log-max + 1)
+  against the loop log's `planner-<N>` lines. The launch message carries
+  the explicit N ("your iteration number is <N>"); the bounded log grep
+  stays the FALLBACK verification only. The injected `ctx:` line carries
+  ` ITER=<N> <folder>` while a counter exists for the current loop folder.
+- **Counter mismatch (loop-signals Part 2, approved 2026-09-15):** the
+  machine-side max() above supersedes the planner-side detection for
+  plugin-spawned sessions — if a launch N is ever smaller than the last
+  `planner-N` in the loop log (e.g. a hand-typed session), use the BIGGER
+  number for the `plan<N>_*` files — never clobber existing ones; the
+  planner notes it in an `--INFO--` loop line and in its summary.
 
 ## Action line
 - The states (the planner references AGENTS.md §Interaction-contract, same
@@ -53,10 +65,14 @@ not here.
   read-cost question): a plugin-spawned session's TITLE is
   `<loop-folder> planner-<N>` (the #89 spawn ident — live-verified
   2026-09-25: the spawned planner reads its own number from the title,
-  no loop-log read needed). To verify or recover the number: a BOUNDED
-  grep, never a full read (the log is 30k+ chars of dense numbers):
-  `grep -oE "planner-[0-9]+" <loop folder>/loop_log.md | sort -u -V |
-  tail -1` (before your own START line has landed: +1 = yours).
+  no loop-log read needed). Since 2026-10-05 the PRIMARY sources are the
+  launch message's explicit N + the ` ITER=<N> <folder>` suffix on the
+  injected `ctx:` line (the counter file is the machine source of truth —
+  see §Iteration semantics). To verify or recover the number otherwise:
+  a BOUNDED grep, never a full read (the log is 30k+ chars of dense
+  numbers): `grep -oE "planner-[0-9]+" <loop folder>/loop_log.md |
+  sort -u -V | tail -1` (before your own START line has landed: +1 =
+  yours).
 
 ## Loop log
 - The looprun activity log — who ran when, on what; for the loop itself and for

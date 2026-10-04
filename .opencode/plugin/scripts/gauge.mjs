@@ -141,7 +141,7 @@
 // =============================================================================
 
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import os from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -206,6 +206,53 @@ export function setBudgetFileForTest(p) {
 }
 export function getBudgetFile() {
   return budgetFile;
+}
+
+// Loop iteration counter (2026-10-05, approved proposal
+// 2026-10-01_loop-iteration-counter.md Part 2): the loop-root the
+// iteration suffix resolves (the autorun loop folders live in
+// <repo root>/loop). Resolved RELATIVE to this file (.opencode/plugin/
+// scripts → ../../.. = repo root → loop/), the DEFAULT_BUDGET_FILE
+// pattern.
+export const DEFAULT_LOOP_ROOT = join(THIS_DIR, "..", "..", "..", "loop");
+let loopRoot = DEFAULT_LOOP_ROOT;
+// Test hook (the setBudgetFileForTest pattern — the probe steers the
+// read at a fixture loop root; the production host never calls it).
+export function setLoopRootForTest(p) {
+  loopRoot = p;
+}
+export function getLoopRoot() {
+  return loopRoot;
+}
+
+// Part 2: the ctx-line iteration suffix — `""` or ` ITER=<n> <folder>`.
+// Resolves the CURRENT loop folder (mirrors auto_resume.ts's
+// currentLoopFolder: exactly one `autorun-*` directory → it, several →
+// the most-recently-modified, none / unreadable → `""`), reads the
+// folder's `counter.json` (the machine-side counter auto_resume writes
+// at spawn), present + parseable (an object with a finite numeric `n`)
+// → the suffix. NEVER throws (any failure → `""` — the readout line is
+// byte-identical to the pre-counter form).
+export function loopIterationSuffix() {
+  try {
+    const folders = readdirSync(loopRoot, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && e.name.startsWith("autorun-"))
+      .map((e) => e.name);
+    if (folders.length === 0) return "";
+    const folder =
+      folders.length === 1
+        ? folders[0]
+        : folders
+            .map((n) => ({ n, m: statSync(join(loopRoot, n)).mtimeMs }))
+            .sort((a, b) => b.m - a.m)[0].n;
+    const data = JSON.parse(readFileSync(join(loopRoot, folder, "counter.json"), "utf-8"));
+    if (typeof data !== "object" || data === null || Array.isArray(data)) return "";
+    const n = data["n"];
+    if (typeof n !== "number" || !Number.isFinite(n)) return "";
+    return ` ITER=${n} ${folder}`;
+  } catch {
+    return ""; // no loop root / no folder / no counter / malformed → no suffix
+  }
 }
 
 // #115 (2026-09-28): the window is CONFIG-FIRST — the root opencode.jsonc's

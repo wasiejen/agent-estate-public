@@ -194,7 +194,7 @@ import { dirname, join } from "node:path";
 // shared with the self-peek CLI (./scripts/peek.mjs). Reads the opencode db via
 // built-in node:sqlite (read-only, busy_timeout + one retry, NEVER throws — the
 // db-error kind is the fallback; see the v2.5 header block).
-import { readGauge, formatGauge } from "./scripts/gauge.mjs";
+import { readGauge, formatGauge, loopIterationSuffix } from "./scripts/gauge.mjs";
 
 const LINE_CAP = 2000;
 const CAPS = [500, 150, 60];
@@ -660,12 +660,20 @@ async function onChatMessage(
       append(buildLine("gauge", { reason: "invalid-messageID", session: sid, message: mid ?? "" }, {}));
       return;
     }
+    // Loop iteration counter (Part 2, 2026-10-05): the INJECTED
+    // chat.message ctx line ONLY carries the authoritative iteration
+    // number + looprun folder (` ITER=<n> <folder>`) when the current
+    // loop folder has a counter.json — the suffix is `""` otherwise
+    // (the line stays byte-identical; never throws). The peek.mjs /
+    // ctx_gauge tool readouts are UNCHANGED (they format via
+    // formatGauge, which this does not touch).
+    const iterSuffix = loopIterationSuffix();
     (output.parts as unknown[]).push({
       id: `prt-ctx-${randomUUID()}`,
       sessionID: sid,
       messageID: mid,
       type: "text",
-      text: `ctx: ${line}`,
+      text: `ctx: ${line}${iterSuffix}`,
     });
   } catch {
     // never throw

@@ -108,7 +108,16 @@
 // check-346 pattern — + NO `name` field: the host auto-detects
 // .opencode/tools/*.ts, no registration anywhere) + the planner-only steer
 // in the description; the digest BEHAVIOR is smoke-pinned
-// (state_snapshot.smoke.mjs) — the probe pins the SURFACE only:
+// (state_snapshot.smoke.mjs) — the probe pins the SURFACE only
+// + EXTENDED 2026-10-05 (loop iteration counter Part 2 — the approved
+// proposal 2026-10-01_loop-iteration-counter.md): the new S36 section,
+// checks 357-358: the gauge core's `loopIterationSuffix()` (the injected
+// chat.message ctx-line suffix — the ` ITER=<n> <folder>` field) pinned
+// via the test hook (setLoopRootForTest — the setBudgetFileForTest
+// pattern, steered at a sandbox fixture loop root at probe start so the
+// pre-existing byte-exact ctx-line pins stay byte-identical): (i) a loop
+// root without a counter → `""` (the line stays byte-identical), (ii) a
+// fixture `autorun-X/counter.json` n=7 → ` ITER=7 autorun-X`:
 // the
 // pre-rebuild
 // probe
@@ -1037,7 +1046,7 @@
 //      (353) the 5 fail-closed rejections (exact reasons).
 //
 // EXPECTED OUTPUT:
-//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=8 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=8 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 S33=6 S34=2 S35=3 hygiene=6  →  "PROBE handover: 358/358 PASS",
+//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=8 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=8 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 S33=6 S34=2 S35=3 S36=2 hygiene=6  →  "PROBE handover: 360/360 PASS",
 //   exit code 0. Anything else with THIS file = behavior drift or broken
 //   environment — read the failures, do not "fix" the plugin for the probe.
 //   On failure the sandbox root is KEPT (printed) for forensics.
@@ -1184,7 +1193,7 @@ const MISSING_DB = path.join(SANDBOX, "missing_fx.db"); // never created — the
 
 // the core — SAME module instance the plugin imports (same resolved file), so
 // setDbPath below steers the plugin's chat.message read to the fixtures.
-const { readGauge, formatGauge, parseWindow, parseModelId, setDbPath, getDbPath, setBackends, getBackends, DEFAULT_BACKENDS, setImportForTest, clearImportForTest, importAttemptsForTest, setBudgetFileForTest, getBudgetFile, compactionsLeftSuffix } =
+const { readGauge, formatGauge, parseWindow, parseModelId, setDbPath, getDbPath, setBackends, getBackends, DEFAULT_BACKENDS, setImportForTest, clearImportForTest, importAttemptsForTest, setBudgetFileForTest, getBudgetFile, compactionsLeftSuffix, loopIterationSuffix, setLoopRootForTest } =
   await import(new URL("../scripts/gauge.mjs", import.meta.url).href);
 
 // Item 3 (2026-09-24): the "N compactions left" suffix reads the budget
@@ -1193,6 +1202,15 @@ const { readGauge, formatGauge, parseWindow, parseModelId, setDbPath, getDbPath,
 // (fail-open → no suffix); the S6b section points it at fixture budget
 // files for its own pins.
 setBudgetFileForTest(path.join(SANDBOX, "missing_budget.json"));
+
+// Loop iteration counter (2026-10-05, Part 2): the INJECTED chat.message
+// ctx line now carries the ` ITER=<n> <folder>` suffix when the CURRENT
+// loop folder has a counter.json — steered to a NEVER-CREATED sandbox
+// loop root so every pre-existing byte-exact ctx-line pin (CTX_OK /
+// CTX_UNKNOWN / CTX_UNAVAILABLE) stays byte-identical (no loop folder /
+// counter → the suffix is `""`); the S36 section writes its fixture
+// loop folder inside that root.
+setLoopRootForTest(path.join(SANDBOX, "loop"));
 
 // the plugin, loaded from the REAL repo path (Node 24 strips the TS types)
 const plugin = (await import(pathToFileURL(PLUGIN_TS).href)).default;
@@ -8538,6 +8556,41 @@ let n35 = 354;
     JSON.stringify({ head: String(ssTool?.description).slice(0, 60) }),
   );
   n35++;
+}
+
+// ------------------------------------------------------------------ S36 loop iteration suffix (2) — 2026-10-05 (loop iteration counter Part 2 — the approved proposal 2026-10-01_loop-iteration-counter.md): the gauge core's `loopIterationSuffix()` (the injected chat.message ctx-line suffix) pinned via the test hook (setLoopRootForTest — the setBudgetFileForTest pattern, steered at a sandbox fixture loop root at probe start — the live loop root is never read by the probe).
+const S36_LOOP = path.join(SANDBOX, "loop");
+let n36 = 357;
+
+// 357 — (i) a loop root without a counter → `""` (the steered root has
+//      NO `autorun-*` folder — no loop folder, no counter file)
+{
+  const s = loopIterationSuffix();
+  check(
+    String(n36),
+    "S36",
+    "loop root without a counter → the suffix is the EMPTY string (the ctx line stays byte-identical)",
+    s === "",
+    JSON.stringify(s),
+  );
+  n36++;
+}
+
+// 358 — (ii) a fixture `autorun-X/counter.json` with n=7 →
+//      ` ITER=7 autorun-X` (byte-exact)
+{
+  const fx = path.join(S36_LOOP, "autorun-X");
+  mkdirSync(fx, { recursive: true });
+  writeFileSync(path.join(fx, "counter.json"), '{"looprun":"autorun-X","n":7}', "utf-8");
+  const s = loopIterationSuffix();
+  check(
+    String(n36),
+    "S36",
+    "fixture autorun-X/counter.json n=7 → the suffix is byte-exact ` ITER=7 autorun-X`",
+    s === " ITER=7 autorun-X",
+    JSON.stringify(s),
+  );
+  n36++;
 }
 
 // ------------------------------------------------------------------ summary

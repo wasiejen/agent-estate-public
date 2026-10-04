@@ -1,0 +1,313 @@
+// state_snapshot.smoke.mjs — the state_snapshot custom tool (the approved
+// p3-state-snapshot proposal, proposals/approved/2026-09-18_p3-state-
+// snapshot-tool.md; spec agent/handover/handover_task.md). It tests
+// .opencode/tools/state_snapshot.ts — the tool's execute() driven against
+// THREE FIXTURE repos built in freshSandbox (NEVER the live repo):
+// FX1 = the full fixture (git init + 2 commits: a TODO.md with 3 entry
+// headers, a 45-line NAP, a maintainer/inbox_planner/ with 2 .md files +
+// README.md, a 1-line maintainer/priority.md, a proposals/ root with 2
+// .md files + 1 subfolder, one --now marker line in loop/notes.md, one
+// --info line in loop/marker_note.md, a filtered maintainer/done/ fixture
+// whose --now line the sweep's grep -v filter must remove) — the assembled
+// digest is EXACTLY 60 lines (no truncation); FX2 = the minimal fixture
+// (no git, no NAP, empty inbox, no priority, no proposals → every
+// fail-closed / empty line); FX3 = the oversized fixture (20 TODO headers
+// + 30 priority lines + 30 proposals + 40 marker lines → the 60-line hard
+// cap: the LAST section's lines truncate first, all six headers + the
+// markers steer survive). The 15-cap TODO behavior is pinned by extending
+// FX1's TODO.md in place (17 headers → the LAST 15 shown).
+// Run: node .opencode/plugin/tests/state_snapshot.smoke.mjs (plain node,
+// exit 0 iff green).
+import fs from "node:fs";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { freshSandbox, loadRepo, makeChecker } from "./_smoke_base.mjs";
+
+const { chk, finish } = makeChecker("STATE_SNAPSHOT_SMOKE");
+
+// ------------------------------------------------------------------ fixture builders
+const write = (root, rel, content) => {
+  const p = path.join(root, rel);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, content);
+};
+
+const git = (root, ...args) => execFileSync("git", args, { cwd: root });
+
+// FX1 — the full fixture (the digest lands EXACTLY at the 60-line cap:
+// git 2 + nap 40+steer + todo 1+3 + maintainer 2+1 + proposals 2 + markers 2
+// = 54 content + 6 headers = 60 — no truncation).
+const FX1 = freshSandbox("state_snapshot_fx1");
+write(FX1, "TODO.md", [
+  "# TODO",
+  "",
+  "## #1. Alpha item",
+  "body alpha",
+  "",
+  "## #2. Beta item",
+  "body beta",
+  "",
+  "## #3. Gamma item",
+  "body gamma",
+].join("\n"));
+const napLines = [];
+for (let i = 1; i <= 45; i++) napLines.push(`nap line ${i}`);
+write(FX1, "agent/handover/handover_planner.md", napLines.join("\n"));
+write(FX1, "maintainer/inbox_planner/README.md", "inbox readme — excluded from the digest");
+write(FX1, "maintainer/inbox_planner/alpha-inbox.md", "inbox alpha first line\nalpha second");
+write(FX1, "maintainer/inbox_planner/beta-inbox.md", "inbox beta first line");
+write(FX1, "maintainer/priority.md", "priority line 1\n");
+write(FX1, "proposals/proposal_a.md", "proposal a body\n");
+write(FX1, "proposals/proposal_b.md", "proposal b body\n");
+write(FX1, "proposals/approved/inner.md", "inner — a subfolder file, never listed\n");
+write(FX1, "loop/notes.md", "loop note\n--now ship the snapshot\n");
+write(FX1, "maintainer/done/done_fixture.md", "--now filtered-out done line\n");
+git(FX1, "init", "-q");
+git(FX1, "config", "user.email", "fixture@example.com");
+git(FX1, "config", "user.name", "Fixture");
+git(FX1, "add", "-A");
+git(FX1, "commit", "-q", "-m", "fixture commit one");
+write(FX1, "loop/marker_note.md", "second marker note\n--info second note\n");
+git(FX1, "add", "-A");
+git(FX1, "commit", "-q", "-m", "fixture commit two");
+
+// FX2 — the minimal fixture: TODO.md only (no git repo, no NAP, empty
+// inbox dir, no priority.md, no proposals/ — every section's fail-closed /
+// empty line).
+const FX2 = freshSandbox("state_snapshot_fx2");
+write(FX2, "TODO.md", "# TODO\n");
+fs.mkdirSync(path.join(FX2, "maintainer", "inbox_planner"), { recursive: true });
+
+// FX3 — the oversized fixture (no git, no NAP): the 60-line hard cap.
+// todo 1+15 + maintainer 1+10 + proposals 30 + markers 20+steer → the LAST
+// section's lines truncate first: 60 = 2+2+17+12+25(=1 header+24)+2(=1
+// header+steer); the markers steer survives, proposals keeps 24 of 30.
+const FX3 = freshSandbox("state_snapshot_fx3");
+{
+  const todo = ["# TODO"];
+  for (let i = 1; i <= 20; i++) todo.push("", `## #${i}. Header ${i} body`);
+  write(FX3, "TODO.md", todo.join("\n") + "\n");
+  const prio = [];
+  for (let i = 1; i <= 30; i++) prio.push(`priority line ${i}`);
+  write(FX3, "maintainer/priority.md", prio.join("\n") + "\n");
+  fs.mkdirSync(path.join(FX3, "maintainer", "inbox_planner"), { recursive: true });
+  for (let i = 1; i <= 30; i++) write(FX3, `proposals/prop_${String(i).padStart(2, "0")}.md`, `prop ${i}\n`);
+  const big = ["loop big"];
+  for (let i = 1; i <= 40; i++) big.push(`--now marker line ${i}`);
+  write(FX3, "loop/big.md", big.join("\n") + "\n");
+}
+
+// ------------------------------------------------------------------ the tool
+const toolMod = await loadRepo(".opencode/tools/state_snapshot.ts");
+const ssTool = toolMod.default;
+const run = (root, agent) => ssTool.execute({}, agent === undefined ? { directory: root } : { directory: root, agent });
+const sectionBody = (digest, name) => {
+  const lines = digest.split("\n");
+  const start = lines.indexOf(`## ${name}`);
+  if (start === -1) return null;
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) if (lines[i].startsWith("## ")) { end = i; break; }
+  return lines.slice(start + 1, end);
+};
+
+const d1 = await run(FX1, "planner_Q3S");
+const l1 = d1.split("\n");
+
+// 1 — the tool() default export shape: description (non-empty string) +
+//      execute (function) + the args key list EMPTY (zero args) + NO `name`
+//      field (the host names the tool by FILENAME)
+chk(
+  "tool shape: description non-empty string + execute function + args keys empty + no name field",
+  ssTool != null && typeof ssTool.description === "string" && ssTool.description.length > 0 &&
+    typeof ssTool.execute === "function" &&
+    JSON.stringify(Object.keys(ssTool.args ?? {})) === JSON.stringify([]) &&
+    !("name" in ssTool),
+  JSON.stringify({ keys: Object.keys(ssTool ?? {}), args: Object.keys(ssTool?.args ?? {}) }),
+);
+
+// 2 — the six section headers present IN ORDER + the assembled digest is
+//      EXACTLY 60 lines (the FX1 fixture is sized to land on the cap with
+//      no truncation)
+{
+  const idx = ["git", "nap", "todo", "maintainer", "proposals", "markers"].map((n) => l1.indexOf(`## ${n}`));
+  const inOrder = idx.every((v) => v >= 0) && idx.every((v, i) => i === 0 || v > idx[i - 1]);
+  chk("six section headers in order + the digest is exactly 60 lines (no truncation)", inOrder && l1.length === 60, JSON.stringify({ idx, len: l1.length }));
+}
+
+// 3 — the git section carries the fixture commit subjects (git log
+//      --oneline -20, execFileSync args array)
+{
+  const g = sectionBody(d1, "git");
+  chk("git section carries the fixture commit subjects", Array.isArray(g) && g.some((l) => l.includes("fixture commit one")) && g.some((l) => l.includes("fixture commit two")), JSON.stringify(g));
+}
+
+// 4 — the nap section = the FIRST 40 lines of the 45-line NAP + the steer
+//      line (byte-exact)
+{
+  const n = sectionBody(d1, "nap");
+  const expect = napLines.slice(0, 40);
+  const ok = Array.isArray(n) && n.length === 41 && n.slice(0, 40).every((l, i) => l === expect[i]) &&
+    n[40] === "… (read agent/handover/handover_planner.md for the rest)";
+  chk("nap section = first 40 lines + the read-more steer", ok, JSON.stringify({ len: n?.length, last: n?.[40] }));
+}
+
+// 5 — the todo section: the count of ALL headers on the first line + the
+//      last-15 behavior (3 headers → all 3, file order, the remainder
+//      truncated to 60 chars)
+{
+  const t = sectionBody(d1, "todo");
+  const ok = Array.isArray(t) && t.length === 4 &&
+    t[0] === "3 open-entry headers" &&
+    t[1] === "#1 — Alpha item" && t[2] === "#2 — Beta item" && t[3] === "#3 — Gamma item";
+  chk("todo count line + the 3 headers (file order, truncated remainder)", ok, JSON.stringify(t));
+}
+
+// 6 — the todo 15-CAP: extend the fixture TODO.md to 17 headers → the
+//      count line 17 + the LAST 15 headers requested (first = #3). The
+//      extended fixture digest (72 lines) exceeds the 60-line hard cap, so
+//      the cap trims 12 lines from the end backwards (markers 2, proposals
+//      2, priority 1, inbox 2, the todo tail 5) — the todo section shows
+//      the count + #3..#12 (11 lines): the 15-cap AND the cap interaction
+{
+  const extra = [];
+  for (let i = 4; i <= 17; i++) extra.push("", `## #${i}. Extra header ${i}`);
+  write(FX1, "TODO.md", fs.readFileSync(path.join(FX1, "TODO.md"), "utf8") + extra.join("\n") + "\n");
+  const t = sectionBody(await run(FX1, "planner_Q3S"), "todo");
+  const ok = Array.isArray(t) && t.length === 11 &&
+    t[0] === "17 open-entry headers" &&
+    t[1] === "#3 — Gamma item" && t[10] === "#12 — Extra header 12";
+  chk("todo 15-cap under the 60-line cap: count line 17 + the last-15 requested (cap trims the todo tail to #3..#12)", ok, JSON.stringify({ len: t?.length, first: t?.[1], last: t?.[10] }));
+}
+
+// 7 — the maintainer section: the 2 inbox filenames + first lines (README.md
+//      excluded)
+{
+  const m = sectionBody(d1, "maintainer");
+  const ok = Array.isArray(m) &&
+    m.includes("alpha-inbox.md: inbox alpha first line") &&
+    m.includes("beta-inbox.md: inbox beta first line") &&
+    m.every((l) => !l.startsWith("README.md"));
+  chk("maintainer: the 2 inbox filenames + first lines, README.md excluded", ok, JSON.stringify(m));
+}
+
+// 8 — the maintainer section: priority.md's first line(s) after the inbox
+//      list
+{
+  const m = sectionBody(d1, "maintainer");
+  const ok = Array.isArray(m) && m.includes("priority line 1") &&
+    m.indexOf("priority line 1") > m.indexOf("beta-inbox.md: inbox beta first line");
+  chk("maintainer: priority.md's first lines after the inbox list", ok, JSON.stringify(m));
+}
+
+// 9 — the proposals section: the root .md FILENAMES only (files only — the
+//      subfolder excluded)
+{
+  const p = sectionBody(d1, "proposals");
+  const ok = Array.isArray(p) && p.length === 2 && p.includes("proposal_a.md") && p.includes("proposal_b.md") &&
+    p.every((l) => !l.includes("inner"));
+  chk("proposals: the 2 root filenames, the subfolder excluded", ok, JSON.stringify(p));
+}
+
+// 10 — the markers section carries the fixture --now line (the ready-made
+//       sweep, run via bash in the fixture root)
+{
+  const mk = sectionBody(d1, "markers");
+  const ok = Array.isArray(mk) && mk.some((l) => l.includes("loop/notes.md") && l.includes("--now ship the snapshot"));
+  chk("markers: the fixture --now line is present", ok, JSON.stringify(mk));
+}
+
+// 11 — the markers section does NOT carry the filtered path (the grep -v
+//       allow-list filter works: /done/)
+{
+  const mk = sectionBody(d1, "markers");
+  const ok = Array.isArray(mk) && mk.every((l) => !l.includes("done_fixture") && !l.includes("filtered-out"));
+  chk("markers: the filtered /done/ fixture line is absent", ok, JSON.stringify(mk));
+}
+
+// 12 — FX2: the git fail-closed line (no git repo in the fixture; the line
+//       form `(git log failed: <first error line, 80 chars>)`)
+{
+  const d2 = await run(FX2, "planner_Q3S");
+  const g = sectionBody(d2, "git");
+  const ok = Array.isArray(g) && g.length === 1 && g[0].startsWith("(git log failed: ");
+  chk("FX2 git fail-closed line (no git repo)", ok, JSON.stringify(g));
+}
+
+// 13 — FX2: the nap fail-closed line (no NAP file; no throw)
+{
+  const d2 = await run(FX2, "planner_Q3S");
+  const n = sectionBody(d2, "nap");
+  const ok = Array.isArray(n) && n.length === 1 && n[0] === "(nap missing: agent/handover/handover_planner.md)";
+  chk("FX2 nap fail-closed line (no NAP)", ok, JSON.stringify(n));
+}
+
+// 14 — FX2: the todo count of 0 (no entry headers)
+{
+  const d2 = await run(FX2, "planner_Q3S");
+  const t = sectionBody(d2, "todo");
+  const ok = Array.isArray(t) && t.length === 1 && t[0] === "0 open-entry headers";
+  chk("FX2 todo: 0 open-entry headers", ok, JSON.stringify(t));
+}
+
+// 15 — FX2: the maintainer section = (none) + the priority fail-closed line
+{
+  const d2 = await run(FX2, "planner_Q3S");
+  const m = sectionBody(d2, "maintainer");
+  const ok = Array.isArray(m) && m.length === 2 && m[0] === "(none)" && m[1] === "(priority.md missing)";
+  chk("FX2 maintainer: (none) inbox + the priority fail-closed line", ok, JSON.stringify(m));
+}
+
+// 16 — FX2: the proposals + markers empty sections → (none)
+{
+  const d2 = await run(FX2, "planner_Q3S");
+  const p = sectionBody(d2, "proposals");
+  const mk = sectionBody(d2, "markers");
+  const ok = Array.isArray(p) && p.length === 1 && p[0] === "(none)" &&
+    Array.isArray(mk) && mk.length === 1 && mk[0] === "(none)";
+  chk("FX2 proposals + markers: the (none) empty lines", ok, JSON.stringify({ p, mk }));
+}
+
+// 17 — the non-planner agent stub → the EXACT one-line refusal (no digest)
+{
+  const r = await run(FX1, "worker_Q3S");
+  chk("non-planner agent: the exact refusal line", r === "state_snapshot is the planner init digest — not for worker_Q3S", JSON.stringify(r));
+}
+
+// 18 — the agent ABSENT from the context stub (the soft gate passes for the
+//       empty string) → the digest
+{
+  const r = await run(FX2);
+  const ok = typeof r === "string" && r.startsWith("## git");
+  chk("agent absent: the digest is built (the soft gate passes)", ok, JSON.stringify(r.split("\n")[0]));
+}
+
+// 19 — FX3: the 60-line HARD CAP: the assembled digest (86 lines) truncates
+//       the LAST section's lines first — exactly 60 lines, all six headers
+//       present, the markers steer `… (+20 more)` survives, the proposals
+//       section keeps 24 of 30 (6 truncated from the end)
+{
+  const d3 = await run(FX3, "planner_Q3S");
+  const l3 = d3.split("\n");
+  const idx = ["git", "nap", "todo", "maintainer", "proposals", "markers"].map((n) => l3.indexOf(`## ${n}`));
+  const inOrder = idx.every((v) => v >= 0) && idx.every((v, i) => i === 0 || v > idx[i - 1]);
+  const mk = sectionBody(d3, "markers");
+  const p = sectionBody(d3, "proposals");
+  const ok = l3.length === 60 && inOrder &&
+    Array.isArray(mk) && mk.length === 1 && mk[0] === "… (+20 more)" &&
+    Array.isArray(p) && p.length === 24 && p[0] === "prop_01.md" && p[23] === "prop_24.md";
+  chk("FX3 60-line hard cap: 60 lines, all headers, the markers steer, proposals 24 of 30", ok, JSON.stringify({ len: l3.length, idx, mk, p0: p?.[0], p23: p?.[23] }));
+}
+
+// 20 — FX3: the todo section is INTACT under the cap (the cap truncates the
+//       LAST sections first): the count line 20 + exactly the LAST 15
+//       headers (first = #6, last = #20)
+{
+  const d3 = await run(FX3, "planner_Q3S");
+  const t = sectionBody(d3, "todo");
+  const ok = Array.isArray(t) && t.length === 16 &&
+    t[0] === "20 open-entry headers" &&
+    t[1] === "#6 — Header 6 body" && t[15] === "#20 — Header 20 body";
+  chk("FX3 todo intact under the cap: count 20 + the LAST 15 (first #6, last #20)", ok, JSON.stringify({ len: t?.length, first: t?.[1], last: t?.[15] }));
+}
+
+finish();

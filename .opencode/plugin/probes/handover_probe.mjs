@@ -98,6 +98,17 @@
 // the part row byte-exact — the EXACT tailSet write path reused) + the
 // 5 fail-closed rejections (floor / keep-exceeds-history /
 // no-completed-compaction / session-not-found / keep-invalid):
+// + EXTENDED 2026-10-04 (p3-state-snapshot: the state_snapshot planner
+// init tool — the approved proposal
+// 2026-09-18_p3-state-snapshot-tool.md): the new S35 section, checks
+// 354-356: the tool file's existence + the tool() default export shape
+// (description a non-empty string + execute a function — imported DIRECT,
+// type-stripped, the S12/S15 load pattern) + the registration-shape pin
+// (the EMPTY args key list — the compact_memory check-86 / context_trim
+// check-346 pattern — + NO `name` field: the host auto-detects
+// .opencode/tools/*.ts, no registration anywhere) + the planner-only steer
+// in the description; the digest BEHAVIOR is smoke-pinned
+// (state_snapshot.smoke.mjs) — the probe pins the SURFACE only:
 // the
 // pre-rebuild
 // probe
@@ -1026,7 +1037,7 @@
 //      (353) the 5 fail-closed rejections (exact reasons).
 //
 // EXPECTED OUTPUT:
-//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=8 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=8 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 S33=6 S34=2 hygiene=6  →  "PROBE handover: 355/355 PASS",
+//   S1=3 S2=4 S3=5 S4=8 S6=8 S6b=8 S7=11 S8=8 S9=12 S10=9 S11=13 S12=4 S13=21 S14=8 S15=16 S16=6 S17=26 S18=32 S19=13 S20=15 S21=12 S22=9 S25=7 S26=20 S27=8 S28=12 S29=8 S30=11 S31=21 S32=3 S33=6 S34=2 S35=3 hygiene=6  →  "PROBE handover: 358/358 PASS",
 //   exit code 0. Anything else with THIS file = behavior drift or broken
 //   environment — read the failures, do not "fix" the plugin for the probe.
 //   On failure the sandbox root is KEPT (printed) for forensics.
@@ -8475,6 +8486,58 @@ let n34 = 352;
     JSON.stringify({ r1, r2, r3, r4, r5 }),
   );
   n34++;
+}
+
+// ------------------------------------------------------------------ S35 state_snapshot tool (3) — 2026-10-04 (p3-state-snapshot: the planner init digest tool — the approved proposal 2026-09-18_p3-state-snapshot-tool.md): the tool file's existence + the tool() default export shape + the registration-shape pin (the EMPTY args key list — the compact_memory check-86 / context_trim check-346 pattern) + the planner-only steer in the description. The digest BEHAVIOR is smoke-pinned (state_snapshot.smoke.mjs) — the probe pins the SURFACE only (no fixture build here; the tool is READ-ONLY — the S5 tallies are unaffected).
+const SS_TOOL_TS = path.join(REPO_ROOT, ".opencode", "tools", "state_snapshot.ts");
+let ssTool;
+let n35 = 354;
+
+// 354 — the tool file EXISTS + the tool() default export (description a
+//      non-empty string + execute a function) — imported DIRECT
+//      (type-stripped, the same way the probe loads ctx_gauge.ts, S12)
+{
+  const exists = existsSync(SS_TOOL_TS);
+  if (exists) {
+    const toolMod = await import(pathToFileURL(SS_TOOL_TS).href);
+    ssTool = toolMod.default;
+  }
+  check(
+    String(n35),
+    "S35",
+    "state_snapshot.ts exists + the tool() default export (description a non-empty string + execute a function)",
+    exists && ssTool != null && typeof ssTool.description === "string" && ssTool.description.length > 0 && typeof ssTool.execute === "function",
+    JSON.stringify({ exists, keys: Object.keys(ssTool ?? {}) }),
+  );
+  n35++;
+}
+
+// 355 — the registration-shape pin: the args key list is EMPTY (zero args
+//      — the exact args keys, the compact_memory check-86 / context_trim
+//      check-346 pattern) + NO `name` field (the host auto-detects
+//      .opencode/tools/*.ts — no registration anywhere)
+{
+  check(
+    String(n35),
+    "S35",
+    "registration shape: the args key list is EMPTY (zero args) + NO name field (host auto-detect)",
+    ssTool != null && JSON.stringify(Object.keys(ssTool.args ?? {})) === JSON.stringify([]) && !("name" in ssTool),
+    JSON.stringify({ args: Object.keys(ssTool?.args ?? {}), keys: Object.keys(ssTool ?? {}) }),
+  );
+  n35++;
+}
+
+// 356 — the description carries the planner-only steer (the phrase
+//      `planner`)
+{
+  check(
+    String(n35),
+    "S35",
+    "the description carries the planner-only steer (contains the phrase 'planner')",
+    typeof ssTool?.description === "string" && ssTool.description.includes("planner"),
+    JSON.stringify({ head: String(ssTool?.description).slice(0, 60) }),
+  );
+  n35++;
 }
 
 // ------------------------------------------------------------------ summary

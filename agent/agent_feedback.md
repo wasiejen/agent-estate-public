@@ -806,3 +806,6 @@ auto_resume.smoke's final sandbox cleanup `fs.rmSync` throws EPERM when a Databa
 ### 2026-10-01_19-33 planner_Q3S_slow ses_f0999d65dffeFxiJylRzecRbhu
 A `git add` with one invalid pathspec (loop/agent/ — typo, error suppressed by 2>/dev/null) aborted atomically and silently dropped 5 intended files from the commit — caught on the next status check, landed in a part-2 commit. What would help: nothing from the repo side; drop `2>/dev/null` on git add invocations (let a bad pathspec surface).
 
+### 2026-10-04_23-47 worker_Q3S_slow ses_ef7344940ffe0UNjdAHseO8WUZ
+execFileSync on this host ECHOES a failed child's stderr to the parent's stderr (in addition to capturing it in err.stderr) — noisy in smokes with intentional failure cases; a stdio choice to suppress it is not documented in repo_commands.md.
+

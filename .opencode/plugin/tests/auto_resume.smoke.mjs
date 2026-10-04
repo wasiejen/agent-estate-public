@@ -59,6 +59,17 @@
 // the fresh compaction part's tail_start_id is rewritten to the keep
 // boundary + a `tail-set=` log line; no fire for a COMPACT line WITHOUT
 // a keep field or for a non-COMPACT line.
+// LOOP ITERATION COUNTER (2026-10-05, approved proposal
+// 2026-10-01_loop-iteration-counter.md Part 1): the autorun spawn
+// title is now `<loop-folder> planner-<N>` where N = max(counter.n + 1,
+// largest `planner-<N>` in the loop log + 1) — the machine-side
+// counter file (`loop/<folder>/counter.json`, written AT SPAWN) is the
+// authoritative state (a dead session that wrote no loop-log line
+// still advances the counter — no doubled naming); the RESTART text
+// carries the EXPLICIT N (the old log-derivation text is the
+// no-loop-folder fallback only). The old plan9 "no planner-<N> line →
+// no identifier" behavior is REPLACED: no counter + no planner line →
+// N = 1 (a title always resolves when a loop folder exists).
 // The plugin factory is called with a SCRATCHPAD sandbox `directory` —
 // auto_resume.log lands in the sandbox (.opencode/temp/auto_resume.log
 // under the sandbox project), NEVER the live .opencode/temp/. Run:
@@ -981,28 +992,99 @@ try {
    const identName = "autorun-test_0-0 planner-8";
    const lastCreate8 = createCalls[createCalls.length - 1];
    const newSpawnLines8 = readLines().filter((l) => l.includes("spawn= sid=ses_u3_new")).length - spawnLinesBefore8;
-   chk("UNIT 3 plan9: loop folder present → create carries the autorun-identifiable title (folder + next planner-<N>: planner-7 → planner-8) + ident= bit in the spawn= line; queued prompt text UNCHANGED (no prefix)",
-     okS8 && createCalls.length === cBefore8 + 1 && spawnCalls.length === sBefore8 + 1 &&
-       (lastCreate8?.body?.title ?? null) === identName &&
-       spawnCalls[spawnCalls.length - 1]?.body?.parts?.[0]?.text === TRIGGER_TEXT &&
-       newSpawnLines8 === 1 &&
-       readLines().some((l) => l.includes("spawn= sid=ses_u3_new") && l.includes(`ident=${identName}`)),
-     `create=${createCalls.length} promptAsync=${spawnCalls.length}`);
+    chk("UNIT 3 plan9: loop folder present → create carries the autorun-identifiable title (folder + next planner-<N>: planner-7 → planner-8) + ident= bit in the spawn= line; queued prompt text UNCHANGED (no prefix)",
+      okS8 && createCalls.length === cBefore8 + 1 && spawnCalls.length === sBefore8 + 1 &&
+        (lastCreate8?.body?.title ?? null) === identName &&
+        spawnCalls[spawnCalls.length - 1]?.body?.parts?.[0]?.text === TRIGGER_TEXT &&
+        newSpawnLines8 === 1 &&
+        readLines().some((l) => l.includes("spawn= sid=ses_u3_new") && l.includes(`ident=${identName}`)),
+      `create=${createCalls.length} promptAsync=${spawnCalls.length}`);
+    // 2026-10-05 loop iteration counter: the spawn WROTE the fixture's
+    // counter.json byte-exact with the computed N (no prior counter +
+    // log max planner-7 → max(1, 7+1) = 8 — the machine source of
+    // truth, written at spawn).
+    chk("UNIT 3 loop counter: the spawn wrote the fixture counter.json byte-exact with n=8 (the machine source of truth)",
+      okS8 && fs.existsSync(path.join(loopDir, "counter.json")) &&
+        fs.readFileSync(path.join(loopDir, "counter.json"), "utf-8") === '{"looprun":"autorun-test_0-0","n":8}',
+      fs.existsSync(path.join(loopDir, "counter.json")) ? fs.readFileSync(path.join(loopDir, "counter.json"), "utf-8") : "absent");
 
-   // ---- (9) plan9 unit A: the same folder but a loop log with NO
-   // planner-<N> line → NO identifier (the create gets NO title — the
-   // spawn is exactly as before; no prompt-text prefix either).
-   fs.writeFileSync(path.join(loopDir, "loop_log.md"),
-     "2026-09-21_15-33 -->START worker-1 unknown Qwen3.8-27B-Q3S-170K task oneliner\n", "utf-8");
-   const cBefore9 = createCalls.length, sBefore9 = spawnCalls.length;
-   fs.writeFileSync(triggerFile, TRIGGER_TEXT, "utf-8");
-   const okS9 = await waitUntil(() => spawnCalls.length >= sBefore9 + 1 && !fs.existsSync(triggerFile));
-   const lastCreate9 = createCalls[createCalls.length - 1];
-   chk("UNIT 3 plan9: loop log without any planner-<N> line → no identifier (create called with no title, queued prompt text unchanged)",
-     okS9 && createCalls.length === cBefore9 + 1 && spawnCalls.length === sBefore9 + 1 &&
-       (lastCreate9?.body?.title ?? undefined) === undefined &&
-       spawnCalls[spawnCalls.length - 1]?.body?.parts?.[0]?.text === TRIGGER_TEXT,
-     `create=${createCalls.length} promptAsync=${spawnCalls.length}`);
+    // ---- (9) loop iteration counter (REPURPOSED from the plan9
+    // "no identifier" pin — the behavior changed): the same folder, a
+    // loop log with NO planner-<N> line AND NO counter file (the
+    // block-8 counter is removed) → NOW N = max(1, 0+1) = 1 → title
+    // `<folder> planner-1` (the old behavior left the spawn un-named —
+    // a dead session that wrote no line used to get its number reused;
+    // the machine-side counter changes that).
+    fs.writeFileSync(path.join(loopDir, "loop_log.md"),
+      "2026-09-21_15-33 -->START worker-1 unknown Qwen3.8-27B-Q3S-170K task oneliner\n", "utf-8");
+    fs.rmSync(path.join(loopDir, "counter.json"), { force: true }); // no counter in this scenario
+    const cBefore9 = createCalls.length, sBefore9 = spawnCalls.length;
+    const spawnLinesBefore9 = readLines().filter((l) => l.includes("spawn= sid=ses_u3_new")).length;
+    fs.writeFileSync(triggerFile, TRIGGER_TEXT, "utf-8");
+    const okS9 = await waitUntil(() => spawnCalls.length >= sBefore9 + 1 && !fs.existsSync(triggerFile));
+    const identName9 = "autorun-test_0-0 planner-1";
+    const lastCreate9 = createCalls[createCalls.length - 1];
+    const newSpawnLines9 = readLines().filter((l) => l.includes("spawn= sid=ses_u3_new")).length - spawnLinesBefore9;
+    chk("UNIT 3 loop counter (repurposed no-line pin): no counter + no planner-<N> line → NOW N = 1 → title `<folder> planner-1` + ident= bit (the old no-identifier behavior is replaced); queued prompt text unchanged",
+      okS9 && createCalls.length === cBefore9 + 1 && spawnCalls.length === sBefore9 + 1 &&
+        (lastCreate9?.body?.title ?? null) === identName9 &&
+        spawnCalls[spawnCalls.length - 1]?.body?.parts?.[0]?.text === TRIGGER_TEXT &&
+        newSpawnLines9 === 1 &&
+        readLines().some((l) => l.includes("spawn= sid=ses_u3_new") && l.includes(`ident=${identName9}`)) &&
+        fs.readFileSync(path.join(loopDir, "counter.json"), "utf-8") === '{"looprun":"autorun-test_0-0","n":1}',
+      `create=${createCalls.length} promptAsync=${spawnCalls.length}`);
+
+    // ---- (10) loop iteration counter (2026-10-05 proposal): the
+    // acceptance scenarios (a)–(d) — the machine-side max() (candidate
+    // = counter.n + 1; log floor = largest `planner-<N>` in the log + 1;
+    // n_final = the higher one). Each scenario writes a fresh
+    // counter.json + loop_log.md fixture, triggers ONE spawn, and pins
+    // the title + the counter file written with the computed N.
+    const counterJson = (n) => `{"looprun":"autorun-test_0-0","n":${n}}`;
+    const logLine = (tag) => `2026-09-21_15-33 -->START ${tag} unknown Qwen3.8-27B-Q3S-170K task oneliner\n`;
+    const counterSpawn = async () => {
+      const cB = createCalls.length, sB = spawnCalls.length;
+      fs.writeFileSync(triggerFile, TRIGGER_TEXT, "utf-8");
+      const ok = await waitUntil(() => spawnCalls.length >= sB + 1 && !fs.existsSync(triggerFile));
+      return {
+        ok,
+        title: (createCalls[createCalls.length - 1]?.body?.title ?? null),
+        file: fs.readFileSync(path.join(loopDir, "counter.json"), "utf-8"),
+      };
+    };
+    // (a) counter n=4 + log max planner-4 → candidate 5, log floor 5 → N=5
+    fs.writeFileSync(path.join(loopDir, "counter.json"), counterJson(4), "utf-8");
+    fs.writeFileSync(path.join(loopDir, "loop_log.md"), logLine("planner-4"), "utf-8");
+    const rA = await counterSpawn();
+    chk("UNIT 3 loop counter (a): counter n=4 + log max planner-4 → spawn N=5 (title + counter written byte-exact)",
+      rA.ok && rA.title === "autorun-test_0-0 planner-5" && rA.file === counterJson(5),
+      JSON.stringify(rA));
+    // (b) counter n=4 + log max planner-6 (dead session wrote its line,
+    // counter behind) → candidate 5, log floor 7 → N=7 (the higher one)
+    fs.writeFileSync(path.join(loopDir, "counter.json"), counterJson(4), "utf-8");
+    fs.writeFileSync(path.join(loopDir, "loop_log.md"), logLine("planner-6"), "utf-8");
+    const rB = await counterSpawn();
+    chk("UNIT 3 loop counter (b): counter n=4 + log max planner-6 (counter behind) → spawn N=7 (the higher one)",
+      rB.ok && rB.title === "autorun-test_0-0 planner-7" && rB.file === counterJson(7),
+      JSON.stringify(rB));
+    // (c) counter n=5 + NO planner-5 log line (a dead session wrote no
+    // line) → candidate 6, log floor 5 → N=6, never 5 (no doubled
+    // naming — the old log-only derivation would have reused 5)
+    fs.writeFileSync(path.join(loopDir, "counter.json"), counterJson(5), "utf-8");
+    fs.writeFileSync(path.join(loopDir, "loop_log.md"), logLine("planner-4"), "utf-8");
+    const rC = await counterSpawn();
+    chk("UNIT 3 loop counter (c): counter n=5 + log max planner-4 (a dead session wrote no planner-5 line) → spawn N=6, never 5 (no doubled naming)",
+      rC.ok && rC.title === "autorun-test_0-0 planner-6" && rC.file === counterJson(6),
+      JSON.stringify(rC));
+    // (d) counter of a DIFFERENT looprun (post-rollover residue) + no
+    // planner line → candidate 1, log floor 1 → N=1 (the foreign
+    // counter is ignored; the write normalizes the looprun)
+    fs.writeFileSync(path.join(loopDir, "counter.json"), '{"looprun":"autorun-old_9-9","n":9}', "utf-8");
+    fs.writeFileSync(path.join(loopDir, "loop_log.md"), logLine("worker-1"), "utf-8");
+    const rD = await counterSpawn();
+    chk("UNIT 3 loop counter (d): counter of a DIFFERENT looprun (post-rollover) + no planner line → spawn N=1 (the foreign counter is ignored) + the write normalizes the looprun",
+      rD.ok && rD.title === "autorun-test_0-0 planner-1" && rD.file === counterJson(1),
+      JSON.stringify(rD));
 
    // Leave the sandbox clean for the UNIT 4 sections below: the loop
    // dir is removed (no folder → no identifier — the pre-plan9 spawn
@@ -1257,6 +1339,22 @@ try {
     const RELAY_MSG = "resume the gate section from the last green commit (re-read the NAP)";
     const ADDENDUM = "post-compaction: re-read your head files per agent/readme/readme_post_compaction.md and CONTINUE — never re-plan from scratch";
 
+    // 2026-10-05 loop iteration counter (Part 1): the RESTART text now
+    // carries the EXPLICIT N from the machine-side counter (the restart
+    // branch precomputes the counter once — the title's N and the
+    // text's N are the same number). The DETERMINISTIC loop fixture
+    // (folder `autorun-test_0-0`, counter n=4, log max planner-4) makes
+    // the N of every restart in this section machine-computable: the
+    // first restart here (ses_u4_exh) computes max(4+1, 4+1) = 5 and
+    // writes n=5; each later restart advances it (emg 6, i4 7, unread
+    // 8). Removed after the item-4 section (the later sections —
+    // incl. #109 — pin the no-folder / own-folder behavior).
+    const cLoopDir = path.join(proj, "loop", "autorun-test_0-0");
+    fs.mkdirSync(cLoopDir, { recursive: true });
+    fs.writeFileSync(path.join(cLoopDir, "counter.json"), '{"looprun":"autorun-test_0-0","n":4}', "utf-8");
+    fs.writeFileSync(path.join(cLoopDir, "loop_log.md"),
+      "2026-09-21_15-33 -->START planner-4 unknown Qwen3.8-27B-Q3S-170K task oneliner\n", "utf-8");
+
     // ---- (1) a stored message → relayed as the FIRST CONTINUE message
     // (+ the one-line addendum); the file is consumed on success.
     msgScript.set("ses_u4_relay", mkPairs([["user", MARK + " iteration 1"], ["assistant", "Mid-unit, no closing line."]], PLANNER_A));
@@ -1342,14 +1440,19 @@ try {
     const I4_MSG = "item-4: resume the probe section from the last green commit";
     // (b) file ABSENT → the restart spawn text is byte-identical to the
     // base — pinned on the emg scenario above (no queued file, not
-    // exhausted → the plain base text).
+    // exhausted → the plain base text). 2026-10-05 loop iteration
+    // counter: the base now carries the EXPLICIT N (the authoritative
+    // loop counter — the loop-log grep stays the fallback verification
+    // only); the emg restart here computed N=6 (the fixture counter
+    // advanced by the earlier restart in this section: exh 5, emg 6).
     const emgText = (emgSpawn?.body?.parts?.[0]?.text) ?? "";
-    const BASE_RESTART =
+    const baseRestartText = (n) =>
       "<|autonom|>\n" +
-      "Run autonomously. (auto-resume unit 4 restart branch: the previous planner closed with `action: restart`.) Your iteration number = the largest `planner-N` in the current loop folder's `loop_log.md` " +
-      "plus one (verify from the log; the counter-mismatch rule applies). Rebuild reality from committed state " +
+      "Run autonomously. (auto-resume unit 4 restart branch: the previous planner closed with " +
+      "`action: restart`.) Your iteration number is " + n + " (the authoritative loop counter — the loop-log grep stays the fallback verification only). Rebuild reality from committed state " +
       "(git log, NAP, TODO.md) and continue per your planner prompt's autonomous mode.";
-    chk("ITEM 4: file ABSENT → the restart spawn text is byte-identical to the base (the emg scenario — no queued file)",
+    const BASE_RESTART = baseRestartText(6);
+    chk("ITEM 4: file ABSENT → the restart spawn text is byte-identical to the base with the EXPLICIT N (the emg scenario — no queued file, N=6)",
       okR4 && emgText === BASE_RESTART,
       JSON.stringify(emgText.slice(0, 200)));
     // (a) file PRESENT → the restart spawn text carries the labeled
@@ -1364,9 +1467,9 @@ try {
     );
     const i4Spawn = u4Sends.find((c) => ((c.body?.parts?.[0]?.text) ?? "").includes(I4_MSG));
     const i4Text = i4Spawn?.body?.parts?.[0]?.text ?? "";
-    chk("ITEM 4: file PRESENT → the restart spawn text carries the labeled INTENT HINT section (the base text intact + the queued message)",
+    chk("ITEM 4: file PRESENT → the restart spawn text carries the labeled INTENT HINT section (the base text intact — the explicit N advanced to 7 by the earlier restarts — + the queued message)",
       okR5 && i4Spawn != null &&
-        i4Text.startsWith(BASE_RESTART) &&
+        i4Text.startsWith(baseRestartText(7)) &&
         i4Text.includes("closing-intent hint") &&
         i4Text.includes("ses_u4_i4") &&
         i4Text.endsWith(I4_MSG),
@@ -1389,12 +1492,15 @@ try {
       const t = c.body?.parts?.[0]?.text ?? "";
       return t.startsWith(MARK) && t.includes("auto-resume unit 4 restart branch") && !t.includes("compaction budget exhausted");
     }).at(-1);
-    chk("ITEM 4: UNREADABLE file (a directory at the queue path) → the base text unchanged (no hint section), no tombstone (the directory survives)",
-      okR6 && unSpawn != null && (unSpawn.body?.parts?.[0]?.text ?? "") === BASE_RESTART && fs.existsSync(UNREAD),
+    chk("ITEM 4: UNREADABLE file (a directory at the queue path) → the base text unchanged (no hint section — the explicit N advanced to 8 by the earlier restarts), no tombstone (the directory survives)",
+      okR6 && unSpawn != null && (unSpawn.body?.parts?.[0]?.text ?? "") === baseRestartText(8) && fs.existsSync(UNREAD),
       JSON.stringify((unSpawn?.body?.parts?.[0]?.text ?? "").slice(0, 200)));
-    // leave the sandbox clean (later sections read no queued file)
+    // leave the sandbox clean (later sections read no queued file + the
+    // loop counter fixture is removed — the #109 section below creates
+    // its own loop folder and pins the current-folder resolution)
     fs.rmSync(path.join(tmp2, "compact_message_ses_u4_i4.consumed"), { force: true });
     fs.rmSync(UNREAD, { recursive: true, force: true }); // an empty directory
+    fs.rmSync(path.join(proj, "loop"), { recursive: true, force: true });
 
     // ============================================================
     // UNIT 2 #85 part 3 — the nudge's scope gate (the factory is re-

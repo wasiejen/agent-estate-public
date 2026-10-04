@@ -767,20 +767,22 @@ async function onToolAfterNudge(
   }
 }
 
-// plan9 unit A: the autorun-identifiable spawn TITLE —
-// `<loop-folder> planner-<N>` where N = the largest `planner-<N>` found
-// in the current loop folder's `loop_log.md`, + 1 (the same derivation
-// the planner uses for its iteration number). Detection mirrors
-// `.opencode/tools/loop_log.ts` (~L75): readdirSync the loop root
-// (the factory's `input.directory`), exactly-one `autorun-*` folder →
-// it, several → the most-recently-modified (the tool's anomaly rule).
-// NO loop folder / no `loop_log.md` / no `planner-<N>` line → null
-// (the spawn stays un-named, exactly as before). Never throws out —
-// a title failure must not break the spawn.
+// plan9 unit A + the loop iteration counter (2026-10-05, approved
+// proposal 2026-10-01_loop-iteration-counter.md Part 1): the
+// autorun-identifiable spawn TITLE `<loop-folder> planner-<N>` where N
+// is the MACHINE source of truth — `loop/<folder>/counter.json`
+// (written at spawn, below) cross-checked against the loop log. The
+// counter is computed ONCE per spawn (the restart branch precomputes it
+// for the restart text — the title's N and the text's N are the same
+// number; a dead session can never leave the counter behind, so no
+// doubled naming). Folder detection mirrors `.opencode/tools/loop_log.ts`
+// (~L75) via currentLoopFolder below: NO loop folder → null (the spawn
+// stays un-named, exactly as before). Never throws out — a counter
+// failure must not break the spawn.
 // #109: the CURRENT looprun folder NAME — the shared resolution (the
 // plan9 unit A logic, factored out): exactly one `autorun-*` folder →
 // it, several → the most-recently-modified (mirrors the loop_log
-// tool), none / unreadable → null. spawnTitleFor derives the spawn
+// tool), none / unreadable → null. spawnCounterFor derives the spawn
 // title from it; the limit-stop `-WARNING` line lands in its
 // `loop_log.md`. Never throws out.
 function currentLoopFolder(): string | null {
@@ -800,21 +802,61 @@ function currentLoopFolder(): string | null {
   }
 }
 
-function spawnTitleFor(): string | null {
+// Loop iteration counter (Part 1): `loop/<folder>/counter.json` =
+// `{ "looprun": <folder>, "n": <N> }` — the MACHINE source of truth,
+// written AT SPAWN (no agent action — a session that dies before
+// writing its loop_log START line still advances the counter, the
+// doubled-naming root cause). Derivation (the spec's behavior block):
+//   1. folder = currentLoopFolder(); null → null (un-named spawn,
+//      unchanged).
+//   2. Candidate: the folder's counter.json — absent / unparseable /
+//      `looprun` ≠ folder (post-rollover residue) → 1; else n + 1.
+//   3. Log max: the largest `planner-<N>` in the folder's loop_log.md
+//      (missing / unreadable → 0 — the old spawnTitleFor returned null
+//      there; that changes).
+//   4. n_final = max(candidate, logMax + 1) — "when in doubt, the
+//      higher one": the counter never lags the log, and a log line
+//      never lags the counter (a dead session's line is advanced past,
+//      never reused).
+//   5. Write the counter with n_final (best effort — a write failure
+//      must not break the spawn).
+// Title = `<folder> planner-<n_final>` (the plan9 unit A form — the
+// `ident=` bit and the `spawn=` line format are unchanged). Never
+// throws out.
+function spawnCounterFor(): { folder: string; n: number } | null {
   try {
     const folder = currentLoopFolder();
     if (!folder) return null;
-    // Missing loop_log.md throws → caught below → null (no identifier).
-    const logText = readFileSync(join(projectDir, "loop", folder, "loop_log.md"), "utf-8");
-    let max = 0;
-    for (const m of logText.matchAll(/planner-(\d+)/g)) {
-      const n = parseInt(m[1], 10);
-      if (n > max) max = n;
+    const counterPath = join(projectDir, "loop", folder, "counter.json");
+    let candidate = 1;
+    try {
+      const data: unknown = JSON.parse(readFileSync(counterPath, "utf-8"));
+      if (typeof data === "object" && data !== null && (data as Record<string, unknown>)["looprun"] === folder) {
+        const n = (data as Record<string, unknown>)["n"];
+        if (typeof n === "number" && Number.isFinite(n)) candidate = n + 1;
+      }
+    } catch {
+      // absent / unparseable / wrong looprun → candidate 1
     }
-    if (max === 0) return null; // no planner-<N> line → no identifier
-    return `${folder} planner-${max + 1}`;
+    let logMax = 0;
+    try {
+      const logText = readFileSync(join(projectDir, "loop", folder, "loop_log.md"), "utf-8");
+      for (const m of logText.matchAll(/planner-(\d+)/g)) {
+        const n = parseInt(m[1], 10);
+        if (n > logMax) logMax = n;
+      }
+    } catch {
+      // missing / unreadable loop_log.md → 0
+    }
+    const nFinal = Math.max(candidate, logMax + 1);
+    try {
+      writeFileSync(counterPath, JSON.stringify({ looprun: folder, n: nFinal }), "utf-8");
+    } catch {
+      // best effort — a counter write failure must not break the spawn
+    }
+    return { folder, n: nFinal };
   } catch {
-    return null; // unreadable dir/log → no identifier
+    return null; // unreadable dir → no identifier
   }
 }
 
@@ -834,7 +876,11 @@ function spawnTitleFor(): string | null {
 // SPAWN; a failed spawn changes nothing (current semantics). The
 // file-trigger path stays unchanged (no source session, no depth set —
 // the successor is absent from the `spawned` map → depth 0).
-async function spawnPlanner(startPrompt: string, sourceMsgs?: unknown): Promise<string | null> {
+// precomputed: the loop iteration counter precomputed by the CALLER
+// (the Unit 4 restart branch — it needs the same N for the restart
+// text); the counter is then computed EXACTLY ONCE per spawn (the
+// file-trigger path computes it here).
+async function spawnPlanner(startPrompt: string, sourceMsgs?: unknown, precomputed?: { folder: string; n: number } | null): Promise<string | null> {
   const sess = (client as {
     session?: {
       create?: (options?: unknown) => Promise<unknown>;
@@ -845,9 +891,11 @@ async function spawnPlanner(startPrompt: string, sourceMsgs?: unknown): Promise<
     log("spawn-fail= create missing");
     return null;
   }
-  // plan9 unit A: the autorun-identifiable title (null → the spawn is
-  // exactly as before, no body).
-  const identName = spawnTitleFor();
+  // plan9 unit A + loop iteration counter: the title
+  // `<folder> planner-<n>` (null → the spawn is exactly as before,
+  // no body).
+  const counter = precomputed ?? spawnCounterFor();
+  const identName = counter ? `${counter.folder} planner-${counter.n}` : null;
   let newSid: unknown;
   try {
     // No args unless the identifier resolved: SessionCreateData is
@@ -1006,13 +1054,21 @@ function consumeQueuedMessage(sid: string): void {
 // the prompt ADDS the forced-new-session directive (the limit-run
 // DETECTION is the #93 context_recovery port — this is the condition
 // check + the directive construction).
-function restartText(sid: string, exhausted: boolean): string {
+// n: the authoritative iteration number from the loop iteration
+// counter (Part 1 — the restart branch precomputes the counter once and
+// passes the same N into the title); null (no loop folder — the
+// degenerate pre-plan9 / no-loop case) → the old derivation text.
+function restartText(sid: string, exhausted: boolean, n?: number | null): string {
+  const iter =
+    n != null
+      ? `Your iteration number is ${n} (the authoritative loop counter — the loop-log grep stays the fallback verification only). `
+      : "Your iteration number = the largest `planner-N` in the current loop folder's `loop_log.md` " +
+        "plus one (verify from the log; the counter-mismatch rule applies). ";
   const base =
     `<|autonom|>\n` +
     `Run autonomously. (auto-resume unit 4 restart branch: the previous planner closed with ` +
-    "`action: restart`.) Your iteration number = the largest `planner-N` in the current loop folder's `loop_log.md` " +
-    "plus one (verify from the log; the counter-mismatch rule applies). Rebuild reality from committed state " +
-    "(git log, NAP, TODO.md) and continue per your planner prompt's autonomous mode.";
+    "`action: restart`.) " + iter +
+    "Rebuild reality from committed state (git log, NAP, TODO.md) and continue per your planner prompt's autonomous mode.";
   if (!exhausted) return base;
   // The directive's session id = the CLOSING session (the budget store
   // key checked in budgetExhausted — the pinned source).
@@ -1555,8 +1611,13 @@ async function routeScopedIdle(sid: string, w: Watch) {
   // compact-message-delivery item 4: append the closing session's queued
   // message (the labeled INTENT HINT) when present — fail-open to the
   // base text.
-  const restart = restartText(sid, exhausted) + restartIntentSection(sid);
-  const newSid = await spawnPlanner(restart, msgs); // Unit 3 helper (never throws outward)
+  // Loop iteration counter (Part 1): the counter is computed ONCE here
+  // (the authoritative N for the restart text) and passed to
+  // spawnPlanner (the shared computation keeps the title's N and the
+  // text's N the same number — no recompute, no double write).
+  const counter = spawnCounterFor();
+  const restart = restartText(sid, exhausted, counter?.n ?? null) + restartIntentSection(sid);
+  const newSid = await spawnPlanner(restart, msgs, counter); // Unit 3 helper (never throws outward)
   // #90 part A+B: a SUCCESSFUL spawn records the successor's lineage
   // depth (trigger depth + 1) and STICKY-deactivates the TRIGGER
   // (part B: the fresh fetch is already in hand — its user-message

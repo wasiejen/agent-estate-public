@@ -812,3 +812,6 @@ execFileSync on this host ECHOES a failed child's stderr to the parent's stderr 
 ### 2026-10-04_23-54 planner_Q3S_slow ses_f0777c6d0fferrQ5Skto9dmzn0
 plan10 frictions: (1) block_transfer MOVE with the same srcFile/dstFile and no targetMarker silently appended the block at EOF (the `text` param is ignored by MOVE) — I split the NAP archive and had to repair with DELETE + edit; the EDGE section should warn that MOVE-into-same-file has no in-place semantics (WRITE/REPLACE are the in-place modes). (2) the edit tool returned "Edit applied successfully" immediately followed by "hint rejected reason=d-too-high best-d=3" — the hint line reads like a rejection on a SUCCESSFUL edit (the #106 APPLIED/REJECTED token is ambiguous when the exact match succeeds via the primary path while the hint channel evaluates a different candidate); the agent can't tell which line is authoritative without re-reading the file.
 
+### 2026-10-05_00-55 worker_Q3S_slow ses_ef70261b3ffewfIAhOa8hu603o
+Loop iteration counter spec: step 4 ("n_final = max(candidate, logMax)") contradicts its own acceptance (b) → worker had to resolve the ambiguity in favor of the acceptance criteria; the spec + proposal step text need the "+1" fix before Part 3 docs (readme_loop.md) are written planner-side, so the docs state the correct formula.
+

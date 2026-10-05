@@ -815,3 +815,9 @@ plan10 frictions: (1) block_transfer MOVE with the same srcFile/dstFile and no t
 ### 2026-10-05_00-55 worker_Q3S_slow ses_ef70261b3ffewfIAhOa8hu603o
 Loop iteration counter spec: step 4 ("n_final = max(candidate, logMax)") contradicts its own acceptance (b) → worker had to resolve the ambiguity in favor of the acceptance criteria; the spec + proposal step text need the "+1" fix before Part 3 docs (readme_loop.md) are written planner-side, so the docs state the correct formula.
 
+### 2026-10-05_02-34 worker_Q3S_slow ses_ef6b793f2ffek8H7AISRzFV4gX
+worker-11 2026-10-05: the edit tool's advisory "hint rejected line=201 ..." message after a successful edit was NOT advisory — it had actually corrupted fst_manager.py:201 (stray "el" fragment, SyntaxError caught only by the gate run); every "hint rejected" after "Edit applied successfully" needs a read-back of the touched region before trusting the edit.
+
+### 2026-10-05_02-45 planner_Q3S_slow ses_ef7155f2dffedZ7mKtZW0EZqTh
+readme_post_compaction.md STEP 1 still lists agent/readme/repo_map.md, repo_testgate.md, repo_gotchas.md — post-#117 those parts live under projects/<name>/repo/ (only repo_overview.md + repo_commands.md remain at the agent/readme level); the two reads fail on every post-compaction batch (planner-11, 2026-10-05). The file list should be updated (and the per-project sets named) so the protocol batch matches the current layout.
+

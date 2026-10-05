@@ -44,7 +44,31 @@ GO (Parts 1+2 as the unit; Part 3 as a second unit of the same worker run or
 a follow-up). It retires 5 flags = observable behavior change, hence this
 call; the research doc's recommendation stands as written.
 
---comment:
+comment:
 approved in full
 + a guideline for me after implementation on how to use to effectively :-)
   - just put it in maintainer/feedback ^^
+
+## Verdict (LANDED 2026-10-05, plan11 unit 2)
+
+Worker worker_Q3S_slow (ses_ef6b793f2ffek8H7AISRzFV4gX), FST repo
+`fst_work3`: `ea2aac3` (U1 logger setup) / `cac6704` (U2 per-flag
+dispositions) / `cd0f3a2` (U3 error-documentation fixes). Planner-verified
+from files: FST gate re-run 474 passed + 1 known warning, ruff F=0;
+flag-surface greps clean (only the kept `DEBUG_NUMPAD` gate + its start arg
+remain); the live-config regression guard (`test_real_config_parses`) stayed
+green; diff scope = FST code + tests only.
+
+Deviations (all evidence-backed, in the handover):
+1. The nested `clear_all_variables` was KEPT, not deleted — the research
+   doc §5.5 misclassified it dead; it is the live eval-scope shim behind
+   bare `clear_all_variables()` config calls (`FSTconfig_test.txt:850,1596`,
+   pinned by a test). Corrected in the doc's §7 item 9.
+2. Out-of-range start-arg notices kept as console prints (doc §2 only
+   itemizes the unknown-arg site; the DoD pins only "unknown arg →
+   WARNING") — a small optional follow-up.
+3. `-logdir=` deferred per doc §3.3.
+
+The usage guideline (the approved maintainer ask) landed at
+`maintainer/feedback/2026-10-05_fst-logging-usage.md`. Live console/file
+confirmation = maintainer domain (post-build).

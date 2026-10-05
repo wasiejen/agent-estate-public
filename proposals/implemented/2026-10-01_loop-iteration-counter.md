@@ -32,9 +32,11 @@ a dead session can never leave the counter behind):
 1. on each autorun spawn: read the counter of the CURRENT loop folder;
    if absent or `looprun` != the current folder (rollover) → candidate n = 1;
    else candidate n = counter.n + 1;
-2. cross-check against the loop log: N_final = max(candidate, largest
-   `planner-<N>` in the loop log) — "when in doubt, the higher one" (his
-   rule, made machine-side);
+2. cross-check against the loop log: N_final = max(candidate, (largest
+   `planner-<N>` in the loop log) + 1) — "when in doubt, the higher one"
+   (his rule, made machine-side); (wording fix 2026-10-05, plan11: the +1
+   was implicit in acceptance (b) — counter n=4 + log max 6 → 7, which
+   max(candidate, logMax) alone cannot satisfy)
 3. write the counter with N_final; title = `<folder> planner-<N_final>`;
    launch message: "your iteration number is N_final (the authoritative
    counter — the log grep stays the fallback verification only)".
@@ -68,8 +70,22 @@ no longer detects mismatches).
 - Standard gate green (probe + all 11 smokes).
 
 ## Status
-Awaiting approval. Recommendation: Part 1 first (small, removes the root
-cause); Part 2 optional; Part 3 rides along.
+LANDED 2026-10-05 (plan11, autorun ses_ef7155f2…, worker_Q3S_slow
+ses_ef70261b…): Part 1 (spawn-time `counter.json` — `spawnCounterFor()`,
+`max(candidate, logMax + 1)`, the restart text carries the explicit N)
++ Part 2 (the injected ctx line carries ` ITER=<N> <folder>` via
+`loopIterationSuffix()` in gauge.mjs + a setLoopRootForTest hook) + the
+n=11 bootstrap seed (the next spawn computes 12). Commits b97bf75 /
+e9447c2 / 9bd8798; gate: probe 360/360 (+2 S36 checks), auto_resume
+170/170 (+5), all smokes green under node v24.19.0 (planner spot
+re-run auto_resume 170/170). Part 3 docs landed in readme_loop.md
+(counter file authoritative, the machine-side max() supersedes the
+planner-side mismatch detection). The worker found the spec's step-4
+wording (missing +1) contradicted acceptance (b) — built to the
+acceptance; the wording fix landed in this file + the spec. LIVE
+ACCEPTANCE PENDING the maintainer's host restart: the next autorun
+spawn must show `ident=…planner-12` + `counter.json` n=12 + the
+explicit-N launch text + the ` ITER=` suffix on the injected ctx line.
 
---comment:
+comment:
 approved including optional Part 2

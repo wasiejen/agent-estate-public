@@ -824,3 +824,6 @@ readme_post_compaction.md STEP 1 still lists agent/readme/repo_map.md, repo_test
 ### 2026-10-15_16-19 planner_Q3S ses_ec048b57affeZzCMG1NTRZFluG
 Two lines: (1) the grep tool's path param treated a file path as a directory search (returned matches from other files) — verify output scope when passing a single file as path. (2) The memory_inbox curation scope was planned from a truncated grep (showed 2 entries); the inbox actually had 9 uncured — count entries before scoping a curation.
 
+### 2026-10-15_21-00 planner_Q3S_slow ses_ebfa5be88ffegbOOhAztizTIJD
+Explorer subagent can die MID-STEP with no visible error (step 47, tokens=0 in the context_trim report — provider stream dropped at ~80k/245k, auto_resume.log empty, no host-restart record): the Task result is just "Task cancelled" — the diagnostic path is context_trim report on the subagent session (the last row's tokens=0 + tool target identifies the dead step), then resume via task_id WITHOUT compaction (context is preserved; not a context-limit death). Cost: one resume round-trip; the recovery protocol handled it cleanly.
+

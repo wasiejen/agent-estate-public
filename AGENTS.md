@@ -64,6 +64,37 @@ Reference the section instead of repeating it.
 | worker | Implement one task, edit, verify, and reach green state | Green commit and worker summary | Planner |
 | explorer | Audit, map, and classify gaps | Prioritized `TODO.md` entries and worker summary | Planner |
 
+## Authority and Recovery
+
+Use this precedence order:
+
+1. The current maintainer instruction.
+2. Repository code and enforced tool permissions.
+3. `AGENTS.md`.
+4. The active role prompt.
+5. Distilled role memory.
+6. General model knowledge.
+
+When two sources conflict, follow the higher source.
+Record unresolved conflicts in the NAP or the handover.
+
+Before repeating an action, inspect committed files, `git status`,
+`git log`, and the relevant handover.
+Do not repeat a commit, submission, or external action that already succeeded.
+
+Do not retry the same failing action more than twice without new evidence.
+After two repeated failures, preserve the evidence, update the handover or
+`todo_inbox.md`, and escalate.
+
+Classify a failure before acting on it again:
+
+- transient tool failure: retry once with bounded output
+- context failure: compact or resume the same session, never relaunch
+- permission failure: stop and report the boundary
+- verification failure: diagnose and repair
+- maintainer decision: pause and ask, or create a proposal
+- unknown failure: preserve state and escalate
+
 ## Interaction Contract
 
 This section defines the shared contract.
@@ -81,6 +112,11 @@ The committed version of a file is canonical unless this table states otherwise.
 | plan state / NAP | `agent/handover/handover_planner.md` | planner | next planner | committed |
 | action line | Last `action:` line in the planner closing message | planner | auto-resume plugin and planner | last line in message |
 | maintainer message | `maintainer/inbox_<role>/` | maintainer | named role | moved to `maintainer/done/` after handling |
+| session activity | `loop/<run>/loop_log.md` | acting roles | planner | committed |
+| historical work | `git log` and `archive/` summaries | roles | future sessions | committed |
+| current priority | `maintainer/priority.md` | maintainer | planner | committed |
+
+Do not repair one state source from another without recording the discrepancy.
 
 A Task-tool result may overwrite the worker summary after commit.
 The committed file remains canonical.
@@ -152,13 +188,15 @@ The worker summary contains:
 
 - change summary
 - measured verification
+- exact verification command and PASS/FAIL result
+- working-tree status (`clean` or `dirty`)
 - commit hash
 - `TODO.md` entries
 - deliberately omitted work
 
 The worker's final message points to the summary file.
 
-See the channel table and `repo_overview.md` for concrete paths.
+See the channel table and `repo_commands.md` in `agent/readme/` for concrete paths.
 
 ## Commit Routine
 
@@ -229,7 +267,7 @@ Do not bundle them into the task commit.
 
 Check the context gauge between logical work chunks and after every commit.
 
-Use the read-only command and path documented in `repo_overview.md`.
+Use the read-only command and path documented in `repo_commands.md` in `agent/readme/`.
 The output has this form:
 
 ```text
@@ -256,11 +294,24 @@ When the stop line is reached:
 
 Do not start new work past the stop line.
 
+When the live context nudge appears, it names a rung:
+
+- `triage`: estimate the remaining calls before starting a unit
+- `stop`: finish the current safe operation
+- `emergency`: commit the current state and compact immediately
+- `maintainer`: report the context state to the maintainer
+
+Rough call estimates: at the `triage` rung, compact when more than
+approximately 10 calls remain; at the `stop` rung, the threshold is
+approximately 6 calls.
+
+Role prompts define their per-rung actions.
+
 ## Compaction Guidelines
 
 Full reference:
 
-`maintainer/draft/compaction_guide/full_guide.md`
+`maintainer/draft/archive/compaction_guide/full_guide.md`
 
 The available compaction budget is model-specific.
 Read the current context gauge instead of assuming fixed values.
@@ -352,7 +403,7 @@ Add a one-line close note to `TODO.md`.
 Append findings that cannot be fixed confidently.
 Append findings outside the task scope.
 
-Use the `submit.todo` tool to append the finding to `todo_inbox.md`.
+Use the `submit` tool (`todo` channel) to append the finding to `todo_inbox.md`.
 The planner curates the finding into `TODO.md`.
 The planner assigns the stable ID during curation.
 
@@ -450,6 +501,33 @@ If an entry lacks the required information, the planner adds the missing goal an
 
 Store closed entries in `todo_records.md`.
 
+## Access Restrictions
+
+Never circumvent an access restriction.
+
+Do not use shell, scripts, or alternate write paths around an edit deny.
+The deny is the boundary.
+
+When a required file is inaccessible:
+
+1. Do the permitted work.
+2. Record the block in `handover_task_to_planner.md`.
+3. Close the session if the blocked file is the main task body.
+4. Report the block.
+
+A circumvention attempt is a prompt failure.
+
+## Command Output
+
+Before running an unfamiliar command:
+
+1. Redirect output to a temporary file.
+2. Check the output size.
+3. Read only a bounded overview.
+
+Limit greps and similar commands.
+Use `head -30` or another explicit bound.
+
 ## Safety Limits
 
 Repository-specific safety limits live in `repo_overview.md`.
@@ -468,8 +546,20 @@ Never run live or destructive operations unless the repository rules explicitly 
 
 ## Feedback and Improvement Suggestions
 
-The role prompt defines the mandatory close-down friction check.
-The role prompt also defines the required idea or suggestion submission.
+Check for real friction before every closing message or handoff:
 
-Follow those role-specific instructions.
-Do not duplicate them here.
+- slowdown
+- confusion
+- missing context
+- unclear rule
+- near miss
+- tool limitation
+
+If friction occurred, submit one actionable line per friction point.
+If `submit` is unavailable, append to `agent/agent_feedback.md`.
+Do not create an empty feedback entry.
+
+Submit verified role-specific lessons through the memory channel.
+Submit repository-wide facts through the knowledge channel.
+
+Role prompts define the closing timing and the extra role-specific duties.

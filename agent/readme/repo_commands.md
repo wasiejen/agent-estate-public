@@ -47,6 +47,22 @@ verified live in a direct session). Unix idioms work natively: `ls -la`,
   per #58/#64; refreshed 2026-09-17, planner-allowed per maintainer ruling for
   #71).
 
+## Marker sweep
+
+The ready-made marker sweep (the planner prompt §Maintainer markers uses
+this — do not recreate the pattern). The same command is embedded verbatim
+in `.opencode/tools/state_snapshot.ts` (`MARKER_SWEEP`):
+
+```bash
+grep -rn --include="*.md" -e "--main\|--now\|--info\|--todo\|--defer\|--wip\|--comment" \
+  .opencode/ agent/ maintainer/ loop/ proposals/ TODO.md README.md WIKI.md 2>/dev/null \
+  | grep -v "_past_priorities\|/done/\|agent_feedback\|nap_direct\|archive/"
+```
+
+`--main` also matches `--maintainer`, and `--defer` also matches
+`--deferred` (deliberate substring behavior). `2>/dev/null` keeps missing
+target files from poisoning the output.
+
 ## Handover file paths
 Channel semantics (who writes/reads, canonicality) live in the `AGENTS.md`
 interaction-contract table — this section keeps only the concrete repo facts:

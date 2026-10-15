@@ -31,6 +31,7 @@
       "home/AppData/Roaming/npm/node_modules/opencode-ai/**": "allow",
       // db path still to add or better in watcher ignore?
       "repo-root": "allow",
+      "repo-root-v2": "allow",
       "home/Repos/Free-Snap-Tap": "allow",
       "home/Repos/opencode": "allow"
     }

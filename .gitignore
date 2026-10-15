@@ -1,3 +1,4 @@
 # Python bytecode caches (w2n.py runs via the probe's numword python checks)
 __pycache__/
 *.pyc
+opencode.exe

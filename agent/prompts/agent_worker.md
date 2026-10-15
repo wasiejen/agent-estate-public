@@ -76,17 +76,10 @@ Read the relevant project files before changing that project.
 
 ## Command output
 
-Before running an unfamiliar command:
-
-1. Redirect output to the designated scratchpad.
-2. Check the output size.
-3. Read only a bounded overview.
+Follow `AGENTS.md` §Command Output.
 
 Use `$TMP/opencode` as the scratchpad location under Git Bash.
 Do not use POSIX `/tmp` or another unmapped temporary path.
-
-Limit greps and similar commands.
-Use `head -30` or another explicit bound.
 
 For multi-line replacements, prefer the edit tool or a written script.
 Do not rely on complex quoted `python -c` commands.
@@ -96,7 +89,7 @@ Do not rely on complex quoted `python -c` commands.
 Append findings that you cannot confidently fix or that are outside scope
 to `todo_inbox.md` at the repository root.
 
-Use the `submit.todo` tool when available.
+Use the `submit` tool (`todo` channel) when available.
 
 The inbox is append-only:
 
@@ -115,22 +108,11 @@ A file marked `--wip` is live-edited by the maintainer.
 - Editing is forbidden.
 - If the task requires that file, stop and report the block in the handover.
 
-Follow the canonical marker rules in the planner prompt.
 Never remove `--wip`.
 
 ## Access restrictions
 
-Never circumvent an edit restriction.
-
-Do not use shell, scripts, or alternate write paths to bypass an edit deny.
-The deny is the boundary.
-
-When a required file is inaccessible:
-
-1. Complete all permitted work.
-2. Record the block in `handover_task_to_planner.md`.
-3. Stop if the blocked file is the main task body.
-4. Report the block.
+Follow `AGENTS.md` §Access Restrictions.
 
 ## Checkpoint and commit
 
@@ -156,25 +138,22 @@ Report the hash after the commit.
 
 ## Context budget
 
-`AGENTS.md` §Compaction Guidelines defines the general compaction model.
+`AGENTS.md` §Context Budget and §Compaction Guidelines define the
+thresholds, the live nudge rungs, and the gauge-lag rule.
 
 Compaction is maintenance.
 It is not a restart.
 
 The worker-specific rule is:
 
-- At approximately 80%, create an early handover checkpoint.
-- At approximately 90%, stop starting new work.
-- At approximately 95%, commit the current state and compact immediately.
+- At the 80% triage point, create an early handover checkpoint.
 - If the next unit cannot finish safely, checkpoint before starting it.
 - Compact after tool output has been distilled.
 
-The context gauge can lag by one tool call.
-Treat its value as optimistic.
+The worker's per-rung actions:
 
-When the live context nudge appears:
-
-- `triage`: estimate remaining calls; checkpoint and compact if more than approximately 10 remain
+- `triage`: estimate remaining calls; checkpoint and compact if more
+  than approximately 10 remain
 - `stop`: close and compact if more than approximately 6 remain
 - `emergency`: commit and compact immediately
 - `maintainer`: surface the context state
@@ -223,6 +202,8 @@ Include:
 - files changed
 - behavior changed
 - measured verification
+- exact verification command and PASS/FAIL result
+- working-tree status (`clean` or `dirty`)
 - commit hash
 - TODO or inbox entries
 - deliberately omitted work
@@ -243,25 +224,13 @@ The friction entry and loop-log `DONE` line must be committed before closing.
 
 ## Friction and learning
 
-Before the handoff, check for genuine friction:
+Follow the friction check in `AGENTS.md` §Feedback and Improvement
+Suggestions.
 
-- slowdown
-- confusion
-- missing context
-- unclear instruction
-- near miss
-- tool limitation
+Worker-specific:
 
-If friction occurred, submit one actionable line per issue.
-If submission is unavailable, append to `agent/agent_feedback.md`.
-
-Do not create an empty feedback entry.
-
-Send verified role-specific lessons through the memory channel.
-Send repository-wide facts through the knowledge channel.
-
-Do not duplicate a friction entry in the handover.
-Add a `Lessons:` line only for a distinct reusable lesson.
+- Do not duplicate a friction entry in the handover.
+- Add a `Lessons:` line only for a distinct reusable lesson.
 
 ## Final response
 

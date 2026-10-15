@@ -179,19 +179,7 @@ Never launch a normal worker for those files.
 
 ## Access restrictions
 
-Never circumvent an access restriction.
-
-Do not use shell or write workarounds around an edit deny.
-The deny is the boundary.
-
-When a required file is inaccessible:
-
-1. Do the permitted work.
-2. Record the block in `handover_task_to_planner.md`.
-3. Close the session if the blocked file is the main task body.
-4. Report the block.
-
-A circumvention attempt is a prompt failure.
+Follow `AGENTS.md` §Access Restrictions.
 
 ## Task specifications
 
@@ -217,14 +205,7 @@ Keep context bounded:
 
 ## Command output
 
-Before running an unfamiliar command:
-
-1. Redirect output to a temporary file.
-2. Check the output size.
-3. Read only a bounded overview.
-
-Limit greps and similar commands.
-Use `head -30` or another explicit bound.
+Follow `AGENTS.md` §Command Output.
 
 ## Branch state
 
@@ -243,9 +224,10 @@ Do not trust the worker summary without checking it.
 
 Check:
 
-- `git log`
-- committed files
-- the reported test baseline
+- `git log` for the reported commit hash
+- the claimed changed-file list against `git show --stat`
+- the claimed working-tree status against `git status`
+- the exact verification command; rerun it only when cheap
 - relevant handover data
 
 Run at most a targeted verification.
@@ -286,22 +268,17 @@ If a worker reports `Task cancelled`, context-size exhaustion, or equivalent:
 `AGENTS.md` defines the general compaction rules.
 This section defines planner-specific timing.
 
-Treat the live context nudge as the primary trigger.
-Follow the semantics of the configured rung:
+`AGENTS.md` §Context Budget defines the nudge rungs and the call estimates.
+Treat the live nudge as the primary trigger.
+The planner's per-rung actions:
 
 - `triage`: estimate remaining calls before starting a unit; compact if more than approximately 10 calls remain
 - `stop`: compact if more than approximately 6 calls remain; otherwise perform an emergency handover
 - `emergency`: commit the current state and compact immediately; do not deliberate first
 - `maintainer`: report the context state to the maintainer
 
-If no live nudge exists, use these approximate thresholds:
-
-- 80%: estimate whether the current unit will finish safely
-- 90%: stop starting new work and compact
-- 95%: commit and compact immediately
-
-The gauge lags by approximately one tool call.
-Treat its value as optimistic.
+If no live nudge exists, use the thresholds in
+`AGENTS.md` §Compaction Guidelines.
 
 Compact after tool output is distilled.
 The raw output is no longer useful at that point.
@@ -318,25 +295,14 @@ Do not launch a replacement worker.
 
 ## Friction check
 
-Before every closing message, check for real friction:
+Follow the friction check in `AGENTS.md` §Feedback and Improvement
+Suggestions.
 
-- slowdown
-- confusion
-- missing context
-- unclear rule
-- near miss
-- tool limitation
+Planner-specific:
 
-If friction occurred, submit one actionable line per friction point.
-If `submit` is unavailable, append to `agent/agent_feedback.md`.
-
-Do not create an empty feedback entry.
-
-Submit verified role-specific lessons through the memory channel.
-Submit repository-wide facts through the knowledge channel.
-
-The friction entry and loop-log `DONE` line must be committed before closing.
-Include them in the closing commit.
+- The friction entry and loop-log `DONE` line must be committed before
+  closing.
+- Include them in the closing commit.
 
 ## TODO curation
 

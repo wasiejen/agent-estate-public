@@ -821,3 +821,6 @@ worker-11 2026-10-05: the edit tool's advisory "hint rejected line=201 ..." mess
 ### 2026-10-05_02-45 planner_Q3S_slow ses_ef7155f2dffedZ7mKtZW0EZqTh
 readme_post_compaction.md STEP 1 still lists agent/readme/repo_map.md, repo_testgate.md, repo_gotchas.md — post-#117 those parts live under projects/<name>/repo/ (only repo_overview.md + repo_commands.md remain at the agent/readme level); the two reads fail on every post-compaction batch (planner-11, 2026-10-05). The file list should be updated (and the per-project sets named) so the protocol batch matches the current layout.
 
+### 2026-10-15_16-19 planner_Q3S ses_ec048b57affeZzCMG1NTRZFluG
+Two lines: (1) the grep tool's path param treated a file path as a directory search (returned matches from other files) — verify output scope when passing a single file as path. (2) The memory_inbox curation scope was planned from a truncated grep (showed 2 entries); the inbox actually had 9 uncured — count entries before scoping a curation.
+

@@ -4,6 +4,16 @@
   "$schema": "https://opencode.ai/tui.json",
   "autoupdate": false,
   "formatter": true,
+  // v2 (Unit A, TODO #137): the intercept observer v2 plugin. NOTE: v2
+  // config plugin entries pointing at a FILE are dropped with a warning
+  // ("configured plugin path must be a directory" — fork
+  // packages/core/src/config/plugin/source.ts:151-153); the plugin itself
+  // is loaded by v2 DIRECTORY auto-discovery of .opencode/plugins/
+  // (packages/core/src/plugin/source-directory.ts:5-33). The entry is the
+  // spec'd minimal v2 plugins directive; it is documented, not load-bearing.
+  "plugins": [
+    "./plugins/intercept_observer.ts"
+  ],
   "scroll_speed": 3,
   "scroll_acceleration": {
     "enabled": true

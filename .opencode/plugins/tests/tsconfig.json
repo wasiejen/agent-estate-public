@@ -1,0 +1,20 @@
+{
+  // Mirrors the fork's package tsconfig (@tsconfig/bun + the fork's per-
+  // package overrides: lib ESNext/DOM, noUncheckedIndexedAccess off).
+  "extends": "home/Repos/opencode/node_modules/@tsconfig/bun/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "noUncheckedIndexedAccess": false,
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "typeRoots": [
+      "home/Repos/opencode/packages/plugin/node_modules/@types",
+      "home/Repos/opencode/node_modules/@types"
+    ],
+    "types": ["node"],
+    "paths": {
+      "@opencode/plugin": ["home/Repos/opencode/packages/plugin/src/promise/index.ts"]
+    }
+  },
+  "files": ["typecheck.ts"]
+}

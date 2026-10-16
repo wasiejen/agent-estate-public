@@ -29,11 +29,14 @@
       "home/AppData/Roaming/npm": "allow",
       "home/AppData/Roaming/npm/**": "allow",
       "home/AppData/Roaming/npm/node_modules/opencode-ai/**": "allow",
-      // db path still to add or better in watcher ignore?
       "repo-root": "allow",
+      "repo-root/**": "allow",
       "repo-root-v2": "allow",
+      "repo-root-v2/**": "allow",
       "home/Repos/Free-Snap-Tap": "allow",
-      "home/Repos/opencode": "allow"
+      "home/Repos/Free-Snap-Tap/**": "allow",
+      "home/Repos/opencode": "allow",
+      "home/Repos/opencode/**": "allow"
     }
   },
   "references": {
@@ -147,7 +150,7 @@
         //     "output": 135000
         //   }
         // },
-        "Qwen3.8-27B-Q3S-235K-slow-HQKV": {
+        "Qwen3.8-27B-Q3S-230K-slow-HQKV": {
           "name": "Qwen3.8-27B-Q3S-slowHQ",
           "limit": {
             "context": 230000,

@@ -3926,7 +3926,59 @@ let btTool;
   const src = btWrite("bt-sandbox-src.txt", "s1\nBTE-START block\ns2\nBTE-END block\ns3");
   const before = readFileSync(src, "utf8");
   const OUTSIDE = path.join(path.dirname(os.tmpdir()), "bt_outside_probe.txt");
-  const roots = [SANDBOX, process.env.TEMP ?? process.env.TMP].filter((r) => typeof r === "string" && r.length > 0);
+  // re-pinned 2026-10-22 (TODO #140 unit A): the allowed set gains the
+  // config roots of the repo's own opencode.jsonc (the loaded tool read
+  // them at module load) — the expected roots mirror the tool's loader:
+  // allow keys valued "allow", the /** twin stripped + resolved-lowercase
+  // dedupe, comment + trailing-comma JSONC stripping, fail-open (no config
+  // roots) on a read failure.
+  const cfgRoots = (() => {
+    try {
+      const text = readFileSync(path.join(REPO_ROOT, "opencode.jsonc"), "utf8");
+      let s = "", i = 0, inS = false, esc = false;
+      for (; i < text.length; i++) {
+        const c = text[i];
+        if (inS) { s += c; if (esc) esc = false; else if (c === "\\") esc = true; else if (c === '"') inS = false; continue; }
+        if (c === '"') { inS = true; s += c; continue; }
+        if (c === "/" && text[i + 1] === "/") { while (i < text.length && text[i] !== "\n") i++; continue; }
+        if (c === "/" && text[i + 1] === "*") { i += 2; while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i++; i += 2; continue; }
+        s += c;
+      }
+      let q = false, e = false, comma = -1;
+      const drop = new Set();
+      for (let j = 0; j < s.length; j++) {
+        const c2 = s[j];
+        if (q) { if (e) e = false; else if (c2 === "\\") e = true; else if (c2 === '"') q = false; continue; }
+        if (c2 === '"') { q = true; comma = -1; continue; }
+        if (c2 === ",") { comma = j; continue; }
+        if (c2 === "}" || c2 === "]") { if (comma !== -1) drop.add(comma); comma = -1; continue; }
+        if (c2.trim() !== "") comma = -1;
+      }
+      let u = "";
+      for (let k = 0; k < s.length; k++) if (!drop.has(k)) u += s[k];
+      const cfg = JSON.parse(u);
+      const ext = cfg && typeof cfg === "object" && cfg.permission && typeof cfg.permission === "object"
+        ? cfg.permission.external_directory
+        : null;
+      if (!ext || typeof ext !== "object") return [];
+      const seen = new Set();
+      const out = [];
+      for (const [key, val] of Object.entries(ext)) {
+        if (val !== "allow" || key === "") continue;
+        const root = path.resolve(key.endsWith("/**") ? key.slice(0, -3) : key);
+        const n = root.toLowerCase();
+        if (seen.has(n)) continue;
+        seen.add(n);
+        out.push(root);
+      }
+      return out;
+    } catch {
+      return []; // fail-open mirror: the tool falls back to [cwd + temp] roots
+    }
+  })();
+  const roots = [SANDBOX, ...cfgRoots, process.env.TEMP ?? process.env.TMP, os.tmpdir()]
+    .filter((r) => typeof r === "string" && r.length > 0)
+    .filter((r, i2, all) => all.indexOf(r) === i2);
   const res = await btTool.execute(
     { mode: "MOVE", srcFile: "bt/bt-sandbox-src.txt", startMarker: "BTE-START", endMarker: "BTE-END", dstFile: OUTSIDE },
     BT_CTX,

@@ -56,10 +56,15 @@
 // the host loads this file from the workspace without a node_modules; a
 // value import would break the host load).
 //
-// MODEL ID FIELD: v1 read it from the session DB (`readGauge`, the v1
-// `session.model` column). The v2 session table is `session_v2` — the reader
-// port is OUT of this unit (the context-family unit). Per the v1 house rule
-// (unavailable -> the literal), the field carries `unknown` here.
+// MODEL ID FIELD: read from the session DB through the SHARED gauge reader —
+// `readGauge(undefined, sessionID)` from ../plugin/scripts/gauge.mjs (the
+// v2-migration unit 1 port, 2026-10-21: the SESSION-ROW leg is table-aware,
+// so a row in `session_v2` resolves; the `model` column's JSON `{"id":…}`
+// unwraps via the reader's own parseModelId). Per-session cache with a TTL
+// (the v1 discipline: MODEL_CACHE_TTL_MS 60_000; the read itself is the
+// gauge's BOUNDED backend chain — never spawns unbounded). Unavailable /
+// empty / no session id -> the literal `unknown` (never throw; no cross-
+// session fallback — the watchdog's session-gating discipline).
 //
 // LINE SHAPE (v1 addendum C7 — byte-stable, pipe-separated, 8 fields):
 //   <timestamp> | <session_id> | <model_id> | <tool> | <original-arg> |
@@ -76,6 +81,10 @@
 import type { Plugin } from "@opencode/plugin";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
+// The shared session-DB reader (the gauge core, unit 1 port). A VALUE import
+// — plain JS whose own imports are node: builtins only (no node_modules
+// surface; the host's plugin load resolves it from the repo tree).
+import { readGauge } from "../plugin/scripts/gauge.mjs";
 
 // ------------------------------------------------------------------ constants
 
@@ -89,6 +98,8 @@ const FUZZY_MIN_GAP = 2;
 const WRITE_FUZZY_MAX_D = 1;
 // R7: the SEGMENT-level accept bar (both scopes).
 const SEG_MAX_D = 1;
+// The per-session model-id cache TTL (the v1 core's plugin-layer value).
+const MODEL_CACHE_TTL_MS = 60_000;
 
 // The approved external scratchpad root (v1 R1 — a CODE constant).
 const SCRATCHPAD_ROOT = "home/AppData/Local/Temp/opencode";
@@ -820,6 +831,32 @@ function appendJournal(tool: string, sid: string, input: Record<string, unknown>
 // hook).
 class HardStopError extends Error {}
 
+// Per-session model-id cache (bounded: TTL expiry; the read itself is the
+// gauge's BOUNDED backend chain — never spawns unbounded). v1 discipline,
+// kept verbatim for the v2 port.
+const modelCache = new Map<string, { at: number; model: string }>();
+
+// The log line's model field: the session's model id read from the session
+// DB through the shared gauge core (table-aware since the unit 1 port —
+// `session_v2` rows resolve). The reader NEVER throws (a hard failure
+// returns kind:"db-error"); a throw inside the lookup is swallowed -> the
+// literal `unknown`. NO cross-session fallback (session gating): an empty
+// session id short-circuits.
+async function getModel(sid: string): Promise<string> {
+  if (sid === "") return "unknown"; // no cross-session fallback (session gating)
+  try {
+    const hit = modelCache.get(sid);
+    if (hit && Date.now() - hit.at < MODEL_CACHE_TTL_MS) return hit.model;
+    const g = await readGauge(undefined, sid);
+    const id = typeof g?.modelId === "string" ? g.modelId : "";
+    const model = id !== "" ? id : "unknown";
+    modelCache.set(sid, { at: Date.now(), model });
+    return model;
+  } catch {
+    return "unknown";
+  }
+}
+
 async function onToolBefore(event: ToolBeforeEvent): Promise<void> {
   let sid = "";
   let tool = "";
@@ -856,8 +893,11 @@ async function onToolBefore(event: ToolBeforeEvent): Promise<void> {
     if (tool === "edit" && isObj) editOldOriginal = typeof (event.input as { oldString?: unknown }).oldString === "string" ? (event.input as { oldString: string }).oldString : "";
     if ((tool === "write" || tool === "edit") && isObj) appendJournal(tool, sid, event.input as Record<string, unknown>, editOldOriginal);
     if (obs.length === 0 && rd.lines.length === 0 && fuzzy.length === 0) return; // nothing to log
-    // model = `unknown` (the v1 session-DB reader is not ported to the
-    // `session_v2` schema — the context-family unit)
+    // the model field resolves through the shared session-DB reader (unit 1:
+    // `session_v2`-aware); unreadable / empty -> the literal `unknown`. Read
+    // AFTER the "nothing to log" gate (no DB read for a silent call), BEFORE
+    // the (4b) hard-stop throw (the error line then carries the real id).
+    model = await getModel(sid);
     for (const o of rd.lines) appendObservation(sid, model, tool, argStr, o);
     for (const o of obs) appendObservation(sid, model, tool, argStr, o);
     for (const o of fuzzy) appendObservation(sid, model, tool, argStr, o);

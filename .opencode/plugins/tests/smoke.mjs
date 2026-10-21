@@ -9,6 +9,7 @@
 // Run:  bun run smoke.mjs   (from this directory)
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, chmodSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite"; // v2unit1: the session-DB fixture
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -109,6 +110,25 @@ function makeCtx(directory) {
 
 // ------------------------------------------------------------------ run
 
+// ------------------------------------------------------------------ the session-DB fixture (v2-migration unit 1, 2026-10-21)
+// The plugin's model field reads the session DB through the SHARED gauge
+// core (`../plugin/scripts/gauge.mjs`). The smoke STEERS that core — the
+// SAME module instance the plugin imports — at a FIXTURE DB under the
+// scratchpad (NEVER the live `~/.local/share/opencode/opencode.db`): a
+// `session_v2` row for the mock SID, the v2 column shape (`model` = the
+// JSON `{"id":…}` the reader unwraps).
+const FX_MODEL_ID = "smoke-v2-model-120K";
+const FX_DB = path.join(SCRATCH, "fx_gauge_v2.db");
+{
+  rmSync(FX_DB, { force: true });
+  const db = new DatabaseSync(FX_DB);
+  db.exec("CREATE TABLE session_v2(id TEXT PRIMARY KEY, model TEXT, time_updated INTEGER)");
+  db.exec(`INSERT INTO session_v2 VALUES('${SID}', '{"id":"${FX_MODEL_ID}","providerID":"llama-swap"}', 2000)`);
+  db.close();
+}
+const gaugeMod = await import(pathToFileURL(path.join(CLONE_ROOT, ".opencode", "plugin", "scripts", "gauge.mjs")).href);
+gaugeMod.setDbPath(FX_DB); // the plugin's readGauge(undefined, sid) reads THIS file
+
 const plugin = (await import(pathToFileURL(PLUGIN).href)).default;
 chk("module: default export is { id, setup }", plugin && typeof plugin === "object" && plugin.id === "intercept" && typeof plugin.setup === "function", JSON.stringify(Object.keys(plugin ?? {})));
 
@@ -126,7 +146,7 @@ chk("setup: registers the execute.before hook + returns a cleanup", typeof ctx._
   const lines = readLog().slice(before);
   const fr = lines.find((f) => f[7] === "fuzzy-resolved");
   chk("C1 read fuzzy-resolved line (d=1, scope=read implied by absence of scope=write)", fr !== undefined && fr[5].includes("d=1") && fr[5].includes("orig=fx/file-f4.txt") && !fr[5].includes("scope=write"), fr ? fr[5] : "no line");
-  chk("C1 field shape (8 fields, sid, model=unknown, tool, verdict)", fr !== undefined && fr.length === 8 && fr[1] === SID && fr[2] === "unknown" && fr[3] === "read", fr ? fr.join(" | ") : "no line");
+  chk("C1 field shape (8 fields byte-compat, sid, model resolved from the session_v2 fixture row, tool, verdict)", fr !== undefined && fr.length === 8 && fr[1] === SID && fr[2] === FX_MODEL_ID && fr[3] === "read", fr ? fr.join(" | ") : "no line");
 }
 
 // C2 — read fuzzy REJECTED (no close candidate -> fail-closed, input
@@ -365,11 +385,31 @@ chk("setup: registers the execute.before hook + returns a cleanup", typeof ctx._
   chk("INV ZERO pair-channel lines (no `pair=` evidence anywhere)", lines.every((f) => !f[5].includes("pair=")), JSON.stringify(lines.filter((f) => f[5].includes("pair=")).map((f) => f[5])));
   chk("INV ZERO numword/dense/redundancy/no-candidate/ambiguous verdicts", lines.every((f) => !/numword|dense|redundancy|no-candidate|ambiguous|date=/i.test(f[5] + " " + f[7])), JSON.stringify(lines.map((f) => f[7])));
   chk("INV every pair-resolved line is a kind=redirect line", lines.filter((f) => f[7] === "pair-resolved").every((f) => f[5].includes("kind=redirect")), JSON.stringify(lines.filter((f) => f[7] === "pair-resolved").map((f) => f[5])));
-  chk("INV the model field is `unknown` everywhere (the v1 DB reader is not ported to session_v2)", lines.every((f) => f[2] === "unknown"), JSON.stringify(lines.map((f) => f[2]).filter((m) => m !== "unknown")));
+  chk("INV the model field carries the RESOLVED model id on every line (v2unit1: the `session_v2`-aware reader; the 8-field byte-compat shape unchanged)", lines.every((f) => f[2] === FX_MODEL_ID), JSON.stringify(lines.map((f) => f[2]).filter((m) => m !== FX_MODEL_ID)));
   const jw = readJournal(journalWrite).length;
   const je = readJournal(journalEdit).length;
   chk("INV journals: one line per write call (C8, C11, C15, C16) and per edit call (C6, C7, C14)", jw === 4 && je === 3, `journal_write=${jw} journal_edit=${je}`);
   console.log(`\nlog lines: ${lines.length}`);
+}
+
+// v2unit1 pin — an id present in NEITHER session table: the reader's not-
+// found outcome -> the model field keeps the literal `unknown` (byte-compat,
+// never a cross-session fallback to the fixture row's model). Fired DIRECTLY
+// on the registered hook with an absent sessionID (ctx.fire pins SID), AFTER
+// the whole-log invariants (this line is scoped-checked, not swept).
+{
+  const before = readLog().length;
+  await ctx._hooks["execute.before"]({
+    tool: "read",
+    sessionID: "ses_absent000000",
+    agent: "smoke",
+    messageID: "msg_0002",
+    id: "call_absent_1",
+    input: { path: "fx/file-f4.txt" },
+  });
+  const lines = readLog().slice(before);
+  const fr = lines.find((f) => f[7] === "fuzzy-resolved");
+  chk("v2unit1 id in NEITHER table: the model field stays `unknown` (8 fields, sid as given)", fr !== undefined && fr.length === 8 && fr[1] === "ses_absent000000" && fr[2] === "unknown", fr ? fr.join(" | ") : "no line");
 }
 
 await cleanup();

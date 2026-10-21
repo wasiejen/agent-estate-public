@@ -7,12 +7,16 @@ The absolute paths point at this machine's fork workspace and scratchpad.
 
     bun run smoke.mjs
 
-46 checks against a mock `ctx`: the surviving channels (read-scoped fuzzy
+47 checks against a mock `ctx`: the surviving channels (read-scoped fuzzy
 d<=2 with the gap rule, edit-scoped fuzzy d<=1, `write`-tool exclusion,
-R8 typed-path redirect fail-closed, the C doubled-segment anomaly with
-the JSON-escaped `\\` collapse, the out-of-sandbox note, the B'
-hard-stop, the write/edit journals) + whole-log invariants (8-field
-shape, surviving verdicts only, ZERO pair/numword lines, model=unknown).
+R8 typed-path redirect fail-closed, the C doubled-segment anomaly with the
+JSON-escaped `\\` collapse, the out-of-sandbox note, the B' hard-stop,
+the write/edit journals) + whole-log invariants (8-field shape, surviving
+verdicts only, ZERO pair/numword lines) + the model-field pins (v2-migration
+unit 1, 2026-10-21): the line's model field resolves through the shared gauge
+core, steered at a scratchpad FIXTURE DB carrying a `session_v2` row for the
+mock sid (`fx_gauge_v2.db` — NEVER the live DB), and stays the literal
+`unknown` for an id present in neither session table.
 
 Fixtures and the log are written to the scratchpad
 `home/AppData/Local/Temp/opencode/intercept-smoke-v2`

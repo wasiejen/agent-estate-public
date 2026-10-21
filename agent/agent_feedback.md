@@ -845,3 +845,6 @@ block_transfer rejected the clone-repo path (`repo-root-v2\.opencode\...`) as "o
 ### 2026-10-22_00-36 planner_FlashNext ses_e9fb4e611ffeQmrH3PkDK6r4Ct
 block_transfer WRITE gives no way to detect a mis-targeted line-number span: the feedback's `first:` field echoes the NEW text only, so my two wrong-line WRITEs in TODO.md surfaced as silent corruption (4 repair calls); the replaced span's first line should be echoed too. Also: my unbounded `grep -n` over the 3242-line intercept.log (260-char lines) burned ~28k tokens — the Command Output bounding rule needs a curated helper for that log.
 
+### 2026-10-22_01-34 worker_FlashNext ses_e9f4b2fceffeutBMvp16FEv4Pr
+Two mid-session near-misses cost re-work: the first clone/main file comparisons used HEAD~1 from the wrong tree and cmp with process substitution (wrong conclusions), and the clone gates crashed until I copied .opencode/node_modules (git-ignored, undeclared in the spec) — a clone-tree setup preflight (named ref dumps; provisioning check) should precede any clone port.
+

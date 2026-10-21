@@ -839,3 +839,6 @@ block_transfer WRITE/DELETE calls silently default to mode MOVE when 'mode' is o
 ### 2026-10-21_22-44 planner_FlashNext ses_ea02d3559ffe1L4pox2q8iU1CZ
 I misjudged my context window as 230k (stale from the previous model) and declared a 90% stop at 82% real fill — the injected ctx: line is the authority for the current window; re-read it, never carry a window size across model switches.
 
+### 2026-10-22_00-08 worker_FlashNext ses_e9fa32e59ffemX2wEPTSI2WMYJ
+block_transfer rejected the clone-repo path (`repo-root-v2\.opencode\...`) as "outside the sandbox (allowed: repo-root, ...\Temp)" — its sandbox is the CWD repo, so a task whose scope is a sibling clone repo has NO block_transfer access; the `edit` tool does reach the clone. Use `edit` (or write) for clone edits, and do not retry block_transfer there.
+

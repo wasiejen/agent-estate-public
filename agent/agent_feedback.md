@@ -833,3 +833,6 @@ submit's append wrote entry headers mid-line when a target lacked a trailing new
 ### 2026-10-21_22-03 planner_FlashNext ses_ea02d3559ffe1L4pox2q8iU1CZ
 my spec quoted stale gate baselines (120/46 from NAP text; measured 131/64 at spec time) — re-measure counts with the exact gate commands at spec authoring, never copy from NAP/summary prose; the worker caught it and filed it.
 
+### 2026-10-21_22-11 planner_FlashNext ses_ea02d3559ffe1L4pox2q8iU1CZ
+block_transfer WRITE/DELETE calls silently default to mode MOVE when 'mode' is omitted (block_transfer.ts L345 `args.mode || "MOVE"` was left as-is per out-of-scope ruling) — a missing mode produced a confusing MOVE-args error twice this session; next bt unit should make mode strictly required and echo the intended mode in the error.
+

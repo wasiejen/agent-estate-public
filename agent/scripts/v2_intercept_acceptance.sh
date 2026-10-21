@@ -84,8 +84,13 @@ else
 fi
 fail=0
 for v in fuzzy-resolved out-of-sandbox intercept-error; do
-  n=$(grep -c " $v \| $v\$" "$NEW" 2>/dev/null || true)
-  if [ "${n:-0}" -ge 1 ]; then echo "PASS  $v ($n line(s))"; else echo "FAIL  $v (0 lines)"; fail=1; fi
+  # FIELD-AWARE match (2026-10-21): the verdict is pipe-field 8. A plain
+  # substring grep false-counts the intercept-error line, whose EVIDENCE
+  # text contains the phrase "out-of-sandbox path with missing ...".
+  # `intercept-error` matches the verdict field `error` (the port's
+  # surviving-verdict name for the hard-stop line, per the plugin header).
+  n=$(awk -F'\\|' -v v="$v" '{ gsub(/^ +| +$/, "", $8); if ($8 == v || (v == "intercept-error" && $8 == "error")) c++ } END { print c+0 }' "$NEW")
+  if [ "$n" -ge 1 ]; then echo "PASS  $v ($n line(s))"; else echo "FAIL  $v (0 lines)"; fail=1; fi
 done
 # a model that fakes the calls in TEXT is the known failure mode — say so.
 if [ "$fail" -eq 1 ] && ! grep -q "fuzzy-resolved\|out-of-sandbox" "$NEW" 2>/dev/null; then

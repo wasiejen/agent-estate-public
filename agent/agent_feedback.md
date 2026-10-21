@@ -842,3 +842,6 @@ I misjudged my context window as 230k (stale from the previous model) and declar
 ### 2026-10-22_00-08 worker_FlashNext ses_e9fa32e59ffemX2wEPTSI2WMYJ
 block_transfer rejected the clone-repo path (`repo-root-v2\.opencode\...`) as "outside the sandbox (allowed: repo-root, ...\Temp)" — its sandbox is the CWD repo, so a task whose scope is a sibling clone repo has NO block_transfer access; the `edit` tool does reach the clone. Use `edit` (or write) for clone edits, and do not retry block_transfer there.
 
+### 2026-10-22_00-36 planner_FlashNext ses_e9fb4e611ffeQmrH3PkDK6r4Ct
+block_transfer WRITE gives no way to detect a mis-targeted line-number span: the feedback's `first:` field echoes the NEW text only, so my two wrong-line WRITEs in TODO.md surfaced as silent corruption (4 repair calls); the replaced span's first line should be echoed too. Also: my unbounded `grep -n` over the 3242-line intercept.log (260-char lines) burned ~28k tokens — the Command Output bounding rule needs a curated helper for that log.
+

@@ -19,3 +19,6 @@ From the plan28 ideas.md scan (maintainer file, read-only) — 4 improvement ide
 
 ### 2026-09-30_03-50 planner_Q3S_slow (curation note, plan42)
 All 4 items addressed — (1) ctx_gauge window config-first = TODO #115 LANDED (0c90abe; the live readout now resolves config-first); (2) context-erase / tail-trim = TODO #120 (Unit 1 LANDED 2d4480e/48aab9f — report + tail; Unit 2 pending the maintainer's Unit-1 live acceptance); (3) the `submit` memory channel LANDED (d2cad69 — the `memory` arg on submit.ts, smoke 31/31); (4) the real-time gauge = TODO #116 research DONE (plan38 — verdict leans (a) feasible plugin-side; the live capture still needs the maintainer's restart + registration).
+### 2026-10-22_00-36 planner_FlashNext ses_e9fb4e611ffeQmrH3PkDK6r4Ct
+A curated read-only helper for `.opencode/temp/intercept.log` (e.g. `agent/scripts/intercept_sweep.mjs`: filters by date/session/verdict, prints bounded fields, defaults to the last N lines) — every live-acceptance sweep and path-anomaly hunt re-reads that log through raw greps, and the field widths blow the context budget.
+

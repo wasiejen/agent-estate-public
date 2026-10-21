@@ -516,7 +516,18 @@ export function formatGauge(r) {
 
 // The two single-row reads (see the header). json_extract never fetches the
 // `data` JSON into JS; a missing/NULL token field reads as null.
-const SQL_NEWEST_SESSION = "SELECT id, model FROM session ORDER BY time_updated DESC LIMIT 1";
+// v2-migration unit 1 (2026-10-21): the SESSION-ROW leg is TABLE-AWARE — the
+// v2 line stores sessions in `session_v2` (columns = `session` PLUS the fork/
+// idle columns; the `model` column NAME unchanged, its value JSON `{"id":…}`
+// — parseModelId already unwraps both shapes); a migrated DB carries BOTH
+// tables (coexistence measured 2026-10-21). The leg reads `session_v2` FIRST,
+// then `session`; on a v1-only DB the v1 SQL below goes out BYTE-IDENTICAL
+// (the constants are the `session` instantiation of the table templates).
+// The TOKEN-mass leg (the `message`/`session` joins) is UNTOUCHED — unit 2.
+// Newest-session choice across BOTH tables = the greater `time_updated`.
+const sqlSessionNewest = (t) => `SELECT id, model FROM ${t} ORDER BY time_updated DESC LIMIT 1`;
+const sqlSessionById = (t) => `SELECT id, model FROM ${t} WHERE id = ?`;
+const SQL_NEWEST_SESSION = sqlSessionNewest("session");
 const SQL_FINISHED_STEP =
   "SELECT s.id AS sid, s.model AS model, " +
   "json_extract(m.data, '$.tokens.total') AS total, " +
@@ -540,7 +551,7 @@ const GAUGE_SQL_MARKER =
 // forms; the session is pinned by id (in-process: bound parameter; spawn:
 // literal with single-quote escaping — opencode session ids are `ses_…`, the
 // escape is belt-and-braces, not a quoting surface for user input).
-const SQL_SESSION_BY_ID = "SELECT id, model FROM session WHERE id = ?";
+const SQL_SESSION_BY_ID = sqlSessionById("session");
 const SQL_FINISHED_STEP_SESSION =
   "SELECT s.id AS sid, s.model AS model, " +
   "json_extract(m.data, '$.tokens.total') AS total, " +
@@ -568,18 +579,73 @@ const sqlMarkerForSession = (sid) => {
 // best-effort close. `target` (v2.6): the per-session read — when set, the
 // session row is looked up by id and the finished step is scoped to it;
 // unset keeps the newest-session SQL byte-identical.
+// v2-migration unit 1 (2026-10-21): the SESSION-ROW leg resolves through
+// `sessionRow` — `session_v2` FIRST, then `session` (both tables coexist in a
+// migrated DB; NEITHER present keeps the v1 hard-failure outcome). The
+// TOKEN-mass leg is the v1 SQL UNCHANGED (unit 2); on a v2-shaped fixture the
+// v1 `message`/`session` tables are absent and THAT leg degrades to null
+// (no-total) instead of failing the whole read.
+const sessionTablesIn = (db) => {
+  const found = [];
+  for (const t of ["session_v2", "session"]) {
+    try {
+      const row = db.prepare("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = ?").get(t);
+      if (row != null) found.push(t);
+    } catch {
+      // unreadable catalog — the v1 table name is the only sane fallback
+    }
+  }
+  return found;
+};
+const sessionRow = (db, target) => {
+  const tables = sessionTablesIn(db);
+  if (tables.length === 0) throw new Error("no session table");
+  if (target != null) {
+    for (const t of tables) {
+      const row = db.prepare(sqlSessionById(t)).get(target);
+      if (row != null) return row; // an id present in BOTH: session_v2 wins
+    }
+    return undefined;
+  }
+  let best;
+  let bestTable;
+  for (const t of tables) {
+    const row = db.prepare(sqlSessionNewest(t)).get();
+    if (row == null) continue;
+    if (best === undefined) {
+      best = row;
+      bestTable = t;
+      continue;
+    }
+    if (tables.length < 2) continue; // single-table DB: no cross-table compare
+    const rn = Number(db.prepare(`SELECT time_updated FROM ${t} WHERE id = ?`).get(row.id)?.time_updated ?? -Infinity);
+    const rb = Number(db.prepare(`SELECT time_updated FROM ${bestTable} WHERE id = ?`).get(best.id)?.time_updated ?? -Infinity);
+    if (rn > rb) {
+      best = row;
+      bestTable = t;
+    } // a tie keeps the FIRST (`session_v2`) row
+  }
+  return best;
+};
 function readApiDb(openFn, target) {
   const attempt = () => {
     let db;
     try {
       db = openFn();
       db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS};`);
-      const newest =
-        target != null ? db.prepare(SQL_SESSION_BY_ID).get(target) : db.prepare(SQL_NEWEST_SESSION).get();
-      const step =
-        target != null
-          ? db.prepare(SQL_FINISHED_STEP_SESSION).get(target)
-          : db.prepare(SQL_FINISHED_STEP).get();
+      const newest = sessionRow(db, target);
+      let step = null;
+      try {
+        step =
+          target != null
+            ? db.prepare(SQL_FINISHED_STEP_SESSION).get(target)
+            : db.prepare(SQL_FINISHED_STEP).get();
+      } catch (e) {
+        // unit 1: the mass leg is the UNTOUCHED v1 SQL (unit 2 ports it).
+        // A v2-shaped fixture lacks the v1 `message`/`session` tables —
+        // that leg degrades to null (no-total); any other error propagates.
+        if (!/no such table/i.test(String(e?.message ?? e))) throw e;
+      }
       return {
         sid: typeof newest?.id === "string" && newest.id !== "" ? newest.id : undefined,
         model: step != null && typeof step.model === "string" ? step.model : (typeof newest?.model === "string" ? newest.model : null),
@@ -716,7 +782,13 @@ function gaugeFromRaw(raw) {
   const sid = typeof raw.sid === "string" && raw.sid !== "" ? raw.sid : "unknown";
   const total = raw.total == null ? Number.NaN : Number(raw.total);
   if (Number.isNaN(total)) {
-    return { ok: false, kind: "no-total", sid, modelId: parseModelId(raw.model) };
+    // v2-migration unit 1 (2026-10-21): the no-total shape now also carries
+    // `window` — the RESOLVED context limit for the read session's model
+    // (resolveWindow: config-first, name-marker fallback). The gauge family
+    // gets the LIMITS half for a v2 session before the mass leg lands
+    // (unit 2); the SESSION-ROW half (sid/modelId) resolves from `session_v2`.
+    const modelId = parseModelId(raw.model);
+    return { ok: false, kind: "no-total", sid, modelId, window: resolveWindow(modelId) };
   }
   const output = raw.output == null || Number.isNaN(Number(raw.output)) ? 0 : Number(raw.output);
   const modelId = parseModelId(raw.model);

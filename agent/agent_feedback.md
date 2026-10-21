@@ -836,3 +836,6 @@ my spec quoted stale gate baselines (120/46 from NAP text; measured 131/64 at sp
 ### 2026-10-21_22-11 planner_FlashNext ses_ea02d3559ffe1L4pox2q8iU1CZ
 block_transfer WRITE/DELETE calls silently default to mode MOVE when 'mode' is omitted (block_transfer.ts L345 `args.mode || "MOVE"` was left as-is per out-of-scope ruling) — a missing mode produced a confusing MOVE-args error twice this session; next bt unit should make mode strictly required and echo the intended mode in the error.
 
+### 2026-10-21_22-44 planner_FlashNext ses_ea02d3559ffe1L4pox2q8iU1CZ
+I misjudged my context window as 230k (stale from the previous model) and declared a 90% stop at 82% real fill — the injected ctx: line is the authority for the current window; re-read it, never carry a window size across model switches.
+

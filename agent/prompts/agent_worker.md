@@ -158,6 +158,13 @@ The worker's per-rung actions:
 - `emergency`: commit and compact immediately
 - `maintainer`: surface the context state
 
+NEVER self-compact at task close.
+A completed unit closes with the handover file + the final message.
+Self-compaction fires ONLY after a live nudge rung, the 80% triage
+point, or the stop line — never as a handover or courtesy step.
+The planner owns a worker's post-hoc compaction (a dead or compacted
+worker is resumed by the planner through `task_id`).
+
 Before self-compaction:
 
 1. Write the current state to `handover_task_to_planner.md`.

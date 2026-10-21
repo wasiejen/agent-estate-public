@@ -2,6 +2,7 @@
   // config.json is for desktop app, tui.json for TUI ^^
   // https://opencode.ai/docs/config/
   "$schema": "https://opencode.ai/tui.json",
+  "model": "opencode/nemotron-3.5-lightning-free",
   "autoupdate": false,
   "formatter": true,
   "scroll_speed": 3,
@@ -97,7 +98,7 @@
           "limit": {
             "context": 262144,
             "input": 258048,
-            "output": 4096
+            "output": 20000
           }
         }
       }

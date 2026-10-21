@@ -398,7 +398,17 @@ EDGE — a non-unique anchor (the error carries the match count + the FIRST 3 ma
 
   execute: async (args: any, context: any) => {
     try {
-      const mode = (args.mode || "MOVE").toUpperCase();
+      // Micro-fix (maintainer GO 2026-10-21, friction entry "silent MOVE
+      // default on omitted mode"): NO default mode — an omitted or unknown
+      // mode returns a teaching error instead of silently becoming MOVE
+      // (destructive) or a silent-success lie. Echoes the offending value.
+      const ALLOWED_MODES = ["MOVE", "COPY", "APPEND", "CUT", "PASTE", "REPLACE", "WRITE", "PEEK", "MAP", "DELETE", "CLEAR"];
+      const mode = typeof args.mode === "string" ? args.mode.toUpperCase() : "";
+      if (!mode) {
+        return "Error: 'mode' is required — no default. Expected one of: " + ALLOWED_MODES.join(", ") + ".";
+      }
+      const UNKNOWN_MODE_ERROR = `Error: unknown mode '${args.mode}'. Expected one of: ${ALLOWED_MODES.join(", ")}.`;
+      if (!ALLOWED_MODES.includes(mode)) return UNKNOWN_MODE_ERROR;
       const bufferKey = args.bufferName || "default";
       const cwd = context.directory || process.cwd();
 
@@ -889,7 +899,9 @@ EDGE — a non-unique anchor (the error carries the match count + the FIRST 3 ma
         return opLine("Moved", extractedBlock.length, `from '${args.srcFile}' to '${args.dstFile}'`, rangeText, extractedBlock[0] ?? "", null, undefined, insertNote);
       }
 
-      return "Operation completed.";
+      // Fallthrough = unreachable via the enum schema + the mode guard above;
+      // kept as a loud backstop, NEVER a silent success (micro-fix 2026-10-21).
+      return UNKNOWN_MODE_ERROR;
     } catch (err: any) {
       return `block_transfer failed: ${err.message}`;
     }

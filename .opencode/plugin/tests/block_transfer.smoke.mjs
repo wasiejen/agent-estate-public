@@ -409,6 +409,17 @@ await t.execute({ mode: "COPY", text: wide, bufferName: "widebuf" }, ctx);
 const rHB16 = await t.execute({ mode: "MAP", bufferName: "widebuf" }, ctx);
 chk("Item 8: MAP caps each echoed line at 200 chars + '…' (byte-exact single-line buffer)", rHB16 === "Mapped buffer 'widebuf': 1 line — head: 1: '" + "M".repeat(200) + "…' — headings: (none)");
 
+// Micro-fix (2026-10-21, maintainer GO): mode is STRICTLY REQUIRED — no
+// silent MOVE default, no silent-success fallthrough.
+const MF_MODE_REQ = "Error: 'mode' is required — no default. Expected one of: MOVE, COPY, APPEND, CUT, PASTE, REPLACE, WRITE, PEEK, MAP, DELETE, CLEAR.";
+const MF_UNKNOWN = "Error: unknown mode 'frolic'. Expected one of: MOVE, COPY, APPEND, CUT, PASTE, REPLACE, WRITE, PEEK, MAP, DELETE, CLEAR.";
+const rMF1 = await t.execute({ dstFile: "mf_nonexistent.txt" }, ctx);
+chk("Micro-fix: OMITTED mode -> the required-mode teaching error + NOTHING touched on disk", rMF1 === MF_MODE_REQ && !fs.existsSync(path.join(dir, "mf_nonexistent.txt")));
+const rMF2 = await t.execute({ mode: "frolic", srcFile: numFile, startMarker: "AAA", endMarker: "ZZZ" }, ctx);
+chk("Micro-fix: UNKNOWN mode -> the unknown-mode error echoing the value + NO buffer written", rMF2 === MF_UNKNOWN && /is empty/.test(await t.execute({ mode: "PEEK", bufferName: "default" }, ctx)));
+const rMF3 = await t.execute({ mode: "move", srcFile: numFile, startMarker: "AAA", endMarker: "ZZZ", dstFile: "mf_dst.txt" }, ctx);
+chk("Micro-fix: a LOWER-CASE mode still works (toUpperCase kept)", rMF3 === "Moved 4 lines from 'bt_num.txt' to 'mf_dst.txt' (lines 1..4, first: 'AAA start') (at EOF)." && fs.existsSync(path.join(dir, "mf_dst.txt")), `got=${JSON.stringify(rMF3)}`);
+
 fs.rmSync(dir, { recursive: true, force: true });
 
 finish();

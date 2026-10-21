@@ -47,11 +47,19 @@ mkdir -p ".opencode/temp"
 before=0
 [ -f "$LOG" ] && before=$(wc -l < "$LOG")
 
-set OPENCODE_DB = "opencode-dryrun.db"
-./opencode.exe run --auto "Make exactly these two tool calls, in this order, and no other tools:
+# NOTE (2026-10-21 fix): OPENCODE_DB takes a FILENAME inside the data dir
+# (fork packages/cli/src/database-path.ts) — NOT a path; the previous
+# `set OPENCODE_DB = ...` line was invalid bash (it set positional params).
+# --model is REQUIRED: without it the run falls back to the hosted default
+# (measured 2026-10-21: agent=planner_FlashNext but model=flint-40b-free,
+# provider=opencode), and that model only PRINTS the call JSON as TEXT —
+# zero tool calls, hence zero intercept lines.
+export OPENCODE_DB="opencode-dryrun.db"
+RUNLOG=".opencode/temp/acceptance_run.log"
+./opencode.exe run --auto --model strata/qwen3.8-flash-next-coder-iq1_m "Make exactly these two tool calls, in this order, and no other tools:
 1) Call the read tool with path agent/scripts/v2_intercept/acceptance/file-f4.txt
 2) Call the write tool with path home/Repos/v2-accept-missing-dir/x.txt and content test
-After the two calls, report one line per call: succeeded or failed."
+After the two calls, report one line per call: succeeded or failed." | tee "$RUNLOG"
 
 after=0
 [ -f "$LOG" ] && after=$(wc -l < "$LOG")
@@ -66,3 +74,21 @@ echo "--- expected ---"
 echo "1x fuzzy-resolved   (read near-miss file-f4.txt -> file-4.txt, d=1)"
 echo "1x out-of-sandbox   (the write span, note only)"
 echo "1x intercept-error  (the B' hard-stop on the write)"
+# verdict check (added 2026-10-21): a silent PASS must never look green.
+echo "--- verdict ---"
+NEW=".opencode/temp/acceptance_new.log"
+if [ "$after" -gt "$before" ]; then
+  tail -n +"$((before + 1))" "$LOG" > "$NEW"
+else
+  : > "$NEW"
+fi
+fail=0
+for v in fuzzy-resolved out-of-sandbox intercept-error; do
+  n=$(grep -c " $v \| $v\$" "$NEW" 2>/dev/null || true)
+  if [ "${n:-0}" -ge 1 ]; then echo "PASS  $v ($n line(s))"; else echo "FAIL  $v (0 lines)"; fail=1; fi
+done
+# a model that fakes the calls in TEXT is the known failure mode — say so.
+if [ "$fail" -eq 1 ] && ! grep -q "fuzzy-resolved\|out-of-sandbox" "$NEW" 2>/dev/null; then
+  echo "HINT  zero lines => check $RUNLOG: did the model EXECUTE the tools or print them as text?"
+fi
+exit "$fail"

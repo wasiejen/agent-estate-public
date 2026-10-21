@@ -3873,7 +3873,7 @@ let btTool;
     "110",
     "S15",
     "PASTE round-trip (fresh dst, EOF): byte-exact Part F return + dst content = the inclusive block byte-exact (`BT-START block`..`BT-END block`)",
-    res === "Pasted 4 lines from buffer 'bt1' into 'bt/bt1-dst-eof.txt' (lines 1..4, first: 'BT-START block') - buffer: 4 lines." &&
+    res === "Pasted 4 lines from buffer 'bt1' into 'bt/bt1-dst-eof.txt' (lines 1..4, first: 'BT-START block') (at EOF) - buffer: 4 lines." &&
       body === "BT-START block\nline-2\nline-3\nBT-END block",
     JSON.stringify({ res, body }),
   );
@@ -3893,7 +3893,7 @@ let btTool;
     "111",
     "S15",
     "PASTE with targetMarker: the block lands RIGHT AFTER the target line (not at EOF) — byte-exact file + byte-exact Part F return",
-    res === "Pasted 4 lines from buffer 'bt1' into 'bt/bt1-dst-t.txt' (lines 1..4, first: 'BT-START block') - buffer: 4 lines." &&
+    res === "Pasted 4 lines from buffer 'bt1' into 'bt/bt1-dst-t.txt' (lines 1..4, first: 'BT-START block') (inserted after line 2 in 'bt/bt1-dst-t.txt') - buffer: 4 lines." &&
       body === "head\nBT-TARGET line\nBT-START block\nline-2\nline-3\nBT-END block\ntail",
     JSON.stringify({ res, body }),
   );
@@ -4012,7 +4012,7 @@ let btTool;
     "117",
     "S15",
     "MOVE success: byte-exact Part F feedback (re-pinned 2026-09-26 per block_transfer v2 S3) + source cut to `m1`+`m3` + dst = the inclusive block",
-    res === "Moved 3 lines from 'bt/bt-move.txt' to 'bt/bt-move-dst.txt' (lines 2..4, first: 'BTMV-START block')." &&
+    res === "Moved 3 lines from 'bt/bt-move.txt' to 'bt/bt-move-dst.txt' (lines 2..4, first: 'BTMV-START block') (at EOF)." &&
       srcBody === "m1\nm3" && dstBody === "BTMV-START block\nm2\nBTMV-END block",
     JSON.stringify({ res, srcBody, dstBody }),
   );
@@ -4040,9 +4040,9 @@ let btTool;
     "262",
     "S15",
     "REPLACE happy path: the span (REP-A..REP-B inclusive) of the existing dst is replaced by the buffer — byte-exact dst + byte-exact Part F feedback (re-pinned 2026-09-26 per block_transfer v2 S3) + the buffer PRESERVED (the later PASTE reports its 2 lines in the Part F shape)",
-    res === "Replaced 2 lines in 'bt/bt-rep.txt' with buffer 'bt-rep' (lines 2..3, first: 'RS-A new one') - buffer: 2 lines." &&
+    res === "Replaced 2 lines in 'bt/bt-rep.txt' with buffer 'bt-rep' (old 2..3 -> new 2..3, file now 4 lines, first: 'RS-A new one') - buffer: 2 lines." &&
       body === "head\nRS-A new one\nRS-B new two\ntail" &&
-      rPreserve === "Pasted 2 lines from buffer 'bt-rep' into 'bt/bt-rep-preserve.txt' (lines 1..2, first: 'RS-A new one') - buffer: 2 lines.",
+      rPreserve === "Pasted 2 lines from buffer 'bt-rep' into 'bt/bt-rep-preserve.txt' (lines 1..2, first: 'RS-A new one') (at EOF) - buffer: 2 lines.",
     JSON.stringify({ res, body, rPreserve }),
   );
 }
@@ -7323,7 +7323,7 @@ n29++;
     "305",
     "S30",
     "WRITE single span: byte-exact Part F feedback `Wrote 2 lines to 'bt/bt-w1.txt' (lines 2..3, first: 'NEW-A one').` + the span replaced IN PLACE (byte-exact dst)",
-    rW1 === "Wrote 2 lines to 'bt/bt-w1.txt' (lines 2..3, first: 'NEW-A one')." && readFileSync(w1, "utf8") === "head\nNEW-A one\nNEW-B two\nfoot",
+    rW1 === "Wrote 2 lines to 'bt/bt-w1.txt' (old 2..3 -> new 2..3, file now 4 lines, first: 'NEW-A one')." && readFileSync(w1, "utf8") === "head\nNEW-A one\nNEW-B two\nfoot",
     JSON.stringify({ rW1, body: readFileSync(w1, "utf8") }),
   );
 
@@ -7366,7 +7366,7 @@ n29++;
       "307",
       "S30",
       "WRITE 'regions' LIST (2 regions, applied HIGHEST LINE first — no shifting): the 3-line feedback (per-op descending + summary) + byte-exact dst",
-      res === "Wrote 1 line to 'bt/bt-w2.txt' (lines 5..6, first: 'REPL').\nWrote 1 line to 'bt/bt-w2.txt' (lines 2..3, first: 'REPL').\nWrote 2 regions into 'bt/bt-w2.txt' (2 lines total)." &&
+      res === "Wrote 1 line to 'bt/bt-w2.txt' (old 5..6 -> new 4..4, file now 5 lines, first: 'REPL').\nWrote 1 line to 'bt/bt-w2.txt' (old 2..3 -> new 2..2, file now 5 lines, first: 'REPL').\nWrote 2 regions into 'bt/bt-w2.txt' (2 lines total)." &&
         readFileSync(w2, "utf8") === "h1\nREPL\nmid\nREPL\nh7",
       JSON.stringify({ res, body: readFileSync(w2, "utf8") }),
     );
@@ -7478,7 +7478,7 @@ n29++;
       "S30",
       "unified Part F feedback (buffer ops): byte-exact CUT line + byte-exact PASTE line (resolved range + first-line echo + the buffer count AFTER) + the source cut byte-exact",
       r1 === "Cut 2 lines from 'bt/bt-fb-cut.txt' into buffer 'bt-fb' (lines 2..3, first: 'line-1') - buffer: 2 lines." &&
-        r2 === "Pasted 2 lines from buffer 'bt-fb' into 'bt/bt-fb-paste.txt' (lines 1..2, first: 'line-1') - buffer: 2 lines." &&
+        r2 === "Pasted 2 lines from buffer 'bt-fb' into 'bt/bt-fb-paste.txt' (lines 1..2, first: 'line-1') (inserted after line 1 in 'bt/bt-fb-paste.txt') - buffer: 2 lines." &&
         readFileSync(src, "utf8") === "AAA start\nZZZ end\ntail",
       JSON.stringify({ r1, r2, srcBody: readFileSync(src, "utf8") }),
     );

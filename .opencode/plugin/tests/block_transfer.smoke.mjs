@@ -54,7 +54,7 @@ const rep = "bt_rep.txt"; // relative to dir — the return string embeds it ver
 fs.writeFileSync(path.join(dir, rep), "head\nOLD one\nOLD two\nfoot");
 await t.execute({ mode: "COPY", srcFile: src, startMarker: "line1", endMarker: "line2", bufferName: "repbuf" }, ctx);
 const r6 = await t.execute({ mode: "REPLACE", dstFile: rep, startMarker: "OLD one", endMarker: "OLD two", bufferName: "repbuf" }, ctx);
-chk("REPLACE happy path: exact Part F return string + the span replaced in place (byte-exact dst)", r6 === "Replaced 2 lines in 'bt_rep.txt' with buffer 'repbuf' (lines 2..3, first: 'line1') - buffer: 2 lines." && fs.readFileSync(path.join(dir, rep), "utf-8") === "head\nline1\nline2\nfoot");
+chk("REPLACE happy path: exact Part F return string (hardening item 7: old->new span + the file's new line count) + the span replaced in place (byte-exact dst)", r6 === "Replaced 2 lines in 'bt_rep.txt' with buffer 'repbuf' (old 2..3 -> new 2..3, file now 4 lines, first: 'line1') - buffer: 2 lines." && fs.readFileSync(path.join(dir, rep), "utf-8") === "head\nline1\nline2\nfoot");
 const r7 = await t.execute({ mode: "PASTE", dstFile: dst, bufferName: "repbuf" }, ctx);
 chk("REPLACE preserved the buffer (a later PASTE reports 2 lines)", /Pasted 2 lines/.test(r7));
 const r8 = await t.execute({ mode: "REPLACE", startMarker: "OLD one", endMarker: "OLD two", bufferName: "repbuf" }, ctx);
@@ -74,7 +74,7 @@ chk("REPLACE with start after end returns the exact error", r12 === "Error: Star
 const rep4 = "bt_rep4.txt";
 fs.writeFileSync(path.join(dir, rep4), "head\nONLY line\nfoot");
 const r13 = await t.execute({ mode: "REPLACE", dstFile: rep4, startMarker: "ONLY line", endMarker: "ONLY line", bufferName: "repbuf" }, ctx);
-chk("REPLACE single-line span (start == end): exact Part F return string + the one line became the 2-line buffer", r13 === "Replaced 1 line in 'bt_rep4.txt' with buffer 'repbuf' (lines 2..2, first: 'line1') - buffer: 2 lines." && fs.readFileSync(path.join(dir, rep4), "utf-8") === "head\nline1\nline2\nfoot");
+chk("REPLACE single-line span (start == end): exact Part F return string (shrinking: old 2..2 -> new 2..3) + the one line became the 2-line buffer", r13 === "Replaced 1 line in 'bt_rep4.txt' with buffer 'repbuf' (old 2..2 -> new 2..3, file now 4 lines, first: 'line1') - buffer: 2 lines." && fs.readFileSync(path.join(dir, rep4), "utf-8") === "head\nline1\nline2\nfoot");
 
 // ---- Part A: the unified anchor rule (2026-09-25_block_transfer-v2 Part A)
 // resolveAnchor is exported and pure — the rule lives in ONE place (own pins).
@@ -140,7 +140,7 @@ fs.writeFileSync(path.join(dir, nbDst), "head");
 await t.execute({ mode: "PASTE", dstFile: nbDst, bufferName: "nb1" }, ctx);
 chk("B: the buffer from number refs holds exactly lines 2..4 (src untouched)", fs.readFileSync(path.join(dir, nbDst), "utf-8") === "head\nline1\nline2\nZZZ end" && fs.readFileSync(path.join(dir, numFile), "utf-8") === "AAA start\nline1\nline2\nZZZ end\ntail\n");
 const rB2 = await t.execute({ mode: "PASTE", dstFile: nbDst, bufferName: "nb1", targetMarker: 1 }, ctx);
-chk("B: number targetMarker inserts right after line 1 (Part F feedback — buffer range + echo + buffer count AFTER)", rB2 === "Pasted 3 lines from buffer 'nb1' into 'bt_nb.txt' (lines 1..3, first: 'line1') - buffer: 3 lines." && fs.readFileSync(path.join(dir, nbDst), "utf-8") === "head\nline1\nline2\nZZZ end\nline1\nline2\nZZZ end");
+chk("B: number targetMarker inserts right after line 1 (Part F feedback — buffer range + echo + the insertion-point suffix + buffer count AFTER)", rB2 === "Pasted 3 lines from buffer 'nb1' into 'bt_nb.txt' (lines 1..3, first: 'line1') (inserted after line 1 in 'bt_nb.txt') - buffer: 3 lines." && fs.readFileSync(path.join(dir, nbDst), "utf-8") === "head\nline1\nline2\nZZZ end\nline1\nline2\nZZZ end");
 const rB3 = await t.execute({ mode: "COPY", srcFile: numFile, startMarker: "AAA", endMarker: 4, bufferName: "nb2" }, ctx);
 chk("B: mixed marker + number refs (1-based, absolute)", rB3 === "Copied 4 lines from 'bt_num.txt' into buffer 'nb2' (lines 1..4, first: 'AAA start') - buffer: 4 lines.");
 const rB4 = await t.execute({ mode: "COPY", srcFile: numFile, startMarker: 9, endMarker: 4, bufferName: "nb3" }, ctx);
@@ -157,7 +157,7 @@ const repN = "bt_repnum.txt";
 fs.writeFileSync(path.join(dir, repN), "head\nOLD one\nOLD two\nfoot");
 await t.execute({ mode: "APPEND", text: "NEW", bufferName: "repN" }, ctx);
 const rR1 = await t.execute({ mode: "REPLACE", dstFile: repN, startMarker: 2, endMarker: 3, bufferName: "repN" }, ctx);
-chk("B: number refs in REPLACE (Part F feedback — resolved range + echo + buffer count AFTER)", rR1 === "Replaced 2 lines in 'bt_repnum.txt' with buffer 'repN' (lines 2..3, first: 'NEW') - buffer: 1 line." && fs.readFileSync(path.join(dir, repN), "utf-8") === "head\nNEW\nfoot");
+chk("B: number refs in REPLACE (Part F feedback — old->new span, the length-changing shrink, + buffer count AFTER)", rR1 === "Replaced 2 lines in 'bt_repnum.txt' with buffer 'repN' (old 2..3 -> new 2..2, file now 3 lines, first: 'NEW') - buffer: 1 line." && fs.readFileSync(path.join(dir, repN), "utf-8") === "head\nNEW\nfoot");
 
 // C: assembly (COPY-list / COPY-text / APPEND)
 fs.writeFileSync(path.join(dir, numFile), "AAA start\nline1\nline2\nZZZ end\ntail\n"); // restore (DELETE above cut 2 lines)
@@ -208,7 +208,7 @@ chk("C: feedback first-line echo capped at 40 chars ('...' marker) + singular fo
 const w1 = "bt_w1.txt";
 fs.writeFileSync(path.join(dir, w1), "head\nOLD one\nOLD two\nfoot");
 const rW1 = await t.execute({ mode: "WRITE", dstFile: w1, startMarker: "OLD one", endMarker: "OLD two", text: "NEW one\nNEW two" }, ctx);
-chk("D: WRITE single span: exact Part F feedback + the span replaced in place (byte-exact dst)", rW1 === "Wrote 2 lines to 'bt_w1.txt' (lines 2..3, first: 'NEW one')." && fs.readFileSync(path.join(dir, w1), "utf-8") === "head\nNEW one\nNEW two\nfoot");
+chk("D: WRITE single span: exact Part F feedback (hardening item 7: old->new span + the file's new line count) + the span replaced in place (byte-exact dst)", rW1 === "Wrote 2 lines to 'bt_w1.txt' (old 2..3 -> new 2..3, file now 4 lines, first: 'NEW one')." && fs.readFileSync(path.join(dir, w1), "utf-8") === "head\nNEW one\nNEW two\nfoot");
 const rW2 = await t.execute({ mode: "WRITE", dstFile: "bt_w_new.txt", startMarker: "NOPE", endMarker: "NOPE2", text: "x" }, ctx);
 chk("D: WRITE on an absent file (flagged detail #2): the marker refs resolve against the EMPTY state (teaching not-found error) + no file created", rW2 === "Error: Start marker 'NOPE' not found in bt_w_new.txt." && !fs.existsSync(path.join(dir, "bt_w_new.txt")));
 const rW3 = await t.execute({ mode: "WRITE", dstFile: "bt_w_new.txt", startMarker: 1, endMarker: 1, text: "x" }, ctx);
@@ -216,7 +216,7 @@ chk("D: WRITE on an absent file: the number refs are out of range (the file has 
 const w2 = "bt_w2.txt";
 fs.writeFileSync(path.join(dir, w2), "h1\nA one\nA two\nmid\nB one\nB two\nh7");
 const rW4 = await t.execute({ mode: "WRITE", dstFile: w2, text: "REPL", regions: [{ start: "A one", end: "A two" }, { start: "B one", end: "B two" }] }, ctx);
-chk("D: WRITE list (2 regions, applied HIGHEST LINE first — no shifting): the 3-line feedback (per-op descending + summary) + byte-exact dst", rW4 === "Wrote 1 line to 'bt_w2.txt' (lines 5..6, first: 'REPL').\nWrote 1 line to 'bt_w2.txt' (lines 2..3, first: 'REPL').\nWrote 2 regions into 'bt_w2.txt' (2 lines total)." && fs.readFileSync(path.join(dir, w2), "utf-8") === "h1\nREPL\nmid\nREPL\nh7");
+chk("D: WRITE list (2 regions, applied HIGHEST LINE first — no shifting): the 3-line feedback (per-op descending: old->new in the FINAL numbering + summary) + byte-exact dst", rW4 === "Wrote 1 line to 'bt_w2.txt' (old 5..6 -> new 4..4, file now 5 lines, first: 'REPL').\nWrote 1 line to 'bt_w2.txt' (old 2..3 -> new 2..2, file now 5 lines, first: 'REPL').\nWrote 2 regions into 'bt_w2.txt' (2 lines total)." && fs.readFileSync(path.join(dir, w2), "utf-8") === "h1\nREPL\nmid\nREPL\nh7");
 const w3 = "bt_w3.txt";
 fs.writeFileSync(path.join(dir, w3), "l1\nl2\nl3\nl4\nl5");
 const w3Before = fs.readFileSync(path.join(dir, w3), "utf-8");
@@ -284,7 +284,7 @@ await t.execute({ mode: "WRITE", dstFile: lwFile, startMarker: "AAA first", endM
 await t.execute({ mode: "PASTE", dstFile: lwDst, bufferName: "last_write" }, ctx);
 chk("H: a second WRITE OVERWRITES 'last_write' (PASTE shows the new text)", fs.readFileSync(path.join(dir, lwDst), "utf-8") === "top\nAAA first\nBBB second\nCCC third");
 const rH3 = await t.execute({ mode: "WRITE", dstFile: lwFile, startMarker: "BBB second", endMarker: "CCC third", text: "DDD fourth", bufferName: "explicit" }, ctx);
-chk("H: the WRITE feedback line is UNCHANGED (the auto-store is silent — no last_write note)", rH3 === "Wrote 1 line to 'bt_lw.txt' (lines 1..2, first: 'DDD fourth').");
+chk("H: the WRITE feedback line carries NO last_write note (the auto-store is silent — hardening item 7 shape only)", rH3 === "Wrote 1 line to 'bt_lw.txt' (old 1..2 -> new 1..1, file now 1 line, first: 'DDD fourth').");
 await t.execute({ mode: "PASTE", dstFile: lwDst, bufferName: "last_write" }, ctx);
 chk("H: an explicit bufferName does NOT divert the auto-store ('last_write' still gets the text)", fs.readFileSync(path.join(dir, lwDst), "utf-8") === "top\nAAA first\nBBB second\nCCC third\nDDD fourth");
 const rH4 = await t.execute({ mode: "PASTE", dstFile: lwDst, bufferName: "explicit" }, ctx);
@@ -296,7 +296,7 @@ const mDst = "bt_m_dst.txt";
 fs.writeFileSync(path.join(dir, mSrc), "AAA start\nline1\nline2\nZZZ end\ntail");
 fs.writeFileSync(path.join(dir, mDst), "head");
 const rM1 = await t.execute({ mode: "MOVE", srcFile: mSrc, startMarker: "AAA", endMarker: "ZZZ", dstFile: mDst }, ctx);
-chk("F: MOVE feedback: exact Part F line (resolved range + first-line echo)", rM1 === "Moved 4 lines from 'bt_m.txt' to 'bt_m_dst.txt' (lines 1..4, first: 'AAA start').");
+chk("F: MOVE feedback: exact Part F line (resolved range + first-line echo + the insertion-point suffix — cross-file EOF)", rM1 === "Moved 4 lines from 'bt_m.txt' to 'bt_m_dst.txt' (lines 1..4, first: 'AAA start') (at EOF).");
 const cSrc = "bt_cut.txt";
 fs.writeFileSync(path.join(dir, cSrc), "AAA start\nline1\nline2\nZZZ end\ntail");
 const rCt = await t.execute({ mode: "CUT", srcFile: cSrc, startMarker: "line1", endMarker: "line2", bufferName: "cutb" }, ctx);
@@ -304,7 +304,7 @@ chk("F: CUT feedback: exact Part F line + the buffer count AFTER the op", rCt ==
 const pDst = "bt_p2.txt";
 fs.writeFileSync(path.join(dir, pDst), "head");
 const rPst = await t.execute({ mode: "PASTE", dstFile: pDst, bufferName: "cutb", targetMarker: "head" }, ctx);
-chk("F: PASTE feedback: exact Part F line (the buffer's own range + echo + the buffer count AFTER)", rPst === "Pasted 2 lines from buffer 'cutb' into 'bt_p2.txt' (lines 1..2, first: 'line1') - buffer: 2 lines.");
+chk("F: PASTE feedback: exact Part F line (the buffer's own range + echo + the insertion-point suffix + the buffer count AFTER)", rPst === "Pasted 2 lines from buffer 'cutb' into 'bt_p2.txt' (lines 1..2, first: 'line1') (inserted after line 1 in 'bt_p2.txt') - buffer: 2 lines.");
 const dSrc = "bt_d2.txt";
 fs.writeFileSync(path.join(dir, dSrc), "AAA start\nline1\nline2\nZZZ end\ntail");
 const rDel = await t.execute({ mode: "DELETE", srcFile: dSrc, startMarker: "line1", endMarker: "line2" }, ctx);
@@ -340,6 +340,74 @@ const capLong = "RX " + Array.from({ length: 26 }, (_, i) => String.fromCharCode
 fs.writeFileSync(path.join(dir, capFile), capLong + "\nRX short two\nRX short three\nRX short four\nRX short five\nRX short six");
 const rHT3 = await t.execute({ mode: "COPY", srcFile: capFile, startMarker: "RY", endMarker: "RX short six", bufferName: "cap" }, ctx);
 chk("B2(c): 6 qualifying lines -> EXACTLY 5 candidates (the cap, ties by line asc) + the >40-char line echoed capped at 40 chars ('...' appended, original indentation shown)", rHT3 === `Error: Start marker 'RY' not found in bt_cap.txt. Closest lines: 1: '${capLong.slice(0, 40)}...', 2: 'RX short two', 3: 'RX short three', 4: 'RX short four', 5: 'RX short five'`);
+
+// ---- Hardening unit (2026-10-21): the items 1-8 NEW pins (the re-pinned
+// Part F shapes above cover the changed return strings; these cover the
+// newly hardened behavior). Item 1: the MOVE destination checks (sandbox,
+// dstFile presence, the targetMarker resolution) ALL run BEFORE the source
+// is cut, and the block is ALSO stashed in the buffer 'last_move_source'
+// before the cut (the recovery buffer for a destructive MOVE).
+const hS = "bt_h_src.txt", hD = "bt_h_dst.txt";
+fs.writeFileSync(path.join(dir, hS), "k1\nBLK one\nBLK two\nk2");
+fs.writeFileSync(path.join(dir, hD), "d1\nd2");
+const rHB1 = await t.execute({ mode: "MOVE", srcFile: hS, startMarker: "BLK one", endMarker: "BLK two", dstFile: hD, targetMarker: "NOPE" }, ctx);
+chk("Item 1: MOVE with an unresolvable targetMarker -> the not-found error + BOTH files byte-identical (no partial cut)", rHB1 === "Error: Target marker 'NOPE' not found in bt_h_dst.txt." && fs.readFileSync(path.join(dir, hS), "utf-8") === "k1\nBLK one\nBLK two\nk2" && fs.readFileSync(path.join(dir, hD), "utf-8") === "d1\nd2");
+const rHB2 = await t.execute({ mode: "MOVE", srcFile: hS, startMarker: "BLK one", endMarker: "BLK two", dstFile: hD, targetMarker: "d2" }, ctx);
+chk("Item 1: the recovered MOVE names the insertion line + 'last_move_source' holds the block (stashed BEFORE the cut)", rHB2 === "Moved 2 lines from 'bt_h_src.txt' to 'bt_h_dst.txt' (lines 2..3, first: 'BLK one') (inserted after line 2 in 'bt_h_dst.txt')." && fs.readFileSync(path.join(dir, hS), "utf-8") === "k1\nk2" && fs.readFileSync(path.join(dir, hD), "utf-8") === "d1\nd2\nBLK one\nBLK two" && /Peeked buffer 'last_move_source': 2 lines . head: 'BLK one', 'BLK two'/.test(await t.execute({ mode: "PEEK", bufferName: "last_move_source" }, ctx)));
+
+// Item 2 (SAME-FILE MOVE): move-with-shift — the source span AND the target
+// resolve against the PRE-CALL state; the insert adjusts for the removed
+// block; a target INSIDE the span is a teaching error.
+fs.writeFileSync(path.join(dir, hS), "L1\nL2\nL3\nL4\nL5\nL6\nL7");
+const rHB3 = await t.execute({ mode: "MOVE", srcFile: hS, startMarker: 2, endMarker: 3, dstFile: hS, targetMarker: 5 }, ctx);
+chk("Item 2: same-file MOVE DOWN (span 2..3, target pre-call 5) inserts at FINAL line 3 (the shift) + byte-exact file", rHB3 === "Moved 2 lines from 'bt_h_src.txt' to 'bt_h_src.txt' (lines 2..3, first: 'L2') (inserted after line 3 in 'bt_h_src.txt')." && fs.readFileSync(path.join(dir, hS), "utf-8") === "L1\nL4\nL5\nL2\nL3\nL6\nL7");
+const rHB4 = await t.execute({ mode: "MOVE", srcFile: hS, startMarker: 1, endMarker: 3, dstFile: hS, targetMarker: 2 }, ctx);
+chk("Item 2: a same-file target INSIDE the span -> the teaching shift error + the file byte-identical", rHB4 === "Error: same-file MOVE target '2' (line 2) is inside the moved block (lines 1..3) — pick a target OUTSIDE the block (move-with-shift keeps the block intact)." && fs.readFileSync(path.join(dir, hS), "utf-8") === "L1\nL4\nL5\nL2\nL3\nL6\nL7");
+const rHB5 = await t.execute({ mode: "MOVE", srcFile: hS, startMarker: 6, endMarker: 7, dstFile: hS, targetMarker: 1 }, ctx);
+chk("Item 2: same-file MOVE UP (target ABOVE the block) — the insert index stays the pre-call target line", rHB5 === "Moved 2 lines from 'bt_h_src.txt' to 'bt_h_src.txt' (lines 6..7, first: 'L6') (inserted after line 1 in 'bt_h_src.txt')." && fs.readFileSync(path.join(dir, hS), "utf-8") === "L1\nL6\nL7\nL4\nL5\nL2\nL3");
+
+// Item 3: the EOF index is countLines-based — appending to a trailing-newline
+// file inserts BEFORE the blank tail; a NEW file gets no leading blank line.
+await t.execute({ mode: "COPY", text: "BLK one\nBLK two", bufferName: "eofbuf" }, ctx);
+fs.writeFileSync(path.join(dir, "bt_eof.txt"), "a\n");
+const rHB6 = await t.execute({ mode: "PASTE", dstFile: "bt_eof.txt", bufferName: "eofbuf" }, ctx);
+chk("Item 3: PASTE at EOF of a trailing-newline file gives \"a\nBLK one\nBLK two\n\" (no spurious blank line)", rHB6 === "Pasted 2 lines from buffer 'eofbuf' into 'bt_eof.txt' (lines 1..2, first: 'BLK one') (at EOF) - buffer: 2 lines." && fs.readFileSync(path.join(dir, "bt_eof.txt"), "utf-8") === "a\nBLK one\nBLK two\n");
+const rHB7 = await t.execute({ mode: "PASTE", dstFile: "bt_newfile.txt", bufferName: "eofbuf" }, ctx);
+chk("Item 3: PASTE creating a NEW file writes the block with NO leading blank line", rHB7 === "Pasted 2 lines from buffer 'eofbuf' into 'bt_newfile.txt' (lines 1..2, first: 'BLK one') (at EOF) - buffer: 2 lines." && fs.readFileSync(path.join(dir, "bt_newfile.txt"), "utf-8") === "BLK one\nBLK two");
+// Item 4 (EOL preservation): the destination's EOL is detected ONCE and
+// written back with it; the pasted lines get the CR re-attached — no whole-file
+// CRLF->LF churn.
+const crlf = "bt_crlf.txt";
+fs.writeFileSync(path.join(dir, crlf), "h1\r\nh2\r\nh3\r\n");
+const rHB8 = await t.execute({ mode: "PASTE", dstFile: crlf, bufferName: "eofbuf", targetMarker: "h1" }, ctx);
+chk("Item 4: PASTE into a CRLF file keeps CRLF throughout (the inserted lines get the CR back)", rHB8 === "Pasted 2 lines from buffer 'eofbuf' into 'bt_crlf.txt' (lines 1..2, first: 'BLK one') (inserted after line 1 in 'bt_crlf.txt') - buffer: 2 lines." && fs.readFileSync(path.join(dir, crlf), "utf-8") === "h1\r\nBLK one\r\nBLK two\r\nh2\r\nh3\r\n");
+
+// Item 5: the PEEK window takes the digit-string form of from/count (the live
+// channel stringifies schema integers — plan25 parity with the ref fields).
+const rHB9 = await t.execute({ mode: "PEEK", bufferName: "pk30", from: "5", count: "3" }, ctx);
+chk("Item 5: PEEK from/count as digit-strings -> the SAME byte-exact window as the numeric call", rHB9 === "Peeked buffer 'pk30': lines 5..7 of 30 — 'L5', 'L6', 'L7'");
+const rHB10 = await t.execute({ mode: "PEEK", bufferName: "pk30", from: "x", count: "3" }, ctx);
+chk("Item 5: a non-numeric PEEK 'from' -> the teaching error quoting the value AS GIVEN", rHB10 === "Error: from x is not a 1-based line number in buffer 'pk30'.");
+// Item 6: refPresent at every form-detection site + the empty-list teaching
+// errors + the COPY bare-input message mirroring APPEND's three forms.
+const rHB11 = await t.execute({ mode: "COPY" }, ctx);
+chk("Item 6: a bare COPY teaches the THREE input forms (the APPEND wording, generalized)", rHB11 === "Error: COPY needs one input form: a 'refs' list, 'startMarker'+'endMarker' (with srcFile), or 'text'.");
+const rHB12 = await t.execute({ mode: "COPY", srcFile: numFile, refs: [], bufferName: "emptyrefs" }, ctx);
+chk("Item 6: an EMPTY 'refs' list -> the teaching error and NO buffer side-effect", rHB12 === "Error: the 'refs' list is empty (give at least one ref)." && /is empty/.test(await t.execute({ mode: "PEEK", bufferName: "emptyrefs" }, ctx)));
+const rHB13 = await t.execute({ mode: "WRITE", dstFile: w3, text: "x", regions: [] }, ctx);
+chk("Item 6: an EMPTY 'regions' list -> the teaching error + the file byte-identical", rHB13 === "Error: the 'regions' list is empty (give at least one region)." && fs.readFileSync(path.join(dir, w3), "utf-8") === "l1\nl2\nl3\nl4\nl5");
+const rHB14 = await t.execute({ mode: "COPY", srcFile: numFile, startMarker: "", endMarker: 4, bufferName: "emptym" }, ctx);
+chk("Item 6: an empty-string marker is ABSENT (refPresent) -> the required-args error, not a not-found error", rHB14 === "Error: 'srcFile', 'startMarker', and 'endMarker' are required for mode COPY.");
+
+// Item 7: an EMPTY-text WRITE reports 'new (empty)' + the file's new count.
+const rHB15 = await t.execute({ mode: "WRITE", dstFile: w3, startMarker: "l2", endMarker: "l4", text: "" }, ctx);
+chk("Item 7: an EMPTY-text WRITE -> 'new (empty)' + the file's new line count + the file byte-exact", rHB15 === "Wrote 0 lines to 'bt_w3.txt' (old 2..4 -> new (empty), file now 2 lines, first: '')." && fs.readFileSync(path.join(dir, w3), "utf-8") === "l1\nl5");
+// Item 8: the MAP echo caps each LINE at 200 chars + '…' (the line COUNT was
+// already bounded by design; the WIDTH was the leak).
+const wide = "M".repeat(260);
+await t.execute({ mode: "COPY", text: wide, bufferName: "widebuf" }, ctx);
+const rHB16 = await t.execute({ mode: "MAP", bufferName: "widebuf" }, ctx);
+chk("Item 8: MAP caps each echoed line at 200 chars + '…' (byte-exact single-line buffer)", rHB16 === "Mapped buffer 'widebuf': 1 line — head: 1: '" + "M".repeat(200) + "…' — headings: (none)");
 
 fs.rmSync(dir, { recursive: true, force: true });
 

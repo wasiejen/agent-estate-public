@@ -11,7 +11,9 @@
 // fiddling: the agent supplies the text only; the tool machine-stamps each
 // entry (date + role + session) and appends it.
 //
-// Behavior (append-only — the tool NEVER reads or rewrites a target):
+// Behavior (append-only — the tool NEVER reads or rewrites a target BODY;
+// since 2026-10-21 it probes only the final byte of an existing target, to
+// decide the newline separator before an append):
 //   1. args: `feedback?` / `knowledge?` / `todo?` / `ideas?` / `memory?`
 //      (all optional strings, at least one required — an EMPTY string
 //      counts as NOT provided).
@@ -63,7 +65,7 @@
 // Registration is the maintainer's domain (the live opencode.jsonc + the
 // per-agent tool-access grant — this file is deliberately NOT registered
 // in any repo config).
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, statSync, openSync, readSync, closeSync } from "node:fs";
 import path from "node:path";
 import { tool } from "@opencode-ai/plugin";
 
@@ -144,12 +146,32 @@ export default tool({
     const rolePrefix = role.split("_")[0];
 
     const blocks: string[] = [];
+    // NEWLINE GUARD (2026-10-21): a target lacking a trailing newline gets a
+    // one-\n separator appended first, so the entry HEADER always starts a
+    // line (measured: a 2026-10-16 todo_inbox entry glued into the last line
+    // when the target ended without \n — the header landed mid-line).
+    const appendEntry = (target: string, entry: string) => {
+      let sep = "";
+      try {
+        if (statSync(target).size > 0) {
+          const fd = openSync(target, "r");
+          const buf = Buffer.alloc(1);
+          readSync(fd, buf, 0, 1, statSync(target).size - 1);
+          closeSync(fd);
+          if (buf[0] !== 0x0a) sep = "\n";
+        }
+      } catch {
+        // unreadable/absent -> no separator: a fresh file starts clean;
+        // a failed probe must not break the append itself
+      }
+      appendFileSync(target, sep + entry, "utf-8"); // append-only: the body is never read/rewritten
+    };
     for (const key of provided) {
       const { rel, header } = CHANNELS[key];
       const target = path.join(dir, rel);
       mkdirSync(path.dirname(target), { recursive: true }); // missing dir -> create (recursive)
       const entry = `${header} ${stamp} ${role} ${session}\n${String(args[key])}\n\n`;
-      appendFileSync(target, entry, "utf-8"); // append-only: the target is NEVER read
+      appendEntry(target, entry);
       blocks.push(`${key}\ntarget: ${rel}\nentry: ${entry}`);
     }
     if (memoryProvided) {
@@ -159,7 +181,7 @@ export default tool({
       // not already existing (recursive mkdir = both).
       mkdirSync(path.dirname(target), { recursive: true });
       const entry = `### ${stamp} ${role} ${session}\n${String(args["memory"])}\n\n`;
-      appendFileSync(target, entry, "utf-8"); // append-only: the target is NEVER read
+      appendEntry(target, entry);
       blocks.push(`${"memory"}\ntarget: ${rel}\nentry: ${entry}`);
     }
     return blocks.join("\n");

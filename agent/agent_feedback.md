@@ -827,3 +827,6 @@ Two lines: (1) the grep tool's path param treated a file path as a directory sea
 ### 2026-10-15_21-00 planner_Q3S_slow ses_ebfa5be88ffegbOOhAztizTIJD
 Explorer subagent can die MID-STEP with no visible error (step 47, tokens=0 in the context_trim report — provider stream dropped at ~80k/245k, auto_resume.log empty, no host-restart record): the Task result is just "Task cancelled" — the diagnostic path is context_trim report on the subagent session (the last row's tokens=0 + tool target identifies the dead step), then resume via task_id WITHOUT compaction (context is preserved; not a context-limit death). Cost: one resume round-trip; the recovery protocol handled it cleanly.
 
+### 2026-10-21_21-06 planner_FlashNext ses_ea02d3559ffe1L4pox2q8iU1CZ
+submit's append wrote entry headers mid-line when a target lacked a trailing newline (todo_inbox.md 2026-10-16 glued); fixed 2026-10-21 with a final-byte newline guard + H5 smoke pin — do not hand-append to inbox files with raw tools, use submit (it now self-guards).
+

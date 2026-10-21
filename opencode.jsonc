@@ -97,7 +97,7 @@
           "limit": {
             "context": 262144,
             "input": 258048,
-            "output": 4096
+            "output": 20480
           }
         }
       }

@@ -830,3 +830,6 @@ Explorer subagent can die MID-STEP with no visible error (step 47, tokens=0 in t
 ### 2026-10-21_21-06 planner_FlashNext ses_ea02d3559ffe1L4pox2q8iU1CZ
 submit's append wrote entry headers mid-line when a target lacked a trailing newline (todo_inbox.md 2026-10-16 glued); fixed 2026-10-21 with a final-byte newline guard + H5 smoke pin — do not hand-append to inbox files with raw tools, use submit (it now self-guards).
 
+### 2026-10-21_22-03 planner_FlashNext ses_ea02d3559ffe1L4pox2q8iU1CZ
+my spec quoted stale gate baselines (120/46 from NAP text; measured 131/64 at spec time) — re-measure counts with the exact gate commands at spec authoring, never copy from NAP/summary prose; the worker caught it and filed it.
+

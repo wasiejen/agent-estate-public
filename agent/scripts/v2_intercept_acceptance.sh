@@ -47,7 +47,8 @@ mkdir -p ".opencode/temp"
 before=0
 [ -f "$LOG" ] && before=$(wc -l < "$LOG")
 
-opencode run --auto "Make exactly these two tool calls, in this order, and no other tools:
+set OPENCODE_DB = "opencode-dryrun.db"
+./opencode.exe run --auto "Make exactly these two tool calls, in this order, and no other tools:
 1) Call the read tool with path agent/scripts/v2_intercept/acceptance/file-f4.txt
 2) Call the write tool with path home/Repos/v2-accept-missing-dir/x.txt and content test
 After the two calls, report one line per call: succeeded or failed."

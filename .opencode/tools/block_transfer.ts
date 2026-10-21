@@ -1,15 +1,125 @@
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 import { tool } from "@opencode-ai/plugin"
 
 // Persistent memory cache for named clipboards across tool invocations within the session
 const clipboardBuffers: Record<string, string[]> = {};
 
-// Path guard: every file-path argument (src and dst, all modes) must resolve inside the
-// working directory or the Windows temp directory. Returns null if allowed, an error
-// string if not. Called BEFORE any fs access — no partial writes on rejection.
+// ===== CONFIG-DRIVEN ALLOW ROOTS (TODO #140 unit A, 2026-10-22 — clone twin
+// port of the main-repo change) =====
+// The opencode.jsonc at the TOOL's OWN repo root (the module file two levels
+// under .opencode/tools/) is read ONCE at tool load time; its
+// `permission.external_directory` keys valued "allow" join the sandbox
+// allow-list. A trailing `/**` is stripped — a dir key and its `/**` twin
+// DEDUPE to ONE root (the same rule the R8 resolver in
+// .opencode/plugin/intercept_observer.ts uses; this tool CANNOT call that
+// plugin function, so the shape is rebuilt here, self-contained). Roots
+// dedupe by their RESOLVED (native-separator) lower-cased form and are
+// stored resolved. Config unreadable / malformed / no allow keys →
+// EMPTY set: the fail-open fallback stays EXACTLY today's [CWD repo + temp
+// roots] — NEVER "everything allowed".
+
+// The string-state JSONC comment stripper (a `//` inside a string literal —
+// e.g. an https:// URL value — is NOT a comment).
+function stripJsoncComments(text: string): string {
+  let out = "";
+  let i = 0;
+  let inString = false;
+  let escaped = false;
+  while (i < text.length) {
+    const c = text[i];
+    if (inString) {
+      out += c;
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+      i++;
+      continue;
+    }
+    if (c === '"') { inString = true; out += c; i++; continue; }
+    if (c === "/" && text[i + 1] === "/") { while (i < text.length && text[i] !== "\n") i++; continue; }
+    if (c === "/" && text[i + 1] === "*") {
+      i += 2;
+      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i++;
+      i += 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+// JSONC allows TRAILING commas (the live config has one); strict JSON
+// rejects them. This pass removes a comma whose next non-space char is '}'
+// or ']' — string-aware (a ',' inside a string value is untouched).
+function stripTrailingCommas(text: string): string {
+  const chars = text.split("");
+  const keep: boolean[] = new Array(chars.length).fill(true);
+  let inString = false;
+  let escaped = false;
+  let lastComma = -1;
+  for (let i = 0; i < chars.length; i++) {
+    const c = chars[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') { inString = true; lastComma = -1; continue; }
+    if (c === ",") { lastComma = i; continue; }
+    if (c === "}" || c === "]") {
+      if (lastComma !== -1) keep[lastComma] = false;
+      lastComma = -1;
+      continue;
+    }
+    if (c.trim() !== "") lastComma = -1;
+  }
+  return chars.filter((c, i) => keep[i]).join("");
+}
+
+function loadConfigRoots(): string[] {
+  const out: string[] = [];
+  try {
+    const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+    const repoRoot = path.resolve(moduleDir, "..", "..");
+    const cfg = JSON.parse(stripTrailingCommas(stripJsoncComments(fs.readFileSync(path.join(repoRoot, "opencode.jsonc"), "utf-8"))));
+    const top = cfg && typeof cfg === "object" ? (cfg as Record<string, unknown>) : {};
+    const permission = top.permission && typeof top.permission === "object" ? (top.permission as Record<string, unknown>) : null;
+    const ext = permission && permission.external_directory && typeof permission.external_directory === "object"
+      ? (permission.external_directory as Record<string, unknown>)
+      : null;
+    if (ext !== null) {
+      const seen = new Set<string>();
+      for (const [key, val] of Object.entries(ext)) {
+        if (val !== "allow" || typeof key !== "string" || key === "") continue;
+        const raw = key.endsWith("/**") ? key.slice(0, -3) : key;
+        const root = path.resolve(raw);
+        const n = root.toLowerCase();
+        if (seen.has(n)) continue;
+        seen.add(n);
+        out.push(root);
+      }
+    }
+  } catch {
+    // config unreadable / malformed -> fail-open: EMPTY set (today's roots only)
+  }
+  return out;
+}
+
+const CONFIG_ROOTS: string[] = loadConfigRoots();
+
+// Path guard: every file-path argument (src and dst, all modes) must resolve
+// inside the working directory, a config-allow-listed root (the loaded
+// CONFIG_ROOTS), or the Windows temp directory. Returns null if allowed, an
+// error string if not. Called BEFORE any fs access — no partial writes on
+// rejection. CONFIG_ROOTS sit between the CWD root and the temp roots;
+// they are already RESOLVED at load, so a config twin of the CWD root
+// (e.g. the plain-dir key vs the launching cwd) dedupes in this list too.
 function sandboxCheck(cwd: string, givenPath: string): string | null {
-  const roots = [cwd, process.env.TEMP ?? process.env.TMP].filter(
+  const roots = [cwd, ...CONFIG_ROOTS, process.env.TEMP ?? process.env.TMP].filter(
     (r): r is string => typeof r === "string" && r.length > 0
   );
   const resolved = path.resolve(cwd, givenPath).toLowerCase();
@@ -316,7 +426,7 @@ RETURN LINES — one feedback line per applied op (a WRITE 'regions' list: one l
 
 BUFFERS — bufferName selects a named clipboard buffer (default 'default'); multiple buffers can coexist in one session; CLEAR empties one. A failed COPY/CUT/APPEND (anchor resolution or any rejection) leaves NO buffer behind — every check runs before any buffer change (no partial state on rejection); a later PEEK/MAP of that buffer name returns the empty-buffer error. For REPLACE the buffer supplies the replacement content (and is preserved afterwards, like PASTE). The buffer 'last_write' is auto-filled by every WRITE (overwritten per WRITE, no parameter) — PASTE/MAP/PEEK it like any buffer. PEEK previews a buffer (bounded, see the PEEK mode); full content: PASTE it to a file and read.
 
-SANDBOX — all file access (reads AND writes) is confined to the working directory and the Windows temp directory; any path outside is rejected with an error.
+SANDBOX — all file access (reads AND writes) is confined to the working directory, the allow-listed roots from the host's opencode.jsonc permission.external_directory (entries valued "allow"; a trailing /** suffix is stripped), and the Windows temp directory; any path outside is rejected with an error.
 
 EXAMPLE — move the block spanning "## TODO" .. "## Notes" (inclusive) from TODO.md into BACKLOG.md, right after its "# Backlog" header line:
   { "mode": "MOVE", "srcFile": "TODO.md", "dstFile": "BACKLOG.md", "startMarker": "## TODO", "endMarker": "## Notes", "targetMarker": "# Backlog" }

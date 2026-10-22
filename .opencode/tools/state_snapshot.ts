@@ -26,11 +26,15 @@ import fs from "node:fs"
 import path from "node:path"
 
 // The ready-made marker sweep (planner prompt §maintainer calls/decisions —
-// verbatim). `2>/dev/null` keeps missing target files (README.md / WIKI.md /
-// absent dirs) from poisoning the output.
+// verbatim pattern list). `2>/dev/null` keeps missing target files (README.md /
+// WIKI.md / absent dirs) from poisoning the output. The `grep -v` filter
+// removes KNOWN NON-LIVE references: the historical/filtered paths AND (since
+// the 2026-10-22 doc-noise pass) the AGENT-OWNED + archived doc trees that
+// only QUOTE the markers table — anchored at the hit's path field (line
+// start), so a marker WORD inside another file's TEXT never hides a hit.
 const MARKER_SWEEP = `grep -rn --include="*.md" -e "--main\\|--now\\|--info\\|--todo\\|--defer\\|--wip\\|--comment" \\
   .opencode/ agent/ maintainer/ loop/ proposals/ TODO.md README.md WIKI.md 2>/dev/null \\
-  | grep -v "_past_priorities\\|/done/\\|agent_feedback\\|nap_direct\\|archive/"`
+  | grep -v "_past_priorities\\|/done/\\|agent_feedback\\|nap_direct\\|archive/\\|^agent/prompts/\\|^agent/readme/\\|^agent/knowledge/\\|^agent/memory/\\|^agent/research/\\|^agent/scripts/\\|^agent/handover/\\|^loop/\\|^proposals/implemented/\\|^proposals/superseded/\\|^\\.opencode/\\|^maintainer/feedback/"`
 
 // Read a file's lines (a single trailing newline dropped); null on any
 // read failure (the fail-closed section lines are built on this).
@@ -189,9 +193,13 @@ const markersSection = (root: string): string[] => {
 }
 
 // Assemble the digest: the six sections IN ORDER, each under its
-// `## <name>` header, then the total hard cap ~60 lines: truncate the
+// `## <name>` header, then the total hard cap 150 lines: truncate the
 // LAST section's lines first (content lines only, from the end backwards)
-// preserving all six headers + their `… (…)` steer lines.
+// preserving all six headers + their `… (…)` steer lines. The 2026-10-22
+// raise (60 → 150): at a 60-line cap the markers section was ALWAYS starved
+// by the bigger sections in a full-size repo (git ~21 + nap ~42 alone
+// exceed it) — live maintainer markers never surfaced in the planner digest
+// (measured: the plan24 session's own digest carried 0 marker lines).
 const buildDigest = (root: string): string => {
   const sections: [string, string[]][] = [
     ["git", gitSection(root)],
@@ -206,7 +214,7 @@ const buildDigest = (root: string): string => {
     digest.push(`## ${name}`)
     digest.push(...body)
   }
-  while (digest.length > 60) {
+  while (digest.length > 150) {
     let i = digest.length - 1
     while (i >= 0 && (digest[i].startsWith("## ") || digest[i].startsWith("… ("))) i--
     if (i < 0) break
@@ -216,7 +224,7 @@ const buildDigest = (root: string): string => {
 }
 
 export default tool({
-  description: `The planner's init digest — the 6–8-call session-start sequence as ONE capped, deterministic read (no interpretation). Sections IN ORDER: \`## git\` (git log --oneline -20), \`## nap\` (the first 40 lines of agent/handover/handover_planner.md + a read-more steer when truncated), \`## todo\` (the TODO.md open-entry header count + the LAST 15 headers), \`## maintainer\` (the maintainer/inbox_planner/ .md files — first line each, max 5 — + priority.md's first 10 lines), \`## proposals\` (the proposals/ root .md filenames), \`## markers\` (the ready-made marker sweep, capped at 20 lines). Empty sections read \`(none)\`; the whole digest is hard-capped at 60 lines (the LAST section's lines truncate first, all six headers + their steers are preserved). PLANNER ONLY — a non-planner agent gets the one-line refusal instead of the digest. Fire at session start; follow up with full reads only where a section needs a decision.`,
+  description: `The planner's init digest — the 6–8-call session-start sequence as ONE capped, deterministic read (no interpretation). Sections IN ORDER: \`## git\` (git log --oneline -20), \`## nap\` (the first 40 lines of agent/handover/handover_planner.md + a read-more steer when truncated), \`## todo\` (the TODO.md open-entry header count + the LAST 15 headers), \`## maintainer\` (the maintainer/inbox_planner/ .md files — first line each, max 5 — + priority.md's first 10 lines), \`## proposals\` (the proposals/ root .md filenames), \`## markers\` (the ready-made marker sweep, capped at 20 lines). Empty sections read \`(none)\`; the whole digest is hard-capped at 150 lines (the LAST section's lines truncate first, all six headers + their steers are preserved). PLANNER ONLY — a non-planner agent gets the one-line refusal instead of the digest. Fire at session start; follow up with full reads only where a section needs a decision.`,
   args: {},
 
   execute: async (_args: any, context: any) => {

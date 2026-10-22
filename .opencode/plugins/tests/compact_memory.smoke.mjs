@@ -85,6 +85,34 @@ writeFileSync(BUDGET, JSON.stringify({
   },
 }), "utf8");
 
+// The dump leg (TODO #137 unit 4c) spawns `<ws>/agent/scripts/db/dump_session_
+// v2.mjs <sid> --out <corpus-rel> [--json]` — this STUB honors that CLI and
+// writes marker content into the ws-relative `archive/sessions/` (the real
+// twin's OUT_DIR shape, computed from the script's own dir). EVERY allowed
+// dispatch therefore dumps with BOTH artifacts; the dump-failure lanes move
+// this file aside inside their own pins.
+const FAKE_DUMP_LINES = [
+  'import { mkdirSync, writeFileSync } from "node:fs";',
+  'import path from "node:path";',
+  'import { fileURLToPath } from "node:url";',
+  "const dir = path.dirname(fileURLToPath(import.meta.url));",
+  "const argv = process.argv.slice(2);",
+  "let rel = null, json = false, sid = null;",
+  "for (let i = 0; i < argv.length; i++) {",
+  "  const a = argv[i];",
+  '  if (a === "--out") { i++; rel = argv[i]; }',
+  '  else if (a === "--json") json = true;',
+  "  else sid = a;",
+  "}",
+  'const out = path.resolve(dir, "..", "..", "..", "archive", "sessions");',
+  'const file = path.join(out, rel != null ? rel : sid + (json ? ".json" : ".md"));',
+  "mkdirSync(path.dirname(file), { recursive: true });",
+  'writeFileSync(file, "fake dump sid=" + sid + " json=" + json + " rel=" + rel + "\\n", "utf8");',
+  'console.log("dumped " + sid + " -> " + file);',
+];
+mkdirSync(path.join(WS, "agent", "scripts", "db"), { recursive: true });
+writeFileSync(path.join(WS, "agent", "scripts", "db", "dump_session_v2.mjs"), FAKE_DUMP_LINES.join("\n") + "\n", "utf8");
+
 // The model each fixture session resolves to (the mock `session.get`).
 const MODELS = {
   ses_self: LISTED,
@@ -239,13 +267,13 @@ chk("S2 cap forms: CPU guard FIRST (cap 0 + cpu label), listed exact, unlisted -
   chk("S4 increment NOT at dispatch (INCREMENT-ON-SUCCESS only): count stays 1; the queue is NOT delivered yet",
     count("ses_self") === 1 && PROMPT.calls.length === 0,
     `count=${count("ses_self")} promptCalls=${PROMPT.calls.length}`);
-  chk("S4 audit lines: keep-not-applied (12/40000) + dump-skipped + dispatch accepted (auto)",
+  chk("S4 audit lines: keep-not-applied (12/40000) + dump ok + dispatch accepted (auto)",
     lines.some((l) => l.kind === "keep" && l.reason === "keep-not-applied" && l.keepMessages === "12" && l.keepTokens === "40000") &&
-      lines.some((l) => l.kind === "dump" && l.reason === "dump-skipped") &&
+      lines.some((l) => l.kind === "dump" && l.state === "ok" && l.session === "ses_self") &&
       lines.some((l) => l.kind === "dispatch" && l.state === "accepted" && l.mode === "auto" && l.cap === "3" && l.count === "1"),
     JSON.stringify(lines.map((l) => `${l.kind}:${l.reason ?? l.state ?? ""}`)));
-  chk("S4 the response states the keep-keys and dump deviations",
-    r.output.includes("keepMessages/keepTokens are NOT applied in v2") && r.output.includes("dump is skipped in v2") && r.output.includes("native inbox queue"),
+  chk("S4 the response states the keep-keys deviation and NO dump-skip/skip-warning text (4c: the dump leg landed)",
+    r.output.includes("keepMessages/keepTokens are NOT applied in v2") && !r.output.includes("dump is skipped") && !r.output.includes("WARNING: pre-compaction dump") && r.output.includes("native inbox queue"),
     JSON.stringify(r.output));
 }
 
@@ -259,8 +287,9 @@ chk("S2 cap forms: CPU guard FIRST (cap 0 + cpu label), listed exact, unlisted -
   const ctxLines = readCtxLog();
   chk("S5 the .ended signal burns the budget exactly once: count 1 -> 2",
     count("ses_self") === 2, `count=${count("ses_self")}`);
-  chk("S5 exactly ONE COMPACT line for ses_self, v1 byte-format with the budget keep source",
-    ctxLines.length === 1 && /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2} .+ COMPACT ses_self keep=12m tok=40000 budget\s*$/.test(ctxLines[0]),
+  chk("S5 exactly ONE COMPACT line for ses_self, v1 byte-format with the budget keep source (4c: the ctx.log also carries the session's DUMP-* lines, so the pin scopes to COMPACT lines)",
+    ctxLines.filter((l) => l.includes(" COMPACT ses_self")).length === 1 &&
+      /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2} .+ COMPACT ses_self keep=12m tok=40000 budget\s*$/.test(ctxLines.filter((l) => l.includes(" COMPACT ses_self"))[0] ?? ""),
     JSON.stringify(ctxLines));
   chk("S5 verify evidence: started + success (model + auto mode) lines",
     lines.some((l) => l.kind === "verify" && l.state === "started" && l.session === "ses_self") &&
@@ -427,7 +456,7 @@ chk("S2 cap forms: CPU guard FIRST (cap 0 + cpu label), listed exact, unlisted -
 {
   const lines = readLog();
   const kinds = new Set(lines.map((l) => l.kind));
-  const dumps = lines.filter((l) => l.kind === "dump" && l.reason === "dump-skipped").length;
+  const dumps = lines.filter((l) => l.kind === "dump" && (l.state === "ok" || l.state === "failed")).length;
   const keeps = lines.filter((l) => l.kind === "keep" && l.reason === "keep-not-applied").length;
   const accepts = lines.filter((l) => l.kind === "dispatch" && l.state === "accepted").length;
   chk("INV all log lines parse as JSON; kinds ONLY {dispatch, marker, verify, keep, dump, queue}",
@@ -437,8 +466,9 @@ chk("S2 cap forms: CPU guard FIRST (cap 0 + cpu label), listed exact, unlisted -
   chk("INV the dump-skipped + keep-not-applied lines land ONCE PER ALLOWED DISPATCH (7 dispatch legs, equal counts)",
     dumps === keeps && dumps === accepts && dumps === 7,
     JSON.stringify({ dumps, keeps, accepts }));
-  chk("INV COMPACT lines: every one byte-forms the v1 convention (stamp + model + keep=12m + tok=40000 budget [+ token])",
-    readCtxLog().every((l) => /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2} \S+ COMPACT \S+ keep=12m tok=40000 budget( emergency| ovr)*$/.test(l)),
+  chk("INV COMPACT lines: every one byte-forms the v1 convention (stamp + model + keep=12m + tok=40000 budget [+ token]) — the DUMP-* lines now share this file, so the pin scopes to COMPACT lines (4c repin)",
+    readCtxLog().filter((l) => l.includes(" COMPACT ")).every((l) => /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2} \S+ COMPACT \S+ keep=12m tok=40000 budget( emergency| ovr)*$/.test(l)) &&
+      readCtxLog().some((l) => l.includes(" COMPACT ")),
     JSON.stringify(readCtxLog()));
   chk("INV the budget file kept its config keys through the increments (the #119 additive invariant)",
     JSON.parse(readFileSync(BUDGET, "utf8")).model_budget?.[LISTED] === 3 &&

@@ -66,11 +66,19 @@
 // only, ONE `keep-not-applied` evidence line when either key is present;
 // retention = config `compaction.keep.tokens` (the ONLY v2 control); the
 // plugin NEVER writes config values (maintainer domain). (d) THE PRE-COMPACTION
-// DUMP leg (#152) is SKIPPED — the v1 dump tool is v1-table shaped, the v2 twin
-// rides follow-up spec 2026-10-22_137u4c-dump-twin — ONE `dump-skipped` line
-// per dispatch. (e) The COMPACT line stays BYTE-IDENTICAL v1 format in the
-// SHARED `.opencode/temp/ctx.log` (the ` ovr` token for the cross override
-// slot); plugin evidence lines (dispatch/denied/marker/verify/queue/keep/dump)
+// DUMP leg (#152) IS IMPLEMENTED on the v2 TWIN script (`agent/scripts/db/
+// dump_session_v2.mjs` — the `session_v2`+`session_message` twin of the v1
+// dump tool, this unit): BEFORE the dispatch, BOTH artifacts (the lossless md
+// + the raw json) land in `archive/sessions/compaction_dumps/<sid>_c<count>[
+// <stamp>].{md,json}` — the v1 hook contract ported BYTE-COMPATIBLE (naming,
+// the ONE retry #78, the `DUMP-OK`/`DUMP-RETRY=1`/`DUMP-FAIL` ctx.log lines
+// with the full repo-relative path #107); BEST-EFFORT — a failure warns in the
+// response and NEVER blocks; success leaves the response UNCHANGED. The
+// count keys the no-overwrite name and rides the PRE-DISPATCH budget count
+// (the increment lands only at verified success). (e) The COMPACT line stays
+// BYTE-IDENTICAL v1 format in the SHARED `.opencode/temp/ctx.log` (the ` ovr`
+// token for the cross override slot; the DUMP-* lines share that file); plugin
+// evidence lines (dispatch/denied/marker/verify/queue/keep/dump)
 // go to `.opencode/temp/compact_v2.log` (the context_family.log capped pattern,
 // never-throws appends).
 //
@@ -78,8 +86,9 @@
 // host runs (the backend slot); registration/config = maintainer domain.
 
 import type { Plugin } from "@opencode/plugin";
-import { appendFileSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
+import { execFileSync } from "node:child_process";
 
 // The ported budget core — a VALUE import of plain JS (node: builtins only).
 import {
@@ -87,6 +96,7 @@ import {
   appendCompactLine,
   budgetGate,
   hasKeepKeys,
+  localStamp,
   readCompactionConfig,
   recordSuccess,
   resolveRoot,
@@ -298,10 +308,183 @@ function deliverQueue(sid: string, text: string): void {
   }
 }
 
+// ------------------------------------------------------------------ (1d) the pre-compaction dump hook (deviation (d) — the #152 v1 contract, v2 twin script)
+//
+// Ported BYTE-COMPATIBLE from the v1 plugin (MAIN `.opencode/plugin/compact_memory.ts`
+// ~100-170 + 215): the no-overwrite naming keyed on the budget count, the ONE
+// retry per artifact (#78), the `DUMP-OK`/`DUMP-RETRY=1`/`DUMP-FAIL` ctx.log
+// lines carrying the FULL repo-relative path (#107), and the spawn of the DUMP
+// SCRIPT — here the v2 TWIN `agent/scripts/db/dump_session_v2.mjs` (TODO #137
+// unit 4c), because a v2 session's content lives in `session_v2` + `session_message`
+// (NO `part` table). BEST-EFFORT: NEVER throws, NEVER blocks the tool — a
+// failure appends the ctx.log lines and the response carries a WARNING (the
+// response is UNCHANGED on success — smoke stability).
+//
+// The count keys the no-overwrite name and rides the PRE-DISPATCH budget count:
+// in v2 the increment lands only at verified success (the
+// `session.compaction.ended` event), so dumps of the SAME budget round share
+// the `c<count>` base and the exact-exists stamped fallback covers repeats.
+// v1 had TWO call sites (SELF + CROSS); the v2 plugin has ONE execute, so ONE
+// dump leg covers both paths.
+
+// The dump stamp `YYYYMMDDTHHmmss` — computed by the CALLER so the name
+// function stays pure / clock-free (the smoke pins it byte-exact).
+function dumpStamp(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}T${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
+// The repo-relative corpus dir the dumps land in (the archive/sessions root).
+// #107: the ctx.log DUMP-* lines carry the FULL repo-relative dump path (prefix
+// + name); the spawn's `--out` stays corpus-relative (the script's OUT_DIR-relative
+// argument, OUT_DIR = the script's own dir-relative `archive/sessions`).
+const DUMP_ARCHIVE_REL = "archive/sessions";
+
+// The pure dump-file NAME (no clock inside): `compaction_dumps/<sid>_c<count>.<md|json>`,
+// or `..._c<count>_<YYYYMMDDTHHmmss>.<md|json>` when a stamp is supplied (the
+// no-overwrite fallback). Exported for the byte-exact smoke pins (the v1 probe's
+// 101/102/345 pattern).
+export function preCompactionDumpName(sessionID: string, count: number, stamp: string | null, format: "md" | "json" = "md"): string {
+  const core = `compaction_dumps/${sessionID}_c${count}`;
+  return stamp != null ? `${core}_${stamp}.${format}` : `${core}.${format}`;
+}
+
+// The SHARED ctx.log — the v1 file the COMPACT line lands in (the DUMP-* lines
+// share it; the plugin's own evidence lines go to compact_v2.log). Best-effort
+// append, never throws.
+function ctxLogPath(): string {
+  return join(root(), ".opencode", "temp", "ctx.log");
+}
+
+function appendCtxLine(line: string): void {
+  try {
+    const p = ctxLogPath();
+    mkdirSync(dirname(p), { recursive: true });
+    appendFileSync(p, `${line}\n`, "utf8");
+  } catch {
+    // best effort — never break the tool over a write failure
+  }
+}
+
+function oneLine(s: unknown): string {
+  return String(s).replace(/\s+/g, " ").trim();
+}
+
+// `<stamp> DUMP-OK <sid> <relFile> ms=<ms>` (#78: the `ms=` prefix; #107: the
+// full repo-relative path) — same local-stamp style as the v1 line.
+function appendDumpOkLine(sessionID: string, relFile: string, ms: number): void {
+  appendCtxLine(`${localStamp()} DUMP-OK ${sessionID} ${relFile} ms=${ms}`);
+}
+
+// `<stamp> DUMP-RETRY=1 <sid> <relFile> ms=<ms> err=<one-line error>` — the
+// ONE retry per artifact (#78); the artifact relFile distinguishes the md/json
+// lines (#92).
+function appendDumpRetryLine(sessionID: string, relFile: string, ms: number, error: unknown): void {
+  appendCtxLine(`${localStamp()} DUMP-RETRY=1 ${sessionID} ${relFile} ms=${ms} err=${oneLine(error)}`);
+}
+
+// `<stamp> DUMP-FAIL <sid> <relFile> <detail>` (v1 shape).
+function appendDumpFailLine(sessionID: string, relFile: string, detail: string): void {
+  appendCtxLine(`${localStamp()} DUMP-FAIL ${sessionID} ${relFile} ${detail}`);
+}
+
+// Resolves the node executable for the dump-script spawn (v1 #78 lesson): the
+// live opencode host's execPath is the CLI binary, not a node runtime — plain
+// node runtimes pass through untouched, anything else falls back to "node"
+// (PATH + PATHEXT finds node.exe on Windows). Exported for the smoke pins.
+export function resolveNodeExe(execPath: string = process.execPath): string {
+  const base = basename(execPath).toLowerCase();
+  return base.startsWith("node") ? execPath : "node";
+}
+
+// The fixed dump-spawn budget (#78: 120 s — measured dump wall-times are tens
+// of ms, so a live DUMP-FAIL is a spawn-level stall, not budget exhaustion).
+const DUMP_SPAWN_TIMEOUT_MS = 120_000;
+
+// One dump-spawn attempt: ARGS ARRAY (no shell), `stdio: "pipe"` so a DUMP-FAIL
+// can carry the child's stderr (#78); NEVER throws — returns the elapsed ms and,
+// on failure, the error text + the captured stderr.
+function runDumpSpawn(scriptPath: string, sessionID: string, name: string, extraArgs: string[] = []): { ms: number; error?: string; stderr?: string } {
+  const t0 = Date.now();
+  try {
+    execFileSync(resolveNodeExe(), [scriptPath, sessionID, "--out", name, ...extraArgs], { timeout: DUMP_SPAWN_TIMEOUT_MS, stdio: "pipe" });
+    return { ms: Date.now() - t0 };
+  } catch (err) {
+    const e = err as { message?: unknown; stderr?: unknown } | undefined;
+    const stderr = e?.stderr != null ? String(e.stderr) : "";
+    const error = typeof e?.message === "string" && e.message !== "" ? e.message : err != null ? String(err) : "dump script failed";
+    return { ms: Date.now() - t0, error, stderr };
+  }
+}
+
+// The DUMP-FAIL detail (#78): the error text + the child's captured stderr,
+// each one-lined, joined.
+function dumpFailDetail(r: { error?: string; stderr?: string }): string {
+  const error = r.error ?? "dump script failed";
+  const stderr = oneLine(r.stderr ?? "");
+  return stderr !== "" ? `${error} | stderr: ${stderr}` : error;
+}
+
+// One artifact's dump: one attempt → ONE DUMP-RETRY=1 line → the retry →
+// DUMP-FAIL. The json artifact's spawn carries the extra `--json` flag (#92:
+// the lossless md AND the raw json snapshot, each INDEPENDENTLY — one's failure
+// does not skip the other).
+function dumpOneArtifact(
+  scriptPath: string,
+  sessionID: string,
+  name: string,
+  format: "md" | "json",
+): { ok: boolean; error?: string } {
+  const extra = format === "json" ? ["--json"] : [];
+  const relFile = `${DUMP_ARCHIVE_REL}/${name}`;
+  const first = runDumpSpawn(scriptPath, sessionID, name, extra);
+  if (first.error == null) {
+    appendDumpOkLine(sessionID, relFile, first.ms);
+    return { ok: true };
+  }
+  appendDumpRetryLine(sessionID, relFile, first.ms, first.error);
+  const second = runDumpSpawn(scriptPath, sessionID, name, extra);
+  if (second.error == null) {
+    appendDumpOkLine(sessionID, relFile, second.ms);
+    return { ok: true };
+  }
+  const detail = dumpFailDetail(second);
+  appendDumpFailLine(sessionID, relFile, detail);
+  return { ok: false, error: detail };
+}
+
+// The hook: run the dump twin for the target session, BOTH artifacts, named on
+// the budget count. The no-overwrite rule: an EXACT-EXISTS md base target →
+// the STAMPED names (the MD base decides; both artifacts share the stamp).
+// NEVER throws, NEVER blocks; returns {ok, files (md first), error}.
+export function preCompactionDump(rootDir: string, sessionID: string, count: number): { ok: boolean; files: string[]; error?: string } {
+  const scriptPath = join(rootDir, "agent", "scripts", "db", "dump_session_v2.mjs");
+  const archiveDir = join(rootDir, DUMP_ARCHIVE_REL);
+  const baseTarget = join(archiveDir, preCompactionDumpName(sessionID, count, null));
+  const stamp = existsSync(baseTarget) ? dumpStamp() : null;
+  const files: string[] = [];
+  const errors: string[] = [];
+  for (const format of ["md", "json"] as const) {
+    const name = preCompactionDumpName(sessionID, count, stamp, format);
+    const target = join(archiveDir, name);
+    const one = dumpOneArtifact(scriptPath, sessionID, name, format);
+    if (one.ok) {
+      files.push(target);
+    } else {
+      errors.push(`${format}: ${one.error}`);
+    }
+  }
+  const ok = files.length === 2;
+  return errors.length > 0
+    ? { ok, files, error: errors.join(" | ") }
+    : { ok, files };
+}
+
 // ------------------------------------------------------------------ (2) the tool surface
 
 const TOOL_DESCRIPTION =
-  "Compacts a session to free context space. Two paths: SELF (sessionID omitted) — the CALLING session is compacted and continues from committed files via the post-compaction protocol; CROSS (explicit sessionID) — a fire-and-forget dispatch: it returns immediately and is NEVER awaited (an await would deadlock the single llama-swap model slot); success is verified ASYNCHRONOUSLY — the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success (the session.compaction.ended event), and a failed dispatch burns NO budget. The budget is per TARGET session, per model — the cap comes from the compact_budget.json model_budget map (bare model id -> cap; unlisted models get the configured default; CPU models denied — cap 0). The total budget per session is the cap + ONE emergency compaction: once the normal cap is drained, the `emergency` argument may consume the 1 (count -> cap+1 = fully exhausted). A CROSS caller (explicit sessionID != the calling session) gets an effective cap of cap + 1 (the caller-scoped override, ruling 2026-09-30) — the spendable TOTAL stays THE SAME AS SELF (cap + the one emergency): a cross at count == cap dispatches via the override slot (the COMPACT line gains the ` ovr` token), and a cross at count == cap + 1 stays REFUSED. MARKER mode (args mode:'marker' + summary): the agent writes the summary itself (compaction style, the current model) and the plugin supplies it at the v2 `compaction` draft hook (event.result — the core skips the summarizer model request and writes the durable compaction message). DEVIATIONS vs v1: the `boundary` argument is IGNORED (v2 computes the retained `recent` from the config compaction.keep.tokens; ONE boundary-ignored evidence line); the budget file's keepMessages/keepTokens are NOT applied (the compact body has no keep fields — ONE keep-not-applied line); the `message` continuation is delivered on the native inbox queue (delivery:'queue') AT verified success; the pre-compaction dump is SKIPPED (the v2 dump twin rides spec 2026-10-22_137u4c-dump-twin). Use it at the stop line / near-limit triage (self) or before a task_id resume of a session that died at its limit (cross); do NOT use it as a restart substitute.";
+  "Compacts a session to free context space. Two paths: SELF (sessionID omitted) — the CALLING session is compacted and continues from committed files via the post-compaction protocol; CROSS (explicit sessionID) — a fire-and-forget dispatch: it returns immediately and is NEVER awaited (an await would deadlock the single llama-swap model slot); success is verified ASYNCHRONOUSLY — the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success (the session.compaction.ended event), and a failed dispatch burns NO budget. The budget is per TARGET session, per model — the cap comes from the compact_budget.json model_budget map (bare model id -> cap; unlisted models get the configured default; CPU models denied — cap 0). The total budget per session is the cap + ONE emergency compaction: once the normal cap is drained, the `emergency` argument may consume the 1 (count -> cap+1 = fully exhausted). A CROSS caller (explicit sessionID != the calling session) gets an effective cap of cap + 1 (the caller-scoped override, ruling 2026-09-30) — the spendable TOTAL stays THE SAME AS SELF (cap + the one emergency): a cross at count == cap dispatches via the override slot (the COMPACT line gains the ` ovr` token), and a cross at count == cap + 1 stays REFUSED. MARKER mode (args mode:'marker' + summary): the agent writes the summary itself (compaction style, the current model) and the plugin supplies it at the v2 `compaction` draft hook (event.result — the core skips the summarizer model request and writes the durable compaction message). DEVIATIONS vs v1: the `boundary` argument is IGNORED (v2 computes the retained `recent` from the config compaction.keep.tokens; ONE boundary-ignored evidence line); the budget file's keepMessages/keepTokens are NOT applied (the compact body has no keep fields — ONE keep-not-applied line); the `message` continuation is delivered on the native inbox queue (delivery:'queue') AT verified success; the pre-compaction dump lands in archive/sessions/compaction_dumps/ (BOTH the md and json artifacts) BEFORE the dispatch — a dump failure adds a WARNING to the response, it NEVER blocks the compaction. Use it at the stop line / near-limit triage (self) or before a task_id resume of a session that died at its limit (cross); do NOT use it as a restart substitute.";
 
 // The input schema — a plain JSON schema (the promise surface accepts
 // Tool.ValueSchema = a JsonSchema literal; InputValue resolves to `unknown`,
@@ -345,7 +528,7 @@ const TOOL_INPUT = {
 // arg validation → the boundary audit line → the model class → the GATE (den
 // -ial = ZERO side effects: no pending record, no increment, no compact call,
 // no COMPACT line) → the pending record + the audit lines (keep-not-applied
-// /dump-skipped) → the fire-and-forget dispatch → the dispatch response (NEV
+// /dump ok|failed + the corpus dumps) → the fire-and-forget dispatch → the
 // -ER a success claim). NEVER throws: every host call is guarded.
 async function execute(args: unknown, toolContext: { sessionID?: unknown }): Promise<{ output: string }> {
   const a: Record<string, unknown> = args != null && typeof args === "object" && !Array.isArray(args)
@@ -417,7 +600,14 @@ async function execute(args: unknown, toolContext: { sessionID?: unknown }): Pro
   if (keepAudit) {
     appendLog(buildLine("keep", { session: sessionID, reason: "keep-not-applied", keepMessages: String(cfg.keepMessages), keepTokens: cfg.keepTokens != null ? String(cfg.keepTokens) : undefined }, {}));
   }
-  appendLog(buildLine("dump", { session: sessionID, reason: "dump-skipped" }, {}));
+  // (1d) THE PRE-COMPACTION DUMP (#152 semantics, the v1 hook contract): BOTH
+  // artifacts land in the corpus BEFORE the dispatch; the ctx.log DUMP-* lines
+  // and the ONE retry ride `preCompactionDump` above. The count = the PRE-
+  // DISPATCH budget count (the increment lands only at verified success).
+  // Best-effort: a failure warns in the response, NEVER blocks the dispatch.
+  const dump = preCompactionDump(root(), sessionID, gate.count);
+  appendLog(buildLine("dump", { session: sessionID, state: dump.ok ? "ok" : "failed", error: dump.error }, {}));
+  const dumpWarning = dump.ok ? "" : `\nWARNING: pre-compaction dump failed for ${sessionID} (${dump.error})`;
 
   // (3) the dispatch — NO AWAIT (the same-slot rule survives v2: an awaited
   // dispatch freezes the issuing turn); the response is NEVER a success claim
@@ -475,7 +665,7 @@ async function execute(args: unknown, toolContext: { sessionID?: unknown }): Pro
   responseParts.push(`; the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success (the session.compaction.ended event) — a failed compaction burns NO budget. Used ${gate.count}/${gate.cap} (model class ${gate.label}).`);
   if (typeof a.message === "string" && a.message !== "") responseParts.push(" The continuation message rides the native inbox queue (delivery:'queue') at verified success.");
   if (keepAudit) responseParts.push(" keepMessages/keepTokens are NOT applied in v2 (the compact body has no keep fields).");
-  responseParts.push(" The pre-compaction dump is skipped in v2 (the dump twin rides spec 2026-10-22_137u4c-dump-twin).");
+  if (dumpWarning !== "") responseParts.push(dumpWarning);
   if (modelNote !== "") responseParts.push(`\n${modelNote}`);
   return { output: responseParts.join("") };
 }

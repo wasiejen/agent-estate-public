@@ -270,3 +270,51 @@ circular) leg pinned THROUGH A DUMP-CARRIED FIELD (`signal` circular — a
 contextKeys-only string can never trip it): the v1 fallback line `JSON.stringify
 failed (…) — context keys only: <keys>`, NEVER a throw. Expected final line:
 `SMOKE: ALL PASS`.
+
+## block_transfer smoke + sandbox smoke (TODO #137 unit 5c, 2026-10-22)
+
+    bun run block_transfer.smoke.mjs
+
+90 checks against a mock `ctx` (no opencode process; fixtures ride the scratchpad
+`home/AppData/Local/Temp/opencode/block-transfer-smoke-v2`): the loader
+shape `{id:'block_transfer', setup}` + the `tool.transform`/`editor.add` registration
+(12-property JSON-schema input, required `[mode]`, the mode enum, string output, teardown
+disposes), the description carried (WHEN-NOT/RETURN-LINES/BUFFERS/EDGE sections), the
+mode guard (no default, unknown echoes AS GIVEN, case normalizes), every mode's happy-
+path feedback line BYTE-EXACT (assemblyFeedback + opLine formats, the WRITE
+`old A..B -> new C..D, file now N line(s)` group, the MOVE/PASTE insertion suffix
+before the buffer tail), the teaching taxonomy (not-found + Closest-lines hint,
+non-unique + count + first-3 matches + ` …`, ref-out-of-range with the count, the PEEK
+window teaching), the ALL-DIGIT line-number ref rule (digit-strings + numbers, the
+"0" not-1-based leg), the COPY/APPEND three-form rejections (clashes, empty list,
+bare-call form lesson, partial-marker trio), the buffer semantics (COPY replaces,
+APPEND appends, PASTE/REPLACE preserve, failed ops leave NO buffer behind, `last_write`
+auto-store, `last_move_source`, CLEAR), the PEEK/MAP bounded previews (blank-skip head/
+tail pick, 25-cap window, 200-char MAP cap + `…`, heading regex at column 0, the
+non-overlapping small-buffer tail), the CUT/DELETE exact-cuts-only rule, the
+WRITE never-creates + multi-region REJECT + overlap REJECT + `new (empty)` forms, the
+same-file MOVE-with-shift (target above/below/INSIDE), the MOVE dst-checks-before-cut
+order, and the EOL/EOF hardening (CRLF round-trips, trailing-newline EOF inserts
+BEFORE the blank tail, new files join WITHOUT a trailing newline). Expected final
+line: `SMOKE: ALL PASS`.
+
+    bun run block_transfer.sandbox.smoke.mjs
+
+23 checks — the sandbox twin. The SELF-SET fixture TEMP/TMP mechanism (the v1
+pattern) makes it env-robust; deny fixtures sit OUTSIDE all roots (direct children of
+the user Temp dir, siblings of the fixture repos — the fixture repos themselves ride
+`home/AppData/Local/Temp/bt_fx_sandbox_v2`, OUTSIDE the scratchpad config
+root, so the fixture configs genuinely control access): the byte-exact deny line
+`Error: '<given>' is outside the sandbox (allowed: <roots>)` vs a test-side mirror of
+the roots list (CWD, config allow roots, TEMP override, os.tmpdir() — deduped by
+EXACT string equality), guard ordering (sandbox wins over 'not found' and over the
+REPLACE empty-buffer check; MOVE guards the dst before the source is touched; the
+REJECT never writes), CONFIG allow roots + the TEMP-override ALLOW legs, the
+case-insensitive root prefix, the /**-twin dedupe in the printed roots list, BOTH
+config shapes via fixture-repo plugin copies (the v1 object form; the v2 native
+array form with LAST MATCH WINS — a later deny for the SAME resource removes the
+earlier allow — /** stripping and entry dedupe), and the malformed-config EMPTY-
+set fail-open (CWD + temp roots ONLY, NEVER "everything allowed"). The fixture
+plugin copies read their OWN fixture `opencode.jsonc` at import (one CONFIG_ROOTS
+per module instance). Teardown dispose + the ambient env restore pinned. Expected
+final line: `SMOKE: ALL PASS`.

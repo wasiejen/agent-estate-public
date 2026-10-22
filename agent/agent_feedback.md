@@ -872,3 +872,6 @@ block_transfer/write/edit resolved the relative path .opencode/plugin/scripts/ga
 ### 2026-10-22_04-28 worker_FlashNext ses_e9e9f2891ffe2dP7gkx74SGSxH
 The spec said probe sections were not expected to move (only a check-113 repin was contemplated), but the regions contract change forces probe check 307 to repin in BOTH trees (its byte-exact fan-out pin). Pin inventory for a contract change should enumerate every pin file asserting the old behavior before the run, not only the config-roots check.
 
+### 2026-10-22_04-38 planner_FlashNext ses_e9ec78ee4ffe9Nu75F5iRfdtl6
+block_transfer REPLACE call in this session errored `Clipboard buffer 'default' is empty. Perform a COPY or CUT first` when the intent was a direct-text region write — the error does not teach the mode choice (WRITE = bufferless direct text; REPLACE = named buffer). A teaching-error line naming the WRITE alternative would have saved the retry.
+

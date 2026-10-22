@@ -4,13 +4,13 @@ Host-named custom tool (no `name` field — the file IS the tool name; the host 
 
 ## What it does
 
-Line-anchored file surgery for multi-line blocks: MOVE (cut + paste in one call), COPY / APPEND (extract to a NAMED clipboard buffer — a single-ref pair, a `refs` list, or direct `text`), PASTE (buffer → file), REPLACE (swap a line-anchored span with a buffer), WRITE (swap a span with direct `text` — a single span or a `regions` list; creates the file if absent; the `last_write` buffer is auto-stored), CUT / DELETE, PEEK / MAP (bounded buffer inspection), CLEAR. No dense-numeral oldStrings — the anchor form sidesteps the mid-line / numeric-match failure modes of exact string edits.
+Line-anchored file surgery for multi-line blocks: MOVE (cut + paste in one call), COPY / APPEND (extract to a NAMED clipboard buffer — a single-ref pair, a `refs` list, or direct `text`), PASTE (buffer → file), REPLACE (swap a line-anchored span with a buffer), WRITE (swap a span with direct `text` — a single span or a `regions` list; NEVER creates a file — an absent dstFile yields the teaching not-found / out-of-range errors; the `last_write` buffer is auto-stored), CUT / DELETE, PEEK / MAP (bounded buffer inspection), CLEAR. No dense-numeral oldStrings — the anchor form sidesteps the mid-line / numeric-match failure modes of exact string edits.
 
 ## Implementation sketch
 
 - Entry: `export default tool({ description, args, execute })`.
 - THE UNIFIED ANCHOR RULE (approved proposal 2026-09-25_block_transfer-v2, Part A): every mode's startMarker / endMarker / targetMarker lookup routes through `resolveAnchor` / `matchAnchorLines` — ONE rule for ALL modes. Ref form: an ALL-DIGIT ref (a number, or a digit-string) = a 1-based line number; any OTHER string = a prefix marker. Matching: the file is split on `\n` (trailing `\r` ignored — CRLF-tolerant); an anchor A matches line L if L, after removing LEADING spaces/tabs, BEGINS with A verbatim (case-sensitive); A is ITSELF stripped of leading spaces/tabs (the plan25 fix — an anchor typed with the line's indentation matches); an all-whitespace anchor matches NOTHING; the anchor must match EXACTLY ONE line (non-unique → an error carrying the match count + first matches).
-- Sandbox: every path arg must resolve inside the working directory or the Windows temp directory (`sandboxCheck`, called BEFORE any fs access — no partial writes on rejection).
+- Sandbox: every path arg must resolve inside the working directory, a config allow root (`opencode.jsonc` `permission.external_directory` allow-entries, config-driven since TODO #140 unit A — roots load at tool start, a new root needs a host restart) or the Windows temp directory (`sandboxCheck`, called BEFORE any fs access — no partial writes on rejection).
 - Buffers: session-scoped in-memory named clipboards (`clipboardBuffers`) — multiple buffers coexist in one session.
 
 ## Gotchas / lessons

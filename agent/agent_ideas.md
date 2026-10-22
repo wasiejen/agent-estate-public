@@ -22,3 +22,6 @@ All 4 items addressed — (1) ctx_gauge window config-first = TODO #115 LANDED (
 ### 2026-10-22_00-36 planner_FlashNext ses_e9fb4e611ffeQmrH3PkDK6r4Ct
 A curated read-only helper for `.opencode/temp/intercept.log` (e.g. `agent/scripts/intercept_sweep.mjs`: filters by date/session/verdict, prints bounded fields, defaults to the last N lines) — every live-acceptance sweep and path-anomaly hunt re-reads that log through raw greps, and the field widths blow the context budget.
 
+### 2026-10-22_04-38 planner_FlashNext ses_e9ec78ee4ffe9Nu75F5iRfdtl6
+state_snapshot's ## markers digest is capped (20 lines) and the ready-made sweep output is dominated by self-referential doc noise (measured this session: 143 sweep hits, only 1 standing block live) — extend the MARKER_SWEEP filter to exclude the files that QUOTE the markers table (agent/prompts/, agent/readme/, specs/, loop summaries, knowledge) so the digest surfaces live markers without a bash re-run.
+

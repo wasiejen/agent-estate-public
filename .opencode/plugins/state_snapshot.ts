@@ -19,6 +19,12 @@
 // empty `context.agent` that is not a planner gets the EXACT one-line refusal.
 // READ-ONLY — it NEVER writes anywhere.
 //
+// MARKER ORDERING (both twins — spec 2026-10-22_state-snapshot-marker-order):
+// the sweep command stays byte-verbatim; only its OUTPUT is re-ordered —
+// LIVE-CLASS hits (`maintainer/` / `.opencode/` prefixes, or exactly TODO.md /
+// README.md / WIKI.md) FIRST, then DOC-CLASS, each group sorted by the line
+// string, BEFORE the 20-line cap + `… (+<k> more)` steer.
+//
 // DEVIATION (the v2 ToolContext carrier): v2 gives `{sessionID, agent, messageID,
 // id, signal, progress}` (fork schema tool.ts:14-19 + plugin promise/tool.ts:11-
 // 24) — the v1 repo-root source `context.directory` has NO v2 carrier; the root
@@ -160,9 +166,23 @@ const proposalsSection = (root: string): string[] => {
   return files.length > 0 ? files : ["(none)"];
 };
 
+// A sweep hit's CLASS: the PATH (grep's `<path>:<line>:<content>` form —
+// the text before the first `:`). LIVE-CLASS = under `maintainer/` or
+// `.opencode/`, or exactly `TODO.md` / `README.md` / `WIKI.md`; every other
+// path (agent/, loop/, proposals/, …) is DOC-CLASS.
+const isLiveHit = (line: string): boolean => {
+  const i = line.indexOf(":");
+  const p = i >= 0 ? line.slice(0, i) : line;
+  return p.startsWith("maintainer/") || p.startsWith(".opencode/") || p === "TODO.md" || p === "README.md" || p === "WIKI.md";
+};
+
 // `## markers` — the ready-made marker sweep run verbatim via bash in the
-// repo root, capped at 20 lines (then `… (+<k> more)`); no matches →
-// `(none)`; bash failure → the fail-closed line.
+// repo root; the hits are reordered LIVE-CLASS first, then DOC-CLASS, each
+// group sorted by the line string (the raw sweep order is the sweep's path
+// ARGUMENT order, where the DOC-heavy agent/ hits print first and can crowd
+// the live maintainer/TODO markers out of the window); then capped at 20 lines
+// (then `… (+<k> more)`); no matches → `(none)`; bash failure → the fail-closed
+// line.
 const markersSection = (root: string): string[] => {
   let out = "";
   try {
@@ -181,8 +201,16 @@ const markersSection = (root: string): string[] => {
     .map((l) => l.trim())
     .filter((l) => l !== "");
   if (lines.length === 0) return ["(none)"];
-  const body = lines.slice(0, 20);
-  if (lines.length > 20) body.push(`… (+${lines.length - 20} more)`);
+  // LIVE-CLASS first, then DOC-CLASS, each group sorted by the line string
+  // (deterministic); the 20-line cap + steer apply AFTER the ordering.
+  const live: string[] = [];
+  const doc: string[] = [];
+  for (const l of lines) (isLiveHit(l) ? live : doc).push(l);
+  live.sort();
+  doc.sort();
+  const ordered = live.concat(doc);
+  const body = ordered.slice(0, 20);
+  if (ordered.length > 20) body.push(`… (+${ordered.length - 20} more)`);
   return body;
 };
 

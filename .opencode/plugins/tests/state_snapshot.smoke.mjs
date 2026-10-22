@@ -8,7 +8,9 @@
 // <60-char-truncated>` forms, the maintainer inbox first-lines max-5 + `… (+k
 // more)`, priority.md's first 10, the sorted proposals filenames, the READY-
 // MADE marker sweep run via bash carrying the fixture `--now` line with the
-// `/done/`-filtered line ABSENT, the nap first-40 + `… (read … for the rest)`
+// `/done/`-filtered line ABSENT + the LIVE-first ordering (the LIVE-class
+// `WIKI.md` hit prints BEFORE the DOC-class `loop/notes.md` hit — pin (23)),
+// the nap first-40 + `… (read … for the rest)`
 // steer), the 60-line hard cap (the LAST section's content lines trim from the
 // end backwards, all six headers + the `… (+20 more)` steer SURVIVE), the `(
 // none)` empties + the fail-closed lines, the READ-ONLY invariant (a digest
@@ -129,6 +131,9 @@ const ROOT1 = path.join(SCRATCH, "fx1");
   w(ROOT1, "proposals/notmd.txt", "p\n");
   w(ROOT1, "proposals/approved/inner.md", "--now inner subfolder ignored\n");
   w(ROOT1, "loop/notes.md", "first line\n--now live marker\n");
+  // the LIVE-CLASS fixture hit — WIKI.md prints AFTER loop/ in the raw sweep
+  // path ARGUMENT order, so the ordering pin (23) below is discriminating.
+  w(ROOT1, "WIKI.md", "# wiki\n--main wiki live class marker\n");
   w(ROOT1, "maintainer/done/old.md", "--wip filtered by /done/\n");
   gitInitCommit(ROOT1, "snapshot fixture commit A");
 }
@@ -175,10 +180,19 @@ chk("S1 tool surface: NO-argument object input (no properties, no required), str
     mk?.some((l) => l.includes("loop/notes.md") && l.includes("--now live marker")), JSON.stringify(mk));
   chk("(10) markers: the /done/-filtered fixture line is ABSENT (the grep -v filter carried)",
     !mk?.some((l) => l.includes("/done/")), JSON.stringify(mk));
+  // (23) — the LIVE-first markers ordering. The label is APPEND-only (the
+  // existing (11)..(22) numbering stays untouched). The raw sweep path ARGUMENT
+  // order prints the DOC-class loop/notes.md hit FIRST, so the pin FAILS
+  // pre-change; the LIVE-CLASS WIKI.md hit prints first after the change.
+  const mkHits = mk ?? [];
+  const liveAt = mkHits.findIndex((l) => l.startsWith("WIKI.md:"));
+  const docAt = mkHits.findIndex((l) => l.startsWith("loop/notes.md:"));
+  chk("(23) markers ordering: the LIVE-class WIKI.md hit prints BEFORE the DOC-class loop/notes.md hit",
+    liveAt >= 0 && docAt >= 0 && liveAt < docAt, JSON.stringify([liveAt, docAt]));
   chk("(11) READ-ONLY: the digest run leaves the fixture tree byte-identical",
     before === after, `before=${before.length} after=${after.length}`);
-  chk("(12) FX1 digest is under the 60-line cap untouched (46 lines)",
-    l1.length === 46, `len=${l1.length}`);
+  chk("(12) FX1 digest is under the 60-line cap untouched (47 lines — the WIKI.md fixture added one sweep hit)",
+    l1.length === 47, `len=${l1.length}`);
 }
 
 // ------------------------------------------------------------------ FX2 — the refusal gate + empties + fail-closed lines

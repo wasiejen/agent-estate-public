@@ -201,3 +201,24 @@ submit.ts` predates this guard — the port carries the MAIN version (logged
 discrepancy). Fixtures ride the scratchpad
 `home/AppData/Local/Temp/opencode/small-write-tools-smoke-v2/submit`.
 Expected final line: `SMOKE: ALL PASS`.
+
+## ctx_gauge smoke (TODO #137 unit 5b, 2026-10-22)
+
+    bun run ctx_gauge.smoke.mjs
+
+11 checks against a mock `ctx` (no opencode process): the loader shape `{id:'
+ctx_gauge', setup}` + the `tool.transform`/`editor.add` registration (ONE
+optional `sessionID` string arg, no required, string output, teardown disposes
+the registration, NO hooks), the v1-carried in-band readout forms over a
+scratchpad FIXTURE `session_v2`/`session_message` DB steered via the gauge
+core's test hooks (NEVER the live DB): the named-session byte-exact readout
+(mass/pct/REM + the ` | 5 compactions left` budget suffix from the fixture
+budget file), the EMPTY/non-string-`sessionID` default read (newest
+`time_updated` row, the SINGULAR `1 compaction left` form), the no-total
+`CTX=notAvailable` form carrying the silent cap-1 fallback suffix ` (unlisted)`
+(#132 — model unlisted + no finite `model_budget.default`), the budget-store
+absent -> NO-suffix fail-open, and the db-error in-band mirror (NO throw, the
+line NEVER replaced, ` — <error>` appended, the `unknown` sid -> NO suffix,
+the steer restores). Fixtures ride the scratchpad
+`home/AppData/Local/Temp/opencode/ctx-gauge-smoke-v2`. Expected
+final line: `SMOKE: ALL PASS`.

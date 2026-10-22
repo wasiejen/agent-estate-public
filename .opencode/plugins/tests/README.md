@@ -1,7 +1,8 @@
-# v2 intercept observer — smoke + typecheck (Unit A, TODO #137)
+# v2 plugins — smokes + typecheck (TODO #137)
 
-Machine-local verification for `.opencode/plugins/intercept_observer.ts`.
-The absolute paths point at this machine's fork workspace and scratchpad.
+Machine-local verification for `.opencode/plugins/` (Unit A: the intercept
+observer; unit 3a: the context-family core). The absolute paths point at
+this machine's fork workspace and scratchpad.
 
 ## Smoke (bun, mock ctx — no opencode process)
 
@@ -36,4 +37,22 @@ itself has no node_modules).
 Both tools run read-only against the fork; the smoke writes only the
 scratchpad fixtures. The `tests/` dir has no `server.ts`/`index.ts`
 entrypoint, so v2 plugin discovery drops it at scan time (fork
+`packages/core/src/config/plugin/source.ts:164-167`).
+
+## Context-family smoke (TODO #137 unit 3a, 2026-10-22)
+
+    bun run context_family.smoke.mjs
+
+24 checks against a mock `ctx` (no opencode process): the `context`-hook
+registration, the `ctx: ` tail injection with the byte-exact gauge readout
+(name-marker window + budget + ITER suffixes from fixture stores), the
+APPEND-ONLY cache pin (the untouched messages prefix byte-compares), the
+own-session gate (mismatch -> no post, no line), the honest `CTX=notAvailable`
+post, `db-error` -> ONE evidence line (no post), `messages-not-array`, the
+suffix fail-open forms, the singular budget-at-cap form, and the whole-log
+JSON invariants (kinds ONLY `ctxmsg`/`gauge`). Fixtures ride the scratchpad
+`home/AppData/Local/Temp/opencode/ctx-family-smoke-v2` (fixture
+`session_v2`/`session_message` DB, budget + loop-root files — NEVER the live
+DB; the shared gauge core is steered via its test hooks). Expected final
+line: `SMOKE: ALL PASS`.
 `packages/core/src/config/plugin/source.ts:164-167`).

@@ -17,5 +17,5 @@
       "@opencode/ai": ["home/Repos/opencode/packages/ai/src/index.ts"]
     }
   },
-  "files": ["typecheck.ts", "../context_family.ts"]
+  "files": ["typecheck.ts", "../context_family.ts", "../compact_memory.ts"]
 }

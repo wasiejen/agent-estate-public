@@ -813,6 +813,25 @@ const REDIRECT_PATH_FIELDS: Record<string, string[]> = {
   edit: ["path"],
 };
 
+// #142 + #138 (2026-10-22, v1 parity): the observation PATH-channel scan text
+// — the joined string values of the call's TYPED `path` fields (this table).
+// The note + anomaly channels scan THIS text, never the full args string: a
+// path-looking substring inside free text (`content`, `oldString`/`newString`)
+// is NOT a path candidate (#138), and the note check receives the allow-list
+// roots so a nested span under a config-`allow`ed root logs NOTHING (#142).
+// v2 has NO bash `command` redirect pass — a bash call has no path fields
+// here → "" → zero path verdicts. Joined with ONE space (the span grammars are
+// whitespace-bounded). Never throws.
+function pathFieldText(toolName: string, input: unknown): string {
+  if (input == null || typeof input !== "object") return "";
+  const parts: string[] = [];
+  for (const field of REDIRECT_PATH_FIELDS[toolName] ?? []) {
+    const raw = (input as Record<string, unknown>)[field];
+    if (typeof raw === "string" && raw.trim() !== "") parts.push(raw);
+  }
+  return parts.join(" ");
+}
+
 function runRedirect(event: ToolBeforeEvent): { lines: Observation[]; fired: boolean } {
   const input = event.input;
   if (input == null || typeof input !== "object") return { lines: [], fired: false };
@@ -908,6 +927,10 @@ async function onToolBefore(event: ToolBeforeEvent): Promise<void> {
     // captured BEFORE any channel may mutate event.input (field 5 is the
     // ORIGINAL arg — what the model asked for)
     const argStr = argsToString(event.input);
+    // #142 + #138 (v1 parity): the observation path-channel text — the TYPED
+    // `path` fields of the ORIGINAL input (captured before the channels mutate
+    // them), NOT the full string.
+    const pathText = pathFieldText(tool, event.input);
     const isObj = event.input != null && typeof event.input === "object";
     // Pipeline order (v1, reduced): the fuzzy channels (may mutate) -> the
     // R8 redirect (after the fuzzy channels — a path fuzzy-resolved
@@ -920,12 +943,14 @@ async function onToolBefore(event: ToolBeforeEvent): Promise<void> {
     let obs =
       argStr === ""
         ? []
-        : [...observePathAnomaly(argStr), ...observeSandbox(argStr, dir || null)]
+        : [...observePathAnomaly(pathText), ...observeSandbox(pathText, dir || null, allowedRoots)]
             .sort((a, b) => (VERDICT_RANK[a.verdict] ?? 9) - (VERDICT_RANK[b.verdict] ?? 9))
             .slice(0, MAX_LINES_PER_CALL);
     if (rd.fired) {
       obs = obs.filter((o) => o.verdict !== "out-of-sandbox");
-      obs.push(...observeSandbox(argsToString(event.input), dir || null, allowedRoots));
+      // #142: the allow-list roots join the note check; #138: the recompute
+      // scans the EFFECTIVE TYPED-field text (re-read after the mutation).
+      obs.push(...observeSandbox(pathFieldText(tool, event.input), dir || null, allowedRoots));
     }
     // the payload journal (EVERY write/edit call — the effective args; the
     // journal's edit `old` = the ORIGINAL oldString, captured BEFORE the

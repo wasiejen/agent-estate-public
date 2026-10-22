@@ -417,6 +417,43 @@ chk("setup: registers the execute.before hook + returns a cleanup", typeof ctx._
   console.log(`\nlog lines: ${lines.length}`);
 }
 
+// ------------------------------------------------------------------ #142 + #138 pins (2026-10-22, v1 parity)
+//
+// The note + anomaly channels scan the TYPED `path` fields + the allow-list
+// roots. FIRED AFTER the whole-log invariants (like the v2unit1 pin below:
+// scoped-checked, not swept — the INV journal counts stay C8/C11/C15/C16 +
+// C6/C7/C14).
+{
+  // (i) #142: a write path NESTED under the config-allowed ROOTA → NO out-
+  //     of-sandbox line + no kind=redirect (nested → no 1:1 root case; pre-
+  //     fix the note fired — ROOTA was absent from the note check). CONTROL
+  //     (genuine form): a span under NO allowed root STILL logs the note.
+  const nested = `${ROOTA}/nested/deep/x.txt`;
+  const beforeI = readLog().length;
+  await ctx.fire("write", { path: nested, content: "q" });
+  const nlI = readLog().slice(beforeI);
+  const beforeK = readLog().length;
+  await ctx.fire("read", { path: "C:/Windows/System32/cmd.exe" });
+  const nlK = readLog().slice(beforeK);
+  chk("#142: a path nested under a config-allowed root (rootA) → NO out-of-sandbox line + no kind=redirect",
+    nlI.every((f) => f[7] !== "out-of-sandbox" && !f[5].includes("kind=redirect")), JSON.stringify(nlI.map((f) => f[7])));
+  chk("#142 control: an un-allowed path STILL logs the out-of-sandbox note",
+    nlK.some((f) => f[7] === "out-of-sandbox" && f[5].includes("path=C:/Windows/System32/cmd.exe")), JSON.stringify(nlK.map((f) => f[7])));
+  // (ii) #138: an IN-ROOT write + edit whose PAYLOAD (content/newString)
+  //     carries path-looking text (a doubled Windows segment, a /tmp-
+  //     redirect token, the grep pattern /^## #120/) → ZERO path verdicts
+  //     (pre-fix: path-anomaly doubled=users + the note both fired).
+  const PAYLOAD = 'see c:\\users\\users\\x.txt and /tmp-redirect and /^## #120/ here';
+  const beforeL = readLog().length;
+  await ctx.fire("write", { path: "fx/inroot.txt", content: PAYLOAD });
+  const nlL = readLog().slice(beforeL);
+  await ctx.fire("edit", { path: "fx/edit-target.txt", oldString: "hello", newString: PAYLOAD });
+  const nlM = readLog().slice(beforeL + nlL.length);
+  chk("#138: an in-root write/edit payload with path-looking text → ZERO path verdicts",
+    nlL.every((f) => f[7] !== "out-of-sandbox" && f[7] !== "path-anomaly") && nlM.every((f) => f[7] !== "out-of-sandbox" && f[7] !== "path-anomaly"),
+    JSON.stringify({ w: nlL.map((f) => f[7]), e: nlM.map((f) => f[7]) }));
+}
+
 // v2unit1 pin — an id present in NEITHER session table: the reader's not-
 // found outcome -> the model field keeps the literal `unknown` (byte-compat,
 // never a cross-session fallback to the fixture row's model). Fired DIRECTLY

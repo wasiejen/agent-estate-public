@@ -13,6 +13,10 @@
 // `--defer` matches `--deferred` too; the grep -v filter removes known
 // non-live references, not the maintainer's live files).
 //
+// The sweep command itself stays byte-verbatim; only its OUTPUT is re-ordered
+// in `markersSection`: LIVE-CLASS hits (paths under maintainer/ or .opencode/,
+// or exactly TODO.md / README.md / WIKI.md) print BEFORE the DOC-CLASS hits.
+//
 // No interpretation, no re-planning: the digest is a raw, capped view —
 // the planner follows up with full reads only where a section needs a
 // decision.
@@ -137,9 +141,23 @@ const proposalsSection = (root: string): string[] => {
   return files.length > 0 ? files : ["(none)"]
 }
 
+// A sweep hit's CLASS: the PATH (grep's `<path>:<line>:<content>` form —
+// the text before the first `:`). LIVE-CLASS = under `maintainer/` or
+// `.opencode/`, or exactly `TODO.md` / `README.md` / `WIKI.md`; every other
+// path (agent/, loop/, proposals/, …) is DOC-CLASS.
+const isLiveHit = (line: string): boolean => {
+  const i = line.indexOf(":")
+  const p = i >= 0 ? line.slice(0, i) : line
+  return p.startsWith("maintainer/") || p.startsWith(".opencode/") || p === "TODO.md" || p === "README.md" || p === "WIKI.md"
+}
+
 // `## markers` — the ready-made marker sweep run verbatim via bash in the
-// repo root, capped at 20 lines (then `… (+<k> more)`); no matches →
-// `(none)`; bash failure → the fail-closed line.
+// repo root; the hits are reordered LIVE-CLASS first, then DOC-CLASS, each
+// group sorted by the line string (the raw sweep order is the sweep's path
+// ARGUMENT order, where the agent/ DOC hits print first and can crowd the
+// live maintainer/TODO markers out of the window); then capped at 20 lines
+// (then `… (+<k> more)`); no matches → `(none)`; bash failure → the fail-closed
+// line.
 const markersSection = (root: string): string[] => {
   let out = ""
   try {
@@ -155,8 +173,18 @@ const markersSection = (root: string): string[] => {
   }
   const lines = out.split("\n").map((l) => l.trim()).filter((l) => l !== "")
   if (lines.length === 0) return ["(none)"]
-  const body = lines.slice(0, 20)
-  if (lines.length > 20) body.push(`… (+${lines.length - 20} more)`)
+  // LIVE-CLASS first, then DOC-CLASS, each group sorted by the line string
+  // (deterministic; the raw sweep order is the sweep's path ARGUMENT order,
+  // which prints the DOC-heavy agent/ hits before the live maintainer/TODO
+  // ones). The 20-line cap + steer apply AFTER the ordering.
+  const live: string[] = []
+  const doc: string[] = []
+  for (const l of lines) (isLiveHit(l) ? live : doc).push(l)
+  live.sort()
+  doc.sort()
+  const ordered = live.concat(doc)
+  const body = ordered.slice(0, 20)
+  if (ordered.length > 20) body.push(`… (+${ordered.length - 20} more)`)
   return body
 }
 

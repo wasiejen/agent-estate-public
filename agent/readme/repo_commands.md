@@ -69,6 +69,9 @@ grep -rn --include="*.md" -e "--main\|--now\|--info\|--todo\|--defer\|--wip\|--c
 `--deferred` (deliberate substring behavior). `2>/dev/null` keeps missing
 target files from poisoning the output.
 
+The digest's `## markers` section (`state_snapshot.ts`) re-orders this sweep's
+OUTPUT only: LIVE-CLASS paths first (`maintainer/`, `.opencode/`, TODO.md/README.md/WIKI.md), then DOC-CLASS, each group sorted by the line string. The ready-made command above is unchanged.
+
 ## Handover file paths
 Channel semantics (who writes/reads, canonicality) live in the `AGENTS.md`
 interaction-contract table — this section keeps only the concrete repo facts:

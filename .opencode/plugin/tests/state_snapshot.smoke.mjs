@@ -6,8 +6,10 @@
 // FX1 = the full fixture (git init + 2 commits: a TODO.md with 3 entry
 // headers, a 45-line NAP, a maintainer/inbox_planner/ with 2 .md files +
 // README.md, a 1-line maintainer/priority.md, a proposals/ root with 2
-// .md files + 1 subfolder, one --now marker line in loop/notes.md, one
-// --info line in loop/marker_note.md, a filtered maintainer/done/ fixture
+// .md files + 1 subfolder, one --now marker line in loop/notes.md (DOC-CLASS
+// hit) + one --main line in WIKI.md (LIVE-CLASS hit — sorts AFTER loop/ in
+// the raw sweep order, so the ordering pin below is discriminating), a
+// filtered maintainer/done/ fixture whose --now line the sweep's grep -v filter must remove
 // whose --now line the sweep's grep -v filter must remove) — the assembled
 // digest is EXACTLY 60 lines (no truncation); FX2 = the minimal fixture
 // (no git, no NAP, empty inbox, no priority, no proposals → every
@@ -36,6 +38,7 @@ const git = (root, ...args) => execFileSync("git", args, { cwd: root });
 
 // FX1 — the full fixture (the digest lands EXACTLY at the 60-line cap:
 // git 2 + nap 40+steer + todo 1+3 + maintainer 2+1 + proposals 2 + markers 2
+// (the LIVE hit + the DOC hit — count unchanged by the ordering pin)
 // = 54 content + 6 headers = 60 — no truncation).
 const FX1 = freshSandbox("state_snapshot_fx1");
 write(FX1, "TODO.md", [
@@ -67,7 +70,7 @@ git(FX1, "config", "user.email", "fixture@example.com");
 git(FX1, "config", "user.name", "Fixture");
 git(FX1, "add", "-A");
 git(FX1, "commit", "-q", "-m", "fixture commit one");
-write(FX1, "loop/marker_note.md", "second marker note\n--info second note\n");
+write(FX1, "WIKI.md", "# wiki\n--main wiki live class marker\n");
 git(FX1, "add", "-A");
 git(FX1, "commit", "-q", "-m", "fixture commit two");
 
@@ -308,6 +311,18 @@ chk(
     t[0] === "20 open-entry headers" &&
     t[1] === "#6 — Header 6 body" && t[15] === "#20 — Header 20 body";
   chk("FX3 todo intact under the cap: count 20 + the LAST 15 (first #6, last #20)", ok, JSON.stringify({ len: t?.length, first: t?.[1], last: t?.[15] }));
+}
+
+// 21 — the markers LIVE-FIRST ordering: the LIVE-CLASS fixture hit (WIKI.md
+//       `--main`) prints BEFORE the DOC-CLASS loop/notes.md hit. Pre-change
+//       the sweep emits its raw path ARGUMENT order (loop/ BEFORE WIKI.md),
+//       so the DOC hit leads — the pin fails on the old ordering.
+{
+  const mk = sectionBody(d1, "markers");
+  const live = mk?.findIndex((l) => l.startsWith("WIKI.md:"));
+  const doc = mk?.findIndex((l) => l.startsWith("loop/notes.md:"));
+  const ok = Array.isArray(mk) && live >= 0 && doc >= 0 && live < doc;
+  chk("markers: the LIVE-class WIKI.md hit prints BEFORE the DOC-class loop/notes.md hit", ok, JSON.stringify({ live, doc }));
 }
 
 finish();

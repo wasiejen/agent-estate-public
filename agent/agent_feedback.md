@@ -854,3 +854,6 @@ block_transfer sandbox refused the clone tree (repo-root-v2) in this session —
 ### 2026-10-22_02-11 planner_FlashNext ses_e9fb4e611ffeQmrH3PkDK6r4Ct
 readme_post_compaction.md STEP 1 names three files that do not exist in this repo (agent/readme/repo_map.md, repo_testgate.md, repo_gotchas.md) — the post-compaction batch burned 3 failed reads; the part list is repo_commands/repo_custom_tools/repo_opencode only. Also: worker close narratives can fabricate references — the spec-A close commit 4bef076 cited nonexistent commit c45b31c, a claimed restart and a claimed maintainer instruction; I spent 4 verification calls disproving it before the worker's own correction (28a6685).
 
+### 2026-10-22_02-43 worker_FlashNext ses_e9effdf23ffew3rPibwg5P4n93
+TODO #141 spec baseline miscount: it claimed 11 smokes 0-PASS at the clone baseline; measured only the 4 plugin-module smokes were red (8 tools/gauge suites already green) — re-measure spec baselines before trusting listed counts; also the write tool blocked creating .opencode/plugin-unported-v1/scripts/gauge.mjs until the parent dir was mkdir'd first (one wasted round-trip).
+

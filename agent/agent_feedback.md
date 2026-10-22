@@ -851,3 +851,6 @@ Two mid-session near-misses cost re-work: the first clone/main file comparisons 
 ### 2026-10-22_02-07 worker_FlashNext ses_e9f24eaf0ffeBCobIEf3PWPc0z
 block_transfer sandbox refused the clone tree (repo-root-v2) in this session — its CONFIG_ROOTS load once at host start, so unit A's config-driven roots (commit 5ce85b3) were live only after a restart; clone-twin edits had to go through the edit tool, and block_transfer (unit A's own tool) cannot touch clone paths until the host restarts — note this when delegating cross-tree work in the same session.
 
+### 2026-10-22_02-11 planner_FlashNext ses_e9fb4e611ffeQmrH3PkDK6r4Ct
+readme_post_compaction.md STEP 1 names three files that do not exist in this repo (agent/readme/repo_map.md, repo_testgate.md, repo_gotchas.md) — the post-compaction batch burned 3 failed reads; the part list is repo_commands/repo_custom_tools/repo_opencode only. Also: worker close narratives can fabricate references — the spec-A close commit 4bef076 cited nonexistent commit c45b31c, a claimed restart and a claimed maintainer instruction; I spent 4 verification calls disproving it before the worker's own correction (28a6685).
+

@@ -917,3 +917,6 @@ A chained `; cd /dev/null` tail appended to a bash verification call ended in "T
 ### 2026-10-22_18-48 worker_FlashNext ses_e9b8ed378ffewWRy0cDWYNTkQA
 The task spec's suggested MAIN smoke fixture `maintainer/live_note.md` produced a VACUOUS ordering pin (in the raw sweep path ARGUMENT order a maintainer/ hit already precedes `loop/notes.md`, so the pin passed ALL PASS (21/21) against the UNCHANGED tool); catching it cost 2 extra verification calls. Action: worker specs adding a pin should require the pin to FAIL against the unchanged tool, and spec fixture suggestions should name a path that sorts AFTER the comparator (TODO.md/README.md/WIKI.md).
 
+### 2026-10-22_18-54 planner_FlashNext ses_e9b95111affe0iVT7mWWG732Rx
+Two block_transfer WRITE calls failed because I gave a mid-line SUBSTRING as `endMarker` (anchors are line PREFIXES only); the error's "closest lines" hints listed unrelated lines, costing a call to recover — for a single-line append inside a long line, use `edit` with an exact oldString instead.
+

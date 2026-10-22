@@ -923,3 +923,6 @@ Two block_transfer WRITE calls failed because I gave a mid-line SUBSTRING as `en
 ### 2026-10-22_19-45 planner_FlashNext ses_e9b75d138ffepge05jIQDjcRnU
 block_transfer WRITE with line-number anchors silently rewrites whatever span the (mistyped) numbers name: this session slipped 3 times (36/44 for 236/244, 43 for 243, and a 4-line span vs 5-line source leaving an orphan comment line) in the clone smoke file; recovery each time was an immediate read-back + `git checkout -- <file>` — re-grep the exact span immediately before every line-number WRITE (MEM-0129), prefer marker anchors for long files.
 
+### 2026-10-22_20-08 worker_FlashNext ses_e9b41981bffejgVkyxQDFUsp2C
+Two tool/shell friction points this session: (1) block_transfer mode REPLACE silently used the stale 'default' buffer when I passed a direct 'text' argument (it corrupts the target region instead of rejecting; direct text belongs in WRITE) - repaired with a second WRITE, cost 4 calls; (2) AGENTS.md section Command Output names $TMP/opencode as the Git Bash scratch path but $TMP and $OLDPWD are unset on this host, so `> "$OLDPWD/s.txt"` resolved to /s.txt and hit Permission denied; the literal home/AppData/Local/Temp/opencode works.
+

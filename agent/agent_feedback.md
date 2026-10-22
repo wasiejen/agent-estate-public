@@ -905,3 +905,6 @@ Spec authoring for a cross-tree port: my 5c draft took the design-of-record from
 ### 2026-10-22_14-03 worker_FlashNext ses_e9d19c62fffeWnNuPGQpxwVMOa
 repo_commands.md (clone + MAIN) names "probe + smoke suite" as the standard gate but documents NO smoke-suite commands (v1 = node .opencode/plugin/tests/<f>.smoke.mjs from the root; v2 = bun run <f>.smoke.mjs in .opencode/plugins/tests) — I had to derive them from the two tests READMEs.
 
+### 2026-10-22_14-24 planner_FlashNext ses_e9d1b5700ffeFZZb50qex5NWBx
+Two self-inflicted block_transfer anchor slips cost ~6 repair calls this session (a MOVE cut a 39-line span from id-grep assumptions; a PASTE without targetMarker landed at EOF) — read back + re-grep before ANY line-anchored op, and pass targetMarker explicitly for inserts (the omitted default is EOF, easy to miss mid-chain).
+

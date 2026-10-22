@@ -39,20 +39,31 @@ scratchpad fixtures. The `tests/` dir has no `server.ts`/`index.ts`
 entrypoint, so v2 plugin discovery drops it at scan time (fork
 `packages/core/src/config/plugin/source.ts:164-167`).
 
-## Context-family smoke (TODO #137 unit 3a, 2026-10-22)
+## Context-family smoke (TODO #137 units 3a + 3b, 2026-10-22)
 
     bun run context_family.smoke.mjs
 
-24 checks against a mock `ctx` (no opencode process): the `context`-hook
-registration, the `ctx: ` tail injection with the byte-exact gauge readout
-(name-marker window + budget + ITER suffixes from fixture stores), the
-APPEND-ONLY cache pin (the untouched messages prefix byte-compares), the
-own-session gate (mismatch -> no post, no line), the honest `CTX=notAvailable`
-post, `db-error` -> ONE evidence line (no post), `messages-not-array`, the
-suffix fail-open forms, the singular budget-at-cap form, and the whole-log
-JSON invariants (kinds ONLY `ctxmsg`/`gauge`). Fixtures ride the scratchpad
-`home/AppData/Local/Temp/opencode/ctx-family-smoke-v2` (fixture
-`session_v2`/`session_message` DB, budget + loop-root files — NEVER the live
-DB; the shared gauge core is steered via its test hooks). Expected final
-line: `SMOKE: ALL PASS`.
+46 checks against a mock `ctx` (no opencode process): the 3a legs — the
+`context`-hook registration, the `ctx: ` tail injection with the byte-exact
+gauge readout (name-marker window + budget + ITER suffixes from fixture
+stores), the APPEND-ONLY cache pin (the untouched messages prefix byte-
+compares), the own-session gate (mismatch -> no post, no line), the honest
+`CTX=notAvailable` post, `db-error` -> ONE evidence line (no post),
+`messages-not-array`, the suffix fail-open forms, the singular budget-at-cap
+form — plus the 3b legs: the 5-rung nudge ladder on `tool.execute.after`
+(each rung boundary: pct 50 / REM 30k / REM 20k / REM 10k / REM<5k —
+fixture sessions with 120K/80K name-marker windows), the highest-rung-met
+rule, per-rung dedup (second fire same rung -> no line, no call), the
+no-total/db-error silence (ZERO lines on that channel), the `session.synthetic`
+delivery captured on the mock (`delivery:"queue"`, text = the bare formatGauge
+readout + the v1 rung text VERBATIM), the mock rejection/sync-throw ->
+`delivery-rejected`/`delivery-threw` evidence lines with the tool call NOT
+failed, and the handover pre-flight on `tool.execute.before` (missing/EMPTY/
+whitespace spec file -> ONE `handover-preflight` warn; non-handover and
+non-object input silent; `event.input` never mutated) and the whole-log
+JSON invariants (kinds ONLY `ctxmsg`/`gauge`/`nudge`/`handover-preflight`).
+Fixtures ride the scratchpad `home/AppData/Local/Temp/opencode/
+ctx-family-smoke-v2` (fixture `session_v2`/`session_message` DB, budget +
+loop-root files — NEVER the live DB; the shared gauge core is steered via
+its test hooks). Expected final line: `SMOKE: ALL PASS`.
 `packages/core/src/config/plugin/source.ts:164-167`).

@@ -887,3 +887,12 @@ block_transfer REPLACE/WRITE with bufferName:"last_write" silently pasted a STAL
 ### 2026-10-22_07-36 planner_FlashNext ses_e9e0be707ffeKYt7BzTQjda5e9
 block_transfer buffer aliasing cost me 2 wasted calls: a COPY(text) into 'default' was then CLOBBERED by a following CUT with no bufferName (both land on 'default'), and the same-name reuse pattern silently swapped staged content — rule: when assembling multi-part content, give every stage its own bufferName, and never reuse 'default' across ops in one chain (worker filed the `last_write` variant of the same trap 2026-10-22).
 
+### 2026-10-22_07-38 planner_FlashNext ses_e9de38db2ffeuql8EJDBx23MkK
+launch-channel copy friction: agent/handover/handover_task.md (commit 2ed077e) carried one stray leftover line above the 4a spec header (fragment of the previous channel's content) while the loop copy was exact — the launch copy should be a byte-exact cp of the spec file, not a partial overwrite.
+
+### 2026-10-22_08-18 worker_FlashNext ses_e9de1b381ffeM4308gaIvhBgTk
+block_transfer REPLACE silently substituted a STALE `default` buffer for the supplied `text` (twice corrupted my new files: 115 stray lines pasted into a plugin and a smoke); WRITE also needs BOTH start AND end markers. Use `edit` for small exact-string changes, or WRITE with an explicit span; never call REPLACE without `bufferName`.
+
+### 2026-10-22_10-24 planner_FlashNext ses_e9de38db2ffeuql8EJDBx23MkK
+spec-authoring friction (4c spec, planner-18): a verified-facts line claimed the clone 4b file (`plugins/context_trim_v2.ts`) carries a backend chain — it does NOT (4b rides the gauge core readGauge); the worker found the real chain only in MAIN v1 `tools/context_trim.ts` ~115-166 — when citing a pattern source in a spec, name the file that ACTUALLY contains it and grep-verify before writing.
+

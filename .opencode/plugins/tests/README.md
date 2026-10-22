@@ -172,3 +172,32 @@ carrier, the fallthrough carries). Fixtures ride the scratchpad
 `home/AppData/Local/Temp/opencode/small-write-tools-smoke-v2/looplog`
 (per-fixture `setup` retargets the repo-root carrier — NEVER the live DB or
 loop folder). Expected final line: `SMOKE: ALL PASS`.
+
+## submit smoke (TODO #137 unit 5a, 2026-10-22)
+
+    bun run submit.smoke.mjs
+
+29 checks against a mock `ctx` (no opencode process, NEVER the live inbox
+trees): the loader shape `{id:'submit', setup}` + the `tool.transform`/
+`editor.add` registration (FIVE optional string props, no required — the
+>=1 gate is runtime, string output, teardown disposes the registration), the
+zero-param and empty/blank-string error string (`error: none of feedback/
+knowledge/todo/ideas/memory provided — nothing written`) with NO file
+touched, the v1 channel map byte-identical (feedback -> agent/agent_feedback.md
+###, knowledge -> agent/knowledge/knowledge_inbox.md ##, todo -> todo_inbox.md
+## at the repo root, ideas -> agent/agent_ideas.md ###, memory -> agent/memory/
+`<role>`/memory_inbox.md ### — `planner_FlashNext`/`worker_Q3S_170K` prefix
+split, no-agent -> the `agent` namespace), the entry form `<header> <YYYY-MM-
+DD_HH-MM> <role> <session>` + raw text + one trailing blank line with the
+role/session auto-fill (context.agent else `agent`, context.sessionID else
+`unknown`), the return blocks `<param>`/`target:`/`entry:` in feedback/knowledge/
+todo/ideas/memory order sharing ONE stamp per call, append-only (sentinel
+byte-exact, unprovided targets untouched), and the 2026-10-21 NEWLINE GUARD
+carried from the MAIN repo's v1 twin: a final-byte probe lands a one-
+`\n` separator when the target lacks a trailing newline (the glued-
+header bug fixed), a `\n`-terminated target gets NO extra separator, an
+absent target starts clean. NOTE: the clone's v1 twin `.opencode/tools/
+submit.ts` predates this guard — the port carries the MAIN version (logged
+discrepancy). Fixtures ride the scratchpad
+`home/AppData/Local/Temp/opencode/small-write-tools-smoke-v2/submit`.
+Expected final line: `SMOKE: ALL PASS`.

@@ -18,10 +18,31 @@ export const SCRATCHPAD = "home/AppData/Local/Temp/opencode";
 // types — no loader flag needed). `rel` is relative to the repo root.
 export const loadRepo = (rel) => import(pathToFileURL(path.join(REPO_ROOT, rel)).href);
 
+// TODO #144 (2026-10-22): the Windows teardown EBUSY flake. A final fs.rmSync
+// over a fixture dir can throw EBUSY/EPERM/ENOTEMPTY right after a run — a
+// lingering handle (closed sqlite handles and spawned-sqlite3 child processes
+// release their Windows file locks a few ms late; a zero-failure smoke then
+// exits 1 and the gate pays a re-run tax). RETRY-ON-BUSY teardown: bounded
+// backoff sleep via Atomics.wait (no busy spin); non-busy errors rethrow as-is.
+//Exported so smokes use it for their own teardowns; freshSandbox's own
+// pre-clean uses it too (the same lock can sit on the PREVIOUS run's dir).
+const TEAR_CODES = new Set(["EBUSY", "EPERM", "ENOTEMPTY"]);
+export const rmTear = (target, opts) => {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      fs.rmSync(target, opts);
+      return;
+    } catch (e) {
+      if (!TEAR_CODES.has(e?.code) || attempt >= 8) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, attempt * 25);
+    }
+  }
+};
+
 // A fresh, cleaned sandbox subdir under the scratchpad (idempotent re-runs).
 export const freshSandbox = (name) => {
   const dir = path.join(SCRATCHPAD, name);
-  fs.rmSync(dir, { recursive: true, force: true });
+  rmTear(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 };

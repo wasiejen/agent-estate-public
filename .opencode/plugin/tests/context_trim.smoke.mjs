@@ -31,9 +31,9 @@
 // byte-identical through the core reportWindow (no opts).
 // Run: node .opencode/plugin/tests/context_trim.smoke.mjs (plain node, exit 0 iff green).
 import { DatabaseSync } from "node:sqlite";
-import { rmSync } from "node:fs";
+// #144: the retry-on-EBUSY teardown helper (rmTear) replaces the bare node:fs rmSync import.
 import path from "node:path";
-import { freshSandbox, loadRepo, makeChecker } from "./_smoke_base.mjs";
+import { freshSandbox, loadRepo, makeChecker, rmTear } from "./_smoke_base.mjs";
 
 const { chk, finish } = makeChecker("CONTEXT_TRIM_SMOKE");
 const SANDBOX = freshSandbox("context_trim");
@@ -803,5 +803,5 @@ gauge.setDbPath(FX); // steer the tool surface at the fixture (restored after)
 }
 gauge.setDbPath(dbU1); // restore the original db path
 
-rmSync(SANDBOX, { recursive: true, force: true });
+rmTear(SANDBOX, { recursive: true, force: true }); // #144 retry-on-EBUSY
 finish();

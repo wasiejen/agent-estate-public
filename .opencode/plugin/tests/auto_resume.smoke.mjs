@@ -79,7 +79,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
-import { REPO_ROOT, loadRepo, freshSandbox, makeChecker } from "./_smoke_base.mjs";
+import { REPO_ROOT, loadRepo, freshSandbox, makeChecker, rmTear } from "./_smoke_base.mjs"; // #144: rmTear = retry-on-EBUSY teardown
 
 const base = freshSandbox("auto_resume");
 const { chk, finish } = makeChecker("AUTO_RESUME_SMOKE");
@@ -533,7 +533,7 @@ try {
 
    // case 1: NO budget file + ratio >= 0.95 (default) → the suffix
    // (explicit status-quo regression — the file is absent in the sandbox)
-   fs.rmSync(budgetFile, { force: true });
+   rmTear(budgetFile, { force: true });
    await fire(hooksUT, "ses_u2_tgnof", [statusEv("ses_u2_tgnof", "busy"), msgUpdated("ses_u2_tgnof", "assistant", { total: 80000 }, MODEL)]);
    const outTNo = await toolAfter(hooksUT, "ses_u2_tgnof");
    chk("UNIT 2: autoCompact — NO budget file (key absent) → the suffix fires (status quo)",
@@ -552,7 +552,7 @@ try {
      tCalls.length === nTOff && !hasSuffix(outOff1) && !hasSuffix(outOff2), `n=${tCalls.length}`);
    chk("UNIT 2: autoCompact:false → silent suppression (no nudge= line for the suppressed session)",
      nudgeLine("ses_u2_tgoff") === 0, "");
-   fs.rmSync(budgetFile, { force: true }); // flip back ON (key absent)
+   rmTear(budgetFile, { force: true }); // flip back ON (key absent)
    const outOff3 = await toolAfter(hooksUT, "ses_u2_tgoff");
    chk("UNIT 2: toggle flipped back ON → the suffix fires on the NEXT tool result (per-call read — no tick needed)",
      hasSuffix(outOff3) && tCalls.length === nTOff && nudgeLine("ses_u2_tgoff") === 1, `n=${tCalls.length}`);
@@ -572,7 +572,7 @@ try {
    const outTMal = await toolAfter(hooksUT, "ses_u2_tgmal");
    chk("UNIT 2: autoCompact — MALFORMED file → fail OPEN, the suffix fires",
      hasSuffix(outTMal) && tCalls.length === nTOff && nudgeLine("ses_u2_tgmal") === 1, `n=${tCalls.length}`);
-   fs.rmSync(budgetFile, { force: true }); // leave the sandbox clean
+   rmTear(budgetFile, { force: true }); // leave the sandbox clean
 
    // ============================================================
    // UNIT 2 (cont.) — #85 part 3: configurable threshold + output
@@ -597,7 +597,7 @@ try {
    // case (a): NO config → fail-open defaults 0.95 / 20000 — both
    // sessions evaluated on ONE pass: 79000 (0.940) below, 80000 (0.952)
    // above.
-   fs.rmSync(budgetFile, { force: true });
+   rmTear(budgetFile, { force: true });
    await fire(hooksUT, "ses_u2_cfa_low", [statusEv("ses_u2_cfa_low", "busy"), msgUpdated("ses_u2_cfa_low", "assistant", { total: 79000 }, MODEL)]);
    await fire(hooksUT, "ses_u2_cfa_hi", [statusEv("ses_u2_cfa_hi", "busy"), msgUpdated("ses_u2_cfa_hi", "assistant", { total: 80000 }, MODEL)]);
    const outCfgLow = await toolAfter(hooksUT, "ses_u2_cfa_low");
@@ -669,7 +669,7 @@ try {
      hasSuffix(outCfgDHi) && hasSuffix(outCfgCNo2) && outCfgDHi.includes("0.952"), outCfgDHi.slice(-80));
    chk("UNIT 2 config: out-of-range values → 79000 (0.940 < 0.95 default) does NOT get the suffix",
      !hasSuffix(outCfgDLow), outCfgDLow.slice(-80));
-    fs.rmSync(budgetFile, { force: true }); // leave the sandbox clean
+    rmTear(budgetFile, { force: true }); // leave the sandbox clean
 
     // ============================================================
     // UNIT 2 (cont.) — U4: the one-config-key-per-rung nudge ladder
@@ -846,7 +846,7 @@ try {
     const outLbc = await toolAfter(hooksUT, "ses_u4_bc");
     chk("U4 backward compat: ALL nudge keys absent (saturationThreshold 0.85 — the live shape) → the pre-change legacy line exactly (0.952 >= 0.85 → self-compact now)",
       outLbc.endsWith(`self-compact now (ratio=${L3})`) && !outLbc.includes("--triage") && !outLbc.includes("--stop"), outLbc.slice(-80));
-    fs.rmSync(budgetFile, { force: true }); // leave the sandbox clean
+    rmTear(budgetFile, { force: true }); // leave the sandbox clean
 
     // #85 part 2: the sandbox opencode.jsonc — the JSONC fallback
    // target (comments + trailing commas on purpose: the plugin's
@@ -1017,7 +1017,7 @@ try {
     // the machine-side counter changes that).
     fs.writeFileSync(path.join(loopDir, "loop_log.md"),
       "2026-09-21_15-33 -->START worker-1 unknown Qwen3.8-27B-Q3S-170K task oneliner\n", "utf-8");
-    fs.rmSync(path.join(loopDir, "counter.json"), { force: true }); // no counter in this scenario
+    rmTear(path.join(loopDir, "counter.json"), { force: true }); // no counter in this scenario
     const cBefore9 = createCalls.length, sBefore9 = spawnCalls.length;
     const spawnLinesBefore9 = readLines().filter((l) => l.includes("spawn= sid=ses_u3_new")).length;
     fs.writeFileSync(triggerFile, TRIGGER_TEXT, "utf-8");
@@ -1089,7 +1089,7 @@ try {
    // Leave the sandbox clean for the UNIT 4 sections below: the loop
    // dir is removed (no folder → no identifier — the pre-plan9 spawn
    // behavior those sections pin).
-   fs.rmSync(path.join(proj, "loop"), { recursive: true, force: true });
+   rmTear(path.join(proj, "loop"), { recursive: true, force: true });
 
     // ============================================================
     // UNIT 4 — liveness watchdog (#85 part 1: the #82 generalized scope)
@@ -1428,8 +1428,8 @@ try {
       JSON.stringify((emgSpawn?.body?.parts?.[0]?.text ?? "").slice(0, 120)));
     // leave the sandbox clean (later sections read no budget file —
     // fail-open defaults)
-    fs.rmSync(budget2, { force: true });
-    fs.rmSync(path.join(tmp2, "compact_message_ses_u4_relay.consumed"), { force: true });
+    rmTear(budget2, { force: true });
+    rmTear(path.join(tmp2, "compact_message_ses_u4_relay.consumed"), { force: true });
 
     // ---- (5) compact-message-delivery item 4 (TODO #127) — the
     // restart branch's CLOSING-INTENT INHERITANCE: the closing
@@ -1498,9 +1498,9 @@ try {
     // leave the sandbox clean (later sections read no queued file + the
     // loop counter fixture is removed — the #109 section below creates
     // its own loop folder and pins the current-folder resolution)
-    fs.rmSync(path.join(tmp2, "compact_message_ses_u4_i4.consumed"), { force: true });
-    fs.rmSync(UNREAD, { recursive: true, force: true }); // an empty directory
-    fs.rmSync(path.join(proj, "loop"), { recursive: true, force: true });
+    rmTear(path.join(tmp2, "compact_message_ses_u4_i4.consumed"), { force: true });
+    rmTear(UNREAD, { recursive: true, force: true }); // an empty directory
+    rmTear(path.join(proj, "loop"), { recursive: true, force: true });
 
     // ============================================================
     // UNIT 2 #85 part 3 — the nudge's scope gate (the factory is re-
@@ -2627,7 +2627,7 @@ try {
     liveBefore === liveSizeNow || !smokeSids.some((s) => appended.includes(s)), `before=${liveBefore} after=${liveSizeNow}`);
   chk("sandbox log path is under the sandbox", sandboxLog.startsWith(base), sandboxLog);
 } finally {
-  fs.rmSync(base, { recursive: true, force: true });
+  rmTear(base, { recursive: true, force: true });
 }
 
 finish();

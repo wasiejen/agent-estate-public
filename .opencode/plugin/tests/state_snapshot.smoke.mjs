@@ -6,17 +6,21 @@
 // FX1 = the full fixture (git init + 2 commits: a TODO.md with 3 entry
 // headers, a 45-line NAP, a maintainer/inbox_planner/ with 2 .md files +
 // README.md, a 1-line maintainer/priority.md, a proposals/ root with 2
-// .md files + 1 subfolder, one --now marker line in loop/notes.md (DOC-CLASS
-// hit) + one --main line in WIKI.md (LIVE-CLASS hit — sorts AFTER loop/ in
-// the raw sweep order, so the ordering pin below is discriminating), a
-// filtered maintainer/done/ fixture whose --now line the sweep's grep -v filter must remove
-// whose --now line the sweep's grep -v filter must remove) — the assembled
+// .md files + 1 subfolder, one --now marker line in proposals/approved/notes.md (DOC-CLASS
+// hit — kept by the path-anchored doc-noise filter and raw-printed BEFORE WIKI.md, so
+// the ordering pin below stays discriminating) + one --main line in WIKI.md (LIVE-CLASS
+// hit — the ordering pin: LIVE-class FIRST) + one --now line in each DOC-QUOTE fixture
+// agent/prompts/quoted.md, loop/hidden.md, proposals/implemented/quoted.md (paths the
+// doc-noise filter must drop) + one --now line in proposals/approved/ref.md whose TEXT
+// quotes agent/readme INLINE (path-anchored filter must KEEP that hit) + a filtered
+// maintainer/done/ fixture whose --now line the sweep's older grep -v filter must
+// remove) — the assembled
 // digest is EXACTLY 60 lines (no truncation); FX2 = the minimal fixture
 // (no git, no NAP, empty inbox, no priority, no proposals → every
 // fail-closed / empty line); FX3 = the oversized fixture (20 TODO headers
-// + 30 priority lines + 30 proposals + 40 marker lines → the 60-line hard
-// cap: the LAST section's lines truncate first, all six headers + the
-// markers steer survive). The 15-cap TODO behavior is pinned by extending
+// + 30 priority lines + 30 proposals + 40 marker lines in maintainer/big.md
+// → the 150-line hard cap: the LAST section's lines truncate first, all six
+// headers + the markers steer survive). The 15-cap TODO behavior is pinned by extending
 // FX1's TODO.md in place (17 headers → the LAST 15 shown).
 // Run: node .opencode/plugin/tests/state_snapshot.smoke.mjs (plain node,
 // exit 0 iff green).
@@ -36,10 +40,11 @@ const write = (root, rel, content) => {
 
 const git = (root, ...args) => execFileSync("git", args, { cwd: root });
 
-// FX1 — the full fixture (the digest lands EXACTLY at the 60-line cap:
+// FX1 — the full fixture (the digest is EXACTLY 60 lines — under the
+// 150-line cap it is NOT truncated:
 // git 2 + nap 40+steer + todo 1+3 + maintainer 2+1 + proposals 2 + markers 2
-// (the LIVE hit + the DOC hit — count unchanged by the ordering pin)
-// = 54 content + 6 headers = 60 — no truncation).
+// (the LIVE hit + the kept DOC hit — the excluded doc-quote fixtures add
+// ZERO marker lines) = 54 content + 6 headers = 60 — no truncation).
 const FX1 = freshSandbox("state_snapshot_fx1");
 write(FX1, "TODO.md", [
   "# TODO",
@@ -63,7 +68,10 @@ write(FX1, "maintainer/priority.md", "priority line 1\n");
 write(FX1, "proposals/proposal_a.md", "proposal a body\n");
 write(FX1, "proposals/proposal_b.md", "proposal b body\n");
 write(FX1, "proposals/approved/inner.md", "inner — a subfolder file, never listed\n");
-write(FX1, "loop/notes.md", "loop note\n--now ship the snapshot\n");
+write(FX1, "proposals/approved/notes.md", "approved note\n--now ship the snapshot\n");
+write(FX1, "agent/prompts/quoted.md", "prompt doc\n--now quoted in an excluded path\n");
+write(FX1, "loop/hidden.md", "loop doc\n--now quoted in an excluded path\n");
+write(FX1, "proposals/implemented/quoted.md", "implemented doc\n--now quoted in an excluded path\n");
 write(FX1, "maintainer/done/done_fixture.md", "--now filtered-out done line\n");
 git(FX1, "init", "-q");
 git(FX1, "config", "user.email", "fixture@example.com");
@@ -81,10 +89,11 @@ const FX2 = freshSandbox("state_snapshot_fx2");
 write(FX2, "TODO.md", "# TODO\n");
 fs.mkdirSync(path.join(FX2, "maintainer", "inbox_planner"), { recursive: true });
 
-// FX3 — the oversized fixture (no git, no NAP): the 60-line hard cap.
-// todo 1+15 + maintainer 1+10 + proposals 30 + markers 20+steer → the LAST
-// section's lines truncate first: 60 = 2+2+17+12+25(=1 header+24)+2(=1
-// header+steer); the markers steer survives, proposals keeps 24 of 30.
+// FX3 — the oversized fixture (no git, no NAP): the 150-line hard cap.
+// todo 1+15 + maintainer (none)+10 + proposals 100 + markers 20+steer → 156
+// lines → the cap trims 6 from the end backwards: markers content lines go
+// FIRST (14 of 20 survive + the `… (+20 more)` steer — steer lines never
+// trim), the proposals section stays INTACT at 100.
 const FX3 = freshSandbox("state_snapshot_fx3");
 {
   const todo = ["# TODO"];
@@ -94,10 +103,10 @@ const FX3 = freshSandbox("state_snapshot_fx3");
   for (let i = 1; i <= 30; i++) prio.push(`priority line ${i}`);
   write(FX3, "maintainer/priority.md", prio.join("\n") + "\n");
   fs.mkdirSync(path.join(FX3, "maintainer", "inbox_planner"), { recursive: true });
-  for (let i = 1; i <= 30; i++) write(FX3, `proposals/prop_${String(i).padStart(2, "0")}.md`, `prop ${i}\n`);
-  const big = ["loop big"];
+  for (let i = 1; i <= 100; i++) write(FX3, `proposals/prop_${String(i).padStart(2, "0")}.md`, `prop ${i}\n`);
+  const big = ["big markers"];
   for (let i = 1; i <= 40; i++) big.push(`--now marker line ${i}`);
-  write(FX3, "loop/big.md", big.join("\n") + "\n");
+  write(FX3, "maintainer/big.md", big.join("\n") + "\n");
 }
 
 // ------------------------------------------------------------------ the tool
@@ -166,20 +175,18 @@ chk(
 }
 
 // 6 — the todo 15-CAP: extend the fixture TODO.md to 17 headers → the
-//      count line 17 + the LAST 15 headers requested (first = #3). The
-//      extended fixture digest (72 lines) exceeds the 60-line hard cap, so
-//      the cap trims 12 lines from the end backwards (markers 2, proposals
-//      2, priority 1, inbox 2, the todo tail 5) — the todo section shows
-//      the count + #3..#12 (11 lines): the 15-cap AND the cap interaction
+//      count line 17 + the LAST 15 headers requested (#3..#17, 16 lines —
+//      under the 150-line cap the extended digest (72 lines) is NOT trimmed
+//      at all: the pure 15-cap leg; the cap itself is pinned at FX3)
 {
   const extra = [];
   for (let i = 4; i <= 17; i++) extra.push("", `## #${i}. Extra header ${i}`);
   write(FX1, "TODO.md", fs.readFileSync(path.join(FX1, "TODO.md"), "utf8") + extra.join("\n") + "\n");
   const t = sectionBody(await run(FX1, "planner_Q3S"), "todo");
-  const ok = Array.isArray(t) && t.length === 11 &&
+  const ok = Array.isArray(t) && t.length === 16 &&
     t[0] === "17 open-entry headers" &&
-    t[1] === "#3 — Gamma item" && t[10] === "#12 — Extra header 12";
-  chk("todo 15-cap under the 60-line cap: count line 17 + the last-15 requested (cap trims the todo tail to #3..#12)", ok, JSON.stringify({ len: t?.length, first: t?.[1], last: t?.[10] }));
+    t[1] === "#3 — Gamma item" && t[15] === "#17 — Extra header 17";
+  chk("todo 15-cap: count line 17 + the LAST 15 requested (#3..#17; the extended digest is under the 150-line cap, untrimmed)", ok, JSON.stringify({ len: t?.length, first: t?.[1], last: t?.[15] }));
 }
 
 // 7 — the maintainer section: the 2 inbox filenames + first lines (README.md
@@ -215,7 +222,7 @@ chk(
 //       sweep, run via bash in the fixture root)
 {
   const mk = sectionBody(d1, "markers");
-  const ok = Array.isArray(mk) && mk.some((l) => l.includes("loop/notes.md") && l.includes("--now ship the snapshot"));
+  const ok = Array.isArray(mk) && mk.some((l) => l.includes("proposals/approved/notes.md") && l.includes("--now ship the snapshot"));
   chk("markers: the fixture --now line is present", ok, JSON.stringify(mk));
 }
 
@@ -284,10 +291,11 @@ chk(
   chk("agent absent: the digest is built (the soft gate passes)", ok, JSON.stringify(r.split("\n")[0]));
 }
 
-// 19 — FX3: the 60-line HARD CAP: the assembled digest (86 lines) truncates
-//       the LAST section's lines first — exactly 60 lines, all six headers
-//       present, the markers steer `… (+20 more)` survives, the proposals
-//       section keeps 24 of 30 (6 truncated from the end)
+// 19 — FX3: the 150-line HARD CAP: the assembled digest (156 lines) truncates
+//       the LAST section's lines first — exactly 150 lines, all six headers
+//       present, the markers steer `… (+20 more)` survives and the markers
+//       section keeps 14 of the 20 shown hits (6 trimmed from the end,
+//       steer lines never trim), the proposals section stays INTACT at 100
 {
   const d3 = await run(FX3, "planner_Q3S");
   const l3 = d3.split("\n");
@@ -295,10 +303,11 @@ chk(
   const inOrder = idx.every((v) => v >= 0) && idx.every((v, i) => i === 0 || v > idx[i - 1]);
   const mk = sectionBody(d3, "markers");
   const p = sectionBody(d3, "proposals");
-  const ok = l3.length === 60 && inOrder &&
-    Array.isArray(mk) && mk.length === 1 && mk[0] === "… (+20 more)" &&
-    Array.isArray(p) && p.length === 24 && p[0] === "prop_01.md" && p[23] === "prop_24.md";
-  chk("FX3 60-line hard cap: 60 lines, all headers, the markers steer, proposals 24 of 30", ok, JSON.stringify({ len: l3.length, idx, mk, p0: p?.[0], p23: p?.[23] }));
+  const ok = l3.length === 150 && inOrder &&
+    Array.isArray(mk) && mk.length === 15 && mk[14] === "… (+20 more)" &&
+    mk.filter((l) => l.startsWith("maintainer/big.md:")).length === 14 &&
+    Array.isArray(p) && p.length === 100 && p[0] === "prop_01.md" && p[99] === "prop_99.md";
+  chk("FX3 150-line hard cap: 150 lines, all headers, the markers steer, markers 14 of 20, proposals INTACT 100", ok, JSON.stringify({ len: l3.length, idx, mkN: mk?.length, p0: p?.[0], p99: p?.[99] }));
 }
 
 // 20 — FX3: the todo section is INTACT under the cap (the cap truncates the
@@ -314,15 +323,40 @@ chk(
 }
 
 // 21 — the markers LIVE-FIRST ordering: the LIVE-CLASS fixture hit (WIKI.md
-//       `--main`) prints BEFORE the DOC-CLASS loop/notes.md hit. Pre-change
-//       the sweep emits its raw path ARGUMENT order (loop/ BEFORE WIKI.md),
-//       so the DOC hit leads — the pin fails on the old ordering.
+//       `--main`) prints BEFORE the DOC-CLASS proposals/approved/notes.md hit.
+//       Pre-change the sweep emits its raw path ARGUMENT order (proposals/
+//       BEFORE WIKI.md), so the DOC hit leads — the pin fails on the old
+//       ordering.
 {
   const mk = sectionBody(d1, "markers");
   const live = mk?.findIndex((l) => l.startsWith("WIKI.md:"));
-  const doc = mk?.findIndex((l) => l.startsWith("loop/notes.md:"));
+  const doc = mk?.findIndex((l) => l.startsWith("proposals/approved/notes.md:"));
   const ok = Array.isArray(mk) && live >= 0 && doc >= 0 && live < doc;
-  chk("markers: the LIVE-class WIKI.md hit prints BEFORE the DOC-class loop/notes.md hit", ok, JSON.stringify({ live, doc }));
+  chk("markers: the LIVE-class WIKI.md hit prints BEFORE the DOC-class proposals/approved/notes.md hit", ok, JSON.stringify({ live, doc }));
+}
+
+// 22 — the doc-noise pass: the DOC-QUOTE fixture hits (agent/prompts/quoted.md,
+//       loop/hidden.md, proposals/implemented/quoted.md) are ABSENT from the
+//       markers section while the kept DOC hit + the LIVE hit are PRESENT
+{
+  const mk = sectionBody(d1, "markers");
+  const absent = Array.isArray(mk) && mk.every((l) =>
+    !l.startsWith("agent/prompts/quoted.md:") &&
+    !l.startsWith("loop/hidden.md:") &&
+    !l.startsWith("proposals/implemented/quoted.md:"));
+  const present = mk.some((l) => l.startsWith("proposals/approved/notes.md:")) && mk.some((l) => l.startsWith("WIKI.md:"));
+  chk("markers: the excluded doc-quote paths ABSENT + the kept paths PRESENT", absent && present, JSON.stringify(mk));
+}
+
+// 23 — the path-anchored filter: a KEPT path whose TEXT quotes an excluded
+//       tree INLINE (proposals/approved/ref.md — TEXT mentions agent/readme)
+//       still prints; and the sweep is the ONLY thing trimmed — the file's
+//       other lines stay readable via a follow-up read (digest behavior)
+{
+  write(FX1, "proposals/approved/ref.md", "--now quote mentions agent/readme INLINE\n");
+  const mk = sectionBody(await run(FX1, "planner_Q3S"), "markers");
+  const ok = Array.isArray(mk) && mk.some((l) => l.startsWith("proposals/approved/ref.md:"));
+  chk("markers: the inline-quote line SURVIVES (the grep -v patterns are path-anchored)", ok, JSON.stringify(mk));
 }
 
 finish();

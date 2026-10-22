@@ -62,7 +62,7 @@ in `.opencode/tools/state_snapshot.ts` (`MARKER_SWEEP`):
 ```bash
 grep -rn --include="*.md" -e "--main\|--now\|--info\|--todo\|--defer\|--wip\|--comment" \
   .opencode/ agent/ maintainer/ loop/ proposals/ TODO.md README.md WIKI.md 2>/dev/null \
-  | grep -v "_past_priorities\|/done/\|agent_feedback\|nap_direct\|archive/"
+  | grep -v "_past_priorities\|/done/\|agent_feedback\|nap_direct\|archive/\|^agent/prompts/\|^agent/readme/\|^agent/knowledge/\|^agent/memory/\|^agent/research/\|^agent/scripts/\|^agent/handover/\|^loop/\|^proposals/implemented/\|^proposals/superseded/\|^\.opencode/\|^maintainer/feedback/"
 ```
 
 `--main` also matches `--maintainer`, and `--defer` also matches

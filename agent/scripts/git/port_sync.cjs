@@ -28,7 +28,7 @@ const MAIN_BRANCH = "main", CLONE_BRANCH = "migration";
 const TSGO = process.env.TSGO_EXE || "home/Repos/opencode/node_modules/.bin/tsgo.exe";
 
 const TAKE_MAIN = [
-  ".opencode/tools/", ".opencode/plugin/tests/", ".opencode/plugin/probes/",
+  ".opencode/tools/", ".opencode/plugin/tests/", ".opencode/plugin/probes/", ".opencode/plugin/scripts/",
   "agent/handover/", "loop/", "TODO.md",
   "agent/knowledge/", "agent/memory/", "agent/readme/", "agent/scripts/",
 ];

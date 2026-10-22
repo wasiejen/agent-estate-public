@@ -33,11 +33,14 @@ const PS = require("./port_sync.cjs");
 for (const p of [".opencode/tools/block_transfer.ts",
   ".opencode/plugin/tests/ok.smoke.mjs", "agent/handover/handover_task_to_planner.md",
   "loop/autorun-x/loop_log.md", "TODO.md", "agent/knowledge/x/y.md", "agent/memory/r/m.md",
-  "agent/readme/repo_overview.md", "agent/scripts/git/port_sync.cjs"]) ck("take-main: " + p, PS.isTakeMain(p));
+  "agent/readme/repo_overview.md", "agent/scripts/git/port_sync.cjs",
+  ".opencode/plugin/scripts/gauge.mjs"]) ck("take-main: " + p, PS.isTakeMain(p));
 ck("probes take MAIN (Rule A: patch repoints its v1 refs)", PS.isTakeMain(".opencode/plugin/probes/handover_probe.mjs"));
+ck("gauge core takes MAIN (unified core: MAIN adopts the clone's table-aware one)", PS.isTakeMain(".opencode/plugin/scripts/gauge.mjs"));
 for (const p of ["TODO.md.bak", "agent/handovers/x.md", ".opencode/plugin/x.ts", ".opencode/plugins/tests/a.smoke.mjs", "maintainer/priority.md"]) ck("not-take-main: " + p, !PS.isTakeMain(p));
 ck("classify config", PS.classify("opencode.jsonc") === "config");
 ck("classify probe = take-main (Rule A)", PS.classify(".opencode/plugin/probes/handover_probe.mjs") === "take-main");
+ck("classify gauge core = take-main", PS.classify(".opencode/plugin/scripts/gauge.mjs") === "take-main");
 ck("patch repoints v1 plugin refs (incl. subdir rel)", (() => {
   const s = 'const A = path.join(R, ".opencode", "plugin", "ctx_watchdog.ts");\nconst B = path.join(R, ".opencode", "plugin", "deactivated", "compact_memory_v1.ts");\n';
   const p = PS.patchProbeImports(s);
@@ -85,6 +88,7 @@ function buildPair() {
   wf(SRC, ".opencode/plugin/probes/handover_probe.mjs", 'console.log("PROBE handover: 1/1 PASS");\n');
   wf(SRC, ".opencode/plugin/base_both.ts", "base plugin file in BOTH trees\n");
   wf(SRC, ".opencode/plugin/tests/ok.smoke.mjs", 'console.log("SMOKE: ALL PASS");\n');
+  wf(SRC, ".opencode/plugin/scripts/gauge.mjs", "base gauge core\n");
   commit(SRC, "base");
   git(["clone", "-q", "-b", "main", SRC, DST], SCRATCH);   // clone BEFORE the MAIN-side commit -> real divergence
   git(["branch", "-m", "main", "migration"], DST);
@@ -95,6 +99,7 @@ function buildPair() {
   wf(DST, ".opencode/plugins/tests/a.smoke.mjs", 'console.log("SMOKE: ALL PASS");\n');
   wf(DST, ".opencode/plugin-unported-v1/keepme.ts", "unported\n");
   wf(DST, ".opencode/plugin/probes/handover_probe.mjs", 'console.log("PROBE handover: 1/1 PASS"); // clone-side tweak\n');
+  wf(DST, ".opencode/plugin/scripts/gauge.mjs", "clone gauge core (table-aware)\n");
   commit(DST, "clone side");
   wf(SRC, ".opencode/tools/block_transfer.ts", "main tool new\n");
   wf(SRC, "agent/handover/handover_task_to_planner.md", "main handover\n");
@@ -103,6 +108,7 @@ function buildPair() {
   wf(SRC, ".opencode/plugin/x.ts", "export const stray = 1;\n");
   wf(SRC, ".opencode/plugin/probes/handover_probe.mjs", 'const P = [".opencode", "plugin", "ctx_watchdog.ts"];\nconsole.log("FAIL [s99] surfacing pin");\nconsole.log("PROBE handover: 2/2 PASS");\n');
   wf(SRC, ".opencode/plugin/tests/fail.smoke.mjs", "process.exit(1);\n");
+  wf(SRC, ".opencode/plugin/scripts/gauge.mjs", "main gauge core (unified)\n");
   commit(SRC, "main side");
   return { cfg: '{"host":"clone","v2":true}\n', cloneTip: head(DST), mainTip: head(SRC) };
 }
@@ -115,9 +121,10 @@ const DRY = ["--main", SRC, "--clone", DST];
 // ---------- B. dry run: zero mutation ----------
 let r = runScript(DRY); dbg("B dry", r);
 ck("dry exit 0", r.code === 0);
-for (const p of [".opencode/tools/block_transfer.ts", "agent/handover/handover_task_to_planner.md", "opencode.jsonc"]) ck("dry conflict line: " + p, r.out.includes("conflict: " + p));
+for (const p of [".opencode/tools/block_transfer.ts", "agent/handover/handover_task_to_planner.md", "opencode.jsonc", ".opencode/plugin/scripts/gauge.mjs"]) ck("dry conflict line: " + p, r.out.includes("conflict: " + p));
 ck("dry README auto-merges (not in conflict set)", !r.out.includes("conflict: README.md"));
 ck("dry plan take-main", r.out.includes("plan: .opencode/tools/block_transfer.ts -> take MAIN (--theirs)"));
+ck("dry plan gauge core take-main", r.out.includes("plan: .opencode/plugin/scripts/gauge.mjs -> take MAIN (--theirs)"));
 ck("dry plan config line", r.out.includes("keep branch-local (host-owned config)"));
 ck("dry prints the probe patch preview", r.out.includes("would: patch probe imports: 1 site(s) -> .opencode/plugin-unported-v1/ [ctx_watchdog.ts]"));
 ck("dry prints probe take-main plan", r.out.includes("plan: .opencode/plugin/probes/handover_probe.mjs -> take MAIN (--theirs)"));
@@ -137,6 +144,7 @@ ck("apply staged not committed", r.out.includes("merge staged, not committed"));
 ck("apply config line", r.out.includes("config: kept branch-local (host-owned)"));
 ck("apply no commit made", head(DST) === CLONE_TIP && fs.existsSync(path.join(DST, ".git", "MERGE_HEAD")));
 ck("apply took MAIN for tools file", rf(DST, ".opencode/tools/block_transfer.ts") === "main tool new\n");
+ck("apply landed the MAIN gauge-core bytes in the clone copy", rf(DST, ".opencode/plugin/scripts/gauge.mjs") === "main gauge core (unified)\n");
 ck("apply took MAIN for handover file", rf(DST, "agent/handover/handover_task_to_planner.md") === "main handover\n");
 ck("apply opencode.jsonc byte-identical (never touched)", rf(DST, "opencode.jsonc") === CLONE_CFG);
 ck("apply opencode.jsonc has no conflict markers", !String(rf(DST, "opencode.jsonc")).includes("<<<<<<<"));
@@ -170,6 +178,7 @@ ck("abort state line", r.out.includes("state: merge aborted, nothing applied"));
 ck("abort: scratch clone status clean", dirty(DST) === "");
 ck("abort: HEAD unchanged", head(DST) === CLONE_TIP);
 ck("abort: tools file back to clone side", rf(DST, ".opencode/tools/block_transfer.ts") === "clone tool v2\n");
+ck("abort: gauge core back to the clone bytes", rf(DST, ".opencode/plugin/scripts/gauge.mjs") === "clone gauge core (table-aware)\n");
 ck("abort: handover file back to clone side", rf(DST, "agent/handover/handover_task_to_planner.md") === "clone handover\n");
 ck("abort: opencode.jsonc == clone original", rf(DST, "opencode.jsonc") === CLONE_CFG);
 ck("abort: stray plugin file gone", rf(DST, ".opencode/plugin/x.ts") === null && rf(DST, ".opencode/plugin-unported-v1/x.ts") === null);

@@ -222,3 +222,30 @@ line NEVER replaced, ` — <error>` appended, the `unknown` sid -> NO suffix,
 the steer restores). Fixtures ride the scratchpad
 `home/AppData/Local/Temp/opencode/ctx-gauge-smoke-v2`. Expected
 final line: `SMOKE: ALL PASS`.
+
+## state_snapshot smoke (TODO #137 unit 5b, 2026-10-22)
+
+    bun run state_snapshot.smoke.mjs
+
+24 checks against a mock `ctx` (no opencode process): the loader shape `{id:'
+state_snapshot', setup}` + the `tool.transform`/`editor.add` registration (a
+NO-argument object input, string output, teardown disposes the registration,
+NO hooks) and the digest byte-shape carried from v1 over three scratchpad FIXTURE
+repo trees (per-fixture `setup` retargets the repo-root carrier; NEVER the live
+repo/loop folder/DB): the six-section order, the fixture `git init` commit
+under `## git`, the todo header count + LAST-15 `#<id> — <60-char truncation>`
+forms (`## Notes` NOT counted), the maintainer inbox first-lines max-5 + `… (+1
+more)` + priority.md's first 10, the sorted proposals root filenames (subfolder
++ .txt excluded), the READY-MADE marker sweep run via bash carrying the fixture
+`--now` line with the `/done/`-filtered line ABSENT, the READ-ONLY pin (the
+fixture tree byte-identical around a digest run) and the 46-line FX1 digest
+under the cap; FX2 pins the EXACT non-planner refusal line, the EMPTY/absent-
+agent soft-gate pass, the fail-closed `(git log failed: …)` / `(nap missing: …)`
+lines, the `0 open-entry headers` count line and the `(none)` / `(priority.md
+missing)` empties; FX3 pins the 60-line hard cap (all six headers preserved,
+the `… (+20 more)` steer SURVIVES, the LAST section's content lines trimmed
+from the end backwards — markers keeps 9 of 20, proposals intact). The child's
+`fatal: not a git repository` stderr noise on the non-repo fixtures is expected.
+Fixtures ride the scratchpad `home/AppData/Local/Temp/opencode/
+state-snapshot-smoke-v2`. Expected final line: `SMOKE: ALL PASS`.
+

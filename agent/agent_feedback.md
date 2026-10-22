@@ -866,3 +866,6 @@ block_transfer WRITE with a `regions` LIST and a single `text` writes the SAME t
 ### 2026-10-22_03-26 planner_FlashNext ses_e9eeb0952ffeP6BY7SnI5j2Yzs
 block_transfer WRITE with a `regions` list + ONE `text` writes the SAME text into EVERY region (my 2-region NAP call duplicated a 9-line block; repaired with sed) — and a REPLACE from an un-inspected buffer (the auto `last_write`) silently replaced the archive header + one archive line; both landed as GREEN-looking feedback lines.
 
+### 2026-10-22_04-07 worker_FlashNext ses_e9ebd604fffeparWJoUxnaC8DA
+block_transfer/write/edit resolved the relative path .opencode/plugin/scripts/gauge.mjs against the session CWD (main repo), not the task's target clone — the first clone edit silently landed in the MAIN repo (reverted via git checkout); cross-repo tasks must ALWAYS pass absolute clone paths to file tools.
+

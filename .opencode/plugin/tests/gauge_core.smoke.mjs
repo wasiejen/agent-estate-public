@@ -17,7 +17,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite"; // v2unit1: the fixture-DB read pins
-import { loadRepo, freshSandbox } from "./_smoke_base.mjs";
+import { loadRepo, freshSandbox, rmTear } from "./_smoke_base.mjs"; // #144: rmTear = retry-on-EBUSY teardown
 
 const m = await loadRepo(".opencode/plugin/scripts/gauge.mjs");
 const cases = [
@@ -101,7 +101,7 @@ chkW("(d) config file missing → the name parse", "fx/x-256K", 256000);
 m.setConfigFileForTest(cfx);
 chkW("(f) no provider prefix → the name-parse fallback", "x-256K", 256000);
 chkW("non-string → undefined (the parseWindow contract)", null, undefined);
-fs.rmSync(tmpC, { recursive: true, force: true });
+rmTear(tmpC, { recursive: true, force: true });
 
 // ---- item 3 (2026-09-24): the "N compactions left" budget suffix — the 3
 // states + fail-open. remaining = max(0, cap - count) + 1 iff the emergency
@@ -171,7 +171,7 @@ wb(0);
   if (!ok) fail++;
   console.log(`${ok ? "PASS" : "FAIL"} no-total (modelId = session-row model → model_budget key): ${got} (want ${want})`);
 }
-fs.rmSync(tmpB, { recursive: true, force: true });
+rmTear(tmpB, { recursive: true, force: true });
 
 // ---- v2-migration unit 1 (2026-10-21): the TABLE-AWARE SESSION-ROW read.
 // Fixtures: three DBs under the scratchpad (the freshSandbox pattern —
@@ -363,7 +363,7 @@ fs.rmSync(tmpB, { recursive: true, force: true });
     JSON.stringify(r14),
   );
   m.setBackends([...m.DEFAULT_BACKENDS]);
-  fs.rmSync(d, { recursive: true, force: true });
+  rmTear(d, { recursive: true, force: true });
 }
 
 console.log(fail === 0 ? "GAUGE_CORE_SMOKE: ALL PASS" : `GAUGE_CORE_SMOKE: ${fail} FAILURES`);

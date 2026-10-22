@@ -902,3 +902,6 @@ The spec anchored the submit design-of-record at the CLONE twin, but the 2026-10
 ### 2026-10-22_11-14 planner_FlashNext ses_e9d47a84dffejiRLQ1gHKUjCvH
 Spec authoring for a cross-tree port: my 5c draft took the design-of-record from the CLONE's inert v1 twin, which is STALE (bt 845 vs MAIN 1034, submit 167 vs 189) — the staleness surfaced only via the worker's own note; the planner should `cmp`/`wc -l` the twins BEFORE committing a spec that anchors on them.
 
+### 2026-10-22_14-03 worker_FlashNext ses_e9d19c62fffeWnNuPGQpxwVMOa
+repo_commands.md (clone + MAIN) names "probe + smoke suite" as the standard gate but documents NO smoke-suite commands (v1 = node .opencode/plugin/tests/<f>.smoke.mjs from the root; v2 = bun run <f>.smoke.mjs in .opencode/plugins/tests) — I had to derive them from the two tests READMEs.
+

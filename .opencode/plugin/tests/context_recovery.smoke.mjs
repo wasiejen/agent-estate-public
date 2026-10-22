@@ -25,7 +25,8 @@ const writeBudget = (obj) => writeFileSync(BUDGET, JSON.stringify(obj, null, 2) 
 const readBudget = () => JSON.parse(readFileSync(BUDGET, "utf8"));
 const ctxLines = () => (readFileSync(CTXLOG, "utf8").trim().split("\n").filter((l) => l.length > 0));
 
-const m = await loadRepo(".opencode/plugin/context_recovery.ts");
+// clone (TODO #141): the v1 subject lives at .opencode/plugin-unported-v1/ here
+const m = await loadRepo(".opencode/plugin-unported-v1/context_recovery.ts");
 const factory = m.default;
 if (typeof factory !== "function") throw new Error("no default factory");
 const clientCalls = { summarize: [], prompt: [] };

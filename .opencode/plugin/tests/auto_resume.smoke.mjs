@@ -93,7 +93,8 @@ const proj = path.join(base, "proj");
 fs.mkdirSync(proj, { recursive: true });
 const sandboxLog = path.join(proj, ".opencode", "temp", "auto_resume.log");
 
-const mod = await loadRepo(".opencode/plugin/auto_resume.ts");
+// clone (TODO #141): the v1 subject lives at .opencode/plugin-unported-v1/ here
+const mod = await loadRepo(".opencode/plugin-unported-v1/auto_resume.ts");
 const factory = mod.default;
 
 const readLines = () =>
@@ -2182,7 +2183,7 @@ try {
        'if (pairCount !== 10) { console.log("PAIR_COUNT " + pairCount); process.exit(1); }',
       "fs.mkdirSync(path.dirname(logPath), { recursive: true });",
       "fs.writeFileSync(logPath, head + pairs);",
-      'const mod = await import(pathToFileURL(path.join(REPO, ".opencode/plugin/auto_resume.ts")).href);',
+      'const mod = await import(pathToFileURL(path.join(REPO, ".opencode/plugin-unported-v1/auto_resume.ts")).href);',
       'const PLANNER = "planner_Q3S_160K";',
       "const msgA = [",
       '  { info: { role: "user" }, parts: [{ type: "text", text: "plain ping, no toggle" }] },',
@@ -2280,7 +2281,7 @@ try {
       "fs.mkdirSync(path.dirname(logPath), { recursive: true });",
       'fs.writeFileSync(logPath, head + pairs);',
       'fs.writeFileSync(capPath, "-1");',
-      'const mod = await import(pathToFileURL(path.join(REPO, ".opencode/plugin/auto_resume.ts")).href);',
+      'const mod = await import(pathToFileURL(path.join(REPO, ".opencode/plugin-unported-v1/auto_resume.ts")).href);',
       'const PLANNER = "planner_Q3S_160K";',
       "const msgDeep = [",
       '  { info: { role: "user", agent: PLANNER }, parts: [{ type: "text", text: "iteration 1, no toggle" }] },',

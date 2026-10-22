@@ -91,7 +91,8 @@ writeFileSync(storePath, JSON.stringify({
   model_budget: { "Qwen3.8-27B-IQ4KT-120K": 3, "Qwen-IQ3-Test": 5, default: 1 },
 }, null, 2) + "\n");
 
-const mod = await loadRepo(".opencode/plugin/compact_memory.ts");
+// clone (TODO #141): the v1 subject lives at .opencode/plugin-unported-v1/ here
+const mod = await loadRepo(".opencode/plugin-unported-v1/compact_memory.ts");
 const factory = mod.default;
 chk("default export is the async plugin factory", typeof factory === "function" && factory.constructor.name === "AsyncFunction");
 chk("named export resolveCap is a function", typeof mod.resolveCap === "function");
@@ -549,7 +550,7 @@ const CFG_PATH = path.join(SANDBOX, "opencode.jsonc");
   // count lives on disk, not in module memory): still refused (self shape,
   // count 3 > cap 2)
   const { pathToFileURL } = await import("node:url");
-  const freshMod = await import(pathToFileURL(path.join(REPO_ROOT, ".opencode", "plugin", "compact_memory.ts")).href + "?cm_emg_reimport=1");
+  const freshMod = await import(pathToFileURL(path.join(REPO_ROOT, ".opencode", "plugin-unported-v1", "compact_memory.ts")).href + "?cm_emg_reimport=1");
   const freshClient = { session: { summarize: () => Promise.resolve(true) } };
   const freshT = (await freshMod.default({ client: freshClient })).tool.compact_memory;
   const rFresh = await freshT.execute({ keepMessages: 2, sessionID: "ses_sm_emg", emergency: true },
@@ -698,7 +699,7 @@ const CFG_PATH = path.join(SANDBOX, "opencode.jsonc");
 // files, so no pipe-buffer risk at the measured tens-of-ms dump cost; pinned
 // on the source — the live spawn is exercised by the DUMP-OK case above)
 {
-  const src = readFileSync(path.join(REPO_ROOT, ".opencode", "plugin", "compact_memory.ts"), "utf8");
+  const src = readFileSync(path.join(REPO_ROOT, ".opencode", "plugin-unported-v1", "compact_memory.ts"), "utf8");
   const spawnIdx = src.indexOf("execFileSync(resolveNodeExe()");
   const spawn = src.slice(spawnIdx, spawnIdx + 260);
   chk("dump spawn: stdio 'pipe' (stderr capture for the DUMP-FAIL detail)",

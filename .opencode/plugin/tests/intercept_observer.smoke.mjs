@@ -66,8 +66,10 @@ fs.rmSync(tdir, { recursive: true, force: true });
 fs.mkdirSync(path.join(tdir, "sub"), { recursive: true });
 fs.mkdirSync(path.join(tdir, "sub2"), { recursive: true });
 
-const mod = await loadRepo(".opencode/plugin/intercept_observer.ts");
-const core = await loadRepo(".opencode/plugin/intercept_observer_core.ts");
+// clone (TODO #141): the v1 pair lives at .opencode/plugin-unported-v1/ here (the
+// named-core pins need the v1 split; the clone's .opencode/plugins/ twin has no named exports)
+const mod = await loadRepo(".opencode/plugin-unported-v1/intercept_observer.ts");
+const core = await loadRepo(".opencode/plugin-unported-v1/intercept_observer_core.ts");
 const factory = mod.default;
 
 const readLines = () =>

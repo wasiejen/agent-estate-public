@@ -94,3 +94,36 @@ the #119 additive budget-file invariant, and cleanup (registrations disposed,
 the event consumer stopped). Fixtures ride the scratchpad `C:/Users/
 operator/AppData/Local/Temp/opencode/compact-smoke-v2` (budget file + BOTH
 logs — NEVER the live DB). Expected final line: `SMOKE: ALL PASS`.
+
+## context_trim_v2 smoke (TODO #137 unit 4b, 2026-10-22)
+
+    bun run context_trim_v2.smoke.mjs
+
+65 checks against a mock `ctx` (no opencode process — the window rows come from
+a MOCKED `session.context` RPC, the header's ctx figure from the gauge core
+steered at a v2-shaped fixture DB): the loader shape + the `tool.transform`/
+`editor.add` registration (name `context_trim`, the v1-mirroring args + the v2
+`clear` lane), the REPORT leg (the compaction head + the header's `boundary-
+state`, the gauge readout line, the `tokens=` sums over the five token fields
+and the `bytes4=` fallback, the read/bash `target=` detail, the trim-RANGE
+option lines with the read/thought/shell split, the `biggest:` ranking with the
+error turn excluded, the `last:` flag, the dry-run counts + the floor verdict),
+the tail-store leg (set/clear lines in v1's `tail-set= <old> -> <new> keep=<
+count>` shape, every rejection line — session-not-found, target-not-found,
+target-at-window-head, retained-tail-below-floor, keep-invalid/keep-exceeds-
+history/keep-at-window-head, the mutual-exclusion + usage errors — with the
+store UNTOUCHED by rejections and the write ADDITIVE (#119), the default store
+path + `setStoreFileForTest` steering), the `session.context` HOOK filter
+(drops EXACTLY the pre-boundary id-carrying entries, KEEPS the id-less
+projections, appends NOTHING, ONE `trim` line), the STALE-boundary fail-open
+(ONE deduped `boundary-stale` line, nothing dropped, the report's `boundary-
+state=stale` header), the read-failure channels (`context-read-failed`/`session-
+not-found`/`messages-not-array`), the whole-log kind/cap invariants, and the
+COMPOSITION pins with the REAL context_family plugin registered on the same
+mock (both handler orders on ONE draft: the `ctx: ` injection survives the
+filter byte-exactly, the pre-boundary entries are gone in both, the surviving
+entries byte-compare) + cleanup. Fixtures ride the scratchpad
+`home/AppData/Local/Temp/opencode/ctx-trim-smoke-v2` (fixture
+`session_v2`/`session_message` DB + budget file; the boundary store + the
+evidence log ride the mock WS root — NEVER the live DB). Expected final line:
+`SMOKE: ALL PASS`.

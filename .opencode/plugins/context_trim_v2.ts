@@ -574,17 +574,18 @@ async function reportWindow(sid: string, target?: string): Promise<string> {
   const big = turns.slice(0, 5);
   if (big.length > 0) lines.push(`biggest: ${big.map((b) => `${b.row}=${b.mass}`).join(" ")}`);
 
-  // (5) the dry-run (with target) — the tail validation, NO write.
+  // (5) the dry-run (with target) — the tail validation, NO write. Like v1, the
+  // counts print for `ok` AND for the floor rejection (a computable target).
   if (target != null) {
     const verdict = tailVerdict(rows, target);
-    if (verdict === "ok") {
+    if (verdict === "ok" || verdict.startsWith("rejected: retained-tail-below-floor")) {
       const i = rows.findIndex((r) => idOf(r) === target);
       const oldStart = state === "inside" ? storedIndex : 0;
       const removeCount = i > oldStart ? i - oldStart : 0;
       const removeMass = removeCount > 0 ? massSum(rows.slice(oldStart, i)) : 0;
       const keepCount = rows.length - i;
       const keepMass = massSum(rows.slice(i));
-      lines.push(`dry-run: target=${target} remove=${removeCount} (${removeMass} tokens) keep=${keepCount} (${keepMass} tokens) verdict=ok`);
+      lines.push(`dry-run: target=${target} remove=${removeCount} (${removeMass} tokens) keep=${keepCount} (${keepMass} tokens) verdict=${verdict}`);
     } else {
       lines.push(`dry-run: target=${target} verdict=${verdict}`);
     }

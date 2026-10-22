@@ -7,7 +7,11 @@
 // the v2-migration unit 1 (2026-10-21) TABLE-AWARE SESSION-ROW read pins:
 // the v1 `session` table / the `session_v2` table / an id in NEITHER / the
 // coexisting newest form / a DB with no session table (fixture DBs under
-// the scratchpad; NEVER the live DB).
+// the scratchpad; NEVER the live DB) + the v2-migration unit 2 (2026-10-22)
+// TABLE-AWARE TOKEN-MASS read pins: the v2-shaped DB (session_message
+// data.tokens sum + in-flight/compaction exclusion), the readout line, the
+// coexisting pairing both ways, and the spawn backend FORCED (REAL exe) on
+// every v2 form + the v1-only regression.
 // Run: node .opencode/plugin/tests/gauge_core.smoke.mjs (plain node, exit 0 iff green).
 import fs from "node:fs";
 import os from "node:os";
@@ -237,6 +241,129 @@ fs.rmSync(tmpB, { recursive: true, force: true });
     r5.ok === false && r5.kind === "db-error" && r5.sid === "unknown",
     JSON.stringify(r5),
   );
+}
+
+// ---- v2-migration unit 2 (2026-10-22): the table-aware TOKEN-mass read.
+// Pins, one per DoD form: (1) the v2-SHAPED DB (session_v2 + session_message
+// with real migrated-row shapes) — OK read, mass = the fork's TokenUsage
+// sum (in+out+reasoning+cache.read+cache.write), the in-flight assistant row
+// (no $.time.completed/$.tokens) and the `compaction` row (request usage,
+// NOT the context size) stay OUT of the pick; (2) the same DB newest-form
+// (same OK read); (3) the formatGauge line — CTX=<n> (p%) REM=<m> (budget
+// steered to an absent file → no suffix); (4)/(5) the COEXISTING DB pairing
+// BOTH directions — the mass rides the SESSION-ROW WINNER's table pair (no
+// cross-table pairing — DoD 3); (6-9) the SPAWN backend FORCED (the
+// production last-resort, REAL exe end-to-end): v2 per-session, v2 newest,
+// coexisting W-pick both directions, and the v1-only DB keeps today's
+// marker byte-identical (regression).
+{
+  const d = freshSandbox("gauge_v2_mass");
+  const mk = (name, stmts) => {
+    const db = new DatabaseSync(path.join(d, name));
+    for (const s of stmts) db.exec(s);
+    db.close();
+  };
+  mk("fx_v1.db", [
+    "CREATE TABLE session(id TEXT PRIMARY KEY, model TEXT, time_updated INTEGER)",
+    "INSERT INTO session VALUES('ses_v1_fx','plain-v1-model-100K',1000)",
+    "CREATE TABLE message(id TEXT, session_id TEXT, time_created INTEGER, time_updated INTEGER, data TEXT)",
+    `INSERT INTO message VALUES('msg_v1','ses_v1_fx',1,1,'{"finish":"stop","tokens":{"total":43210,"output":999}}')`,
+  ]);
+  mk("fx_v2shaped.db", [
+    "CREATE TABLE session_v2(id TEXT PRIMARY KEY, model TEXT, time_updated INTEGER)",
+    `INSERT INTO session_v2 VALUES('ses_v2s_fx','{"id":"fx-v2-model-120K","providerID":"llama-swap"}',2000)`,
+    "CREATE TABLE session_message(id TEXT, session_id TEXT, type TEXT, seq INTEGER, time_created INTEGER, time_updated INTEGER, data TEXT)",
+    `INSERT INTO session_message VALUES('m_done','ses_v2s_fx','assistant',1,100,150,'{"type":"assistant","finish":"stop","tokens":{"input":30000,"output":4000,"reasoning":100,"cache":{"read":10000,"write":50}},"time":{"created":1792000000100,"completed":1792000000150}}')`,
+    `INSERT INTO session_message VALUES('m_inflight','ses_v2s_fx','assistant',2,200,200,'{"type":"assistant","time":{"created":1792000000200}}')`,
+    `INSERT INTO session_message VALUES('m_compact','ses_v2s_fx','compaction',3,300,300,'{"type":"compaction","status":"completed","tokens":{"input":999999,"output":9,"reasoning":0,"cache":{"read":9,"write":0}},"time":{"created":1792000000300,"completed":1792000000300}}')`,
+  ]);
+  mk("fx_pair_v2.db", [
+    "CREATE TABLE session(id TEXT PRIMARY KEY, model TEXT, time_updated INTEGER)",
+    "INSERT INTO session VALUES('ses_old_fx','old-v1-model-64K',1000)",
+    "CREATE TABLE message(id TEXT, session_id TEXT, time_created INTEGER, time_updated INTEGER, data TEXT)",
+    `INSERT INTO message VALUES('msg_old','ses_old_fx',1,1,'{"finish":"stop","tokens":{"total":11111,"output":500}}')`,
+    "CREATE TABLE session_v2(id TEXT PRIMARY KEY, model TEXT, time_updated INTEGER)",
+    `INSERT INTO session_v2 VALUES('ses_new_fx','{"id":"new-v2-model-170K","providerID":"llama-swap"}',2000)`,
+    "CREATE TABLE session_message(id TEXT, session_id TEXT, type TEXT, seq INTEGER, time_created INTEGER, time_updated INTEGER, data TEXT)",
+    `INSERT INTO session_message VALUES('m_new','ses_new_fx','assistant',1,10,10,'{"type":"assistant","finish":"stop","tokens":{"input":20000,"output":3000,"reasoning":0,"cache":{"read":8000,"write":0}},"time":{"created":1792000001000,"completed":1792000001050}}')`,
+  ]);
+  mk("fx_pair_v1.db", [
+    "CREATE TABLE session(id TEXT PRIMARY KEY, model TEXT, time_updated INTEGER)",
+    `INSERT INTO session VALUES('ses_v1w_fx','plain-v1-model-100K',2000)`,
+    "CREATE TABLE message(id TEXT, session_id TEXT, time_created INTEGER, time_updated INTEGER, data TEXT)",
+    `INSERT INTO message VALUES('msg_v1w','ses_v1w_fx',1,1,'{"finish":"stop","tokens":{"total":11111,"output":500}}')`,
+    "CREATE TABLE session_v2(id TEXT PRIMARY KEY, model TEXT, time_updated INTEGER)",
+    `INSERT INTO session_v2 VALUES('ses_v2l_fx','{"id":"low-v2-model-170K","providerID":"llama-swap"}',1000)`,
+    "CREATE TABLE session_message(id TEXT, session_id TEXT, type TEXT, seq INTEGER, time_created INTEGER, time_updated INTEGER, data TEXT)",
+    `INSERT INTO session_message VALUES('m_v2l','ses_v2l_fx','assistant',1,10,10,'{"type":"assistant","finish":"stop","tokens":{"input":20000,"output":3000,"reasoning":0,"cache":{"read":8000,"write":0}},"time":{"created":1792000001000,"completed":1792000001050}}')`,
+  ]);
+  const chkR = (label, ok, detail = "") => {
+    if (!ok) fail++;
+    console.log(`${ok ? "PASS" : "FAIL"} ${label}${detail !== "" ? `: ${detail}` : ""}`);
+  };
+  const r6 = await m.readGauge(path.join(d, "fx_v2shaped.db"), "ses_v2s_fx");
+  chkR(
+    "v2unit2 read form 1 (v2-SHAPED DB, per-session): OK mass = TokenUsage sum 44150; in-flight + compaction rows stay OUT",
+    r6.ok === true && r6.sid === "ses_v2s_fx" && r6.modelId === "fx-v2-model-120K" && r6.window === 120000 && r6.total === 44150 && r6.output === 4000 && r6.ctx === 44150,
+    JSON.stringify(r6),
+  );
+  const r7 = await m.readGauge(path.join(d, "fx_v2shaped.db"));
+  chkR(
+    "v2unit2 read form 2 (v2-SHAPED DB, newest form): the same OK read",
+    r7.ok === true && r7.sid === "ses_v2s_fx" && r7.total === 44150,
+    JSON.stringify(r7),
+  );
+  m.setBudgetFileForTest(path.join(d, "absent-budget.json")); // fail-open — no suffix
+  chkR(
+    "v2unit2 readout line (formatGauge on the v2 OK read): `CTX=<n> (<p>%) REM=<m>`",
+    m.formatGauge(r7) === "SESSION=ses_v2s_fx CTX=44150 (36%) REM=75850",
+    m.formatGauge(r7),
+  );
+  const r8 = await m.readGauge(path.join(d, "fx_pair_v2.db"));
+  chkR(
+    "v2unit2 pairing (coexisting, v2 winner): mass from session_message (31000) — NOT the v1 total (11111)",
+    r8.sid === "ses_new_fx" && r8.modelId === "new-v2-model-170K" && r8.total === 31000,
+    JSON.stringify(r8),
+  );
+  const r9 = await m.readGauge(path.join(d, "fx_pair_v1.db"));
+  chkR(
+    "v2unit2 pairing (coexisting, legacy NEWER): the v1 winner's mass rides the v1 pair (11111) — NOT session_message (31000)",
+    r9.sid === "ses_v1w_fx" && r9.modelId === "plain-v1-model-100K" && r9.total === 11111,
+    JSON.stringify(r9),
+  );
+  m.setBackends(["spawn-sqlite3"]);
+  const r10 = await m.readGauge(path.join(d, "fx_v2shaped.db"), "ses_v2s_fx");
+  chkR(
+    "v2unit2 spawn (forced, REAL exe): v2 per-session marker — OK mass 44150",
+    r10.ok === true && r10.sid === "ses_v2s_fx" && r10.total === 44150 && r10.output === 4000,
+    JSON.stringify(r10),
+  );
+  const r11 = await m.readGauge(path.join(d, "fx_v2shaped.db"));
+  chkR(
+    "v2unit2 spawn (forced): v2 newest marker — the same OK read",
+    r11.ok === true && r11.total === 44150,
+    JSON.stringify(r11),
+  );
+  const r12 = await m.readGauge(path.join(d, "fx_pair_v2.db"));
+  chkR(
+    "v2unit2 spawn (forced): coexisting W-pick — the v2 winner, mass 31000",
+    r12.sid === "ses_new_fx" && r12.total === 31000,
+    JSON.stringify(r12),
+  );
+  const r13 = await m.readGauge(path.join(d, "fx_pair_v1.db"));
+  chkR(
+    "v2unit2 spawn (forced): coexisting pick keeps the v1 winner — mass 11111",
+    r13.sid === "ses_v1w_fx" && r13.total === 11111,
+    JSON.stringify(r13),
+  );
+  const r14 = await m.readGauge(path.join(d, "fx_v1.db"), "ses_v1_fx");
+  chkR(
+    "v2unit2 spawn (forced): v1-only DB keeps today's marker byte-identical — total 43210",
+    r14.ok === true && r14.sid === "ses_v1_fx" && r14.total === 43210,
+    JSON.stringify(r14),
+  );
+  m.setBackends([...m.DEFAULT_BACKENDS]);
+  fs.rmSync(d, { recursive: true, force: true });
 }
 
 console.log(fail === 0 ? "GAUGE_CORE_SMOKE: ALL PASS" : `GAUGE_CORE_SMOKE: ${fail} FAILURES`);

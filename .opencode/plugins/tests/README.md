@@ -318,3 +318,45 @@ set fail-open (CWD + temp roots ONLY, NEVER "everything allowed"). The fixture
 plugin copies read their OWN fixture `opencode.jsonc` at import (one CONFIG_ROOTS
 per module instance). Teardown dispose + the ambient env restore pinned. Expected
 final line: `SMOKE: ALL PASS`.
+
+## auto_resume smoke (TODO #137 order 2, 2026-10-22)
+
+    bun run auto_resume.smoke.mjs
+
+45 checks against a mock `ctx` (no opencode process; NO backend request; fixtures
+ride the scratchpad `home/AppData/Local/Temp/opencode/auto-resume-
+smoke-v2`, the LIVE temp estate NEVER touched): the loader shape `{id:'auto_resume',
+setup}` + the `context`-hook registration + the exported smoke levers
+(`runTick`, `trimLogIfNeeded`, `actionFromText`, `scopeVerdict`); UNIT 1 — the
+init `log-trim= old=<pre> new=512` guard cutting a pre-seeded 120-line log while
+KEEPING the #90 part-C `route= restart spawn`/`spawn=` PAIR for the restore, the
+`surface= v=<sha8> …` probe line (typeof ONLY, the v2 Pick's methods +
+`event.subscribe` + `app.name`), the `event=<type> sid=<sid> <key fields>` line
+shape (status / finish+tokens / created-agent key fields) and the NEVER-logged
+delta classes; UNIT 3 — the ONE-SHOT trigger file consumed to `.consumed` EVEN
+ON FAILURE, the FLAT `SessionCreateInput` body (ident `title` alone for a file-
+trigger spawn; `agent` + `model:{id,providerID}` on a restart spawn), the
+QUEUED `delivery:"queue"` prompt, the `loop/<folder>/counter.json` n = max
+(candidate, loop-log `planner-N` + 1) and the `ident=` bit, plus every failure
+lane (`create missing` / rejection / `create no id` / `prompt missing` /
+rejection); UNIT 4 — `route= stop|ask` with NO send, `action: resume` -> ONE
+QUEUED CONTINUE with the locked text, the #80 `arm= … injected` busy, the
+recovery budget (attempt 1, 2, then the RESTART route), the `spawn= … agent=
+model= ident=` line + `deactivate=`, the STICKY `skip= deactivated`, the
+`send-fail=` dead-mark + `skip= dead`; #109 — the detector's five clauses each
+pinned NEGATIVE (finish ≠ length, total below the 0.99·window wall, an
+unresolvable window, the 60 s idle threshold via the `limitStopIdleMs` lever, a
+scope-"none" session), the FIRE (`limit-stop= sid= total=` + the byte-shape
+`-WARNING auto_resume <sid> <model> silent limit-stop: … window=8000 no-COMPACT`
+line in `loop/autorun-T/loop_log.md`), the once-per-episode latch + its reset
+by a fresh busy, and the clause-(4) suppression by a NEW ctx.log COMPACT line
+(`rearm= compact sid=`); the #90 RESTORE through the trimmed pair (`skip=
+deactivated sid=ses_par` + `skip= depth sid=ses_child depth=1` with
+`lineage_max_depth=1`); the budget gate forms (count == cap NOT exhausted,
+count = cap+1 exhausted, the CPU cap-0 entry) and the forced-new-session
+directive sentence; the LINE-ANCHORED action-line scan (prose-quoted and
+bullet-prefixed mentions NEVER match, last match wins); the scope verdict ladder
+(Direct beats the agent test, an ON toggle is ANY agent, NO toggle falls to the
+planner prefix); fail-open on a THROWING hook payload (a poison `text` getter
+never reaches the host, later events still log), and the teardown dispose.
+Expected final line: `SMOKE: ALL PASS`.

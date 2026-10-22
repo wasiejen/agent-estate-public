@@ -35,3 +35,6 @@ An aggregate clone-gate runner script (probe + the 12 node smokes + the 2 bun v2
   sweep-filter half IS being implemented this pass (marker unit, plan25).
 - 05-23 (aggregate clone-gate runner) → NOT filed: LOW value now (the §4 clone
   wave is COMPLETE; recorded in the NAP queue).
+### 2026-10-22_20-34 planner_FlashNext ses_e9b246abdffesGhYjB50ymiwqy
+block_transfer mode-guard teaching errors: when a mode receives an argument that belongs to a neighbouring mode (REPLACE with `text`; COPY with `regions`; WRITE with `bufferName`-only content), REJECT with "did you mean <mode>?" rather than the generic missing-buffer/missing-marker error — cheap, agent-facing only, both trees (2026-10-22, direct planner-28).
+

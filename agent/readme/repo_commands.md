@@ -43,9 +43,15 @@ verified live in a direct session). Unix idioms work natively: `ls -la`,
   ruff, see `agent/readme/repo_commands.md`). The probe
   self-annotates its total: the output line `PROBE handover: <t>/<t> PASS` must
   agree with the header annotation (the section-sum line) — the annotation is
-  the source; NO duplicated moving number lives here (curate-don't-duplicate,
-  per #58/#64; refreshed 2026-09-17, planner-allowed per maintainer ruling for
-  #71).
+   the source; NO duplicated moving number lives here (curate-don't-duplicate,
+   per #58/#64; refreshed 2026-09-17, planner-allowed per maintainer ruling for
+   #71).
+- Smoke suite commands: v1 = from the repo root, `node .opencode/plugin/tests/<f>.smoke.mjs`
+  (12 files; final line `<n>/<n>` or `SMOKE: ALL PASS`). v2 = from `.opencode/plugins/tests`,
+  `bun run <f>.smoke.mjs` (final line `SMOKE: ALL PASS`) + typecheck
+  `home/Repos/opencode/node_modules/.bin/tsgo.exe -p .opencode/plugins/tests/tsconfig.json`
+  (repo root; exit 0, no output). The node-dir trio gauge_core/context_trim/auto_resume
+  can hit the Windows teardown `fs.rmSync` EBUSY flake (0 FAIL) — green on re-run.
 
 ## Marker sweep
 

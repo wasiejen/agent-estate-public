@@ -875,3 +875,6 @@ The spec said probe sections were not expected to move (only a check-113 repin w
 ### 2026-10-22_04-38 planner_FlashNext ses_e9ec78ee4ffe9Nu75F5iRfdtl6
 block_transfer REPLACE call in this session errored `Clipboard buffer 'default' is empty. Perform a COPY or CUT first` when the intent was a direct-text region write — the error does not teach the mode choice (WRITE = bufferless direct text; REPLACE = named buffer). A teaching-error line naming the WRITE alternative would have saved the retry.
 
+### 2026-10-22_05-23 planner_FlashNext ses_e9e860260ffeKO6KiJbGss5pwy
+The unit-3a spec's DO-NOT-touch line ("MAIN repo = only the handover summary write") also blocked the worker's legitimate `submit` (inbox) and loop-log channels — the worker withheld its friction/knowledge submits by design; spec DO-NOT-touch lists should exempt the `submit` inbox channels and `loop/` logging.
+

@@ -25,3 +25,6 @@ A curated read-only helper for `.opencode/temp/intercept.log` (e.g. `agent/scrip
 ### 2026-10-22_04-38 planner_FlashNext ses_e9ec78ee4ffe9Nu75F5iRfdtl6
 state_snapshot's ## markers digest is capped (20 lines) and the ready-made sweep output is dominated by self-referential doc noise (measured this session: 143 sweep hits, only 1 standing block live) — extend the MARKER_SWEEP filter to exclude the files that QUOTE the markers table (agent/prompts/, agent/readme/, specs/, loop summaries, knowledge) so the digest surfaces live markers without a bash re-run.
 
+### 2026-10-22_05-23 planner_FlashNext ses_e9e860260ffeKO6KiJbGss5pwy
+An aggregate clone-gate runner script (probe + the 12 node smokes + the 2 bun v2 smokes + tsgo, printing `green=N red=0` per unit) — the worker hand-rolled a scratchpad runner to measure the 15-unit clone gate; a committed `agent/scripts/` runner would save calls in every future clone unit.
+

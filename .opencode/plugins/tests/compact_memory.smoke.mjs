@@ -18,7 +18,9 @@
 // Run: bun run compact_memory.smoke.mjs (this dir). Expected final line:
 // `SMOKE: ALL PASS`.
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { DatabaseSync } from "node:sqlite"; // 4c: the dump twin's fixture-DB pins
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -27,6 +29,8 @@ const WS = path.join(SCRATCH, "ws"); // the mock workspace (ctx.location.directo
 const CLONE_ROOT = "repo-root-v2";
 const PLUGIN = path.join(CLONE_ROOT, ".opencode", "plugins", "compact_memory.ts");
 const CORE = path.join(CLONE_ROOT, ".opencode", "plugin", "scripts", "compaction_core_v2.mjs");
+const TWIN = path.join(CLONE_ROOT, "agent", "scripts", "db", "dump_session_v2.mjs"); // the 4c dump twin script
+const SQLITE_EXE = path.join(CLONE_ROOT, ".opencode", "plugin", "tools", "sqlite3.exe"); // its spawn-lane exe
 
 let failures = 0;
 function chk(label, ok, detail = "") {
@@ -192,7 +196,8 @@ function makeCtx(directory) {
 }
 
 const core = await import(pathToFileURL(CORE).href);
-const plugin = (await import(pathToFileURL(PLUGIN).href)).default;
+const pluginMod = await import(pathToFileURL(PLUGIN).href);
+const plugin = pluginMod.default;
 
 // ------------------------------------------------------------------ S0/S1 the plugin shape
 
@@ -477,6 +482,214 @@ chk("S2 cap forms: CPU guard FIRST (cap 0 + cpu label), listed exact, unlisted -
     readFileSync(BUDGET, "utf8").slice(0, 120));
   console.log(`\nlog lines: ${lines.length}; COMPACT lines: ${readCtxLog().length}`);
 }
+
+// ------------------------------------------------------------------ S-D4c the pre-compaction dump leg (TODO #137 unit 4c)
+//
+// The 4a INV block above counted the 4a dispatch legs (7); the 4c legs below
+// run AFTER it ON PURPOSE so that byte-expectation pin keeps its number. EVERY
+// allowed dispatch already dumped BOTH artifacts through the fixture stub twin
+// (success by default) — the lanes below move the stub aside to pin the failure
+// and retry contract, then pin the REAL twin CLI in a sandbox copy against FIXTURE
+// DBs (the LIVE DB is NEVER touched).
+const DUMP_DIR = path.join(WS, "archive", "sessions", "compaction_dumps");
+const STUB_PATH = path.join(WS, "agent", "scripts", "db", "dump_session_v2.mjs");
+const STUB_SAVED = readFileSync(STUB_PATH, "utf8");
+const dtOK = /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2} DUMP-OK /;
+
+chk("D4c preCompactionDumpName byte-exact, normal (md default, stamp null): c0 + c7",
+  pluginMod.preCompactionDumpName("ses_pc_name", 0, null) === "compaction_dumps/ses_pc_name_c0.md" &&
+    pluginMod.preCompactionDumpName("ses_pc_name", 7, null) === "compaction_dumps/ses_pc_name_c7.md",
+  JSON.stringify([pluginMod.preCompactionDumpName("ses_pc_name", 0, null), pluginMod.preCompactionDumpName("ses_pc_name", 7, null)]));
+chk("D4c preCompactionDumpName byte-exact, the stamped fallback (fixed stamp — NO clock inside the name fn)",
+  pluginMod.preCompactionDumpName("ses_pc_name", 3, "20260915T131530") === "compaction_dumps/ses_pc_name_c3_20260915T131530.md",
+  pluginMod.preCompactionDumpName("ses_pc_name", 3, "20260915T131530"));
+chk("D4c preCompactionDumpName byte-exact, the #92 json forms (c0 + the stamped c3 case)",
+  pluginMod.preCompactionDumpName("ses_pc_name", 0, null, "json") === "compaction_dumps/ses_pc_name_c0.json" &&
+    pluginMod.preCompactionDumpName("ses_pc_name", 3, "20260915T131530", "json") === "compaction_dumps/ses_pc_name_c3_20260915T131530.json",
+  JSON.stringify([pluginMod.preCompactionDumpName("ses_pc_name", 0, null, "json"), pluginMod.preCompactionDumpName("ses_pc_name", 3, "20260915T131530", "json")]));
+chk("D4c resolveNodeExe: a node runtime passes through, a bun/CLI host falls back to \"node\" (the v1 #78 lesson)",
+  pluginMod.resolveNodeExe("C:/x/node.exe") === "C:/x/node.exe" &&
+    pluginMod.resolveNodeExe("bun") === "node" && pluginMod.resolveNodeExe("opencode.exe") === "node",
+  JSON.stringify([pluginMod.resolveNodeExe("C:/x/node.exe"), pluginMod.resolveNodeExe("bun")]));
+
+// the success lane — driven by the 4a legs: ses_self dumped at its PRE-DISPATCH
+// budget count (1) → the `c1` base, BOTH artifacts, the ctx.log DUMP-OK lines
+chk("D4c success lane: BOTH artifacts land under the ws corpus with the stub's marker content",
+  existsSync(path.join(DUMP_DIR, "ses_self_c1.md")) &&
+    existsSync(path.join(DUMP_DIR, "ses_self_c1.json")) &&
+    readFileSync(path.join(DUMP_DIR, "ses_self_c1.md"), "utf8").startsWith("fake dump sid=ses_self json=false rel=compaction_dumps/ses_self_c1.md"),
+  JSON.stringify([existsSync(path.join(DUMP_DIR, "ses_self_c1.md"))]));
+chk("D4c success lane: the ctx.log carries the v1-shape DUMP-OK lines (local stamp + full repo-relative relFile + ms=) for BOTH artifacts",
+  readCtxLog().some((l) => dtOK.test(l) && l.includes(" ses_self archive/sessions/compaction_dumps/ses_self_c1.md ms=")) &&
+    readCtxLog().some((l) => dtOK.test(l) && l.includes(" ses_self archive/sessions/compaction_dumps/ses_self_c1.json ms=")),
+  JSON.stringify(readCtxLog().filter((l) => l.includes("DUMP-OK ses_self")).slice(0, 2)));
+
+// the NON-BLOCKING failure lane: the stub is REMOVED → BOTH artifacts fail
+rmSync(STUB_PATH, { force: true });
+const compactBeforeFail = COMPACT.calls.length;
+const rFail = await call({ sessionID: "ses_def" }, {});
+await sleep(5);
+chk("D4c the no-script lane NEVER blocks the tool: the dispatch STILL lands and the response carries the v1 WARNING",
+  COMPACT.calls.length === compactBeforeFail + 1 &&
+    rFail.output.includes("Compaction dispatched for ses_def") &&
+    rFail.output.includes("WARNING: pre-compaction dump failed for ses_def"),
+  JSON.stringify(rFail.output));
+chk("D4c the no-script lane logs EXACTLY two DUMP-RETRY=1 + two DUMP-FAIL ctx.log lines (one per artifact; #107 full relFile; #78 stderr detail)",
+  readCtxLog().filter((l) => l.includes("DUMP-RETRY=1 ses_def")).length === 2 &&
+    readCtxLog().filter((l) => l.includes("DUMP-FAIL ses_def")).length === 2 &&
+    readCtxLog().some((l) => l.includes("DUMP-FAIL ses_def archive/sessions/compaction_dumps/ses_def_c0.md ") && /stderr: /i.test(l)) &&
+    readCtxLog().some((l) => l.includes("DUMP-FAIL ses_def archive/sessions/compaction_dumps/ses_def_c0.json ")),
+  JSON.stringify(readCtxLog().filter((l) => l.includes(" ses_def")).slice(0, 8)));
+chk("D4c the hook return shape (a direct call against a root WITHOUT the script): {ok:false, files:[]}, the error names BOTH artifacts (`md: … | json: …`)",
+  (() => {
+    const r = pluginMod.preCompactionDump(path.join(SCRATCH, "empty4c"), "ses_pc_noscript", 0);
+    return r.ok === false && r.files.length === 0 && /^md: .+ \| json: .+$/s.test(r.error ?? "");
+  })(),
+  JSON.stringify(pluginMod.preCompactionDump(path.join(SCRATCH, "empty4c"), "ses_pc_name2", 0).error ?? "").slice(0, 160));
+chk("D4c the compact_v2.log dump audit line carries state=failed + the md-first error head (the field rides the cap ladder)",
+  readLog().some((l) => l.kind === "dump" && l.state === "failed" && l.session === "ses_def" && (l.error ?? "").startsWith("md: ")),
+  JSON.stringify(readLog().filter((l) => l.kind === "dump" && l.state === "failed").slice(0, 1).map((l) => (l.error ?? "").slice(0, 80))));
+writeFileSync(STUB_PATH, STUB_SAVED, "utf8");
+
+// the RETRY-once lane: a stub that FAILS the FIRST spawn (flag file), then
+// succeeds — the md artifact retried ONCE, the json artifact landed DIRECTLY
+// (#92 independence: one's failure never skips the other).
+writeFileSync(path.join(WS, "dump_flag_once"), "x", "utf8");
+writeFileSync(STUB_PATH, [
+  'import { existsSync, rmSync, writeFileSync, mkdirSync } from "node:fs";',
+  'import path from "node:path";',
+  'import { fileURLToPath } from "node:url";',
+  "const dir = path.dirname(fileURLToPath(import.meta.url));",
+  'const flag = path.resolve(dir, "..", "..", "..", "dump_flag_once");',
+  'if (existsSync(flag)) { rmSync(flag, { force: true }); process.stderr.write("injected first-attempt failure\\n"); process.exit(1); }',
+  "const argv = process.argv.slice(2);",
+  "let rel = null, json = false, sid = null;",
+  'for (let i = 0; i < argv.length; i++) {',
+  "  const a = argv[i];",
+  '  if (a === "--out") { i++; rel = argv[i]; }',
+  '  else if (a === "--json") json = true;',
+  "  else sid = a;",
+  "}",
+  'const out = path.resolve(dir, "..", "..", "..", "archive", "sessions");',
+  'const file = path.join(out, rel != null ? rel : sid + (json ? ".json" : ".md"));',
+  "mkdirSync(path.dirname(file), { recursive: true });",
+  'writeFileSync(file, "fake dump sid=" + sid + " json=" + json + " rel=" + rel + "\\n", "utf8");',
+].join("\n") + "\n", "utf8");
+const rRetry = await call({}, { sessionID: "ses_self" });
+await sleep(5);
+chk("D4c RETRY-once: ONE DUMP-RETRY=1 line for the session, TWO DUMP-OK lines, BOTH artifacts land, NO WARNING in the response",
+  readCtxLog().filter((l) => l.includes("DUMP-RETRY=1 ses_self")).length === 1 &&
+    readCtxLog().filter((l) => dtOK.test(l) && l.includes(" ses_self archive/sessions/compaction_dumps/ses_self_c2.")).length === 2 &&
+    existsSync(path.join(DUMP_DIR, "ses_self_c2.md")) && existsSync(path.join(DUMP_DIR, "ses_self_c2.json")) &&
+    !rRetry.output.includes("WARNING: pre-compaction dump"),
+  JSON.stringify(readCtxLog().filter((l) => l.includes("DUMP-RETRY=1 ses_self"))));
+// the SAME round again (NO `.ended` event pushed → the count stays 2 → the
+// c2 base EXISTS): the no-overwrite rule stamps BOTH artifacts' names
+const baseMdPath = path.join(DUMP_DIR, "ses_self_c2.md");
+const baseMdBefore = readFileSync(baseMdPath, "utf8");
+await call({}, { sessionID: "ses_self" });
+await sleep(5);
+const stampedNames = readdirSync(DUMP_DIR).filter((n) => /^ses_self_c2_\d{8}T\d{6}\.(md|json)$/.test(n));
+chk("D4c no-overwrite: a same-round repeat lands STAMPED (both artifacts share the stamp) and leaves the c2 base files BYTE-IDENTICAL",
+  stampedNames.length === 2 && readFileSync(baseMdPath, "utf8") === baseMdBefore,
+  JSON.stringify(stampedNames));
+writeFileSync(STUB_PATH, STUB_SAVED, "utf8");
+rmSync(path.join(WS, "dump_flag_once"), { force: true });
+
+// ------------------------------------------------------------------ S-T4c the dump twin CLI (the real script, sandbox copy, fixture DBs)
+const SAN = path.join(SCRATCH, "san4c");
+mkdirSync(path.join(SAN, "agent", "scripts", "db"), { recursive: true });
+mkdirSync(path.join(SAN, ".opencode", "plugin", "tools"), { recursive: true });
+copyFileSync(TWIN, path.join(SAN, "agent", "scripts", "db", "dump_session_v2.mjs"));
+copyFileSync(SQLITE_EXE, path.join(SAN, ".opencode", "plugin", "tools", "sqlite3.exe"));
+const TWIN_SAN = path.join(SAN, "agent", "scripts", "db", "dump_session_v2.mjs");
+const SAN_OUT = path.join(SAN, "archive", "sessions");
+const FXV2 = path.join(SAN, "fxv2.db");
+const FXV1 = path.join(SAN, "fxv1.db");
+{
+  const db = new DatabaseSync(FXV2);
+  db.exec("CREATE TABLE session_v2(id TEXT, title TEXT, agent TEXT, model TEXT, parent_id TEXT, time_created INTEGER, time_updated INTEGER, time_compacting INTEGER, time_archived INTEGER, tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER)");
+  db.exec("CREATE TABLE session_message(id TEXT, session_id TEXT, type TEXT, seq INTEGER, time_created INTEGER, time_updated INTEGER, data TEXT)");
+  db.prepare("INSERT INTO session_v2 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").run("ses_fx", "Fixture session", "worker", JSON.stringify({ id: "fx-model", providerID: "p1" }), null, 1700000000000, 1700000090000, null, null, 100, 20, 0);
+  const ins = db.prepare("INSERT INTO session_message VALUES (?,?,?,?,?,?,?)");
+  ins.run("m_u", "ses_fx", "user", 0, 1700000000000, 1700000000000, JSON.stringify({ time: { created: 1700000000000 }, text: "hello fixture", files: ["a.ts"] }));
+  ins.run("m_a", "ses_fx", "assistant", 1, 1700000001000, 1700000002000, JSON.stringify({ time: { created: 1700000001000, completed: 1700000002000 }, agent: "worker", model: { id: "fx-model", providerID: "p1" }, content: [{ type: "reasoning", text: "thinking hard" }, { type: "tool", id: "call_1", name: "read", executed: true, state: { status: "completed", input: { filePath: "C:/x/y.ts" }, content: [{ type: "text", text: "file body" }] } }, { type: "text", text: "answer body" }], finish: "tool-calls", cost: 0, tokens: { input: 72, output: 176, reasoning: 0, cache: { read: 14283, write: 0 } } }));
+  ins.run("m_c", "ses_fx", "compaction", 2, 1700000003000, 1700000003000, JSON.stringify({ status: "completed", reason: "manual", summary: "## Objective\n- fixture summary", recent: [], time: { created: 1700000003000 } }));
+  db.close();
+}
+{
+  const db = new DatabaseSync(FXV1);
+  db.exec("CREATE TABLE session(id TEXT, title TEXT)");
+  db.prepare("INSERT INTO session VALUES (?,?)").run("ses_old", "old");
+  db.close();
+}
+const mdOf = (p) => readFileSync(p, "utf8");
+const runTwin = (args, backend, dbPath = FXV2, exe = "node") =>
+  spawnSync(exe, [TWIN_SAN, ...args], {
+    encoding: "utf8",
+    env: { ...process.env, OPENCODE_DB: dbPath, ...(backend != null ? { DUMP_V2_BACKENDS: backend } : {}) },
+  });
+const tFull = runTwin(["ses_fx", "--out", "compaction_dumps/ses_fx_c0.md"], null);
+chk("D4c twin CLI (default chain, node host): exit 0 + the dumped line (messages=3 parts=4 mode=full backend=node:sqlite)",
+  tFull.status === 0 && /^dumped ses_fx messages=3 parts=4 bytes=\d+ mode=full backend=node:sqlite -> /m.test(tFull.stdout),
+  JSON.stringify({ status: tFull.status, out: (tFull.stdout ?? "").slice(0, 160), err: (tFull.stderr ?? "").slice(0, 160) }));
+chk("D4c the full md carries the v2 sources + row shapes: the tables/backend line, role=assistant rows, the tool header + input/output verbatim, the compaction summary",
+  mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_c0.md")).includes("# source: v2 tables=session_v2+session_message  backend=node:sqlite") &&
+    mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_c0.md")).includes("# messages: 3  parts: 4") &&
+    mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_c0.md")).includes("## m_a | role=assistant | seq=1") &&
+    mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_c0.md")).includes("  [tool] read callID=call_1 status=completed executed=true") &&
+    mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_c0.md")).includes('  [tool input] {"filePath":"C:/x/y.ts"}') &&
+    mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_c0.md")).includes('  [tool output] [{"type":"text","text":"file body"}]') &&
+    mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_c0.md")).includes("## Objective"),
+  mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_c0.md")).slice(0, 200));
+const tLite = runTwin(["ses_fx", "--out", "compaction_dumps/ses_fx_c1.md", "--lite"], null);
+chk("D4c --lite: the tool header stays, NO input/output lines, the text/reasoning bodies verbatim",
+  tLite.status === 0 && mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_c1.md")).includes("  [tool] read callID=call_1") &&
+    !mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_c1.md")).includes("[tool input]") &&
+    mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_c1.md")).includes("thinking hard"),
+  JSON.stringify({ status: tLite.status }));
+const tJson = runTwin(["ses_fx", "--out", "compaction_dumps/ses_fx_c0.json", "--json"], null);
+chk("D4c --json: the raw doc — keys session+messages, the 3 rows typed user/assistant/compaction with the PARSED data (tokens + time.completed)",
+  tJson.status === 0 && (() => {
+    const d = JSON.parse(mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_c0.json")));
+    return Object.keys(d).join(",") === "session,messages" &&
+      d.messages.length === 3 &&
+      d.messages.map((x) => x.type).join(",") === "user,assistant,compaction" &&
+      d.messages[1].data.tokens.input === 72 &&
+      d.messages[1].data.time.completed === 1700000002000 &&
+      d.session.id === "ses_fx";
+  })(),
+  JSON.stringify({ status: tJson.status, out: (tJson.stdout ?? "").slice(0, 120) }));
+const tBad = runTwin(["ses_fx", "--out", "../evil"], null);
+const tNope = runTwin(["ses_nope"], null);
+chk("D4c the v1 rejection shapes: unsafe --out relpath → exit 2 with the v1 stderr line; an unknown session → exit 1 'no such session:'",
+  tBad.status === 2 && (tBad.stderr ?? "").includes("unsafe --out relpath (must be relative, no `..`, safe chars only): ../evil") &&
+    tNope.status === 1 && (tNope.stderr ?? "").includes("no such session: ses_nope"),
+  JSON.stringify({ bad: (tBad.stderr ?? "").slice(0, 120), nope: (tNope.stderr ?? "").slice(0, 80) }));
+const tV1 = runTwin(["ses_old", "--out", "compaction_dumps/x.md"], null, FXV1);
+chk("D4c a v1-only fixture (no v2 pair) → exit 2 with the clear no-v2-tables line (the twin NEVER reads the v1 part lane)",
+  tV1.status === 2 && (tV1.stderr ?? "").includes("no v2 tables (session_v2 + session_message)"),
+  JSON.stringify((tV1.stderr ?? "").slice(0, 160)));
+const tFlags = runTwin(["--all", "--lite"], null);
+chk("D4c the flag-conflict rejections keep v1 exit 2 (--all + --lite)",
+  tFlags.status === 2 && (tFlags.stderr ?? "").includes("--lite is single-session mode only"),
+  JSON.stringify((tFlags.stderr ?? "").slice(0, 120)));
+const tAll = runTwin(["--all", "--slim"], null);
+chk("D4c the --all corpus lane (slim default): exit 0 + the corpus summary line + the slim file (one line per row)",
+  tAll.status === 0 && /^corpus: sessions=1 files=1 failed=0 bytes=\d+ mode=slim backend=node:sqlite -> /m.test(tAll.stdout) &&
+    mdOf(path.join(SAN_OUT, "ses_fx.md")).split("\n").filter((l) => /^\d{4}-.* \| \{/.test(l)).length === 3,
+  JSON.stringify({ status: tAll.status, out: (tAll.stdout ?? "").slice(0, 160) }));
+const tSpawn = runTwin(["ses_fx", "--out", "compaction_dumps/ses_fx_spawn.md"], "spawn-sqlite3");
+const tNode2 = runTwin(["ses_fx", "--out", "compaction_dumps/ses_fx_node.md"], null);
+chk("D4c the spawn-sqlite3 LAST RESORT works through the copied maintainer exe (mode=ro URI): the md is BYTE-EQUAL to the node:sqlite read modulo the backend field",
+  tSpawn.status === 0 && /backend=spawn-sqlite3/.test(tSpawn.stdout) &&
+    mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_spawn.md")).replace("backend=spawn-sqlite3", "backend=node:sqlite").replace(/^# dumped: .*$/m, "") ===
+      mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_node.md")).replace(/^# dumped: .*$/m, ""),
+  JSON.stringify({ status: tSpawn.status, out: (tSpawn.stdout ?? "").slice(0, 140), err: (tSpawn.stderr ?? "").slice(0, 140) }));
+const tBun = runTwin(["ses_fx", "--out", "compaction_dumps/ses_fx_bun.md"], null, FXV2, "bun");
+chk("D4c under the bun host the chain picks bun:sqlite FIRST (spec order) and the same reads land",
+  tBun.status === 0 && /backend=bun:sqlite/.test(tBun.stdout) && mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_bun.md")).includes("# messages: 3  parts: 4"),
+  JSON.stringify({ status: tBun.status, out: (tBun.stdout ?? "").slice(0, 140), err: (tBun.stderr ?? "").slice(0, 140) }));
 
 const logLenBefore = readLog().length;
 await cleanup();

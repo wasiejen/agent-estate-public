@@ -68,11 +68,11 @@ loop-root files — NEVER the live DB; the shared gauge core is steered via
 its test hooks). Expected final line: `SMOKE: ALL PASS`.
 `packages/core/src/config/plugin/source.ts:164-167`).
 
-## compact_memory smoke (TODO #137 unit 4a, 2026-10-22)
+## compact_memory smoke (TODO #137 units 4a + 4c, 2026-10-22)
 
     bun run compact_memory.smoke.mjs
 
-41 checks against a mock `ctx` (no opencode process, NO backend request): the
+63 checks against a mock `ctx` (no opencode process, NO backend request): the
 loader shape + the `tool.transform`/`editor.add` registration (a plain JSON-
 schema input, string output), the ported core's cap forms (CPU guard FIRST,
 listed, unlisted -> `model_budget.default`, absent file -> 1), CPU denial with
@@ -89,11 +89,30 @@ event.result = {summary, metadata:{marker:true}}` captured at the `comp
 action` draft hook, the `boundary-ignored` line, the no-pending-record
 silence), the native `delivery:"queue"` continuation delivered ONLY at
 verified success + the rejection evidence, the `keep-not-applied` line,
-`dump-skipped` ONCE per allowed dispatch, the whole-log kind/cap invariants,
-the #119 additive budget-file invariant, and cleanup (registrations disposed,
-the event consumer stopped). Fixtures ride the scratchpad `C:/Users/
-operator/AppData/Local/Temp/opencode/compact-smoke-v2` (budget file + BOTH
-logs — NEVER the live DB). Expected final line: `SMOKE: ALL PASS`.
+the dump-leg audit line (`state:"ok"`/`"failed"`) ONCE per allowed dispatch,
+the whole-log kind/cap invariants, the #119 additive budget-file invariant,
+and cleanup (registrations disposed, the event consumer stopped). Fixtures ride
+the scratchpad `home/AppData/Local/Temp/opencode/compact-smoke-
+v2` (budget file + BOTH logs — NEVER the live DB). Expected final line:
+`SMOKE: ALL PASS`.
+
+Unit 4c grows the SAME file with the pre-compaction dump legs: `preCompaction
+DumpName` byte-exact in the normal/stamped/#92-json forms + `resolveNodeExe`
+(the node-runtime passthrough vs the bun-host fallback); the success lane
+(BOTH artifacts under the ws corpus + the v1 `DUMP-OK … ms=` ctx.log lines);
+the no-script lane NEVER blocks (the dispatch still lands, the response
+carries the v1 WARNING, EXACTLY two `DUMP-RETRY=1` + two one-lined `DUMP-
+FAIL` lines) plus the hook's `{ok:false, files:[], error:"md: … | json: …"}`
+return shape; RETRY-once (ONE retry line for the failed artifact, the other
+artifact landing directly per #92); the no-overwrite repeat landing STAMPED
+with both artifacts sharing the stamp and the base files byte-identical; and
+the REAL twin CLI (`agent/scripts/db/dump_session_v2.mjs`) pinned in a sandbox
+copy against FIXTURE DBs: full/`--lite` (tool header-only)/`--json` shapes
+with the v2 row renderers, the exit-2 unsafe-relpath/flag-conflict/no-v2-
+tables rejections, the exit-1 `no such session`, the `--all --slim` corpus
+lines, and all three backends (`node:sqlite` default, the copied `sqlite3.
+exe` spawn lane byte-equal modulo the backend field, `bun:sqlite` FIRST under
+the bun host).
 
 ## context_trim_v2 smoke (TODO #137 unit 4b, 2026-10-22)
 

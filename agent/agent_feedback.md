@@ -920,3 +920,6 @@ The task spec's suggested MAIN smoke fixture `maintainer/live_note.md` produced 
 ### 2026-10-22_18-54 planner_FlashNext ses_e9b95111affe0iVT7mWWG732Rx
 Two block_transfer WRITE calls failed because I gave a mid-line SUBSTRING as `endMarker` (anchors are line PREFIXES only); the error's "closest lines" hints listed unrelated lines, costing a call to recover — for a single-line append inside a long line, use `edit` with an exact oldString instead.
 
+### 2026-10-22_19-45 planner_FlashNext ses_e9b75d138ffepge05jIQDjcRnU
+block_transfer WRITE with line-number anchors silently rewrites whatever span the (mistyped) numbers name: this session slipped 3 times (36/44 for 236/244, 43 for 243, and a 4-line span vs 5-line source leaving an orphan comment line) in the clone smoke file; recovery each time was an immediate read-back + `git checkout -- <file>` — re-grep the exact span immediately before every line-number WRITE (MEM-0129), prefer marker anchors for long files.
+

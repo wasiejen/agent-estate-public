@@ -34,10 +34,28 @@ for (const p of [".opencode/tools/block_transfer.ts",
   ".opencode/plugin/tests/ok.smoke.mjs", "agent/handover/handover_task_to_planner.md",
   "loop/autorun-x/loop_log.md", "TODO.md", "agent/knowledge/x/y.md", "agent/memory/r/m.md",
   "agent/readme/repo_overview.md", "agent/scripts/git/port_sync.cjs"]) ck("take-main: " + p, PS.isTakeMain(p));
-ck("probes NOT take-main (branch-adapted)", !PS.isTakeMain(".opencode/plugin/probes/handover_probe.mjs"));
+ck("probes take MAIN (Rule A: patch repoints its v1 refs)", PS.isTakeMain(".opencode/plugin/probes/handover_probe.mjs"));
 for (const p of ["TODO.md.bak", "agent/handovers/x.md", ".opencode/plugin/x.ts", ".opencode/plugins/tests/a.smoke.mjs", "maintainer/priority.md"]) ck("not-take-main: " + p, !PS.isTakeMain(p));
 ck("classify config", PS.classify("opencode.jsonc") === "config");
-ck("classify probe = config (kept branch-local)", PS.classify(".opencode/plugin/probes/handover_probe.mjs") === "config");
+ck("classify probe = take-main (Rule A)", PS.classify(".opencode/plugin/probes/handover_probe.mjs") === "take-main");
+ck("patch repoints v1 plugin refs (incl. subdir rel)", (() => {
+  const s = 'const A = path.join(R, ".opencode", "plugin", "ctx_watchdog.ts");\nconst B = path.join(R, ".opencode", "plugin", "deactivated", "compact_memory_v1.ts");\n';
+  const p = PS.patchProbeImports(s);
+  return p.sites.length === 2 && p.sites.includes("ctx_watchdog.ts") && p.sites.includes("deactivated/compact_memory_v1.ts") &&
+    p.text.includes('".opencode", "plugin-unported-v1", "ctx_watchdog.ts"') &&
+    p.text.includes('".opencode", "plugin-unported-v1", "deactivated", "compact_memory_v1.ts"');
+})());
+ck("patch leaves keep-dirs and non-plugin roots alone", (() => {
+  const s = 'path.join(R, ".opencode", "plugin", "tests", "helper.ts"); path.join(R, ".opencode", "plugins", "x.ts"); path.join(R, ".opencode", "plugin", "probes", "handover_probe.mjs");';
+  const p = PS.patchProbeImports(s);
+  return p.sites.length === 0 && p.text === s;
+})());
+ck("patch is idempotent", (() => {
+  const s = 'path.join(R, ".opencode", "plugin-unported-v1", "ctx_watchdog.ts");';
+  const p = PS.patchProbeImports(s + "\n" + 'path.join(R, ".opencode", "plugin", "ctx_watchdog.ts");');
+  const once = p.text;
+  return p.sites.length === 1 && PS.patchProbeImports(once).sites.length === 0;
+})());
 ck("classify take-main", PS.classify("agent/handover/handover_task_to_planner.md") === "take-main");
 ck("classify normal", PS.classify("README.md") === "normal");
 ck("normPath windows", PS.isTakeMain(PS.normPath(".opencode\\tools\\x.ts")) && PS.normPath("a\\b.md") === "a/b.md");
@@ -76,13 +94,14 @@ function buildPair() {
   wf(DST, "README.md", "line1\nline2\nline3 clone\n");
   wf(DST, ".opencode/plugins/tests/a.smoke.mjs", 'console.log("SMOKE: ALL PASS");\n');
   wf(DST, ".opencode/plugin-unported-v1/keepme.ts", "unported\n");
+  wf(DST, ".opencode/plugin/probes/handover_probe.mjs", 'console.log("PROBE handover: 1/1 PASS"); // clone-side tweak\n');
   commit(DST, "clone side");
   wf(SRC, ".opencode/tools/block_transfer.ts", "main tool new\n");
   wf(SRC, "agent/handover/handover_task_to_planner.md", "main handover\n");
   wf(SRC, "opencode.jsonc", '{"host":"main","v1":true}\n');
   wf(SRC, "README.md", "line1 main\nline2\nline3\n");
   wf(SRC, ".opencode/plugin/x.ts", "export const stray = 1;\n");
-  wf(SRC, ".opencode/plugin/probes/handover_probe.mjs", 'console.log("PROBE handover: 2/2 PASS");\n');
+  wf(SRC, ".opencode/plugin/probes/handover_probe.mjs", 'const P = [".opencode", "plugin", "ctx_watchdog.ts"];\nconsole.log("FAIL [s99] surfacing pin");\nconsole.log("PROBE handover: 2/2 PASS");\n');
   wf(SRC, ".opencode/plugin/tests/fail.smoke.mjs", "process.exit(1);\n");
   commit(SRC, "main side");
   return { cfg: '{"host":"clone","v2":true}\n', cloneTip: head(DST), mainTip: head(SRC) };
@@ -100,6 +119,8 @@ for (const p of [".opencode/tools/block_transfer.ts", "agent/handover/handover_t
 ck("dry README auto-merges (not in conflict set)", !r.out.includes("conflict: README.md"));
 ck("dry plan take-main", r.out.includes("plan: .opencode/tools/block_transfer.ts -> take MAIN (--theirs)"));
 ck("dry plan config line", r.out.includes("keep branch-local (host-owned config)"));
+ck("dry prints the probe patch preview", r.out.includes("would: patch probe imports: 1 site(s) -> .opencode/plugin-unported-v1/ [ctx_watchdog.ts]"));
+ck("dry prints probe take-main plan", r.out.includes("plan: .opencode/plugin/probes/handover_probe.mjs -> take MAIN (--theirs)"));
 ck("dry guard plan line", r.out.includes("plan: .opencode/plugin/x.ts -> discovery guard: move -> " + PS.guardTarget(".opencode/plugin/x.ts")));
 ck("dry guard skips plugin .ts already in the clone", !r.out.includes("plan: .opencode/plugin/base_both.ts"));
 ck("dry prints commands", r.out.includes("would: git -C " + DST + " merge --no-commit FETCH_HEAD") && r.out.includes("--theirs"));
@@ -129,6 +150,8 @@ ck("apply README auto-merged both sides", (() => { const s = rf(DST, "README.md"
 ck("apply staged state present", dirty(DST) !== "" && dirty(DST).includes(".opencode/tools/block_transfer.ts"));
 ck("apply main tree untouched", dirty(SRC) === "" && head(SRC) === MAIN_TIP);
 ck("apply main-tree guard line", r.out.includes("main-tree: unchanged (fetch-source only)"));
+ck("apply patch line printed", r.out.includes("patch: probe imports repointed") || r.out.includes("patch: probe imports: already branch-repointed"));
+ck("apply patched probe in the tree", (() => { const s = rf(DST, ".opencode/plugin/probes/handover_probe.mjs"); return s !== null && s.includes('".opencode", "plugin-unported-v1", "ctx_watchdog.ts"') && !s.includes('".opencode", "plugin", "ctx_watchdog.ts"'); })());
 git(["merge", "--abort"], DST); // clear the staged merge before the FAIL scenario
 ck("C cleanup abort restored the clone (clean + HEAD back)", dirty(DST) === "" && head(DST) === CLONE_TIP && rf(DST, ".opencode/tools/block_transfer.ts") === "clone tool v2\n");
 
@@ -137,6 +160,7 @@ r = runScript(DRY.concat(["--apply"])); dbg("D apply", r);
 ck("fail exit 1", r.code === 1);
 ck("gate FAIL printed", r.out.includes("gate: FAIL"));
 ck("gate probe PASS", r.out.includes("gate probe: PASS"));
+ck("gate surfaces probe FAIL lines", r.out.includes("failing checks: FAIL [s99] surfacing pin"));
 ck("gate v1 ok smoke PASS", r.out.includes("gate v1 ok.smoke.mjs: PASS"));
 ck("gate v1 fail smoke FAIL", r.out.includes("gate v1 fail.smoke.mjs: FAIL"));
 ck("gate v2 bun smoke PASS", r.out.includes("gate v2 a.smoke.mjs: PASS"));
@@ -152,6 +176,19 @@ ck("abort: stray plugin file gone", rf(DST, ".opencode/plugin/x.ts") === null &&
 ck("abort: v2 estate intact", rf(DST, ".opencode/plugins/tests/a.smoke.mjs") !== null && rf(DST, ".opencode/plugin-unported-v1/keepme.ts") === "unported\n");
 ck("abort: pre-existing plugin .ts intact", rf(DST, ".opencode/plugin/base_both.ts") === "base plugin file in BOTH trees\n");
 ck("abort: main tree untouched", dirty(SRC) === "" && head(SRC) === MAIN_TIP);
+
+// ---------- E. unresolved conflict (theirs DELETED a take-main path) -> assert + abort ----------
+const P2 = buildPair();
+wf(DST, "README.md", "line1 clone-conflict\nline2\nline3 clone\n");
+commit(DST, "clone rewrites README line1");
+const T2 = head(DST);
+r = runScript(DRY.concat(["--apply"])); dbg("E apply", r);
+ck("E exit 1", r.code === 1);
+ck("E manual-conflict line", r.out.includes("manual: README.md left unmerged for a human 3-way"));
+ck("E unmerged-left line", r.out.includes("unmerged-left: README.md"));
+ck("E abort state line", r.out.includes("state: merge aborted, nothing applied (conflict markers would survive the gate)"));
+ck("E gate never ran on a half-marked tree", !r.out.includes("gate probe:"));
+ck("E clone restored (clean + HEAD back + README back)", dirty(DST) === "" && head(DST) === T2 && rf(DST, "README.md") === "line1 clone-conflict\nline2\nline3 clone\n");
 
 console.log("checks: " + (pass + fail) + " pass=" + pass + " fail=" + fail);
 if (fail === 0) console.log("SELFTEST: ALL PASS");

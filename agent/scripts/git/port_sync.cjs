@@ -28,26 +28,40 @@ const MAIN_BRANCH = "main", CLONE_BRANCH = "migration";
 const TSGO = process.env.TSGO_EXE || "home/Repos/opencode/node_modules/.bin/tsgo.exe";
 
 const TAKE_MAIN = [
-  ".opencode/tools/", ".opencode/plugin/tests/",
+  ".opencode/tools/", ".opencode/plugin/tests/", ".opencode/plugin/probes/",
   "agent/handover/", "loop/", "TODO.md",
   "agent/knowledge/", "agent/memory/", "agent/readme/", "agent/scripts/",
 ];
 const CONFIG_PATH = "opencode.jsonc";
-// The clone's probe is BRANCH-ADAPTED (TODO #141: the v1-module repoint to
-// `.opencode/plugin-unported-v1/` + the gauge.mjs shim + clone-side pins). MAIN's copy
-// imports `.opencode/plugin/*.ts`, which does not exist in this tree -> ERR_MODULE_NOT_FOUND
-// on stderr only (the probe step then looks like "FAIL | (no output)"). Keep the branch's
-// own probe; MAIN-side probe checks must be ported deliberately, so print the drift.
-const BRANCH_ADAPTED = [".opencode/plugin/probes/handover_probe.mjs"];
+// Rule (A) (maintainer ruling 2026-10-23): the probe ALSO lands from MAIN, then the
+// post-merge patch repoints its v1 plugin imports into `.opencode/plugin-unported-v1/`
+// (the TODO #141 repoint), so gate and estate stay ONE generation and MAIN-side probe
+// drift stops accumulating. Sub-dirs that legitimately live under `.opencode/plugin/`
+// (probes/tests/tools/scripts) are NOT repointed.
+const PROBE_FILE = ".opencode/plugin/probes/handover_probe.mjs";
+const KEEP_UNDER_PLUGIN = ["probes/", "tests/", "tools/", "scripts/"];
 const PLUGIN_DIR = ".opencode/plugin/", UNPORTED_DIR = ".opencode/plugin-unported-v1/";
 
 // ---- pure rule layer (exported for the selftest) ----
 function normPath(p) { return String(p).split("\\").join("/"); }
 function isTakeMain(p) { return TAKE_MAIN.some((pre) => (pre.endsWith("/") ? p.startsWith(pre) : p === pre)); }
-function classify(p) { return p === CONFIG_PATH || BRANCH_ADAPTED.includes(p) ? "config" : isTakeMain(p) ? "take-main" : "normal"; }
-function keepLabel(p) { return p === CONFIG_PATH ? "config: kept branch-local (host-owned)" : "keep: kept branch-local (branch-adapted pins)"; }
+function classify(p) { return p === CONFIG_PATH ? "config" : isTakeMain(p) ? "take-main" : "normal"; }
+function keepLabel(p) { return "config: kept branch-local (host-owned)"; }
 function isGuardMove(p) { return p.startsWith(PLUGIN_DIR) && p.endsWith(".ts"); }
 function guardTarget(p) { return UNPORTED_DIR + p.slice(PLUGIN_DIR.length); }
+// Rule (A) patch: the probe arrives with MAIN's import paths (`".opencode", "plugin",
+// "<rel>.ts"` path.join segments). Repoint every such ref whose rel is NOT under a
+// keep-dir to `plugin-unported-v1`, matching where the discovery guard parks v1 plugins.
+function patchProbeImports(src, keep = KEEP_UNDER_PLUGIN) {
+  const sites = [];
+  const text = String(src).replace(/"\.opencode",\s*"plugin",\s*((?:"[^"]+",\s*)*)("[^"]+\.ts")/g, (m, mid, last) => {
+    const rel = (mid ? (mid.match(/"([^"]*)"/g) || []).map(s => s.slice(1, -1)).join("/") + "/" : "") + last.slice(1, -1);
+    if (keep.some(d => rel.startsWith(d))) return m;
+    sites.push(rel);
+    return '".opencode", "plugin-unported-v1", ' + (mid || "") + last;
+  });
+  return { text, sites };
+}
 function parseMergeTree(out) {
   const lines = String(out).split("\n");
   const names = [];
@@ -138,7 +152,9 @@ function runGate(cloneDir) {
   const probe = path.join(cloneDir, ".opencode/plugin/probes/handover_probe.mjs");
   if (fs.existsSync(probe)) {
     const r = run("node", [".opencode/plugin/probes/handover_probe.mjs"], cloneDir);
-    step("probe", r.status === 0 && /PROBE handover: (\d+)\/\1 PASS/.test(r.stdout || ""), tailLine((r.stdout || "") + "\n" + (r.stderr || "")));
+    const outAll = (r.stdout || "") + "\n" + (r.stderr || "");
+    const failed = (r.stdout || "").split("\n").filter(l => /^FAIL/.test(l)).slice(0, 3);
+    step("probe", r.status === 0 && /PROBE handover: (\d+)\/\1 PASS/.test(outAll), (failed.length ? "failing checks: " + failed.join(" || ") + " || " : "") + tailLine(outAll));
   } else step("probe", null, "missing");
   const bunExe = resolveBun();
   for (const [dirLabel, tag, args, needMarker] of [
@@ -204,6 +220,11 @@ function main() {
       }
     }
     for (const p of guard) console.log("would: mv " + path.join(o.clone, ...p.split("/")) + " -> " + path.join(o.clone, ...guardTarget(p).split("/")));
+    const pbin = gitAt(o.clone, ["cat-file", "blob", "FETCH_HEAD:" + PROBE_FILE]);
+    if (pbin.status === 0) {
+      const pv = patchProbeImports(pbin.stdout);
+      console.log("would: patch probe imports: " + pv.sites.length + " site(s) -> " + UNPORTED_DIR + (pv.sites.length ? " [" + pv.sites.slice(0, 6).join(", ") + "]" : ""));
+    } else console.log("would: patch probe imports: n/a (no probe in FETCH_HEAD)");
     console.log("would: gate probe + node smokes + bun smokes + tsgo typecheck (skipped by --no-gate)");
     return printProof(pre, { main: snapshot(o.main), clone: snapshot(o.clone) }, "dry-run") ? process.exit(0) : process.exit(1);
   }
@@ -234,6 +255,23 @@ function main() {
     execPrint("git", ["-C", o.clone, "add", "--", guardTarget(p)]);
     console.log("discovery guard: moved " + p + " -> " + guardTarget(p) + " (v2 discovery root .opencode/plugin)");
   }
+  const pw = path.join(o.clone, ...PROBE_FILE.split("/"));
+  if (fs.existsSync(pw)) {
+    const src = fs.readFileSync(pw, "utf8");
+    const pv = patchProbeImports(src);
+    if (pv.sites.length) {
+      fs.writeFileSync(pw, pv.text);
+      execPrint("git", ["-C", o.clone, "add", "--", PROBE_FILE]);
+      console.log("patch: probe imports repointed " + pv.sites.length + " site(s) -> " + UNPORTED_DIR + " [" + pv.sites.slice(0, 6).join(", ") + "]");
+    } else console.log("patch: probe imports: already branch-repointed (0 site(s))");
+  }
+  const left = gitAt(o.clone, ["diff", "--name-only", "--diff-filter=U"]).stdout.split("\n").map(x => x.trim()).filter(Boolean);
+  if (left.length) {
+    for (const p of left) console.log("unmerged-left: " + p);
+    console.log("state: merge aborted, nothing applied (conflict markers would survive the gate)");
+    execPrint("git", ["-C", o.clone, "merge", "--abort"]);
+    process.exit(1);
+  }
   const gfail = o.gate ? runGate(o.clone) : (console.log("gate: skipped (--no-gate)"), 0);
   if (gfail > 0) {
     console.log("gate: FAIL (" + gfail + " suite step(s))");
@@ -241,7 +279,6 @@ function main() {
     console.log("state: merge aborted, nothing applied");
     process.exit(1);
   }
-  if (unmergedNormal > 0) console.log("note: " + unmergedNormal + " normal-conflict file(s) left unmerged (staged state kept)");
   console.log("gate: PASS");
   console.log("merge staged, not committed");
   if (gitAt(o.main, ["status", "--porcelain"]).stdout.trim() !== "" || pre.main.head !== gitAt(o.main, ["rev-parse", "HEAD"]).stdout.trim()) {
@@ -250,4 +287,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { normPath, isTakeMain, classify, isGuardMove, guardTarget, parseMergeTree, mergeTreeOid, parseArgs, planLines, PLUGIN_DIR, UNPORTED_DIR, TAKE_MAIN, CONFIG_PATH };
+module.exports = { normPath, isTakeMain, classify, isGuardMove, guardTarget, parseMergeTree, mergeTreeOid, parseArgs, planLines, patchProbeImports, PLUGIN_DIR, UNPORTED_DIR, KEEP_UNDER_PLUGIN, TAKE_MAIN, CONFIG_PATH, PROBE_FILE };

@@ -7103,8 +7103,9 @@ n28++;
 // factory (the probe's sandbox proj has NO opencode.jsonc — the FALLBACK
 // roots apply). NEW surface: the BASH `command`-string redirect — mapped
 // POSIX spans substituted in place (same 1:1 resolver, same kind=redirect
-// line); unmapped spans stay byte-identical (fail-closed — the
-// out-of-sandbox note stays for them).
+// line); unmapped spans stay byte-identical (fail-closed). #138 (2026-10-22)
+// NOTE: the out-of-sandbox note NO LONGER fires for a bash `command` span —
+// the note + anomaly scan the TYPED path fields only (pins 303/304 repinned).
 let n29 = 297;
 
 // 297 — pure: /tmp/<rest> + /var/tmp/<rest> → SCRATCHPAD_ROOT/<rest>
@@ -7212,9 +7213,11 @@ n29++;
   n29++;
 }
 
-// 303 — e2e BASH unmapped span (/etc/hostname) → NOT mutated
-//      (byte-identical) + NO kind=redirect line + the out-of-sandbox NOTE
-//      fires (as today)
+// 303 — e2e BASH unmapped span (/etc/hostname) → NOT mutated (byte-
+//      identical) + NO kind=redirect line + NO path verdict — #138
+//      (2026-10-22) repurpose: the note + anomaly scan the TYPED path
+//      fields only; a bash `command` carries none, so the old "the NOTE
+//      fires (as today)" half is flipped BY DESIGN
 {
   const a = { command: "cat /etc/hostname" };
   const aBefore = JSON.stringify(a);
@@ -7224,8 +7227,8 @@ n29++;
   check(
     String(n29),
     "S29",
-    "hook #102 bash unmapped span → NOT mutated (byte-identical) + NO kind=redirect line + the out-of-sandbox NOTE fires (as today)",
-    JSON.stringify(a) === aBefore && !nl.some((x) => x.includes("kind=redirect")) && nl.some((x) => x.split(" | ")[7] === "out-of-sandbox"),
+    "hook #102 bash unmapped span → NOT mutated (byte-identical) + NO kind=redirect line + NO out-of-sandbox/path-anomaly line (#138: bash free text is not a path candidate)",
+    JSON.stringify(a) === aBefore && !nl.some((x) => x.includes("kind=redirect")) && !nl.some((x) => x.split(" | ")[7] === "out-of-sandbox") && !nl.some((x) => x.split(" | ")[7] === "path-anomaly"),
     JSON.stringify(nl),
   );
   n29++;
@@ -7233,9 +7236,10 @@ n29++;
 
 // 304 — e2e BASH MIXED command (one mapped /tmp span + one unmapped /etc
 //      span) → the mapped span substituted, the unmapped span left
-//      byte-identical + exactly ONE kind=redirect line + the
-//      out-of-sandbox NOTE fires (the note is recomputed on the
-//      EFFECTIVE args — it fires for the unmapped span)
+//      byte-identical + exactly ONE kind=redirect line + NO path verdict —
+//      #138 (2026-10-22) repurpose: the note recomputed on the EFFECTIVE
+//      args scans the TYPED path-field text (empty for a bash call), so
+//      the unmapped span no longer fires the note
 {
   const a = { command: "cat /tmp/s29-m.txt && cat /etc/s29-u" };
   const aBefore = JSON.stringify(a);
@@ -7246,11 +7250,11 @@ n29++;
   check(
     String(n29),
     "S29",
-    "hook #102 bash mixed (mapped /tmp + unmapped /etc) → mapped span substituted, unmapped byte-identical + ONE kind=redirect line + out-of-sandbox NOTE fires",
+    "hook #102 bash mixed (mapped /tmp + unmapped /etc) → mapped span substituted, unmapped byte-identical + ONE kind=redirect line + NO out-of-sandbox line (#138: the bash command string is free text)",
     a.command === `cat ${S}/s29-m.txt && cat /etc/s29-u` && JSON.stringify(a) !== aBefore &&
       nl.filter((x) => x.includes("kind=redirect")).length === 1 &&
       nl.some((x) => x.includes(ioCore.flattenField(`kind=redirect tool=bash arg=command orig=/tmp/s29-m.txt value=${S}/s29-m.txt`))) &&
-      nl.some((x) => x.split(" | ")[7] === "out-of-sandbox"),
+      !nl.some((x) => x.split(" | ")[7] === "out-of-sandbox"),
     JSON.stringify({ after: a.command, nl }),
   );
   n29++;

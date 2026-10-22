@@ -645,18 +645,33 @@ export function resolveRedirect(span: string, roots: string[]): string | null {
 // the READ channel owns the pair line for this arg (a read with a string
 // filePath — the R1 read-scope pair channel logs it with the gate evidence;
 // the observation channel must not double-log the same pair).
+// #142 + #138 (2026-10-22): the (d) path-anomaly + (e) out-of-sandbox note
+// scan the TOOL'S PATH FIELDS ONLY (TODO #138: a path-looking substring inside
+// FREE TEXT — a bash `command`, an edit `newString`, a `write` `content` — is
+// NOT a path candidate and produces NO path verdict) + the allow-list roots
+// join the note check (TODO #142: a span under a config-`allow`ed root logs
+// NO note). `pathScanText` = the plugin's joined string values of the call's
+// typed path fields (its REDIRECT_PATH_FIELDS table); null = the full arg
+// string (the R1 direct-call form). `extraRoots` = the plugin's allowed roots
+// (the R8 set). BOTH params default to the previous behavior — a direct
+// 4-arg/2-arg call is byte-identical (the probe's unit forms stay green).
+// The pair (b)/(c) + dense (a) + numword classes keep scanning the full arg
+// string — only the two PATH channels narrow.
 export function observeArg(
   arg: string,
   map: NumwordMap | null,
   workspaceRoot: string | null,
   skipPairs = false,
+  extraRoots: string[] = [],
+  pathScanText: string | null = null,
 ): Observation[] {
   const s = typeof arg === "string" ? arg : "";
   if (s === "") return [];
+  const pt = pathScanText === null ? s : pathScanText;
   const obs = [
     ...(skipPairs ? [] : observePairs(s, map)),
-    ...observePathAnomaly(s),
-    ...observeSandbox(s, workspaceRoot),
+    ...observePathAnomaly(pt),
+    ...observeSandbox(pt, workspaceRoot, extraRoots),
     ...observeDense(s),
     ...observeNumword(s, map),
   ];

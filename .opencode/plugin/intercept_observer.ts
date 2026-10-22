@@ -591,6 +591,29 @@ const REDIRECT_PATH_FIELDS: Record<string, string[]> = {
   block_transfer: ["srcFile", "dstFile"],
 };
 
+// #142 + #138 (2026-10-22): the observation PATH-channel scan text — the joined
+// string values of the call's TYPED path fields (this table). The note +
+// anomaly channels scan THIS text, never the full args string: a path-looking
+// substring inside free text (bash `command`, `content`, `oldString`/
+// `newString`) is not a path candidate (#138), and the note check receives
+// the allow-list roots so a nested span under a config-`allow`ed root logs
+// nothing (#142). A tool with no path fields (bash, glob, grep, …) yields
+// "" → zero path verdicts. Joined with a single space (the span grammars are
+// whitespace-bounded, so one field can never merge into the next).
+// Call-site forms: the INITIAL scan uses the ORIGINAL args (captured before
+// any channel mutates them — the log's field 5 is the original arg); the
+// redirect recompute re-reads the EFFECTIVE args (a redirected field lands
+// under an allowed root). Never throws.
+function pathFieldText(toolName: string, args: unknown): string {
+  if (args == null || typeof args !== "object") return "";
+  const parts: string[] = [];
+  for (const field of REDIRECT_PATH_FIELDS[toolName] ?? []) {
+    const raw = (args as Record<string, unknown>)[field];
+    if (typeof raw === "string" && raw.trim() !== "") parts.push(raw);
+  }
+  return parts.join(" ");
+}
+
 function runRedirect(output: { args?: unknown }, tool: string): { lines: Observation[]; fired: boolean } {
   const args = output?.args;
   if (args == null || typeof args !== "object") return { lines: [], fired: false };
@@ -1390,6 +1413,9 @@ async function onToolBefore(
     // captured BEFORE any read channel may mutate output.args (field 5 is
     // the ORIGINAL arg — what the model asked for)
     const argStr = argsToString(output?.args);
+    // #142 + #138: the observation path-channel text — the TYPED path fields of
+    // the ORIGINAL args (before any channel mutation), NOT the full string.
+    const pathText = pathFieldText(tool, output?.args);
     // CORRECTION-CHANNEL OWNERSHIP (no double-logging — observeArg skips the
     // pair class for a call whose channel owns the pair lines):
     //   read + string filePath            → the read pair channel (R1)
@@ -1430,7 +1456,7 @@ async function onToolBefore(
     else if (globGrepOwned) channel = runPairGlobGrep(output); // R3 (2026-09-26)
     else if (writeOwned) channel = runPairWrite(output, tool);
     else if (bashOwned) channel = [...runGitRefBash(output), ...runQuotedBash(output)]; // R3: the quoted-form channel (after the ref channel — the effective command)
-    let obs = argStr === "" ? [] : observeArg(argStr, map, dir || null, skipPairs);
+    let obs = argStr === "" ? [] : observeArg(argStr, map, dir || null, skipPairs, allowedRoots, pathText);
     if (pairOwned) {
       const f = runFuzzyRead(output); // read-scope ONLY
       if (f !== null) fuzzy = [f];
@@ -1456,7 +1482,9 @@ async function onToolBefore(
     // mapped POSIX spans of the bash command — AFTER the R1/R2 fuzzy
     // channels (a path fuzzy-resolved in-sandbox is never redirected);
     // FAIL-CLOSED when no 1:1 mapping (no mutation; the out-of-sandbox
-    // note behaves exactly as today).
+    // note behaves exactly as today — #138 2026-10-22: the note is now
+    // FIELD-SCOPED, so an UNmapped span inside bash free text logs nothing
+    // and an unmapped TYPED path field still does).
     // When a redirect fires, the out-of-sandbox NOTE (observation e) is
     // recomputed on the EFFECTIVE args — the redirected field no longer
     // fires it (an unredirected span still does; the cap holds: ≤1 drop,
@@ -1470,8 +1498,10 @@ async function onToolBefore(
       // the allowed roots join the note check — a redirected field lands
       // under an allowed root and no longer fires the note (an
       // UNredirected out-of-sandbox span still does; the cap holds: ≤1
-      // drop, ≤1 re-add)
-      obs.push(...observeSandbox(argsToString(output?.args), dir || null, allowedRoots));
+      // drop, ≤1 re-add). #142 + #138: the recompute scans the EFFECTIVE
+      // TYPED-path-field text (the same field text as the initial scan,
+      // re-read after the mutation), not the full args string.
+      obs.push(...observeSandbox(pathFieldText(tool, output?.args), dir || null, allowedRoots));
       storeNote(str(input?.callID), redirect.map((o) => o.evidence).join("; "));
     }
     // R6 (2026-09-25) + (2) (2026-09-25, #95 sub-item 2): the edit channel

@@ -863,3 +863,6 @@ A block_transfer WRITE reported `Replaced 1 line ... with 24 line(s)` SUCCESS ye
 ### 2026-10-22_03-17 worker_FlashNext ses_e9ee33291ffeTzq5RYmLfksD0x
 block_transfer WRITE with a `regions` LIST and a single `text` writes the SAME text into EVERY region (TODO.md #142/#138 status pair got duplicated into both slots and needed a repair script): the tool should reject N-regions-with-one-text, or accept per-region text.
 
+### 2026-10-22_03-26 planner_FlashNext ses_e9eeb0952ffeP6BY7SnI5j2Yzs
+block_transfer WRITE with a `regions` list + ONE `text` writes the SAME text into EVERY region (my 2-region NAP call duplicated a 9-line block; repaired with sed) — and a REPLACE from an un-inspected buffer (the auto `last_write`) silently replaced the archive header + one archive line; both landed as GREEN-looking feedback lines.
+

@@ -89,10 +89,11 @@
 //     the name-marker parse — the #115 rule), the same carrier the ctx gauge
 //     uses. Unresolvable → NO detector fire (fail-open, clause (2)).
 //   (g) The plugin receives NO factory options in v2 (auto-discovery); the
-//     test levers (`tickMs`, `maxLogBytes`, `logTailBytes`) ride `ctx
-//     .options` (`PluginOptions = Readonly<Record<string, any>>` — fork
-//     plugin/src/options.ts:1). Absent → the v1 defaults (5000 / 20MiB /
-//     2MiB), so live behavior stays unchanged.
+//     test levers (`tickMs`, `maxLogBytes`, `logTailBytes`, `limitStopIdleMs`)
+//     ride `ctx.options` (`PluginOptions = Readonly<Record<string, any>>` —
+//     fork plugin/src/options.ts:1). Absent -> the v1 defaults (5000 / 20MiB
+//     / 2MiB / 60_000), so live behavior stays unchanged. `runTick()` is the
+//     smoke's deterministic single-tick export (the live host NEVER calls it).
 //
 // STILL PENDING (unchanged): LIVE v2-host activation waits for the maintainer
 // 's host runs; registration/config = maintainer domain.
@@ -631,6 +632,7 @@ function renameTrigger(triggerPath: string): void {
 }
 
 let spawnInFlight = false;
+let limitStopIdleMs = LIMIT_STOP_IDLE_MS; // clause (3) threshold — a ctx.options test lever (live default 60_000)
 
 async function checkSpawnTrigger(): Promise<void> {
   if (logPath === "") return;
@@ -813,7 +815,7 @@ async function limitStopCheck(): Promise<void> {
         if (typeof window !== "number" || !Number.isFinite(window) || window <= 0) continue; // (2) unresolvable -> NO fire
         if (!(w.lastTokenTotal >= LIMIT_STOP_WINDOW_RATIO * window)) continue; // (2)
         if (w.status !== "idle") continue; // (3)
-        if (w.lastActivityAt == null || now - w.lastActivityAt < LIMIT_STOP_IDLE_MS) continue; // (3)
+        if (w.lastActivityAt == null || now - w.lastActivityAt < limitStopIdleMs) continue; // (3)
         if (w.lastCompactAt != null && (w.lastFinishAt == null || w.lastCompactAt >= w.lastFinishAt)) continue; // (4)
         const first = w.firstAgent;
         const inScope =
@@ -968,6 +970,12 @@ async function tick(): Promise<void> {
   }
 }
 
+// The smoke's deterministic tick lever (the tickMs pattern): ONE tick, called
+// directly instead of waiting on the interval. The live host NEVER calls it.
+export async function runTick(): Promise<void> {
+  await tick();
+}
+
 // ------------------------------------------------------------------ init legs
 
 // #80: the running plugin source's 8-char sha256 prefix — the `surface=`
@@ -1052,6 +1060,8 @@ const plugin: Plugin.Plugin = {
     const regContext = await ctx.session.hook("context", (event) => onContextDraft(event));
     const stream = ctx.event != null && typeof ctx.event.subscribe === "function" ? ctx.event.subscribe() : undefined;
     if (stream != null) watchEvents(stream, stopped);
+    const idleOpt = options.limitStopIdleMs;
+    if (typeof idleOpt === "number" && Number.isFinite(idleOpt) && idleOpt >= 0) limitStopIdleMs = idleOpt;
     const tickOpt = options.tickMs;
     const tickMs = typeof tickOpt === "number" && Number.isFinite(tickOpt) && tickOpt > 0 ? tickOpt : TICK_MS_DEFAULT;
     if (!tickTimer) {

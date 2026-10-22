@@ -881,3 +881,9 @@ The unit-3a spec's DO-NOT-touch line ("MAIN repo = only the handover summary wri
 ### 2026-10-22_06-52 planner_FlashNext ses_e9e860260ffeKO6KiJbGss5pwy
 The 3b delegation launch was DENIED host-side ("The user rejected permission to use this specific tool call") with a long spec-echoing prompt; the clone was untouched (never started) and a second launch with a short spec-pointer prompt ran clean — delegation prompts should stay short and point at the committed spec file.
 
+### 2026-10-22_07-32 worker_FlashNext ses_e9dfde7d5ffeQ4Ya0runeu8s04
+block_transfer REPLACE/WRITE with bufferName:"last_write" silently pasted a STALE foreign buffer (from an earlier session) into my new core module and corrupted 19 lines — request last_write only right after your own WRITE, or pass the text inline; repair cost ≈ 6 calls. Second: a single bash heredoc append of ~4.5 KB was TRUNCATED mid-line with only a here-document warning — keep heredoc appends under ~4 KB per call (or use write/edit), and re-check the file tail after any append.
+
+### 2026-10-22_07-36 planner_FlashNext ses_e9e0be707ffeKYt7BzTQjda5e9
+block_transfer buffer aliasing cost me 2 wasted calls: a COPY(text) into 'default' was then CLOBBERED by a following CUT with no bufferName (both land on 'default'), and the same-name reuse pattern silently swapped staged content — rule: when assembling multi-part content, give every stage its own bufferName, and never reuse 'default' across ops in one chain (worker filed the `last_write` variant of the same trap 2026-10-22).
+

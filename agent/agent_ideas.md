@@ -28,3 +28,10 @@ state_snapshot's ## markers digest is capped (20 lines) and the ready-made sweep
 ### 2026-10-22_05-23 planner_FlashNext ses_e9e860260ffeKO6KiJbGss5pwy
 An aggregate clone-gate runner script (probe + the 12 node smokes + the 2 bun v2 smokes + tsgo, printing `green=N red=0` per unit) — the worker hand-rolled a scratchpad runner to measure the 15-unit clone gate; a committed `agent/scripts/` runner would save calls in every future clone unit.
 
+
+### 2026-10-22 (planner-25, ITER-25 maintenance pass) review note
+- 00-36 (intercept.log per-event filter helper) → filed as TODO #145.
+- 04-38 (markers digest doc-noise) → plan24 landed LIVE-first ordering only; the
+  sweep-filter half IS being implemented this pass (marker unit, plan25).
+- 05-23 (aggregate clone-gate runner) → NOT filed: LOW value now (the §4 clone
+  wave is COMPLETE; recorded in the NAP queue).

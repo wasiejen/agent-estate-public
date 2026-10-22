@@ -896,3 +896,6 @@ block_transfer REPLACE silently substituted a STALE `default` buffer for the sup
 ### 2026-10-22_10-24 planner_FlashNext ses_e9de38db2ffeuql8EJDBx23MkK
 spec-authoring friction (4c spec, planner-18): a verified-facts line claimed the clone 4b file (`plugins/context_trim_v2.ts`) carries a backend chain — it does NOT (4b rides the gauge core readGauge); the worker found the real chain only in MAIN v1 `tools/context_trim.ts` ~115-166 — when citing a pattern source in a spec, name the file that ACTUALLY contains it and grep-verify before writing.
 
+### 2026-10-22_11-01 worker_FlashNext ses_e9d393b49ffey7H784Nv2cXXPD
+The spec anchored the submit design-of-record at the CLONE twin, but the 2026-10-21 newline-guard requirement lives only in the MAIN twin — I had to diff MAIN vs clone to resolve the contradiction (caught before porting the wrong version).
+

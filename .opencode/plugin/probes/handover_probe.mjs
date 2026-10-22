@@ -1751,7 +1751,11 @@ class MockBunDatabase {
     MOCK_LOG.push({ op: "prepare", sql });
     return {
       get() {
-        if (String(sql).includes("tokens.total")) return { sid: "ses_fx_ok", model: JSON.stringify({ id: "probe-model-256K_MTP" }), total: 12345, output: 2345 };
+        // clone twin TODO #141 unit 2: the mass prepare is TABLE-PAIRED —
+        // the v1 form keys on tokens.total; the v2 instantiation keys on
+        // session_message (the coexisting MOCK catalog makes session_v2 win
+        // the session-row pick, so the v2 form is what goes out here).
+        if (String(sql).includes("tokens.total") || String(sql).includes("session_message")) return { sid: "ses_fx_ok", model: JSON.stringify({ id: "probe-model-256K_MTP" }), total: 12345, output: 2345 };
         return { id: "ses_fx_ok" };
       },
     };
@@ -1821,7 +1825,7 @@ const MOCK_LOG = [];
   check(
     "32",
     "S7",
-    "unit-mock bun:sqlite: adapter drives Database(path,{readonly:true,timeout:2500}) + PRAGMA exec + prepare x7 (clone twin TODO #141: table-aware session-row leg — catalog x2 -> newest x2 (session_v2 first) -> time_updated x2 -> step (tokens.total) LAST) + close; readout byte-identical",
+    "unit-mock bun:sqlite: adapter drives Database(path,{readonly:true,timeout:2500}) + PRAGMA exec + prepare x7 (clone twin TODO #141: table-aware session-row leg — catalog x2 -> newest x2 (session_v2 first) -> time_updated x2 -> step (table-PAIRED mass — the v2 instantiation, the MOCK coexisting catalog makes session_v2 win) LAST) + close; readout byte-identical",
     formatGauge(r) === "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655" && r.ok === true && r.ctx === 12345 && r.window === 256000 &&
       construct !== undefined && construct.path === FX_OK && construct.opts !== undefined && construct.opts.readonly === true && construct.opts.timeout === 2500 &&
       execs.length === 1 && execs[0].sql === "PRAGMA busy_timeout = 2500;" &&
@@ -1835,8 +1839,8 @@ const MOCK_LOG = [];
       prepares[3].sql === "SELECT id, model FROM session ORDER BY time_updated DESC LIMIT 1" &&
       prepares[4].sql === "SELECT time_updated FROM session WHERE id = ?" &&
       prepares[5].sql === "SELECT time_updated FROM session_v2 WHERE id = ?" &&
-      prepares.slice(0, 6).every((x) => !String(x.sql).includes("tokens.total")) &&
-      String(prepares[6].sql).includes("tokens.total") &&
+      prepares.slice(0, 6).every((x) => !String(x.sql).includes("session_message")) &&
+      String(prepares[6].sql).includes("session_message") &&
       closes.length === 1,
     JSON.stringify({ r, MOCK_LOG }),
   );
@@ -1848,7 +1852,7 @@ const MOCK_LOG = [];
   class MockBunNoStep extends MockBunDatabase {
     prepare(sql) {
       const s = super.prepare(sql);
-      return { get() { if (String(sql).includes("tokens.total")) return null; return { id: "ses_fx_empty" }; } };
+      return { get() { if (String(sql).includes("tokens.total") || String(sql).includes("session_message")) return null; return { id: "ses_fx_empty" }; } };
     }
   }
   setImportForTest("bun:sqlite", { Database: MockBunNoStep });

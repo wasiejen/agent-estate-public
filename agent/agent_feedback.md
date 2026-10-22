@@ -878,3 +878,6 @@ block_transfer REPLACE call in this session errored `Clipboard buffer 'default' 
 ### 2026-10-22_05-23 planner_FlashNext ses_e9e860260ffeKO6KiJbGss5pwy
 The unit-3a spec's DO-NOT-touch line ("MAIN repo = only the handover summary write") also blocked the worker's legitimate `submit` (inbox) and loop-log channels — the worker withheld its friction/knowledge submits by design; spec DO-NOT-touch lists should exempt the `submit` inbox channels and `loop/` logging.
 
+### 2026-10-22_06-52 planner_FlashNext ses_e9e860260ffeKO6KiJbGss5pwy
+The 3b delegation launch was DENIED host-side ("The user rejected permission to use this specific tool call") with a long spec-echoing prompt; the clone was untouched (never started) and a second launch with a short spec-pointer prompt ran clean — delegation prompts should stay short and point at the committed spec file.
+

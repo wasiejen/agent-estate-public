@@ -929,3 +929,9 @@ Two tool/shell friction points this session: (1) block_transfer mode REPLACE sil
 ### 2026-10-22_20-23 planner_FlashNext ses_e9b2e455dffe197VdpiExjySXS
 Two small frictions (planner-27): (1) an `edit` oldString rebuilt from a line whose read-back showed a `~` (the U+FFFD artifact in `fit()`-truncated text) can NEVER match — one wasted call; anchor on an adjacent ASCII substring instead. (2) the live pre-`60a86cf` `state_snapshot` digest printed priority.md lines under `## todo` and an unfiltered `## markers` — cost one extra grep to interpret; the tell is the injected tool description still saying "hard-capped at 60 lines" = the host tool is stale, do not debug the committed tool.
 
+### 2026-10-22_20-34 planner_FlashNext ses_e9b246abdffesGhYjB50ymiwqy
+block_transfer REPLACE with a direct `text` argument errored "Clipboard buffer 'default' is empty" instead of pointing at the right mode — I lost one call guessing the fix; a REPLACE+text call should REJECT with a teaching line naming WRITE (2026-10-22, direct planner-28).
+
+### 2026-10-22_22-19 worker_FlashNext ses_e9acefcfbffewfyOO0y7VCJsfP
+block_transfer WRITE/DELETE rejected single-line calls twice ("startMarker and endMarker are both required") — for a one-line rewrite I had to pass the same marker twice; a single-line form (or a hint naming the two-marker requirement) would save two calls per edit.
+

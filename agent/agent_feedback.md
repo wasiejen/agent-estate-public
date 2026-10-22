@@ -869,3 +869,6 @@ block_transfer WRITE with a `regions` list + ONE `text` writes the SAME text int
 ### 2026-10-22_04-07 worker_FlashNext ses_e9ebd604fffeparWJoUxnaC8DA
 block_transfer/write/edit resolved the relative path .opencode/plugin/scripts/gauge.mjs against the session CWD (main repo), not the task's target clone — the first clone edit silently landed in the MAIN repo (reverted via git checkout); cross-repo tasks must ALWAYS pass absolute clone paths to file tools.
 
+### 2026-10-22_04-28 worker_FlashNext ses_e9e9f2891ffe2dP7gkx74SGSxH
+The spec said probe sections were not expected to move (only a check-113 repin was contemplated), but the regions contract change forces probe check 307 to repin in BOTH trees (its byte-exact fan-out pin). Pin inventory for a contract change should enumerate every pin file asserting the old behavior before the run, not only the config-roots check.
+

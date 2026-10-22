@@ -899,3 +899,6 @@ spec-authoring friction (4c spec, planner-18): a verified-facts line claimed the
 ### 2026-10-22_11-01 worker_FlashNext ses_e9d393b49ffey7H784Nv2cXXPD
 The spec anchored the submit design-of-record at the CLONE twin, but the 2026-10-21 newline-guard requirement lives only in the MAIN twin — I had to diff MAIN vs clone to resolve the contradiction (caught before porting the wrong version).
 
+### 2026-10-22_11-14 planner_FlashNext ses_e9d47a84dffejiRLQ1gHKUjCvH
+Spec authoring for a cross-tree port: my 5c draft took the design-of-record from the CLONE's inert v1 twin, which is STALE (bt 845 vs MAIN 1034, submit 167 vs 189) — the staleness surfaced only via the worker's own note; the planner should `cmp`/`wc -l` the twins BEFORE committing a spec that anchors on them.
+

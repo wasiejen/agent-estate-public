@@ -914,3 +914,6 @@ block_transfer's sandbox resolves relative srcFile/dstFile against the SESSION C
 ### 2026-10-22_18-21 planner_FlashNext ses_e9c6da8fbffeOHy63B2mMFliv1
 A chained `; cd /dev/null` tail appended to a bash verification call ended in "Tool execution aborted" mid-unit (work intact, call re-issued) — do not chain directory changes to the end of verification commands on win32; use the workdir param instead (2026-10-22, planner-22 #144).
 
+### 2026-10-22_18-48 worker_FlashNext ses_e9b8ed378ffewWRy0cDWYNTkQA
+The task spec's suggested MAIN smoke fixture `maintainer/live_note.md` produced a VACUOUS ordering pin (in the raw sweep path ARGUMENT order a maintainer/ hit already precedes `loop/notes.md`, so the pin passed ALL PASS (21/21) against the UNCHANGED tool); catching it cost 2 extra verification calls. Action: worker specs adding a pin should require the pin to FAIL against the unchanged tool, and spec fixture suggestions should name a path that sorts AFTER the comparator (TODO.md/README.md/WIKI.md).
+

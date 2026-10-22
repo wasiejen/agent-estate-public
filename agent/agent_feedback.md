@@ -860,3 +860,6 @@ TODO #141 spec baseline miscount: it claimed 11 smokes 0-PASS at the clone basel
 ### 2026-10-22_02-47 planner_FlashNext ses_e9f0c2d53ffeYo5to2gs6Gb1W1
 A block_transfer WRITE reported `Replaced 1 line ... with 24 line(s)` SUCCESS yet the file lacked the text (the call's text payload was truncated mid-bullet); the file read back exactly pre-WRITE — always read the file back after a big WRITE/REPLACE before trusting the feedback line.
 
+### 2026-10-22_03-17 worker_FlashNext ses_e9ee33291ffeTzq5RYmLfksD0x
+block_transfer WRITE with a `regions` LIST and a single `text` writes the SAME text into EVERY region (TODO.md #142/#138 status pair got duplicated into both slots and needed a repair script): the tool should reject N-regions-with-one-text, or accept per-region text.
+

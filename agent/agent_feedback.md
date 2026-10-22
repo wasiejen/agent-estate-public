@@ -938,3 +938,6 @@ block_transfer WRITE/DELETE rejected single-line calls twice ("startMarker and e
 ### 2026-10-22_23-19 planner_FlashNext ses_e9b246abdffesGhYjB50ymiwqy
 Worker summary claimed `state_snapshot.smoke.mjs` "RED at baseline 90d6d6c" with evidence "last-touch 6130a70" — the smoke ran `SMOKE: ALL PASS` in the planner env at both `90d6d6c` and `6f11071`, and `6130a70` is not a commit in that repo (real last-touch `9fa7d88`); the same summary also mis-stated its own pin count (52 vs measured 45). Action: worker summaries must paste the exact command + its verbatim last line for any claimed failure, and cite hashes copied from a `git log --oneline -3 -- <path>` output it just ran (2026-10-22, planner-28 direct, TODO #137 order 2).
 
+### 2026-10-23_01-58 worker_FlashNext ses_e9a023f54ffe1a5bvvPLmFBph9
+Spec facts in handover_task.md were stale and cost re-derivation: the probe is 8677 lines (not ~4600), the MAIN/clone probe diff has 23 hunks (not 12), and DoD-2's `plan: .opencode/plugin/scripts/gauge.mjs -> take MAIN` line cannot print in the real tree once both sides hold the same blob (merge auto-merges it) — I had to prove the rule in the selftest fixture instead.
+

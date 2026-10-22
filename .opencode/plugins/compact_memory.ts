@@ -384,9 +384,11 @@ function appendDumpRetryLine(sessionID: string, relFile: string, ms: number, err
   appendCtxLine(`${localStamp()} DUMP-RETRY=1 ${sessionID} ${relFile} ms=${ms} err=${oneLine(error)}`);
 }
 
-// `<stamp> DUMP-FAIL <sid> <relFile> <detail>` (v1 shape).
+// `<stamp> DUMP-FAIL <sid> <relFile> <detail>` (v1 shape) — the detail is
+// ONE-LINED so one event writes ONE log line (the child's error message is
+// multi-line; an un-one-lined detail would fragment the ctx.log).
 function appendDumpFailLine(sessionID: string, relFile: string, detail: string): void {
-  appendCtxLine(`${localStamp()} DUMP-FAIL ${sessionID} ${relFile} ${detail}`);
+  appendCtxLine(`${localStamp()} DUMP-FAIL ${sessionID} ${relFile} ${oneLine(detail)}`);
 }
 
 // Resolves the node executable for the dump-script spawn (v1 #78 lesson): the

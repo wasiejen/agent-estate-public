@@ -935,3 +935,6 @@ block_transfer REPLACE with a direct `text` argument errored "Clipboard buffer '
 ### 2026-10-22_22-19 worker_FlashNext ses_e9acefcfbffewfyOO0y7VCJsfP
 block_transfer WRITE/DELETE rejected single-line calls twice ("startMarker and endMarker are both required") — for a one-line rewrite I had to pass the same marker twice; a single-line form (or a hint naming the two-marker requirement) would save two calls per edit.
 
+### 2026-10-22_23-19 planner_FlashNext ses_e9b246abdffesGhYjB50ymiwqy
+Worker summary claimed `state_snapshot.smoke.mjs` "RED at baseline 90d6d6c" with evidence "last-touch 6130a70" — the smoke ran `SMOKE: ALL PASS` in the planner env at both `90d6d6c` and `6f11071`, and `6130a70` is not a commit in that repo (real last-touch `9fa7d88`); the same summary also mis-stated its own pin count (52 vs measured 45). Action: worker summaries must paste the exact command + its verbatim last line for any claimed failure, and cite hashes copied from a `git log --oneline -3 -- <path>` output it just ran (2026-10-22, planner-28 direct, TODO #137 order 2).
+

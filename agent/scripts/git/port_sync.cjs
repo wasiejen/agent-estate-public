@@ -28,17 +28,24 @@ const MAIN_BRANCH = "main", CLONE_BRANCH = "migration";
 const TSGO = process.env.TSGO_EXE || "home/Repos/opencode/node_modules/.bin/tsgo.exe";
 
 const TAKE_MAIN = [
-  ".opencode/tools/", ".opencode/plugin/probes/", ".opencode/plugin/tests/",
+  ".opencode/tools/", ".opencode/plugin/tests/",
   "agent/handover/", "loop/", "TODO.md",
   "agent/knowledge/", "agent/memory/", "agent/readme/", "agent/scripts/",
 ];
 const CONFIG_PATH = "opencode.jsonc";
+// The clone's probe is BRANCH-ADAPTED (TODO #141: the v1-module repoint to
+// `.opencode/plugin-unported-v1/` + the gauge.mjs shim + clone-side pins). MAIN's copy
+// imports `.opencode/plugin/*.ts`, which does not exist in this tree -> ERR_MODULE_NOT_FOUND
+// on stderr only (the probe step then looks like "FAIL | (no output)"). Keep the branch's
+// own probe; MAIN-side probe checks must be ported deliberately, so print the drift.
+const BRANCH_ADAPTED = [".opencode/plugin/probes/handover_probe.mjs"];
 const PLUGIN_DIR = ".opencode/plugin/", UNPORTED_DIR = ".opencode/plugin-unported-v1/";
 
 // ---- pure rule layer (exported for the selftest) ----
 function normPath(p) { return String(p).split("\\").join("/"); }
 function isTakeMain(p) { return TAKE_MAIN.some((pre) => (pre.endsWith("/") ? p.startsWith(pre) : p === pre)); }
-function classify(p) { return p === CONFIG_PATH ? "config" : isTakeMain(p) ? "take-main" : "normal"; }
+function classify(p) { return p === CONFIG_PATH || BRANCH_ADAPTED.includes(p) ? "config" : isTakeMain(p) ? "take-main" : "normal"; }
+function keepLabel(p) { return p === CONFIG_PATH ? "config: kept branch-local (host-owned)" : "keep: kept branch-local (branch-adapted pins)"; }
 function isGuardMove(p) { return p.startsWith(PLUGIN_DIR) && p.endsWith(".ts"); }
 function guardTarget(p) { return UNPORTED_DIR + p.slice(PLUGIN_DIR.length); }
 function parseMergeTree(out) {
@@ -107,7 +114,7 @@ function planLines(conflicts) {
   const out = [];
   for (const p of conflicts) {
     const k = classify(p);
-    if (k === "config") out.push("plan: " + p + " -> config: kept branch-local (host-owned)");
+    if (k === "config") out.push("plan: " + p + " -> keep branch-local" + (p === CONFIG_PATH ? " (host-owned config)" : " (branch-adapted pins)"));
     else if (k === "take-main") out.push("plan: " + p + " -> take MAIN (--theirs)");
     else out.push("plan: " + p + " -> merge normally");
   }
@@ -131,7 +138,7 @@ function runGate(cloneDir) {
   const probe = path.join(cloneDir, ".opencode/plugin/probes/handover_probe.mjs");
   if (fs.existsSync(probe)) {
     const r = run("node", [".opencode/plugin/probes/handover_probe.mjs"], cloneDir);
-    step("probe", r.status === 0 && /PROBE handover: (\d+)\/\1 PASS/.test(r.stdout || ""), tailLine(r.stdout));
+    step("probe", r.status === 0 && /PROBE handover: (\d+)\/\1 PASS/.test(r.stdout || ""), tailLine((r.stdout || "") + "\n" + (r.stderr || "")));
   } else step("probe", null, "missing");
   const bunExe = resolveBun();
   for (const [dirLabel, tag, args, needMarker] of [

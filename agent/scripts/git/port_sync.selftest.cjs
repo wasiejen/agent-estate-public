@@ -30,12 +30,14 @@ function dirty(root) { return git(["status", "--porcelain"], root).stdout.trim()
 const PS = require("./port_sync.cjs");
 
 // ---------- A. rule layer (pure) ----------
-for (const p of [".opencode/tools/block_transfer.ts", ".opencode/plugin/probes/handover_probe.mjs",
+for (const p of [".opencode/tools/block_transfer.ts",
   ".opencode/plugin/tests/ok.smoke.mjs", "agent/handover/handover_task_to_planner.md",
   "loop/autorun-x/loop_log.md", "TODO.md", "agent/knowledge/x/y.md", "agent/memory/r/m.md",
   "agent/readme/repo_overview.md", "agent/scripts/git/port_sync.cjs"]) ck("take-main: " + p, PS.isTakeMain(p));
+ck("probes NOT take-main (branch-adapted)", !PS.isTakeMain(".opencode/plugin/probes/handover_probe.mjs"));
 for (const p of ["TODO.md.bak", "agent/handovers/x.md", ".opencode/plugin/x.ts", ".opencode/plugins/tests/a.smoke.mjs", "maintainer/priority.md"]) ck("not-take-main: " + p, !PS.isTakeMain(p));
 ck("classify config", PS.classify("opencode.jsonc") === "config");
+ck("classify probe = config (kept branch-local)", PS.classify(".opencode/plugin/probes/handover_probe.mjs") === "config");
 ck("classify take-main", PS.classify("agent/handover/handover_task_to_planner.md") === "take-main");
 ck("classify normal", PS.classify("README.md") === "normal");
 ck("normPath windows", PS.isTakeMain(PS.normPath(".opencode\\tools\\x.ts")) && PS.normPath("a\\b.md") === "a/b.md");
@@ -50,7 +52,7 @@ ck("parseArgs flags", (() => { const o = PS.parseArgs(["--apply", "--no-gate", "
 ck("parseArgs rejects unknown", PS.parseArgs(["--bogus"]) === null);
 ck("planLines shapes", (() => {
   const s = PS.planLines([".opencode/tools/a.ts", "opencode.jsonc", "README.md"]).join("\n");
-  return s.includes("take MAIN (--theirs)") && s.includes("config: kept branch-local (host-owned)") && s.includes("merge normally");
+  return s.includes("take MAIN (--theirs)") && s.includes("keep branch-local (host-owned config)") && s.includes("merge normally");
 })());
 
 // ---------- scratch pair build ----------
@@ -97,7 +99,7 @@ ck("dry exit 0", r.code === 0);
 for (const p of [".opencode/tools/block_transfer.ts", "agent/handover/handover_task_to_planner.md", "opencode.jsonc"]) ck("dry conflict line: " + p, r.out.includes("conflict: " + p));
 ck("dry README auto-merges (not in conflict set)", !r.out.includes("conflict: README.md"));
 ck("dry plan take-main", r.out.includes("plan: .opencode/tools/block_transfer.ts -> take MAIN (--theirs)"));
-ck("dry plan config line", r.out.includes("config: kept branch-local (host-owned)"));
+ck("dry plan config line", r.out.includes("keep branch-local (host-owned config)"));
 ck("dry guard plan line", r.out.includes("plan: .opencode/plugin/x.ts -> discovery guard: move -> " + PS.guardTarget(".opencode/plugin/x.ts")));
 ck("dry guard skips plugin .ts already in the clone", !r.out.includes("plan: .opencode/plugin/base_both.ts"));
 ck("dry prints commands", r.out.includes("would: git -C " + DST + " merge --no-commit FETCH_HEAD") && r.out.includes("--theirs"));

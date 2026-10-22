@@ -926,3 +926,6 @@ block_transfer WRITE with line-number anchors silently rewrites whatever span th
 ### 2026-10-22_20-08 worker_FlashNext ses_e9b41981bffejgVkyxQDFUsp2C
 Two tool/shell friction points this session: (1) block_transfer mode REPLACE silently used the stale 'default' buffer when I passed a direct 'text' argument (it corrupts the target region instead of rejecting; direct text belongs in WRITE) - repaired with a second WRITE, cost 4 calls; (2) AGENTS.md section Command Output names $TMP/opencode as the Git Bash scratch path but $TMP and $OLDPWD are unset on this host, so `> "$OLDPWD/s.txt"` resolved to /s.txt and hit Permission denied; the literal home/AppData/Local/Temp/opencode works.
 
+### 2026-10-22_20-23 planner_FlashNext ses_e9b2e455dffe197VdpiExjySXS
+Two small frictions (planner-27): (1) an `edit` oldString rebuilt from a line whose read-back showed a `~` (the U+FFFD artifact in `fit()`-truncated text) can NEVER match — one wasted call; anchor on an adjacent ASCII substring instead. (2) the live pre-`60a86cf` `state_snapshot` digest printed priority.md lines under `## todo` and an unfiltered `## markers` — cost one extra grep to interpret; the tell is the injected tool description still saying "hard-capped at 60 lines" = the host tool is stale, do not debug the committed tool.
+

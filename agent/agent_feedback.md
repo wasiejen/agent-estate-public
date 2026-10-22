@@ -911,3 +911,6 @@ Two self-inflicted block_transfer anchor slips cost ~6 repair calls this session
 ### 2026-10-22_14-55 worker_FlashNext ses_e9c6c3cbcffeSLiyxqFZ9f5pl7
 block_transfer's sandbox resolves relative srcFile/dstFile against the SESSION CWD — a cross-repo REPLACE failed with a confusing 'File not found' until absolute paths were used; always pass absolute paths for the second repo (2026-10-22, unit 5c).
 
+### 2026-10-22_18-21 planner_FlashNext ses_e9c6da8fbffeOHy63B2mMFliv1
+A chained `; cd /dev/null` tail appended to a bash verification call ended in "Tool execution aborted" mid-unit (work intact, call re-issued) — do not chain directory changes to the end of verification commands on win32; use the workdir param instead (2026-10-22, planner-22 #144).
+

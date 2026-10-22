@@ -12,7 +12,24 @@ import { pathToFileURL } from "node:url";
 import { REPO_ROOT, SCRATCHPAD, loadRepo, freshSandbox, makeChecker } from "./_smoke_base.mjs";
 
 const workDir = freshSandbox("block_transfer_sandbox");
-const tempRoot = process.env.TEMP || process.env.TMP;
+// ENV-ROBUST FIXTURE TEMP (todo_inbox 2026-10-22_01-34): the smoke SELF-
+// SETS TEMP/TMP to its OWN fixture root instead of reading the ambient
+// shell env. The 3 byte-exact sandbox-roots-list pins then hold under ANY
+// ambient env — the mirror (expectedSandboxRoots) and the tool's sandboxCheck
+// read the SAME env at CALL time — and an env-free gate run no longer
+// crashes at startup (measured: the env-less run died on path.join(undefined)).
+// The fixture root sits in the user's Temp dir but OUTSIDE the scratchpad
+// subtree, so a file there is allowed ONLY through the TEMP-root mechanism
+// (the config allow roots include the scratchpad, not this dir) — the ALLOW
+// matrix keeps its discriminating power. The ambient values are restored in
+// the exit finally; the CONFIG section below keeps saving/restoring these
+// SELF-set values as its own baseline (unchanged).
+const ambientTEMP = process.env.TEMP;
+const ambientTMP = process.env.TMP;
+const tempRoot = path.join(SCRATCHPAD, "..", "bt_sandbox_env_temp");
+process.env.TEMP = tempRoot;
+process.env.TMP = tempRoot;
+fs.mkdirSync(tempRoot, { recursive: true });
 const tempFile = path.join(tempRoot, "bt_sandbox_tmp.txt");
 const tempFile2 = path.join(tempRoot, "bt_sandbox_tmp2.txt");
 const tempSubFile = path.join(tempRoot, "bt_sandbox_tmpsub", "f.txt");
@@ -384,9 +401,12 @@ try {
     try { fs.rmSync(cfgmod, { recursive: true, force: true }); } catch {}
   }
 } finally {
-  for (const p of [workDir, tempFile, tempFile2, path.join(tempRoot, "bt_sandbox_tmpsub"), outsideDst1, outsideDst2, outsideDstRel, outsideDstRep]) {
+  for (const p of [workDir, tempFile, tempFile2, path.join(tempRoot, "bt_sandbox_tmpsub"), outsideDst1, outsideDst2, outsideDstRel, outsideDstRep, tempRoot]) {
     try { fs.rmSync(p, { recursive: true, force: true }); } catch {}
   }
+  // restore the ambient TEMP/TMP (an unset ambient value stays deleted)
+  if (ambientTEMP === undefined) delete process.env.TEMP; else process.env.TEMP = ambientTEMP;
+  if (ambientTMP === undefined) delete process.env.TMP; else process.env.TMP = ambientTMP;
 }
 
 finish();

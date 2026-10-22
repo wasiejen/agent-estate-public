@@ -9,11 +9,12 @@
 // more)`, priority.md's first 10, the sorted proposals filenames, the READY-
 // MADE marker sweep run via bash carrying the fixture `--now` line with the
 // `/done/`-filtered line ABSENT + the LIVE-first ordering (the LIVE-class
-// `WIKI.md` hit prints BEFORE the DOC-class `loop/notes.md` hit — pin (23)),
-// the nap first-40 + `… (read … for the rest)`
-// steer), the 60-line hard cap (the LAST section's content lines trim from the
-// end backwards, all six headers + the `… (+20 more)` steer SURVIVE), the `(
-// none)` empties + the fail-closed lines, the READ-ONLY invariant (a digest
+// `/done/`-filtered line ABSENT + the LIVE-first ordering (the LIVE-class
+// `WIKI.md` hit prints BEFORE the DOC-class `proposals/approved/notes.md` hit —
+// pin (23)) + the doc-noise pass (the DOC-QUOTE fixture hits under the excluded
+// `agent/prompts/`, `loop/`, `proposals/implemented/` paths ABSENT — pins
+// (24)/(25)), the nap first-40 + `… (read … for the rest)`
+// steer), the 150-line hard cap (the LAST section's content lines trim from the
 // run leaves the fixture tree byte-identical), and the soft role gate (the
 // EXACT one-line refusal for a non-planner agent; planner/EMPTY/absent agents
 // get the digest).
@@ -130,11 +131,16 @@ const ROOT1 = path.join(SCRATCH, "fx1");
   w(ROOT1, "proposals/a_first.md", "p\n");
   w(ROOT1, "proposals/notmd.txt", "p\n");
   w(ROOT1, "proposals/approved/inner.md", "--now inner subfolder ignored\n");
-  w(ROOT1, "loop/notes.md", "first line\n--now live marker\n");
-  // the LIVE-CLASS fixture hit — WIKI.md prints AFTER loop/ in the raw sweep
+  w(ROOT1, "proposals/approved/notes.md", "first line\n--now live marker\n");
+  // the LIVE-CLASS fixture hit — WIKI.md prints AFTER proposals/ in the raw sweep
   // path ARGUMENT order, so the ordering pin (23) below is discriminating.
   w(ROOT1, "WIKI.md", "# wiki\n--main wiki live class marker\n");
   w(ROOT1, "maintainer/done/old.md", "--wip filtered by /done/\n");
+  // the DOC-QUOTE fixtures — marker lines inside paths the doc-noise filter
+  // EXCLUDES: they must stay ABSENT from the markers section (pin (24)).
+  w(ROOT1, "agent/prompts/quoted.md", "prompt doc\n--now quoted in an excluded path\n");
+  w(ROOT1, "loop/hidden.md", "loop doc\n--now quoted in an excluded path\n");
+  w(ROOT1, "proposals/implemented/quoted.md", "implemented doc\n--now quoted in an excluded path\n");
   gitInitCommit(ROOT1, "snapshot fixture commit A");
 }
 
@@ -176,23 +182,46 @@ chk("S1 tool surface: NO-argument object input (no properties, no required), str
   chk("(8) proposals: the root .md FILENAMES sorted (subfolder + .txt excluded)",
     pr?.join(",") === "a_first.md,z_second.md", JSON.stringify(pr));
   const mk = sectionBody(l1, "markers");
-  chk("(9) markers: the READY-MADE sweep run via bash carries the fixture loop/notes.md `--now` line",
-    mk?.some((l) => l.includes("loop/notes.md") && l.includes("--now live marker")), JSON.stringify(mk));
+  chk("(9) markers: the READY-MADE sweep run via bash carries the fixture proposals/approved/notes.md `--now` line",
+    mk?.some((l) => l.includes("proposals/approved/notes.md") && l.includes("--now live marker")), JSON.stringify(mk));
   chk("(10) markers: the /done/-filtered fixture line is ABSENT (the grep -v filter carried)",
     !mk?.some((l) => l.includes("/done/")), JSON.stringify(mk));
   // (23) — the LIVE-first markers ordering. The label is APPEND-only (the
   // existing (11)..(22) numbering stays untouched). The raw sweep path ARGUMENT
-  // order prints the DOC-class loop/notes.md hit FIRST, so the pin FAILS
+  // order prints the DOC-class proposals/approved/notes.md hit FIRST, so the pin FAILS
   // pre-change; the LIVE-CLASS WIKI.md hit prints first after the change.
   const mkHits = mk ?? [];
   const liveAt = mkHits.findIndex((l) => l.startsWith("WIKI.md:"));
-  const docAt = mkHits.findIndex((l) => l.startsWith("loop/notes.md:"));
-  chk("(23) markers ordering: the LIVE-class WIKI.md hit prints BEFORE the DOC-class loop/notes.md hit",
+  const docAt = mkHits.findIndex((l) => l.startsWith("proposals/approved/notes.md:"));
+  chk("(23) markers ordering: the LIVE-class WIKI.md hit prints BEFORE the DOC-class proposals/approved/notes.md hit",
     liveAt >= 0 && docAt >= 0 && liveAt < docAt, JSON.stringify([liveAt, docAt]));
   chk("(11) READ-ONLY: the digest run leaves the fixture tree byte-identical",
     before === after, `before=${before.length} after=${after.length}`);
-  chk("(12) FX1 digest is under the 60-line cap untouched (47 lines — the WIKI.md fixture added one sweep hit)",
+  chk("(12) FX1 digest is under the 150-line cap untouched (47 lines — the WIKI.md fixture added one sweep hit)",
     l1.length === 47, `len=${l1.length}`);
+}
+
+// (24) — the doc-noise pass: the DOC-QUOTE fixture hits (agent/prompts/quoted.md,
+//       loop/hidden.md, proposals/implemented/quoted.md) ABSENT from the markers
+//       section while the kept DOC hit + the LIVE hit stay PRESENT.
+{
+  const mk24 = sectionBody(digestOf((await TOOL.execute({}, { agent: "planner_FlashNext" })).output), "markers");
+  chk("(24) markers: the excluded doc-quote paths ABSENT + the kept paths PRESENT",
+    mk24?.every((l) =>
+      !l.startsWith("agent/prompts/quoted.md:") &&
+      !l.startsWith("loop/hidden.md:") &&
+      !l.startsWith("proposals/implemented/quoted.md:")) &&
+    mk24?.some((l) => l.startsWith("proposals/approved/notes.md:")) &&
+    mk24?.some((l) => l.startsWith("WIKI.md:")), JSON.stringify(mk24));
+}
+
+// (25) — the path-anchored filter: a KEPT path whose TEXT quotes an excluded
+//       tree INLINE (proposals/approved/ref.md) still prints.
+{
+  w(ROOT1, "proposals/approved/ref.md", "--now quote mentions agent/readme INLINE\n");
+  const mk25 = sectionBody(digestOf((await TOOL.execute({}, { agent: "planner_FlashNext" })).output), "markers");
+  chk("(25) markers: the inline-quote line SURVIVES (the grep -v patterns are path-anchored)",
+    mk25?.some((l) => l.startsWith("proposals/approved/ref.md:")), JSON.stringify(mk25));
 }
 
 // ------------------------------------------------------------------ FX2 — the refusal gate + empties + fail-closed lines
@@ -232,15 +261,18 @@ const ROOT2 = path.join(SCRATCH, "fx2");
   cleanup2();
 }
 
-// ------------------------------------------------------------------ FX3 — the 60-line hard cap
+// ------------------------------------------------------------------ FX3 — the 150-line hard cap (156-line digest → trims 6)
 
 const ROOT3 = path.join(SCRATCH, "fx3");
 {
   w(ROOT3, "agent/handover/handover_planner.md", "small nap\n");
   const big = Array.from({ length: 40 }, (_, i) => `--now marker line ${i + 1}`).join("\n");
-  w(ROOT3, "loop/big.md", big + "\n");
-  for (let i = 1; i <= 30; i++) w(ROOT3, `proposals/p${String(i).padStart(2, "0")}.md`, "p\n");
-  w(ROOT3, "maintainer/priority.md", Array.from({ length: 10 }, (_, i) => `prio ${i + 1}`).join("\n") + "\n");
+  w(ROOT3, "maintainer/big.md", big + "\n");
+  for (let i = 1; i <= 100; i++) w(ROOT3, `proposals/p${String(i).padStart(3, "0")}.md`, "p\n");
+  w(ROOT3, "maintainer/priority.md", Array.from({ length: 12 }, (_, i) => `prio ${i + 1}`).join("\n") + "\n");
+  const td = ["# TODO"];
+  for (let i = 1; i <= 20; i++) td.push("", `## #${i}. Header ${i}`);
+  w(ROOT3, "TODO.md", td.join("\n") + "\n");
 }
 {
   const cleanup3 = await plugin.setup(makeCtx(ROOT3));
@@ -249,12 +281,12 @@ const ROOT3 = path.join(SCRATCH, "fx3");
   const idx3 = ["git", "nap", "todo", "maintainer", "proposals", "markers"].map((n) => l3.indexOf(`## ${n}`));
   const mk3 = sectionBody(l3, "markers");
   const pr3 = sectionBody(l3, "proposals");
-  chk("(20) FX3 cap: EXACTLY 60 lines, all six headers preserved",
-    l3.length === 60 && idx3.every((x) => x >= 0) && idx3.every((x, i) => i === 0 || x > idx3[i - 1]), `len=${l3.length} idx=${JSON.stringify(idx3)}`);
+  chk("(20) FX3 cap: EXACTLY 150 lines, all six headers preserved",
+    l3.length === 150 && idx3.every((x) => x >= 0) && idx3.every((x, i) => i === 0 || x > idx3[i - 1]), `len=${l3.length} idx=${JSON.stringify(idx3)}`);
   chk("(21) FX3 cap: the markers steer `… (+20 more)` survives (steer lines never trim)",
     mk3?.includes("… (+20 more)"), JSON.stringify(mk3?.slice(-2)));
-  chk("(22) FX3 cap: the LAST section's content lines trimmed from the end backwards (markers keeps 9 of 20), proposals intact 30",
-    mk3?.filter((l) => l.startsWith("loop/big.md")).length === 9 && pr3?.length === 30, `mk=${mk3?.length} pr=${pr3?.length}`);
+  chk("(22) FX3 cap: the LAST section's content lines trimmed from the end backwards (markers keeps 14 of 20), proposals INTACT 100",
+    mk3?.filter((l) => l.startsWith("maintainer/big.md")).length === 14 && pr3?.length === 100, `mk=${mk3?.length} pr=${pr3?.length}`);
   cleanup3();
 }
 

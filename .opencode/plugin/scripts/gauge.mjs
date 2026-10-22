@@ -516,7 +516,35 @@ export function formatGauge(r) {
 
 // The two single-row reads (see the header). json_extract never fetches the
 // `data` JSON into JS; a missing/NULL token field reads as null.
-const SQL_NEWEST_SESSION = "SELECT id, model FROM session ORDER BY time_updated DESC LIMIT 1";
+// v2-migration unit 1 (2026-10-21): the SESSION-ROW leg is TABLE-AWARE — the
+// v2 line stores sessions in `session_v2` (columns = `session` PLUS the fork/
+// idle columns; the `model` column NAME unchanged, its value JSON `{"id":…}`
+// — parseModelId already unwraps both shapes); a migrated DB carries BOTH
+// tables (coexistence measured 2026-10-21). The leg reads `session_v2` FIRST,
+// then `session`; on a v1-only DB the v1 SQL below goes out BYTE-IDENTICAL
+// (the constants are the `session` instantiation of the table templates).
+// Newest-session choice across BOTH tables = the greater `time_updated`.
+// v2-migration unit 2 (2026-10-22): the TOKEN-mass leg is TABLE-AWARE the
+// SAME WAY — its SQL is instantiated against THE TABLE THAT WON THE SESSION-
+// ROW PICK (no cross-table mass pairing). The v2 line stores per-assistant-
+// message usage in the `session_message.data` blob: `tokens: {input, output,
+// reasoning, cache: {read, write}}` (@opencode/schema/token-usage.ts +
+// session-message.ts `Assistant`; v1-migration.bun.ts writes the same shape;
+// verified 2026-10-22 with one mode=ro read of the live migrated DB — real
+// rows carry e.g. input 72 / output 176 / cache.read 14283). The mass TOTAL
+// mirrors the fork's OWN TokenUsage.total() = input+output+reasoning+cache.
+// read+cache.write — the #103 in+out+cr semantics of v1's `tokens.total`
+// mapped to what v2 actually stores (llama-swap usage keeps reasoning/cache.
+// write at 0, so the sum lands where v1's total landed). FINISHED-STEP
+// discriminator = the fork's own completed-assistant filter (projector.ts
+// fork-copy): `type='assistant' AND $.time.completed IS NOT NULL AND $.tokens
+// IS NOT NULL` — an in-flight assistant row has neither; the `type` match
+// keeps `compaction` rows (their request usage, NOT the context size) out.
+// The v1 `message`/`session` instantiation below stays BYTE-IDENTICAL — the
+// existing gauge_core pins (v1-only DBs) are unchanged.
+const sqlSessionNewest = (t) => `SELECT id, model FROM ${t} ORDER BY time_updated DESC LIMIT 1`;
+const sqlSessionById = (t) => `SELECT id, model FROM ${t} WHERE id = ?`;
+const SQL_NEWEST_SESSION = sqlSessionNewest("session");
 const SQL_FINISHED_STEP =
   "SELECT s.id AS sid, s.model AS model, " +
   "json_extract(m.data, '$.tokens.total') AS total, " +
@@ -524,6 +552,28 @@ const SQL_FINISHED_STEP =
   "FROM message m JOIN session s ON s.id = m.session_id " +
   "WHERE s.id = (SELECT id FROM session ORDER BY time_updated DESC LIMIT 1) " +
   'AND m.data LIKE \'%"finish"%\' ORDER BY m.time_created DESC LIMIT 1';
+
+// v2-migration unit 2 (2026-10-22): the v2 instantiation of the same mass
+// read (see the TABLE-AWARE header). TOTAL = the fork's own TokenUsage.total()
+// sum; discriminator = the fork's completed-assistant filter; the v2 line has
+// NO `tokens.total` field — the five-field sum IS the v2 storage (verified
+// against @opencode/schema/token-usage.ts, the v1→v2 migration, and one
+// mode=ro read of the live migrated DB).
+const SQL_STEP_DISCRIMINATOR_V2 =
+  "m.type = 'assistant' AND json_extract(m.data, '$.time.completed') IS NOT NULL AND json_extract(m.data, '$.tokens') IS NOT NULL";
+const SQL_TOKEN_TOTAL_V2 =
+  "(COALESCE(json_extract(m.data, '$.tokens.input'), 0) + " +
+  "COALESCE(json_extract(m.data, '$.tokens.output'), 0) + " +
+  "COALESCE(json_extract(m.data, '$.tokens.reasoning'), 0) + " +
+  "COALESCE(json_extract(m.data, '$.tokens.cache.read'), 0) + " +
+  "COALESCE(json_extract(m.data, '$.tokens.cache.write'), 0))";
+const SQL_FINISHED_STEP_V2 =
+  "SELECT s.id AS sid, s.model AS model, " +
+  `${SQL_TOKEN_TOTAL_V2} AS total, ` +
+  "json_extract(m.data, '$.tokens.output') AS output " +
+  "FROM session_message m JOIN session_v2 s ON s.id = m.session_id " +
+  "WHERE s.id = (SELECT id FROM session_v2 ORDER BY time_updated DESC LIMIT 1) " +
+  `AND ${SQL_STEP_DISCRIMINATOR_V2} ORDER BY m.time_created DESC LIMIT 1`;
 
 // The spawn backend's MARKER SQL (v1.x discipline — see the header): two
 // statements, marker-prefixed rows; an empty first result simply omits the M
@@ -535,12 +585,28 @@ const GAUGE_SQL_MARKER =
   "AND m.data LIKE '%\"finish\"%' ORDER BY m.time_created DESC LIMIT 1; " +
   "SELECT 'S', id, model FROM session ORDER BY time_updated DESC LIMIT 1;";
 
+// v2 unit 2: the spawn backend's v2 marker — SAME 5-field M row + 2-field S
+// row shape (the shared parser handles both forms; the fork's JSON `{"id":…}`
+// model value unwraps via parseModelId). Instantiated only when `session_v2`
+// exists (SQL_TABLE_PROBE — the spawn backend's table probe, one cheap first
+// exec deciding which marker form goes out; the v1 marker above stays the
+// choice for v1-only DBs, byte-identical).
+const GAUGE_SQL_MARKER_V2 =
+  "SELECT 'M', s.id, s.model, " +
+  `${SQL_TOKEN_TOTAL_V2}, json_extract(m.data, '$.tokens.output') ` +
+  "FROM session_message m JOIN session_v2 s ON s.id = m.session_id " +
+  "WHERE s.id = (SELECT id FROM session_v2 ORDER BY time_updated DESC LIMIT 1) " +
+  `AND ${SQL_STEP_DISCRIMINATOR_V2} ORDER BY m.time_created DESC LIMIT 1; ` +
+  "SELECT 'S', id, model FROM session_v2 ORDER BY time_updated DESC LIMIT 1;";
+const SQL_TABLE_PROBE =
+  "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('session_v2','session','session_message','message')";
+
 // v2.6 — the PER-SESSION query forms (the ladder's blind-spot-free read; see
 // the header block). Same column list and LIKE marker as the newest-session
 // forms; the session is pinned by id (in-process: bound parameter; spawn:
 // literal with single-quote escaping — opencode session ids are `ses_…`, the
 // escape is belt-and-braces, not a quoting surface for user input).
-const SQL_SESSION_BY_ID = "SELECT id, model FROM session WHERE id = ?";
+const SQL_SESSION_BY_ID = sqlSessionById("session");
 const SQL_FINISHED_STEP_SESSION =
   "SELECT s.id AS sid, s.model AS model, " +
   "json_extract(m.data, '$.tokens.total') AS total, " +
@@ -548,13 +614,35 @@ const SQL_FINISHED_STEP_SESSION =
   "FROM message m JOIN session s ON s.id = m.session_id " +
   "WHERE s.id = ? " +
   'AND m.data LIKE \'%"finish"%\' ORDER BY m.time_created DESC LIMIT 1';
+const SQL_FINISHED_STEP_SESSION_V2 =
+  "SELECT s.id AS sid, s.model AS model, " +
+  `${SQL_TOKEN_TOTAL_V2} AS total, ` +
+  "json_extract(m.data, '$.tokens.output') AS output " +
+  "FROM session_message m JOIN session_v2 s ON s.id = m.session_id " +
+  "WHERE s.id = ? " +
+  `AND ${SQL_STEP_DISCRIMINATOR_V2} ORDER BY m.time_created DESC LIMIT 1`;
+const sqlSidLiteral = (sid) => `'${String(sid).replace(/'/g, "''")}'`;
 const sqlMarkerForSession = (sid) => {
-  const q = `'${String(sid).replace(/'/g, "''")}'`;
+  const q = sqlSidLiteral(sid);
   return (
     "SELECT 'M', s.id, s.model, json_extract(m.data, '$.tokens.total'), json_extract(m.data, '$.tokens.output') " +
     "FROM message m JOIN session s ON s.id = m.session_id " +
     `WHERE s.id = ${q} AND m.data LIKE '%"finish"%' ORDER BY m.time_created DESC LIMIT 1; ` +
     `SELECT 'S', id, model FROM session WHERE id = ${q};`
+  );
+};
+// v2 unit 2: the v2 per-session spawn marker — SAME field order as the v1
+// form (the shared parser + the v2-only instantiation; the coexisting-DB
+// winner pick reuses this builder pinned to the WINNER's sid — pairing by
+// construction).
+const sqlMarkerV2ForSession = (sid) => {
+  const q = sqlSidLiteral(sid);
+  return (
+    "SELECT 'M', s.id, s.model, " +
+    `${SQL_TOKEN_TOTAL_V2}, json_extract(m.data, '$.tokens.output') ` +
+    "FROM session_message m JOIN session_v2 s ON s.id = m.session_id " +
+    `WHERE s.id = ${q} AND ${SQL_STEP_DISCRIMINATOR_V2} ORDER BY m.time_created DESC LIMIT 1; ` +
+    `SELECT 'S', id, model FROM session_v2 WHERE id = ${q};`
   );
 };
 
@@ -568,18 +656,78 @@ const sqlMarkerForSession = (sid) => {
 // best-effort close. `target` (v2.6): the per-session read — when set, the
 // session row is looked up by id and the finished step is scoped to it;
 // unset keeps the newest-session SQL byte-identical.
+// v2-migration unit 1 (2026-10-21): the SESSION-ROW leg resolves through
+// `sessionRow` — `session_v2` FIRST, then `session` (both tables coexist in a
+// migrated DB; NEITHER present keeps the v1 hard-failure outcome). Unit 2
+// (2026-10-22): `sessionRow` ALSO REPORTS the winning TABLE — the mass leg
+// then runs the instantiation PAIRED with it (session_v2↔session_message,
+// session↔message); a MISSING PAIRED message table degrades to null (no-total)
+// instead of failing the whole read.
+const sessionTablesIn = (db) => {
+  const found = [];
+  for (const t of ["session_v2", "session"]) {
+    try {
+      const row = db.prepare("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = ?").get(t);
+      if (row != null) found.push(t);
+    } catch {
+      // unreadable catalog — the v1 table name is the only sane fallback
+    }
+  }
+  return found;
+};
+const sessionRow = (db, target) => {
+  const tables = sessionTablesIn(db);
+  if (tables.length === 0) throw new Error("no session table");
+  if (target != null) {
+    for (const t of tables) {
+      const row = db.prepare(sqlSessionById(t)).get(target);
+      if (row != null) return { table: t, row }; // an id present in BOTH: session_v2 wins
+    }
+    return { table: undefined, row: undefined };
+  }
+  let best;
+  let bestTable;
+  for (const t of tables) {
+    const row = db.prepare(sqlSessionNewest(t)).get();
+    if (row == null) continue;
+    if (best === undefined) {
+      best = row;
+      bestTable = t;
+      continue;
+    }
+    if (tables.length < 2) continue; // single-table DB: no cross-table compare
+    const rn = Number(db.prepare(`SELECT time_updated FROM ${t} WHERE id = ?`).get(row.id)?.time_updated ?? -Infinity);
+    const rb = Number(db.prepare(`SELECT time_updated FROM ${bestTable} WHERE id = ?`).get(best.id)?.time_updated ?? -Infinity);
+    if (rn > rb) {
+      best = row;
+      bestTable = t;
+    } // a tie keeps the FIRST (`session_v2`) row
+  }
+  return { table: bestTable, row: best };
+};
 function readApiDb(openFn, target) {
   const attempt = () => {
     let db;
     try {
       db = openFn();
       db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS};`);
-      const newest =
-        target != null ? db.prepare(SQL_SESSION_BY_ID).get(target) : db.prepare(SQL_NEWEST_SESSION).get();
-      const step =
-        target != null
-          ? db.prepare(SQL_FINISHED_STEP_SESSION).get(target)
-          : db.prepare(SQL_FINISHED_STEP).get();
+      const picked = sessionRow(db, target);
+      const newest = picked.row;
+      const massV2 = picked.table === "session_v2";
+      let step = null;
+      try {
+        step =
+          target != null
+            ? db.prepare(massV2 ? SQL_FINISHED_STEP_SESSION_V2 : SQL_FINISHED_STEP_SESSION).get(target)
+            : db.prepare(massV2 ? SQL_FINISHED_STEP_V2 : SQL_FINISHED_STEP).get();
+      } catch (e) {
+        // unit 2: the mass leg is instantiated against the PAIRED tables of
+        // the SESSION-ROW winner (session_v2↔session_message; session↔message
+        // — the v1 instantiation goes out BYTE-IDENTICAL). A MISSING PAIRED
+        // message table degrades to null (no-total); any other error
+        // propagates.
+        if (!/no such table/i.test(String(e?.message ?? e))) throw e;
+      }
       return {
         sid: typeof newest?.id === "string" && newest.id !== "" ? newest.id : undefined,
         model: step != null && typeof step.model === "string" ? step.model : (typeof newest?.model === "string" ? newest.model : null),
@@ -648,20 +796,112 @@ const parseMarkerNumber = (v) => {
   const n = Number(v);
   return Number.isNaN(n) ? null : n;
 };
+// v2 unit 2 (2026-10-22): the spawn read is TABLE-AWARE via a cheap probe
+// exec FIRST (SQL_TABLE_PROBE — sqlite_master names only; a missing/unopenable
+// DB fails here exactly like the single-exec v1 form failed before, so the
+// db-error shape and the "deepest failing backend" pin survive). Then ONE
+// marker exec, instantiated by the probe:
+// - `session_v2` ABSENT  → the v1 marker constants, BYTE-IDENTICAL (the
+//   existing probe spawn pins 34/35/36 ride this path unchanged);
+// - `session_v2` present, no legacy `session` table (or legacy rows none) →
+//   the v2 marker constants;
+// - COEXISTING session tables → a `W` candidate exec (newest row per table
+//   + time_updated) picks the WINNER in JS — the SAME rule as the in-process
+//   sessionRow (greater time_updated; a tie keeps session_v2); the marker
+//   exec is then PINNED to the winner's sid via the per-session builders —
+//   mass pairing by construction (DoD 3: no cross-table pairing). A per-
+//   session target skips the candidate exec: the table HOLDING the id wins
+//   (session_v2 when present in BOTH).
+// NO session table → throw ("no session table") — the v1 hard-failure outcome
+// shape (the marker exec would have died on "no such table" before).
+const spawnExec = (p, sql) =>
+  execFileAsync(DEFAULT_EXE_PATH, [uriRo(p), sql], {
+    timeout: SPAWN_TIMEOUT_MS, // hard KILL — a stuck child becomes a db-error, never a hang
+    maxBuffer: MAX_BUFFER,
+    encoding: "utf8",
+  }).then(
+    (res) => res,
+    (e) => {
+      const isTimeout = e?.killed === true || /timed?\s*out/i.test(String(e?.message ?? ""));
+      const detail = isTimeout ? `timeout ${SPAWN_TIMEOUT_MS}ms kill` : String(e?.stderr ?? "").trim() || String(e?.message ?? e);
+      throw new Error(String(detail).replace(/\r?\n+/g, " | ").slice(0, 106));
+    },
+  );
 async function readSpawnSqlite3(p, target) {
   if (!existsSync(DEFAULT_EXE_PATH)) throw new Error(`exe-missing ${DEFAULT_EXE_PATH}`);
-  let res;
-  try {
-    res = await execFileAsync(DEFAULT_EXE_PATH, [uriRo(p), target != null ? sqlMarkerForSession(target) : GAUGE_SQL_MARKER], {
-      timeout: SPAWN_TIMEOUT_MS, // hard KILL — a stuck child becomes a db-error, never a hang
-      maxBuffer: MAX_BUFFER,
-      encoding: "utf8",
-    });
-  } catch (e) {
-    const isTimeout = e?.killed === true || /timed?\s*out/i.test(String(e?.message ?? ""));
-    const detail = isTimeout ? `timeout ${SPAWN_TIMEOUT_MS}ms kill` : String(e?.stderr ?? "").trim() || String(e?.message ?? e);
-    throw new Error(String(detail).replace(/\r?\n+/g, " | ").slice(0, 106));
+  const tables = new Set(
+    String((await spawnExec(p, SQL_TABLE_PROBE)).stdout)
+      .split(/\r?\n/)
+      .map((x) => x.trim())
+      .filter((x) => x !== ""),
+  );
+  const hasV2 = tables.has("session_v2");
+  const hasV1 = tables.has("session");
+  if (!hasV2 && !hasV1) throw new Error("no session table");
+  // Winner pick among the session tables — the SAME rule as the in-process
+  // sessionRow (session_v2 FIRST; coexisting greater time_updated wins, a
+  // tie keeps session_v2; an id TARGET is held by its table, session_v2 wins
+  // in BOTH). The marker exec is then PINNED to the winner's table+sid (DoD
+  // 3: the mass pairs with the SAME table that won the session-row pick);
+  // an empty winSid means "no rows / single table" → the subquery form.
+  let winTable;
+  let winSid;
+  const spawnHeld = async (t, sid) => {
+    const out = String((await spawnExec(p, `SELECT 'Y' FROM ${t} WHERE id = ${sqlSidLiteral(sid)} LIMIT 1;`)).stdout);
+    return out.split(/\r?\n/).some((x) => x.trim() === "Y");
+  };
+  if (target != null) {
+    winSid = String(target);
+    if (hasV2) {
+      if (await spawnHeld("session_v2", target)) winTable = "session_v2";
+      else if (hasV1 && await spawnHeld("session", target)) winTable = "session";
+      else winTable = "session_v2"; // in NEITHER: empty rows via the v2 pair (no-total shape)
+    } else {
+      winTable = "session"; // v1-only DB: today's per-session form
+    }
+  } else if (hasV2 && !hasV1) {
+    winTable = "session_v2";
+    winSid = "";
+  } else if (!hasV2) {
+    winTable = "session";
+    winSid = ""; // v1-only DB: today's newest form, BYTE-IDENTICAL
+  } else {
+    // coexisting newest form: one `W` candidate exec resolves the winner.
+    const rows = String(
+      (
+        await spawnExec(
+          p,
+          "SELECT 'W', id, time_updated FROM session_v2 ORDER BY time_updated DESC LIMIT 1; SELECT 'W', id, time_updated FROM session ORDER BY time_updated DESC LIMIT 1;",
+        )
+      ).stdout,
+    );
+    let wV2;
+    let wV1;
+    for (const line of rows.split(/\r?\n/)) {
+      if (!line.startsWith("W|")) continue;
+      const parts = line.slice(2).split("|");
+      const tnum = Number(parts[parts.length - 1]);
+      const rec = { sid: parts[0], t: Number.isFinite(tnum) ? tnum : -Infinity };
+      if (wV2 === undefined) wV2 = rec;
+      else if (wV1 === undefined) wV1 = rec;
+    }
+    if (wV2 !== undefined && !(wV1 !== undefined && wV1.t > wV2.t)) {
+      winTable = "session_v2";
+      winSid = String(wV2.sid);
+    } else {
+      winTable = "session";
+      winSid = String(wV1?.sid ?? "");
+    }
   }
+  const markerSql =
+    winTable === "session_v2"
+      ? winSid === ""
+        ? GAUGE_SQL_MARKER_V2
+        : sqlMarkerV2ForSession(winSid)
+      : winSid === ""
+        ? GAUGE_SQL_MARKER
+        : sqlMarkerForSession(winSid);
+  const res = await spawnExec(p, markerSql);
   let sid;
   let model = null;
   let total = null;
@@ -716,7 +956,13 @@ function gaugeFromRaw(raw) {
   const sid = typeof raw.sid === "string" && raw.sid !== "" ? raw.sid : "unknown";
   const total = raw.total == null ? Number.NaN : Number(raw.total);
   if (Number.isNaN(total)) {
-    return { ok: false, kind: "no-total", sid, modelId: parseModelId(raw.model) };
+    // v2-migration unit 1 (2026-10-21): the no-total shape now also carries
+    // `window` — the RESOLVED context limit for the read session's model
+    // (resolveWindow: config-first, name-marker fallback). The gauge family
+    // gets the LIMITS half for a v2 session before the mass leg lands
+    // (unit 2); the SESSION-ROW half (sid/modelId) resolves from `session_v2`.
+    const modelId = parseModelId(raw.model);
+    return { ok: false, kind: "no-total", sid, modelId, window: resolveWindow(modelId) };
   }
   const output = raw.output == null || Number.isNaN(Number(raw.output)) ? 0 : Number(raw.output);
   const modelId = parseModelId(raw.model);

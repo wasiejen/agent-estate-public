@@ -1062,7 +1062,8 @@ import { DatabaseSync } from "node:sqlite";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
-const PLUGIN_TS = path.join(REPO_ROOT, ".opencode", "plugin", "ctx_watchdog.ts");
+// clone (TODO #141): the v1 plugin modules live at .opencode/plugin-unported-v1/ in this tree
+const PLUGIN_TS = path.join(REPO_ROOT, ".opencode", "plugin-unported-v1", "ctx_watchdog.ts");
 
 // --------------------------------------------------------------- fixed payloads
 
@@ -1820,11 +1821,22 @@ const MOCK_LOG = [];
   check(
     "32",
     "S7",
-    "unit-mock bun:sqlite: adapter drives Database(path,{readonly:true,timeout:2500}) + PRAGMA exec + prepare().get() x2 (ordered) + close; readout byte-identical",
+    "unit-mock bun:sqlite: adapter drives Database(path,{readonly:true,timeout:2500}) + PRAGMA exec + prepare x7 (clone twin TODO #141: table-aware session-row leg — catalog x2 -> newest x2 (session_v2 first) -> time_updated x2 -> step (tokens.total) LAST) + close; readout byte-identical",
     formatGauge(r) === "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655" && r.ok === true && r.ctx === 12345 && r.window === 256000 &&
       construct !== undefined && construct.path === FX_OK && construct.opts !== undefined && construct.opts.readonly === true && construct.opts.timeout === 2500 &&
       execs.length === 1 && execs[0].sql === "PRAGMA busy_timeout = 2500;" &&
-      prepares.length === 2 && !String(prepares[0].sql).includes("tokens.total") && String(prepares[1].sql).includes("tokens.total") &&
+      // clone twin (TODO #141): the gauge core here is the table-aware unit-1
+      // port (`.opencode/plugin/scripts/gauge.mjs`), so the session-row leg
+      // drives 7 ordered prepares, not the v1 2 — mirrored EXACTLY from the core.
+      prepares.length === 7 &&
+      prepares[0].sql === "SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = ?" &&
+      prepares[1].sql === prepares[0].sql &&
+      prepares[2].sql === "SELECT id, model FROM session_v2 ORDER BY time_updated DESC LIMIT 1" &&
+      prepares[3].sql === "SELECT id, model FROM session ORDER BY time_updated DESC LIMIT 1" &&
+      prepares[4].sql === "SELECT time_updated FROM session WHERE id = ?" &&
+      prepares[5].sql === "SELECT time_updated FROM session_v2 WHERE id = ?" &&
+      prepares.slice(0, 6).every((x) => !String(x.sql).includes("tokens.total")) &&
+      String(prepares[6].sql).includes("tokens.total") &&
       closes.length === 1,
     JSON.stringify({ r, MOCK_LOG }),
   );
@@ -2589,7 +2601,8 @@ const cmExec = (args, extra) => cmTool.execute(args, cmCtx(extra));
 // host emits FOUR session.error events for ONE overflow (its internal
 // tail-strip retries — measured 2026-09-23) — exactly ONE compact;
 // EventSessionIdle (check 80) clears the guard.
-const RC_TS = path.join(REPO_ROOT, ".opencode", "plugin", "context_recovery.ts");
+// clone (TODO #141): v1 subject at .opencode/plugin-unported-v1/context_recovery.ts
+const RC_TS = path.join(REPO_ROOT, ".opencode", "plugin-unported-v1", "context_recovery.ts");
 const RC_BUDGET = path.join(SANDBOX, ".opencode", "temp", "compact_budget.json");
 // The store setter MERGES (the S10 session entries + any previously
 // seeded top-level keys survive).
@@ -3039,7 +3052,8 @@ const dbPathBeforeS12 = getDbPath(); // the hook-restore capture (cf. check 39)
 // FINGERPRINT array, check 43). The budget store file is SHARED with S10/S11
 // (the v2 reader is lenient; S13's version-2 writes happen after S10/S11's
 // checks have run).
-const QC_PLUGIN_TS = path.join(REPO_ROOT, ".opencode", "plugin", "compact_memory.ts");
+// clone (TODO #141): v1 subject at .opencode/plugin-unported-v1/compact_memory.ts
+const QC_PLUGIN_TS = path.join(REPO_ROOT, ".opencode", "plugin-unported-v1", "compact_memory.ts");
 const qcMod = await import(pathToFileURL(QC_PLUGIN_TS).href);
 // The cap resolver (consolidation 2026-09-22): reads the model_budget map
 // from the SHARED sandbox budget file (root = SANDBOX — every qcExec below
@@ -4563,8 +4577,11 @@ for (const w of NW_REJECT) {
 // C3); the hook's intercept.log lands in the sandbox, never the live
 // .opencode/temp/.
 
-const OBS_TS = path.join(REPO_ROOT, ".opencode", "plugin", "intercept_observer.ts");
-const OBS_CORE_TS = path.join(REPO_ROOT, ".opencode", "plugin", "intercept_observer_core.ts");
+// clone (TODO #141): the v1 pair lives at .opencode/plugin-unported-v1/ (the S18/S19
+// named-core pins need the v1 split; the clone's .opencode/plugins/ v2 twin exports the
+// default factory only — no named core exports — so it is NOT this section's subject)
+const OBS_TS = path.join(REPO_ROOT, ".opencode", "plugin-unported-v1", "intercept_observer.ts");
+const OBS_CORE_TS = path.join(REPO_ROOT, ".opencode", "plugin-unported-v1", "intercept_observer_core.ts");
 const ioMod = await import(pathToFileURL(OBS_TS).href); // default factory ONLY
 const ioCore = await import(pathToFileURL(OBS_CORE_TS).href); // the named core
 const ioMap = ioCore.loadNumwordMap(NUMWORDS_JSON);
@@ -8131,7 +8148,8 @@ n29++;
   //      export (the plain-module pattern — never loaded by the host
   //      plugin loader)
   {
-    const CORE_TS = path.join(REPO_ROOT, ".opencode", "plugin", "compaction_core.ts");
+    // clone (TODO #141): v1 subject at .opencode/plugin-unported-v1/compaction_core.ts
+    const CORE_TS = path.join(REPO_ROOT, ".opencode", "plugin-unported-v1", "compaction_core.ts");
     const core = await import(pathToFileURL(CORE_TS).href);
     const fns = ["readCompactionConfig", "computeKeepTokens", "resolveCap", "resolveRoot", "budgetCount", "recordSuccess", "appendCompactLine", "recordVerifiedSuccess", "stripJsoncComments", "resolveCompactionModel", "readRootConfigContent", "resolveModel", "isKeepRejectedError", "compactionFailure", "errorMessage", "callSummarize", "localStamp"];
     check(

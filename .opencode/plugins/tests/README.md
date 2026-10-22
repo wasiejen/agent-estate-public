@@ -249,3 +249,24 @@ from the end backwards — markers keeps 9 of 20, proposals intact). The child's
 Fixtures ride the scratchpad `home/AppData/Local/Temp/opencode/
 state-snapshot-smoke-v2`. Expected final line: `SMOKE: ALL PASS`.
 
+## dev_get_tool_context_contents smoke (TODO #137 unit 5b, 2026-10-22)
+
+    bun run dev_get_tool_context_contents.smoke.mjs
+
+13 checks against a mock `ctx` (no opencode process; NO fixtures — a pure
+context reader, NOTHING touches the filesystem): the loader shape `{id:'dev_get_
+tool_context_contents', setup}` + the `tool.transform`/`editor.add` registration
+(the v1 description VERBATIM, a NO-argument object input, string output, teardown
+disposes, NO hooks), the ONE-plain-string return discipline (the v1 2026-09-27
+fix — the dump parses as an object, NEVER an array, NEVER a throw), the dump
+fields = the v2 `ToolContext` keys that EXIST (`contextKeys` + sessionID/agent/
+messageID/id/progress/signal — values carried, `progress` -> the `<function>`
+marker), the v1-only legs (`callID`/`extra`/`messages`/`metadata`/`ask`/`directory`
+/`worktree`/`client`) NEVER invented as dump fields — their absence rides the
+ACTUAL runtime `contextKeys` listing (a live extra key shows there but is NOT
+fabricated as a field), the absent-field drop (NO null placeholders), the
+`undefined`-context -> `{contextKeys:[]}` form, and the non-serializable (
+circular) leg pinned THROUGH A DUMP-CARRIED FIELD (`signal` circular — a
+contextKeys-only string can never trip it): the v1 fallback line `JSON.stringify
+failed (…) — context keys only: <keys>`, NEVER a throw. Expected final line:
+`SMOKE: ALL PASS`.

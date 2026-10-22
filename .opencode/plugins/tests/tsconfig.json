@@ -17,5 +17,5 @@
       "@opencode/ai": ["home/Repos/opencode/packages/ai/src/index.ts"]
     }
   },
-  "files": ["typecheck.ts", "../context_family.ts", "../compact_memory.ts", "../context_trim_v2.ts", "../loop_log.ts", "../submit.ts", "../ctx_gauge.ts", "../state_snapshot.ts"]
+  "files": ["typecheck.ts", "../context_family.ts", "../compact_memory.ts", "../context_trim_v2.ts", "../loop_log.ts", "../submit.ts", "../ctx_gauge.ts", "../state_snapshot.ts", "../dev_get_tool_context_contents.ts"]
 }

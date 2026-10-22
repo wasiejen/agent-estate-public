@@ -59,7 +59,8 @@ const ELL = "\u2026"; // the visible truncation marker
 function fit(s, cap) {
   if (cap <= 0) return "";
   if (s.length <= cap) return s;
-  return s.slice(0, cap - 1) + ELL;
+  // drop a surrogate split at the cut: no lone surrogate in the truncated tail
+  return s.slice(0, cap - 1).replace(/[\uD800-\uDCFF]$/, "") + ELL;
 }
 
 // --- parsing ---------------------------------------------------------------

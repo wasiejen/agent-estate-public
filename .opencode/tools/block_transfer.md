@@ -18,6 +18,7 @@ Line-anchored file surgery for multi-line blocks: MOVE (cut + paste in one call)
 - The old COPY mid-line substring tolerance is GONE and REPLACE trims the line's leading whitespace before the prefix match (the approved Part A decisions — swapping the general matching behavior is a change in `matchAnchorLines` ONLY).
 - Out-of-sandbox paths fail CLOSED (no 1:1 mapping = no redirect; the intercept_observer R8 channel is what maps allowed roots).
 - WRITE `regions` are ALL resolved against the PRE-call file state and applied HIGHEST LINE first (no shifting; overlapping spans are rejected with the actual line numbers).
+- WRITE `regions` CONTRACT (todo_inbox 2026-10-22_03-26, REJECT end state): N regions REQUIRE a text per region — the single `text` arg with N>1 regions returns a teaching error (no silent fan-out of one text into every region); exactly ONE region in the list writes, as does the single-span form.
 - Knowledge notes (pointer-only): `knowledge/plugin_tools/2026-09-25_block_transfer.replace_mode.md` + `2026-09-26_block_transfer-v2-s3-write-peek-feedback.md`.
 
 ## Tests

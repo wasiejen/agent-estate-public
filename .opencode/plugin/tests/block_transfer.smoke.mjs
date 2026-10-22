@@ -215,8 +215,11 @@ const rW3 = await t.execute({ mode: "WRITE", dstFile: "bt_w_new.txt", startMarke
 chk("D: WRITE on an absent file: the number refs are out of range (the file has 0 lines) + no file created", rW3 === "Error: line 1 is out of range in bt_w_new.txt (the file has 0 lines)." && !fs.existsSync(path.join(dir, "bt_w_new.txt")));
 const w2 = "bt_w2.txt";
 fs.writeFileSync(path.join(dir, w2), "h1\nA one\nA two\nmid\nB one\nB two\nh7");
+const w2Before = fs.readFileSync(path.join(dir, w2), "utf-8");
 const rW4 = await t.execute({ mode: "WRITE", dstFile: w2, text: "REPL", regions: [{ start: "A one", end: "A two" }, { start: "B one", end: "B two" }] }, ctx);
-chk("D: WRITE list (2 regions, applied HIGHEST LINE first — no shifting): the 3-line feedback (per-op descending + summary) + byte-exact dst", rW4 === "Wrote 1 line to 'bt_w2.txt' (lines 5..6, first: 'REPL').\nWrote 1 line to 'bt_w2.txt' (lines 2..3, first: 'REPL').\nWrote 2 regions into 'bt_w2.txt' (2 lines total)." && fs.readFileSync(path.join(dir, w2), "utf-8") === "h1\nREPL\nmid\nREPL\nh7");
+chk("D: WRITE list (2 regions) with ONE 'text' is REJECTED (contract guard — no silent fan-out): byte-exact teaching error + the dst byte-identical (no write, no last_write store)", rW4 === "Error: the 'regions' list has 2 regions but WRITE takes ONE 'text' (it would fan the same text into every region) — use exactly one region in the list, or one WRITE call per region." && fs.readFileSync(path.join(dir, w2), "utf-8") === w2Before);
+const rW4b = await t.execute({ mode: "WRITE", dstFile: w2, text: "REPL", regions: [{ start: "A one", end: "A two" }] }, ctx);
+chk("D: WRITE list paired form (exactly ONE region + one text) still writes: the 1-line feedback (NO summary line for a 1-region list) + byte-exact dst", rW4b === "Wrote 1 line to 'bt_w2.txt' (lines 2..3, first: 'REPL')." && fs.readFileSync(path.join(dir, w2), "utf-8") === "h1\nREPL\nmid\nB one\nB two\nh7");
 const w3 = "bt_w3.txt";
 fs.writeFileSync(path.join(dir, w3), "l1\nl2\nl3\nl4\nl5");
 const w3Before = fs.readFileSync(path.join(dir, w3), "utf-8");

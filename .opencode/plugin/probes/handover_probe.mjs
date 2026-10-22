@@ -7424,23 +7424,35 @@ n29++;
     );
   }
 
-  // 307 — WRITE 'regions' LIST (2 regions): ALL refs resolve against the
-  //      PRE-call file state and are applied HIGHEST LINE -> LOWEST (no
-  //      shifting) — the 3-line feedback (one line per applied op,
-  //      descending + the summary) + byte-exact dst
+  // 307 — WRITE 'regions' LIST CONTRACT (re-pinned 2026-10-22 per todo_inbox
+  //      2026-10-22_03-26 — the recommended end state: REJECT). MORE THAN
+  //      ONE region with the single 'text' arg is REJECTED (byte-exact
+  //      teaching error + the dst byte-identical — NO fan-out of one text
+  //      into every region, no partial state); the PAIRED form (exactly
+  //      ONE region + one text) still writes with the clone's Part F
+  //      feedback line. The overlap teaching (308) stays reachable — the
+  //      reject guard runs AFTER it.
   {
     const w2 = btWrite("bt-w2.txt", "h1\nA-A one\nA-B two\nmid\nB-A one\nB-B two\nh7");
+    const before = readFileSync(w2, "utf8");
     const res = await btTool.execute(
       { mode: "WRITE", dstFile: "bt/bt-w2.txt", text: "REPL", regions: [{ start: "A-A", end: "A-B" }, { start: "B-A", end: "B-B" }] },
+      BT_CTX,
+    );
+    const bodyAfterReject = readFileSync(w2, "utf8");
+    const resPaired = await btTool.execute(
+      { mode: "WRITE", dstFile: "bt/bt-w2.txt", text: "REPL", regions: [{ start: "A-A", end: "A-B" }] },
       BT_CTX,
     );
     check(
       "307",
       "S30",
-      "WRITE 'regions' LIST (2 regions, applied HIGHEST LINE first — no shifting): the 3-line feedback (per-op descending + summary) + byte-exact dst",
-      res === "Wrote 1 line to 'bt/bt-w2.txt' (lines 5..6, first: 'REPL').\nWrote 1 line to 'bt/bt-w2.txt' (lines 2..3, first: 'REPL').\nWrote 2 regions into 'bt/bt-w2.txt' (2 lines total)." &&
-        readFileSync(w2, "utf8") === "h1\nREPL\nmid\nREPL\nh7",
-      JSON.stringify({ res, body: readFileSync(w2, "utf8") }),
+      "WRITE 'regions' LIST contract: 2 regions + ONE 'text' is REJECTED (byte-exact teaching error, the dst byte-identical) + the paired 1-region form writes (byte-exact feedback + dst)",
+      res === "Error: the 'regions' list has 2 regions but WRITE takes ONE 'text' (it would fan the same text into every region) — use exactly one region in the list, or one WRITE call per region." &&
+        bodyAfterReject === before &&
+        resPaired === "Wrote 1 line to 'bt/bt-w2.txt' (lines 2..3, first: 'REPL')." &&
+        readFileSync(w2, "utf8") === "h1\nREPL\nmid\nB-A one\nB-B two\nh7",
+      JSON.stringify({ res, bodyAfterReject, resPaired, body: readFileSync(w2, "utf8") }),
     );
   }
 

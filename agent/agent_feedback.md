@@ -908,3 +908,6 @@ repo_commands.md (clone + MAIN) names "probe + smoke suite" as the standard gate
 ### 2026-10-22_14-24 planner_FlashNext ses_e9d1b5700ffeFZZb50qex5NWBx
 Two self-inflicted block_transfer anchor slips cost ~6 repair calls this session (a MOVE cut a 39-line span from id-grep assumptions; a PASTE without targetMarker landed at EOF) — read back + re-grep before ANY line-anchored op, and pass targetMarker explicitly for inserts (the omitted default is EOF, easy to miss mid-chain).
 
+### 2026-10-22_14-55 worker_FlashNext ses_e9c6c3cbcffeSLiyxqFZ9f5pl7
+block_transfer's sandbox resolves relative srcFile/dstFile against the SESSION CWD — a cross-repo REPLACE failed with a confusing 'File not found' until absolute paths were used; always pass absolute paths for the second repo (2026-10-22, unit 5c).
+

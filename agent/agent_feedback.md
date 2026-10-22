@@ -848,3 +848,6 @@ block_transfer WRITE gives no way to detect a mis-targeted line-number span: the
 ### 2026-10-22_01-34 worker_FlashNext ses_e9f4b2fceffeutBMvp16FEv4Pr
 Two mid-session near-misses cost re-work: the first clone/main file comparisons used HEAD~1 from the wrong tree and cmp with process substitution (wrong conclusions), and the clone gates crashed until I copied .opencode/node_modules (git-ignored, undeclared in the spec) — a clone-tree setup preflight (named ref dumps; provisioning check) should precede any clone port.
 
+### 2026-10-22_02-07 worker_FlashNext ses_e9f24eaf0ffeBCobIEf3PWPc0z
+block_transfer sandbox refused the clone tree (repo-root-v2) in this session — its CONFIG_ROOTS load once at host start, so unit A's config-driven roots (commit 5ce85b3) were live only after a restart; clone-twin edits had to go through the edit tool, and block_transfer (unit A's own tool) cannot touch clone paths until the host restarts — note this when delegating cross-tree work in the same session.
+

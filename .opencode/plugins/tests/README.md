@@ -146,3 +146,29 @@ entries byte-compare) + cleanup. Fixtures ride the scratchpad
 `session_v2`/`session_message` DB + budget file; the boundary store + the
 evidence log ride the mock WS root — NEVER the live DB). Expected final line:
 `SMOKE: ALL PASS`.
+
+## loop_log smoke (TODO #137 unit 5a, 2026-10-22)
+
+    bun run loop_log.smoke.mjs
+
+29 checks against a mock `ctx` (no opencode process, NEVER the live loop
+folder): the loader shape `{id:'loop_log', setup}` + the `tool.transform`/
+`editor.add` registration (plain JSON-schema input with required status/content
++ optional role/model/session, string output, teardown disposes the
+registration), the status token table (one case per keyword in order done/return/
+warn/info/start/correct, `restart` -> START, case/dash normalization) and the
+unrecognized/EMPTY-status v1 Error string with ZERO writes (no folder, no
+append), the folder rules (fresh `autorun-<date>_<HH-MM>` create flagged
+`(created)`, single-folder reuse flagged `(existing)`, SEVERAL -> most-
+recently-modified with the ANOMALY note appended LAST and the other folder
+untouched), the line format `<stamp> <status> <role> <session> <model>
+<content>` (append-only, minute-boundary-safe), the readback readback-match/
+readback-MISMATCH confirmation (glued partial line names the ACTUAL last
+line), the `corrects:` line (byte-exact previous line; omitted for an empty
+log), and the Part A auto-fill chains on the v2 carrier (args beat context;
+blank args fall through to context.sessionID/context.agent; the all-`unknown`
+fallback — the v1 twin's sessionId/session.id/extra.model.id legs have NO v2
+carrier, the fallthrough carries). Fixtures ride the scratchpad
+`home/AppData/Local/Temp/opencode/small-write-tools-smoke-v2/looplog`
+(per-fixture `setup` retargets the repo-root carrier — NEVER the live DB or
+loop folder). Expected final line: `SMOKE: ALL PASS`.

@@ -67,3 +67,30 @@ ctx-family-smoke-v2` (fixture `session_v2`/`session_message` DB, budget +
 loop-root files — NEVER the live DB; the shared gauge core is steered via
 its test hooks). Expected final line: `SMOKE: ALL PASS`.
 `packages/core/src/config/plugin/source.ts:164-167`).
+
+## compact_memory smoke (TODO #137 unit 4a, 2026-10-22)
+
+    bun run compact_memory.smoke.mjs
+
+41 checks against a mock `ctx` (no opencode process, NO backend request): the
+loader shape + the `tool.transform`/`editor.add` registration (a plain JSON-
+schema input, string output), the ported core's cap forms (CPU guard FIRST,
+listed, unlisted -> `model_budget.default`, absent file -> 1), CPU denial with
+ZERO side effects, SELF resolution from the `ToolContext` `sessionID`, the
+compact body carrying NO keep fields (keys EXACTLY `[sessionID]`),
+INCREMENT-ON-SUCCESS only (no burn at dispatch; the `session.compaction.
+ended` event leg burns once and writes the v1-format COMPACT line into the
+fixture `ctx.log` with the `tok=<keepTokens> budget` source), fire-and-forget
+(a `slow` compact promise resolves AFTER the tool returns), the `.failed`
+leg (no burn + a capped-preview evidence line), the emergency-1 at `count
+== cap` and the exhausted refusal above, CROSS with the effective cap+1 +
+the ` ovr` token and the `count == cap+1` refusal, the U3 marker legs (`
+event.result = {summary, metadata:{marker:true}}` captured at the `comp
+action` draft hook, the `boundary-ignored` line, the no-pending-record
+silence), the native `delivery:"queue"` continuation delivered ONLY at
+verified success + the rejection evidence, the `keep-not-applied` line,
+`dump-skipped` ONCE per allowed dispatch, the whole-log kind/cap invariants,
+the #119 additive budget-file invariant, and cleanup (registrations disposed,
+the event consumer stopped). Fixtures ride the scratchpad `C:/Users/
+operator/AppData/Local/Temp/opencode/compact-smoke-v2` (budget file + BOTH
+logs — NEVER the live DB). Expected final line: `SMOKE: ALL PASS`.

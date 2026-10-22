@@ -282,9 +282,10 @@ chk("setup: registers the execute.before hook + returns a cleanup", typeof ctx._
   chk("C11 R8 redirect: input.path mutated to rootA/rootB", input.path === target, `got ${input.path}`);
   const lines = readLog().slice(before);
   const rd = lines.find((f) => f[5].includes("kind=redirect"));
-  // the 160-char flattenField cap truncates the long absolute value (v1
-  // byte-stable behavior) — assert the value PREFIX before the cut
-  chk("C11 kind=redirect line (verdict pair-resolved REUSED, no `pair=`)", rd !== undefined && rd[7] === "pair-resolved" && rd[5].includes(`orig=${sibling}`) && rd[5].includes(`value=${ROOTA.slice(0, 20)}`) && !rd[5].includes("pair="), rd ? rd[5] : "no line");
+  // unit B (#140) re-pin: the cut moves BACK to the `value=` path-token start —
+  // the value path is DROPPED WHOLE (never a mid-path truncation) and the orig
+  // path stays WHOLE (replaces the old mid-path `value=` 20-char-prefix form)
+  chk("C11 kind=redirect line (verdict pair-resolved REUSED, no `pair=`; unit B: orig whole, value dropped whole)", rd !== undefined && rd[7] === "pair-resolved" && rd[5] === `kind=redirect tool=write arg=path orig=${sibling} ...` && !rd[5].includes("value=") && !rd[5].includes("pair="), rd ? rd[5] : "no line");
   // the span is under the scratchpad root (in-sandbox): the note never
   // fired, and the effective path lands under the allowed rootA — so no
   // out-of-sandbox line either way (the recompute-on-effective-args path
@@ -374,6 +375,30 @@ chk("setup: registers the execute.before hook + returns a cleanup", typeof ctx._
   chk("C16 existing external path: no throw (the permission gate owns it)", threw === null, threw ? threw.message.slice(0, 80) : "");
   const lines = readLog().slice(before);
   chk("C16 existing external path: no intercept-error line", lines.every((f) => f[7] !== "error"), JSON.stringify(lines.map((f) => f[7])));
+}
+
+// C-B — unit B FIELD CONTENT rule (TODO #140, clone twin): a single path-shaped
+// field prints WHOLE (raised cap MAX_PATH_FIELD_CHARS=1024); a mixed prose+path
+// field's cut moves BACK — never mid-path; the 8-field shape byte-compatible.
+{
+  const SEG = "seg-abcdefgh";
+  const LDP = [SCRATCH, SEG, SEG, SEG, SEG, SEG, SEG, SEG, SEG, SEG, "leaf.txt"].join("/"); // >160 chars, 1 token
+  const before = readLog().length;
+  await ctx.fire("read", { path: LDP });
+  const lines = readLog().slice(before);
+  const pa = lines.find((f) => f[7] === "path-anomaly");
+  chk("C-B1 long doubled path via the hook: the anomaly line has EXACTLY 8 fields, field 4 = the WHOLE JSON arg, NO `...` anywhere in the line (line > 160)", pa !== undefined && pa.length === 8 && pa[4] === JSON.stringify({ path: LDP }) && pa.join(" | ").length > 160 && !pa.join(" | ").includes("..."), pa ? pa.join(" | ") : "no line");
+  // C-B2: the leading-path + prose out-of-sandbox note > cap -> no valid head
+  // position -> the short summary form (slice + `...`) — measured, pinned
+  const SPAN = "home/" + "deep-dir-".repeat(16) + "x.txt"; // 168 > 160
+  const expectedNote = `path=${SPAN} root=`.slice(0, 157) + "...";
+  const before2 = readLog().length;
+  await ctx.fire("read", { path: SPAN });
+  const lines2 = readLog().slice(before2);
+  const ob = lines2.find((f) => f[7] === "out-of-sandbox");
+  chk("C-B2 long out-of-sandbox note: the arg field 4 prints WHOLE (single path-shaped value under the raised cap) + the evidence falls back to the short summary form (mid-path cut is the documented fallback)", ob !== undefined && ob[4] === JSON.stringify({ path: SPAN }) && ob[5] === expectedNote, ob ? ob[5] : "no line");
+  const obLineJoined = ob ? ob.join(" | ") : "";
+  chk("C-B3 the out-of-sandbox evidence is the leading-path+prose form: the fallback cut lands inside the FIRST path token (documented), the note line still splits into 8 fields", obLineJoined.split(" | ").length === 8 && obLineJoined.length > 160, obLineJoined);
 }
 
 // ------------------------------------------------------------------ the whole-log invariants

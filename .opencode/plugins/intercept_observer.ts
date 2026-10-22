@@ -90,6 +90,12 @@ import { readGauge } from "../plugin/scripts/gauge.mjs";
 
 const MAX_LINES_PER_CALL = 3;
 const MAX_FIELD_CHARS = 160;
+// TODO #140 unit B (2026-10-22, clone twin): the raised cap for a field whose
+// flattened value IS ONE path-shaped token (no surrounding whitespace) — such
+// a field prints WHOLE; a mid-path cut reads to the agent as its own mistyped
+// path. Beyond this cap such a field falls back to the short summary form (slice
+// + the `...` marker).
+const MAX_PATH_FIELD_CHARS = 1024;
 const CORPUS_TTL_MS = 60_000;
 const CORPUS_MAX_ENTRIES = 20_000;
 const FUZZY_MAX_D = 2;
@@ -166,13 +172,48 @@ function argsToString(args: unknown): string {
   }
 }
 
-// Flatten a field so the 8-field " | " shape is byte-stable (v1 core,
-// unchanged): newlines -> space, any `|` -> bare `|`, cap at
-// MAX_FIELD_CHARS (the `...` marker).
+// A path-shaped single value: the flattened field is ONE whitespace-free
+// token containing a path separator (`/` or `\` — the JSON-stringified
+// single-field arg form qualifies too, its embedded path prints whole).
+function isPathShapedValue(s: string): boolean {
+  return s !== "" && !/\s/.test(s) && (s.includes("/") || s.includes("\\"));
+}
+
+// The head length for a MIXED field's cut (TODO #140 unit B): the largest
+// p with cap - 3 >= p >= 1 that keeps EVERY path-shaped whitespace token
+// whole (no p strictly inside one); 0 = none (the whole value is one over-cap
+// path token -> the short summary form fallback).
+function safeCutLen(s: string, cap: number): number {
+  const toks: [number, number][] = [];
+  const re = /\S+/g;
+  let m = re.exec(s);
+  while (m !== null) {
+    if (m[0].includes("/") || m[0].includes("\\")) toks.push([m.index, m.index + m[0].length]);
+    m = re.exec(s);
+  }
+  for (let p = cap - 3; p >= 1; p--) {
+    let inside = false;
+    for (const [a, b] of toks) if (a < p && p < b) { inside = true; break; }
+    if (!inside) return p;
+  }
+  return 0;
+}
+
+// Flatten a field so the 8-field " | " shape is byte-stable (v1 core + the
+// unit B FIELD CONTENT rule): newlines -> space, any `|` -> bare `|`, then
+// a value that IS one path-shaped token prints WHOLE up to MAX_PATH_FIELD_
+// CHARS; a MIXED prose+path value over the generic cap keeps the cap + the
+// ASCII `...` marker with the cut moved BACK via safeCutLen so it never
+// lands inside a path-looking substring (fallback: the short summary form
+// slice(0, cap - 3) + `...` when no position keeps the head intact).
 function flattenField(v: string, cap: number = MAX_FIELD_CHARS): string {
   let s = String(v ?? "");
   s = s.replace(/[\r\n\t]+/g, " ").replace(/\s*\|\s*/g, "|");
-  if (s.length > cap) s = s.slice(0, cap - 3) + "...";
+  if (s.length > cap) {
+    if (isPathShapedValue(s) && s.length <= MAX_PATH_FIELD_CHARS) return s;
+    const p = safeCutLen(s, cap);
+    s = p > 0 ? s.slice(0, p) + "..." : s.slice(0, cap - 3) + "...";
+  }
   return s;
 }
 

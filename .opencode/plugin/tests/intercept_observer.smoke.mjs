@@ -18,12 +18,17 @@
 // verdict carrying the best-candidate d (`hint rejected …` — #106)) + the
 // journal's edit `old` = the ORIGINAL pre-mutation oldString)
 // (4b) 2026-10-01 (#134, maintainer ruling): the HARD-STOP — the mutating
-// typed path field (write/edit `filePath`) outside every allowed root
-// (the R8 set) whose containing directory is missing → the before hook
-// THROWS (the hook's catch re-throws a HardStopError; the agent sees the
-// error, one intercept-error line logs it) + the C fix: the doubled-folder
-// detector now sees the JSON-escaped typed Windows path (`\\` collapsed
-// back to one separator).
+//   typed path field (write/edit `filePath`) outside every allowed root
+//   (the R8 set) whose containing directory is missing → the before hook
+//   THROWS (the hook's catch re-throws a HardStopError; the agent sees the
+//   error, one intercept-error line logs it) + the C fix: the doubled-folder
+//   detector now sees the JSON-escaped typed Windows path (`\\` collapsed
+//   back to one separator).
+// (B) 2026-10-22 (#140 unit B): the FIELD CONTENT rule in flattenField —
+//   a field whose value IS one path-shaped token prints WHOLE (MAX_PATH_
+//   FIELD_CHARS raised cap); a mixed prose+path field's cut moves BACK —
+//   never inside a path substring (the 8-field shape + `...` marker byte-
+//   unchanged; fall-back = the short summary form).
 // (.opencode/plugin/intercept_observer.ts
 // + _core.ts). The plugin factory is called with a SCRATCHPAD sandbox
 // `directory` — the intercept.log lands in the sandbox
@@ -1225,6 +1230,42 @@ try {
       ca.length === 1 && ca[0].verdict === "path-anomaly" && ca[0].evidence === "doubled=Users" &&
         core.observePathAnomaly("C:" + "\\" + "Users" + "\\" + "x").length === 0,
       JSON.stringify(ca));
+  }
+
+  // ---- (B) FIELD CONTENT rule pins (TODO #140 unit B, 2026-10-22): a
+  //      single path-shaped field prints WHOLE (raised cap); a mixed field's
+  //      cut moves BACK — never inside a path substring; the 8-field line
+  //      shape + the `...` marker stay byte-compatible. Post-(12f) state →
+  //      before2/read2 only (MODULE-STATE FLIP, #111).
+  {
+    const LP = "home/" + "deep-dir-".repeat(16) + "leaf.txt"; // 168 > 160, <= 1024
+    chk("(B) pins surface: MAX_PATH_FIELD_CHARS = 1024 + the fixture path is > MAX_FIELD_CHARS",
+      core.MAX_PATH_FIELD_CHARS === 1024 && LP.length > core.MAX_FIELD_CHARS && LP.length <= core.MAX_PATH_FIELD_CHARS);
+    chk("(B1) a single path-shaped value > the generic cap prints UNTRUNCATED (raised cap; no `...` marker)",
+      core.flattenField(LP) === LP && !core.flattenField(LP).includes("..."), core.flattenField(LP));
+    const OVER = "C:/drive/" + "x".repeat(1030); // 1039 > MAX_PATH_FIELD_CHARS
+    chk("(B1) a single path > MAX_PATH_FIELD_CHARS → the existing short summary form (slice + `...`)",
+      core.flattenField(OVER) === OVER.slice(0, core.MAX_FIELD_CHARS - 3) + "...", core.flattenField(OVER));
+    chk("(B2) leading path > the cap + prose: no valid head position → the short summary form (fallback)",
+      core.flattenField(LP + " and the prose tail runs past the cap and on") === LP.slice(0, core.MAX_FIELD_CHARS - 3) + "...", core.flattenField(LP + " and the prose tail runs past the cap and on"));
+    chk("(B2) prose + trailing path: the cut moves BACK to the path token start — the trailing path NEVER prints partially",
+      core.flattenField("alpha ".repeat(24) + LP) === "alpha ".repeat(24) + "...", core.flattenField("alpha ".repeat(24) + LP));
+    chk("(B2) two paths + mid prose: the cut lands at the SECOND path token start — first whole, second dropped whole",
+      core.flattenField("C:/short/one.txt mid " + LP) === "C:/short/one.txt mid " + "...", core.flattenField("C:/short/one.txt mid " + LP));
+    const PROSE = "word ".repeat(50) + "end"; // 253 chars, NO path tokens — old generic cut byte-identical
+    chk("(B2) byte-compat with the old generic cut when NO path token covers the cut point (prose-only field)",
+      core.flattenField(PROSE) === PROSE.slice(0, core.MAX_FIELD_CHARS - 3) + "...", core.flattenField(PROSE));
+    // (B3) byte-shape on a long-path line THROUGH the hook: 8 pipe fields,
+    // order unchanged, no `...` anywhere (path evidence never cut mid-path)
+    const DSEG = "seg-abcdefgh";
+    const LDP = path.join(tdir, DSEG, DSEG, DSEG, DSEG, DSEG, DSEG, DSEG, DSEG, DSEG, "leaf.txt");
+    const cB = read2().length;
+    await before2({ tool: "bash", sessionID: "ses_smoke_io1", callID: "c15b" }, { args: { command: LDP } });
+    const nlB = read2().slice(cB);
+    const paLine = nlB.find((l) => l.includes("path-anomaly"));
+    chk("(B3) long doubled path via the hook: the path-anomaly line splits into EXACTLY 8 fields; field 5 = the WHOLE JSON arg (escaped backslashes, no `...` in the line, line > 160)",
+      paLine !== undefined && paLine.split(" | ").length === 8 && split8(paLine)[4] === JSON.stringify({ command: LDP }) &&
+        paLine.length > 160 && !paLine.includes("...") && split8(paLine)[7] === "path-anomaly", JSON.stringify(nlB));
   }
 
   // ---- (9) the LIVE log is untouched by this smoke

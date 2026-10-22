@@ -85,8 +85,13 @@
 //   <candidates + distances OR gate evidence> | <context: what the arg is —
 //   path / commit-ref / date / session-id> | <verdict>
 // Field contents NEVER contain the separator " | " (they are flattened:
-// any `|` with optional surrounding spaces → `|`, newlines → space) and are
-// capped at MAX_FIELD_CHARS (truncation marked with the ASCII `...`).
+// any `|` with optional surrounding spaces → `|`, newlines → space) and
+// follow the FIELD CONTENT rule (TODO #140 unit B — the 8-field shape is
+// byte-unchanged): a field whose value IS one path-shaped token prints
+// WHOLE up to MAX_PATH_FIELD_CHARS; a mixed prose+path field keeps the
+// MAX_FIELD_CHARS cap + the ASCII `...` marker, with the cut point moved
+// BACK so it never lands inside a path-looking substring (fall-back:
+// the short summary form, when no such position keeps the head intact).
 //
 // VERDICT VOCABULARY (the original six, byte-identical and in order, plus
 // the two read-scope fuzzy tokens appended — addendum C6: conservative,
@@ -118,6 +123,10 @@
 // CAPS (documented per the task spec — worker's call):
 //   MAX_LINES_PER_CALL  = 3  (priority-ordered, then truncated)
 //   MAX_FIELD_CHARS     = 160 (original-arg + evidence + error message)
+//   MAX_PATH_FIELD_CHARS = 1024 (a single path-shaped field value prints
+//                              whole — never a mid-path cut; beyond it the
+//                              short summary form applies — unit B worker's
+//                              call)
 //   MIN_DENSE_RUN       = 6  (digit-run length that fires (a))
 //   MODEL_CACHE_TTL_MS  = 60_000 (per-session model-id cache, plugin layer)
 //   CORPUS_TTL_MS       = 60_000 (corpus cache TTL, plugin layer — §2.7)
@@ -135,6 +144,12 @@ import { dirname, join, relative } from "node:path";
 
 export const MAX_LINES_PER_CALL = 3;
 export const MAX_FIELD_CHARS = 160;
+// TODO #140 unit B (2026-10-22): the raised cap for a field whose flattened
+// value IS ONE path-shaped token (no surrounding whitespace) — such a field
+// prints WHOLE; a mid-path cut reads to the agent as its own mistyped path.
+// Beyond this cap such a field falls back to the short summary form (slice
+// + the `...` marker).
+export const MAX_PATH_FIELD_CHARS = 1024;
 export const MIN_DENSE_RUN = 6;
 export const MODEL_CACHE_TTL_MS = 60_000;
 export const CORPUS_TTL_MS = 60_000;
@@ -651,13 +666,55 @@ export function observeArg(
 
 // ------------------------------------------------------------------ hook plumbing helpers (shared, pinned)
 
+// A path-shaped single value: the flattened field is ONE whitespace-free
+// token containing a path separator (`/` or `\` — the JSON-stringified
+// single-field arg form qualifies too, its embedded path prints whole).
+function isPathShapedValue(s: string): boolean {
+  return s !== "" && !/\s/.test(s) && (s.includes("/") || s.includes("\\"));
+}
+
+// The head length for a MIXED field's cut (TODO #140 unit B): the largest
+// p with cap - 3 >= p >= 1 that keeps EVERY path-shaped whitespace token
+// whole (no p strictly inside one — a cut inside `a/b/c` reads as a typo
+// in the agent's own path); 0 = none (the whole value is one over-cap
+// path token). Tokens are protected whole only when they contain a path
+// separator — plain prose words may still cut mid-word (as today).
+function safeCutLen(s: string, cap: number): number {
+  const toks: [number, number][] = [];
+  const re = /\S+/g;
+  let m = re.exec(s);
+  while (m !== null) {
+    if (m[0].includes("/") || m[0].includes("\\")) toks.push([m.index, m.index + m[0].length]);
+    m = re.exec(s);
+  }
+  for (let p = cap - 3; p >= 1; p--) {
+    let inside = false;
+    for (const [a, b] of toks) if (a < p && p < b) { inside = true; break; }
+    if (!inside) return p;
+  }
+  return 0;
+}
+
 // Flatten a field so the 8-field " | " shape is byte-stable: newlines →
-// space, any `|` (with optional surrounding spaces) → bare `|`, cap at
-// MAX_FIELD_CHARS (the `...` truncation marker).
+// space, any `|` (with optional surrounding spaces) → bare `|`, then the
+// FIELD CONTENT rule (TODO #140 unit B — only the field CONTENT changes,
+// never the shape):
+//   - a value that IS one path-shaped token prints WHOLE up to
+//     MAX_PATH_FIELD_CHARS (no marker) — the path evidence/context an
+//     agent reads about its own call is never a truncated path;
+//   - a MIXED prose+path value over the generic cap keeps the cap + the
+//     ASCII `...` marker, but the cut point moves BACK via safeCutLen so
+//     it never lands inside a path-looking substring; when no p keeps
+//     the head intact (p = 0), the existing short summary form applies:
+//     slice(0, cap - 3) + the `...` marker.
 export function flattenField(v: string, cap: number = MAX_FIELD_CHARS): string {
   let s = String(v ?? "");
   s = s.replace(/[\r\n\t]+/g, " ").replace(/\s*\|\s*/g, "|");
-  if (s.length > cap) s = s.slice(0, cap - 3) + "...";
+  if (s.length > cap) {
+    if (isPathShapedValue(s) && s.length <= MAX_PATH_FIELD_CHARS) return s;
+    const p = safeCutLen(s, cap);
+    s = p > 0 ? s.slice(0, p) + "..." : s.slice(0, cap - 3) + "...";
+  }
   return s;
 }
 

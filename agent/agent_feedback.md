@@ -857,3 +857,6 @@ readme_post_compaction.md STEP 1 names three files that do not exist in this rep
 ### 2026-10-22_02-43 worker_FlashNext ses_e9effdf23ffew3rPibwg5P4n93
 TODO #141 spec baseline miscount: it claimed 11 smokes 0-PASS at the clone baseline; measured only the 4 plugin-module smokes were red (8 tools/gauge suites already green) — re-measure spec baselines before trusting listed counts; also the write tool blocked creating .opencode/plugin-unported-v1/scripts/gauge.mjs until the parent dir was mkdir'd first (one wasted round-trip).
 
+### 2026-10-22_02-47 planner_FlashNext ses_e9f0c2d53ffeYo5to2gs6Gb1W1
+A block_transfer WRITE reported `Replaced 1 line ... with 24 line(s)` SUCCESS yet the file lacked the text (the call's text payload was truncated mid-bullet); the file read back exactly pre-WRITE — always read the file back after a big WRITE/REPLACE before trusting the feedback line.
+

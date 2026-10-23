@@ -941,3 +941,6 @@ Worker summary claimed `state_snapshot.smoke.mjs` "RED at baseline 90d6d6c" with
 ### 2026-10-23_01-58 worker_FlashNext ses_e9a023f54ffe1a5bvvPLmFBph9
 Spec facts in handover_task.md were stale and cost re-derivation: the probe is 8677 lines (not ~4600), the MAIN/clone probe diff has 23 hunks (not 12), and DoD-2's `plan: .opencode/plugin/scripts/gauge.mjs -> take MAIN` line cannot print in the real tree once both sides hold the same blob (merge auto-merges it) — I had to prove the rule in the selftest fixture instead.
 
+### 2026-10-23_02-11 planner_FlashNext ses_e9b246abdffesGhYjB50ymiwqy
+loop_log with `role`/`model` omitted printed the agent name TWICE (`planner_FlashNext ... planner_FlashNext`) instead of the model id — on this host `context.extra.model.id` is absent, so pass `model` explicitly from the launch context when the log's model column matters.
+

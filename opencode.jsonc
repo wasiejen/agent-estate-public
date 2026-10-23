@@ -4,16 +4,16 @@
   "$schema": "https://opencode.ai/tui.json",
   "autoupdate": false,
   "formatter": true,
-  // v2 (Unit A, TODO #137): the intercept observer v2 plugin. NOTE: v2
-  // config plugin entries pointing at a FILE are dropped with a warning
-  // ("configured plugin path must be a directory" — fork
-  // packages/core/src/config/plugin/source.ts:151-153); the plugin itself
-  // is loaded by v2 DIRECTORY auto-discovery of .opencode/plugins/
-  // (packages/core/src/plugin/source-directory.ts:5-33). The entry is the
-  // spec'd minimal v2 plugins directive; it is documented, not load-bearing.
-  "plugins": [
-    "./plugins/intercept_observer.ts"
-  ],
+  // v2 (Unit A, TODO #137): the intercept observer v2 plugin. NO plugins key:
+  // the plugin is loaded by v2 DIRECTORY auto-discovery of .opencode/plugins/
+  // (packages/core/src/plugin/source-directory.ts:5-33). A key here pointing
+  // at a FILE is now LOAD-BEARING under v2.1.3: it is stat-ed and watched
+  // relative to the project dir, so a path that does not exist yields the
+  // visible red panel ("Plugin failed to load" — log
+  // message="failed to load plugin" + "configured plugin watch failed", both
+  // ENOENT) instead of the older silent "configured plugin path must be a
+  // directory" drop-with-warning (fork
+  // packages/core/src/config/plugin/source.ts:151-153).
   "scroll_speed": 3,
   "scroll_acceleration": {
     "enabled": true

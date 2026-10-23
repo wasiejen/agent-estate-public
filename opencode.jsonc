@@ -2,9 +2,18 @@
   // config.json is for desktop app, tui.json for TUI ^^
   // https://opencode.ai/docs/config/
   "$schema": "https://opencode.ai/tui.json",
-  "model": "opencode/nemotron-3.5-lightning-free",
   "autoupdate": false,
   "formatter": true,
+  // v2 (Unit A, TODO #137): the intercept observer v2 plugin. NOTE: v2
+  // config plugin entries pointing at a FILE are dropped with a warning
+  // ("configured plugin path must be a directory" — fork
+  // packages/core/src/config/plugin/source.ts:151-153); the plugin itself
+  // is loaded by v2 DIRECTORY auto-discovery of .opencode/plugins/
+  // (packages/core/src/plugin/source-directory.ts:5-33). The entry is the
+  // spec'd minimal v2 plugins directive; it is documented, not load-bearing.
+  "plugins": [
+    "./plugins/intercept_observer.ts"
+  ],
   "scroll_speed": 3,
   "scroll_acceleration": {
     "enabled": true
@@ -83,26 +92,37 @@
   "shell": "C:/Program Files/Git/bin/bash.exe",
   "provider": {
 
-    "strata": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Strata (local)",
-      "options": {
-        "baseURL": "http://127.0.0.1:8033/v1",
-        "apiKey": "sk-strata-GL-hl1kXOGA9fKqQfEiaZicZz8BPaKJO"
-      },
-      "models": {
-        "qwen3.8-flash-next-coder-iq1_m": {
-          "name": "Qwen3.8-Flash-Next (local)",
-          "tool_call": true,
-          "reasoning": true,
-          "limit": {
-            "context": 262144,
-            "input": 258048,
-            "output": 20000
-          }
-        }
-      }
-    },
+    // "strata": {
+    //   "npm": "@ai-sdk/openai-compatible",
+    //   "name": "Strata (local)",
+    //   "options": {
+    //     "baseURL": "http://127.0.0.1:8033/v1",
+    //     "apiKey": "sk-strata-GL-hl1kXOGA9fKqQfEiaZicZz8BPaKJO"
+    //   },
+    //   "models": {
+    //     "qwen3.8-flash-next-coder-iq1_m": {
+    //       "name": "Qwen3.8-Flash-Next (local)",
+    //       "tool_call": true,
+    //       "reasoning": true,
+    //       "limit": {
+    //         "context": 262144,
+    //         "input": 258048,
+    //         "output": 20480
+    //       }
+    //     },
+
+    //     "qwen3.8-flash-next-gyro-gyro-s": {
+    //       "name": "Qwen3.8-Flash-Next GyroS (local)",
+    //       "tool_call": true,
+    //       "reasoning": true,
+    //       "limit": {
+    //         "context": 262144,
+    //         "input": 258048,
+    //         "output": 20480
+    //       }
+    //     }
+    //   }
+    // },
 
     "llama-swap": {
       "name": "llama-swap-v2",
@@ -111,6 +131,17 @@
         "baseURL": "http://local-inference-host/v1"
       },
       "models": {
+
+        "Qwen3.8-NEXT-Coder": {
+          "name": "Qwen3.8-Flash-Next (local)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": {
+            "context": 262144,
+            "input": 258048,
+            "output": 20480
+          }
+        },
         // -------------------
         // ik_llama.cpp backend with hadamard kv and optional trellis weights
         // -------------------
@@ -346,7 +377,7 @@
     "planner_FlashNext": {
       "description": "plans tasks and delegates to sub-agents: very high intelligence, speedrating 60, 262k context, high precision, highest general knowledge",
       "mode": "all",
-      "model": "strata/qwen3.8-flash-next-coder-iq1_m",
+      "model": "llama-swap/Qwen3.8-NEXT-Coder",
       "prompt": "{file:./agent/prompts/agent_planner.md}\n{file:agent/memory/planner/destilled_mem.md}",
       // "prompt": "{file:./prompts/base.txt}\n{file:./prompts/rules.txt}\n{file:./prompts/examples.txt}"
       "temperature": 1.0,
@@ -365,7 +396,7 @@
     "worker_FlashNext": {
       "description": "very high intelligence, speedrating 60, 262k context, high precision, highest general knowledge: best for very complex coding and code review work",
       "mode": "all",
-      "model": "strata/qwen3.8-flash-next-coder-iq1_m",
+      "model": "llama-swap/Qwen3.8-NEXT-Coder",
       "prompt": "{file:./agent/prompts/agent_worker.md}",
       "temperature": 1.0,
       "permission": {
@@ -387,7 +418,7 @@
     "explorer_FlashNext": {
       "description": "very high intelligence, speedrating 60, 262k context, high precision, highest general knowledge: for research and exploration of needed information",
       "mode": "all",
-      "model": "strata/qwen3.8-flash-next-coder-iq1_m",
+      "model": "llama-swap/Qwen3.8-NEXT-Coder",
       "prompt": "{file:./agent/prompts/agent_worker.md}\n{file:./agent/prompts/agent_explorer.md}",
       "temperature": 1.0,
       "permission": {

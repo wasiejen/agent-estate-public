@@ -824,3 +824,120 @@ readme_post_compaction.md STEP 1 still lists agent/readme/repo_map.md, repo_test
 ### 2026-10-15_16-19 planner_Q3S ses_ec048b57affeZzCMG1NTRZFluG
 Two lines: (1) the grep tool's path param treated a file path as a directory search (returned matches from other files) — verify output scope when passing a single file as path. (2) The memory_inbox curation scope was planned from a truncated grep (showed 2 entries); the inbox actually had 9 uncured — count entries before scoping a curation.
 
+### 2026-10-15_21-00 planner_Q3S_slow ses_ebfa5be88ffegbOOhAztizTIJD
+Explorer subagent can die MID-STEP with no visible error (step 47, tokens=0 in the context_trim report — provider stream dropped at ~80k/245k, auto_resume.log empty, no host-restart record): the Task result is just "Task cancelled" — the diagnostic path is context_trim report on the subagent session (the last row's tokens=0 + tool target identifies the dead step), then resume via task_id WITHOUT compaction (context is preserved; not a context-limit death). Cost: one resume round-trip; the recovery protocol handled it cleanly.
+
+### 2026-10-21_21-06 planner_FlashNext ses_ea02d3559ffe1L4pox2q8iU1CZ
+submit's append wrote entry headers mid-line when a target lacked a trailing newline (todo_inbox.md 2026-10-16 glued); fixed 2026-10-21 with a final-byte newline guard + H5 smoke pin — do not hand-append to inbox files with raw tools, use submit (it now self-guards).
+
+### 2026-10-21_22-03 planner_FlashNext ses_ea02d3559ffe1L4pox2q8iU1CZ
+my spec quoted stale gate baselines (120/46 from NAP text; measured 131/64 at spec time) — re-measure counts with the exact gate commands at spec authoring, never copy from NAP/summary prose; the worker caught it and filed it.
+
+### 2026-10-21_22-11 planner_FlashNext ses_ea02d3559ffe1L4pox2q8iU1CZ
+block_transfer WRITE/DELETE calls silently default to mode MOVE when 'mode' is omitted (block_transfer.ts L345 `args.mode || "MOVE"` was left as-is per out-of-scope ruling) — a missing mode produced a confusing MOVE-args error twice this session; next bt unit should make mode strictly required and echo the intended mode in the error.
+
+### 2026-10-21_22-44 planner_FlashNext ses_ea02d3559ffe1L4pox2q8iU1CZ
+I misjudged my context window as 230k (stale from the previous model) and declared a 90% stop at 82% real fill — the injected ctx: line is the authority for the current window; re-read it, never carry a window size across model switches.
+
+### 2026-10-22_00-08 worker_FlashNext ses_e9fa32e59ffemX2wEPTSI2WMYJ
+block_transfer rejected the clone-repo path (`repo-root-v2\.opencode\...`) as "outside the sandbox (allowed: repo-root, ...\Temp)" — its sandbox is the CWD repo, so a task whose scope is a sibling clone repo has NO block_transfer access; the `edit` tool does reach the clone. Use `edit` (or write) for clone edits, and do not retry block_transfer there.
+
+### 2026-10-22_00-36 planner_FlashNext ses_e9fb4e611ffeQmrH3PkDK6r4Ct
+block_transfer WRITE gives no way to detect a mis-targeted line-number span: the feedback's `first:` field echoes the NEW text only, so my two wrong-line WRITEs in TODO.md surfaced as silent corruption (4 repair calls); the replaced span's first line should be echoed too. Also: my unbounded `grep -n` over the 3242-line intercept.log (260-char lines) burned ~28k tokens — the Command Output bounding rule needs a curated helper for that log.
+
+### 2026-10-22_01-34 worker_FlashNext ses_e9f4b2fceffeutBMvp16FEv4Pr
+Two mid-session near-misses cost re-work: the first clone/main file comparisons used HEAD~1 from the wrong tree and cmp with process substitution (wrong conclusions), and the clone gates crashed until I copied .opencode/node_modules (git-ignored, undeclared in the spec) — a clone-tree setup preflight (named ref dumps; provisioning check) should precede any clone port.
+
+### 2026-10-22_02-07 worker_FlashNext ses_e9f24eaf0ffeBCobIEf3PWPc0z
+block_transfer sandbox refused the clone tree (repo-root-v2) in this session — its CONFIG_ROOTS load once at host start, so unit A's config-driven roots (commit 5ce85b3) were live only after a restart; clone-twin edits had to go through the edit tool, and block_transfer (unit A's own tool) cannot touch clone paths until the host restarts — note this when delegating cross-tree work in the same session.
+
+### 2026-10-22_02-11 planner_FlashNext ses_e9fb4e611ffeQmrH3PkDK6r4Ct
+readme_post_compaction.md STEP 1 names three files that do not exist in this repo (agent/readme/repo_map.md, repo_testgate.md, repo_gotchas.md) — the post-compaction batch burned 3 failed reads; the part list is repo_commands/repo_custom_tools/repo_opencode only. Also: worker close narratives can fabricate references — the spec-A close commit 4bef076 cited nonexistent commit c45b31c, a claimed restart and a claimed maintainer instruction; I spent 4 verification calls disproving it before the worker's own correction (28a6685).
+
+### 2026-10-22_02-43 worker_FlashNext ses_e9effdf23ffew3rPibwg5P4n93
+TODO #141 spec baseline miscount: it claimed 11 smokes 0-PASS at the clone baseline; measured only the 4 plugin-module smokes were red (8 tools/gauge suites already green) — re-measure spec baselines before trusting listed counts; also the write tool blocked creating .opencode/plugin-unported-v1/scripts/gauge.mjs until the parent dir was mkdir'd first (one wasted round-trip).
+
+### 2026-10-22_02-47 planner_FlashNext ses_e9f0c2d53ffeYo5to2gs6Gb1W1
+A block_transfer WRITE reported `Replaced 1 line ... with 24 line(s)` SUCCESS yet the file lacked the text (the call's text payload was truncated mid-bullet); the file read back exactly pre-WRITE — always read the file back after a big WRITE/REPLACE before trusting the feedback line.
+
+### 2026-10-22_03-17 worker_FlashNext ses_e9ee33291ffeTzq5RYmLfksD0x
+block_transfer WRITE with a `regions` LIST and a single `text` writes the SAME text into EVERY region (TODO.md #142/#138 status pair got duplicated into both slots and needed a repair script): the tool should reject N-regions-with-one-text, or accept per-region text.
+
+### 2026-10-22_03-26 planner_FlashNext ses_e9eeb0952ffeP6BY7SnI5j2Yzs
+block_transfer WRITE with a `regions` list + ONE `text` writes the SAME text into EVERY region (my 2-region NAP call duplicated a 9-line block; repaired with sed) — and a REPLACE from an un-inspected buffer (the auto `last_write`) silently replaced the archive header + one archive line; both landed as GREEN-looking feedback lines.
+
+### 2026-10-22_04-07 worker_FlashNext ses_e9ebd604fffeparWJoUxnaC8DA
+block_transfer/write/edit resolved the relative path .opencode/plugin/scripts/gauge.mjs against the session CWD (main repo), not the task's target clone — the first clone edit silently landed in the MAIN repo (reverted via git checkout); cross-repo tasks must ALWAYS pass absolute clone paths to file tools.
+
+### 2026-10-22_04-28 worker_FlashNext ses_e9e9f2891ffe2dP7gkx74SGSxH
+The spec said probe sections were not expected to move (only a check-113 repin was contemplated), but the regions contract change forces probe check 307 to repin in BOTH trees (its byte-exact fan-out pin). Pin inventory for a contract change should enumerate every pin file asserting the old behavior before the run, not only the config-roots check.
+
+### 2026-10-22_04-38 planner_FlashNext ses_e9ec78ee4ffe9Nu75F5iRfdtl6
+block_transfer REPLACE call in this session errored `Clipboard buffer 'default' is empty. Perform a COPY or CUT first` when the intent was a direct-text region write — the error does not teach the mode choice (WRITE = bufferless direct text; REPLACE = named buffer). A teaching-error line naming the WRITE alternative would have saved the retry.
+
+### 2026-10-22_05-23 planner_FlashNext ses_e9e860260ffeKO6KiJbGss5pwy
+The unit-3a spec's DO-NOT-touch line ("MAIN repo = only the handover summary write") also blocked the worker's legitimate `submit` (inbox) and loop-log channels — the worker withheld its friction/knowledge submits by design; spec DO-NOT-touch lists should exempt the `submit` inbox channels and `loop/` logging.
+
+### 2026-10-22_06-52 planner_FlashNext ses_e9e860260ffeKO6KiJbGss5pwy
+The 3b delegation launch was DENIED host-side ("The user rejected permission to use this specific tool call") with a long spec-echoing prompt; the clone was untouched (never started) and a second launch with a short spec-pointer prompt ran clean — delegation prompts should stay short and point at the committed spec file.
+
+### 2026-10-22_07-32 worker_FlashNext ses_e9dfde7d5ffeQ4Ya0runeu8s04
+block_transfer REPLACE/WRITE with bufferName:"last_write" silently pasted a STALE foreign buffer (from an earlier session) into my new core module and corrupted 19 lines — request last_write only right after your own WRITE, or pass the text inline; repair cost ≈ 6 calls. Second: a single bash heredoc append of ~4.5 KB was TRUNCATED mid-line with only a here-document warning — keep heredoc appends under ~4 KB per call (or use write/edit), and re-check the file tail after any append.
+
+### 2026-10-22_07-36 planner_FlashNext ses_e9e0be707ffeKYt7BzTQjda5e9
+block_transfer buffer aliasing cost me 2 wasted calls: a COPY(text) into 'default' was then CLOBBERED by a following CUT with no bufferName (both land on 'default'), and the same-name reuse pattern silently swapped staged content — rule: when assembling multi-part content, give every stage its own bufferName, and never reuse 'default' across ops in one chain (worker filed the `last_write` variant of the same trap 2026-10-22).
+
+### 2026-10-22_07-38 planner_FlashNext ses_e9de38db2ffeuql8EJDBx23MkK
+launch-channel copy friction: agent/handover/handover_task.md (commit 2ed077e) carried one stray leftover line above the 4a spec header (fragment of the previous channel's content) while the loop copy was exact — the launch copy should be a byte-exact cp of the spec file, not a partial overwrite.
+
+### 2026-10-22_08-18 worker_FlashNext ses_e9de1b381ffeM4308gaIvhBgTk
+block_transfer REPLACE silently substituted a STALE `default` buffer for the supplied `text` (twice corrupted my new files: 115 stray lines pasted into a plugin and a smoke); WRITE also needs BOTH start AND end markers. Use `edit` for small exact-string changes, or WRITE with an explicit span; never call REPLACE without `bufferName`.
+
+### 2026-10-22_10-24 planner_FlashNext ses_e9de38db2ffeuql8EJDBx23MkK
+spec-authoring friction (4c spec, planner-18): a verified-facts line claimed the clone 4b file (`plugins/context_trim_v2.ts`) carries a backend chain — it does NOT (4b rides the gauge core readGauge); the worker found the real chain only in MAIN v1 `tools/context_trim.ts` ~115-166 — when citing a pattern source in a spec, name the file that ACTUALLY contains it and grep-verify before writing.
+
+### 2026-10-22_11-01 worker_FlashNext ses_e9d393b49ffey7H784Nv2cXXPD
+The spec anchored the submit design-of-record at the CLONE twin, but the 2026-10-21 newline-guard requirement lives only in the MAIN twin — I had to diff MAIN vs clone to resolve the contradiction (caught before porting the wrong version).
+
+### 2026-10-22_11-14 planner_FlashNext ses_e9d47a84dffejiRLQ1gHKUjCvH
+Spec authoring for a cross-tree port: my 5c draft took the design-of-record from the CLONE's inert v1 twin, which is STALE (bt 845 vs MAIN 1034, submit 167 vs 189) — the staleness surfaced only via the worker's own note; the planner should `cmp`/`wc -l` the twins BEFORE committing a spec that anchors on them.
+
+### 2026-10-22_14-03 worker_FlashNext ses_e9d19c62fffeWnNuPGQpxwVMOa
+repo_commands.md (clone + MAIN) names "probe + smoke suite" as the standard gate but documents NO smoke-suite commands (v1 = node .opencode/plugin/tests/<f>.smoke.mjs from the root; v2 = bun run <f>.smoke.mjs in .opencode/plugins/tests) — I had to derive them from the two tests READMEs.
+
+### 2026-10-22_14-24 planner_FlashNext ses_e9d1b5700ffeFZZb50qex5NWBx
+Two self-inflicted block_transfer anchor slips cost ~6 repair calls this session (a MOVE cut a 39-line span from id-grep assumptions; a PASTE without targetMarker landed at EOF) — read back + re-grep before ANY line-anchored op, and pass targetMarker explicitly for inserts (the omitted default is EOF, easy to miss mid-chain).
+
+### 2026-10-22_14-55 worker_FlashNext ses_e9c6c3cbcffeSLiyxqFZ9f5pl7
+block_transfer's sandbox resolves relative srcFile/dstFile against the SESSION CWD — a cross-repo REPLACE failed with a confusing 'File not found' until absolute paths were used; always pass absolute paths for the second repo (2026-10-22, unit 5c).
+
+### 2026-10-22_18-21 planner_FlashNext ses_e9c6da8fbffeOHy63B2mMFliv1
+A chained `; cd /dev/null` tail appended to a bash verification call ended in "Tool execution aborted" mid-unit (work intact, call re-issued) — do not chain directory changes to the end of verification commands on win32; use the workdir param instead (2026-10-22, planner-22 #144).
+
+### 2026-10-22_18-48 worker_FlashNext ses_e9b8ed378ffewWRy0cDWYNTkQA
+The task spec's suggested MAIN smoke fixture `maintainer/live_note.md` produced a VACUOUS ordering pin (in the raw sweep path ARGUMENT order a maintainer/ hit already precedes `loop/notes.md`, so the pin passed ALL PASS (21/21) against the UNCHANGED tool); catching it cost 2 extra verification calls. Action: worker specs adding a pin should require the pin to FAIL against the unchanged tool, and spec fixture suggestions should name a path that sorts AFTER the comparator (TODO.md/README.md/WIKI.md).
+
+### 2026-10-22_18-54 planner_FlashNext ses_e9b95111affe0iVT7mWWG732Rx
+Two block_transfer WRITE calls failed because I gave a mid-line SUBSTRING as `endMarker` (anchors are line PREFIXES only); the error's "closest lines" hints listed unrelated lines, costing a call to recover — for a single-line append inside a long line, use `edit` with an exact oldString instead.
+
+### 2026-10-22_19-45 planner_FlashNext ses_e9b75d138ffepge05jIQDjcRnU
+block_transfer WRITE with line-number anchors silently rewrites whatever span the (mistyped) numbers name: this session slipped 3 times (36/44 for 236/244, 43 for 243, and a 4-line span vs 5-line source leaving an orphan comment line) in the clone smoke file; recovery each time was an immediate read-back + `git checkout -- <file>` — re-grep the exact span immediately before every line-number WRITE (MEM-0129), prefer marker anchors for long files.
+
+### 2026-10-22_20-08 worker_FlashNext ses_e9b41981bffejgVkyxQDFUsp2C
+Two tool/shell friction points this session: (1) block_transfer mode REPLACE silently used the stale 'default' buffer when I passed a direct 'text' argument (it corrupts the target region instead of rejecting; direct text belongs in WRITE) - repaired with a second WRITE, cost 4 calls; (2) AGENTS.md section Command Output names $TMP/opencode as the Git Bash scratch path but $TMP and $OLDPWD are unset on this host, so `> "$OLDPWD/s.txt"` resolved to /s.txt and hit Permission denied; the literal home/AppData/Local/Temp/opencode works.
+
+### 2026-10-22_20-23 planner_FlashNext ses_e9b2e455dffe197VdpiExjySXS
+Two small frictions (planner-27): (1) an `edit` oldString rebuilt from a line whose read-back showed a `~` (the U+FFFD artifact in `fit()`-truncated text) can NEVER match — one wasted call; anchor on an adjacent ASCII substring instead. (2) the live pre-`60a86cf` `state_snapshot` digest printed priority.md lines under `## todo` and an unfiltered `## markers` — cost one extra grep to interpret; the tell is the injected tool description still saying "hard-capped at 60 lines" = the host tool is stale, do not debug the committed tool.
+
+### 2026-10-22_20-34 planner_FlashNext ses_e9b246abdffesGhYjB50ymiwqy
+block_transfer REPLACE with a direct `text` argument errored "Clipboard buffer 'default' is empty" instead of pointing at the right mode — I lost one call guessing the fix; a REPLACE+text call should REJECT with a teaching line naming WRITE (2026-10-22, direct planner-28).
+
+### 2026-10-22_22-19 worker_FlashNext ses_e9acefcfbffewfyOO0y7VCJsfP
+block_transfer WRITE/DELETE rejected single-line calls twice ("startMarker and endMarker are both required") — for a one-line rewrite I had to pass the same marker twice; a single-line form (or a hint naming the two-marker requirement) would save two calls per edit.
+
+### 2026-10-22_23-19 planner_FlashNext ses_e9b246abdffesGhYjB50ymiwqy
+Worker summary claimed `state_snapshot.smoke.mjs` "RED at baseline 90d6d6c" with evidence "last-touch 6130a70" — the smoke ran `SMOKE: ALL PASS` in the planner env at both `90d6d6c` and `6f11071`, and `6130a70` is not a commit in that repo (real last-touch `9fa7d88`); the same summary also mis-stated its own pin count (52 vs measured 45). Action: worker summaries must paste the exact command + its verbatim last line for any claimed failure, and cite hashes copied from a `git log --oneline -3 -- <path>` output it just ran (2026-10-22, planner-28 direct, TODO #137 order 2).
+
+### 2026-10-23_01-58 worker_FlashNext ses_e9a023f54ffe1a5bvvPLmFBph9
+Spec facts in handover_task.md were stale and cost re-derivation: the probe is 8677 lines (not ~4600), the MAIN/clone probe diff has 23 hunks (not 12), and DoD-2's `plan: .opencode/plugin/scripts/gauge.mjs -> take MAIN` line cannot print in the real tree once both sides hold the same blob (merge auto-merges it) — I had to prove the rule in the selftest fixture instead.
+

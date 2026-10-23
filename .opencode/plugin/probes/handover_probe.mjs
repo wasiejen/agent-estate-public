@@ -1062,7 +1062,6 @@ import { DatabaseSync } from "node:sqlite";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
-// clone (TODO #141): the v1 plugin modules live at .opencode/plugin-unported-v1/ in this tree
 const PLUGIN_TS = path.join(REPO_ROOT, ".opencode", "plugin-unported-v1", "ctx_watchdog.ts");
 
 // --------------------------------------------------------------- fixed payloads
@@ -2605,7 +2604,6 @@ const cmExec = (args, extra) => cmTool.execute(args, cmCtx(extra));
 // host emits FOUR session.error events for ONE overflow (its internal
 // tail-strip retries — measured 2026-09-23) — exactly ONE compact;
 // EventSessionIdle (check 80) clears the guard.
-// clone (TODO #141): v1 subject at .opencode/plugin-unported-v1/context_recovery.ts
 const RC_TS = path.join(REPO_ROOT, ".opencode", "plugin-unported-v1", "context_recovery.ts");
 const RC_BUDGET = path.join(SANDBOX, ".opencode", "temp", "compact_budget.json");
 // The store setter MERGES (the S10 session entries + any previously
@@ -3056,7 +3054,6 @@ const dbPathBeforeS12 = getDbPath(); // the hook-restore capture (cf. check 39)
 // FINGERPRINT array, check 43). The budget store file is SHARED with S10/S11
 // (the v2 reader is lenient; S13's version-2 writes happen after S10/S11's
 // checks have run).
-// clone (TODO #141): v1 subject at .opencode/plugin-unported-v1/compact_memory.ts
 const QC_PLUGIN_TS = path.join(REPO_ROOT, ".opencode", "plugin-unported-v1", "compact_memory.ts");
 const qcMod = await import(pathToFileURL(QC_PLUGIN_TS).href);
 // The cap resolver (consolidation 2026-09-22): reads the model_budget map
@@ -3891,7 +3888,7 @@ let btTool;
     "110",
     "S15",
     "PASTE round-trip (fresh dst, EOF): byte-exact Part F return + dst content = the inclusive block byte-exact (`BT-START block`..`BT-END block`)",
-    res === "Pasted 4 lines from buffer 'bt1' into 'bt/bt1-dst-eof.txt' (lines 1..4, first: 'BT-START block') - buffer: 4 lines." &&
+    res === "Pasted 4 lines from buffer 'bt1' into 'bt/bt1-dst-eof.txt' (lines 1..4, first: 'BT-START block') (at EOF) - buffer: 4 lines." &&
       body === "BT-START block\nline-2\nline-3\nBT-END block",
     JSON.stringify({ res, body }),
   );
@@ -3911,7 +3908,7 @@ let btTool;
     "111",
     "S15",
     "PASTE with targetMarker: the block lands RIGHT AFTER the target line (not at EOF) — byte-exact file + byte-exact Part F return",
-    res === "Pasted 4 lines from buffer 'bt1' into 'bt/bt1-dst-t.txt' (lines 1..4, first: 'BT-START block') - buffer: 4 lines." &&
+    res === "Pasted 4 lines from buffer 'bt1' into 'bt/bt1-dst-t.txt' (lines 1..4, first: 'BT-START block') (inserted after line 2 in 'bt/bt1-dst-t.txt') - buffer: 4 lines." &&
       body === "head\nBT-TARGET line\nBT-START block\nline-2\nline-3\nBT-END block\ntail",
     JSON.stringify({ res, body }),
   );
@@ -3944,9 +3941,9 @@ let btTool;
   const src = btWrite("bt-sandbox-src.txt", "s1\nBTE-START block\ns2\nBTE-END block\ns3");
   const before = readFileSync(src, "utf8");
   const OUTSIDE = path.join(path.dirname(os.tmpdir()), "bt_outside_probe.txt");
-  // re-pinned 2026-10-22 (TODO #140 unit A, clone twin port): the allowed set
-  // gains the config roots of the repo's own opencode.jsonc (the loaded tool
-  // read them at module load) — the expected roots mirror the tool's loader:
+  // re-pinned 2026-10-22 (TODO #140 unit A): the allowed set gains the
+  // config roots of the repo's own opencode.jsonc (the loaded tool read
+  // them at module load) — the expected roots mirror the tool's loader:
   // allow keys valued "allow", the /** twin stripped + resolved-lowercase
   // dedupe, comment + trailing-comma JSONC stripping, fail-open (no config
   // roots) on a read failure.
@@ -3994,8 +3991,9 @@ let btTool;
       return []; // fail-open mirror: the tool falls back to [cwd + temp] roots
     }
   })();
-  const roots = [SANDBOX, ...cfgRoots, process.env.TEMP ?? process.env.TMP]
-    .filter((r) => typeof r === "string" && r.length > 0); // clone tool: no EXACT-STRING DEDUPE (predates hardening item 10)
+  const roots = [SANDBOX, ...cfgRoots, process.env.TEMP ?? process.env.TMP, os.tmpdir()]
+    .filter((r) => typeof r === "string" && r.length > 0)
+    .filter((r, i2, all) => all.indexOf(r) === i2);
   const res = await btTool.execute(
     { mode: "MOVE", srcFile: "bt/bt-sandbox-src.txt", startMarker: "BTE-START", endMarker: "BTE-END", dstFile: OUTSIDE },
     BT_CTX,
@@ -4081,7 +4079,7 @@ let btTool;
     "117",
     "S15",
     "MOVE success: byte-exact Part F feedback (re-pinned 2026-09-26 per block_transfer v2 S3) + source cut to `m1`+`m3` + dst = the inclusive block",
-    res === "Moved 3 lines from 'bt/bt-move.txt' to 'bt/bt-move-dst.txt' (lines 2..4, first: 'BTMV-START block')." &&
+    res === "Moved 3 lines from 'bt/bt-move.txt' to 'bt/bt-move-dst.txt' (lines 2..4, first: 'BTMV-START block') (at EOF)." &&
       srcBody === "m1\nm3" && dstBody === "BTMV-START block\nm2\nBTMV-END block",
     JSON.stringify({ res, srcBody, dstBody }),
   );
@@ -4109,9 +4107,9 @@ let btTool;
     "262",
     "S15",
     "REPLACE happy path: the span (REP-A..REP-B inclusive) of the existing dst is replaced by the buffer — byte-exact dst + byte-exact Part F feedback (re-pinned 2026-09-26 per block_transfer v2 S3) + the buffer PRESERVED (the later PASTE reports its 2 lines in the Part F shape)",
-    res === "Replaced 2 lines in 'bt/bt-rep.txt' with buffer 'bt-rep' (lines 2..3, first: 'RS-A new one') - buffer: 2 lines." &&
+    res === "Replaced 2 lines in 'bt/bt-rep.txt' with buffer 'bt-rep' (old 2..3 -> new 2..3, file now 4 lines, first: 'RS-A new one') - buffer: 2 lines." &&
       body === "head\nRS-A new one\nRS-B new two\ntail" &&
-      rPreserve === "Pasted 2 lines from buffer 'bt-rep' into 'bt/bt-rep-preserve.txt' (lines 1..2, first: 'RS-A new one') - buffer: 2 lines.",
+      rPreserve === "Pasted 2 lines from buffer 'bt-rep' into 'bt/bt-rep-preserve.txt' (lines 1..2, first: 'RS-A new one') (at EOF) - buffer: 2 lines.",
     JSON.stringify({ res, body, rPreserve }),
   );
 }
@@ -4581,9 +4579,6 @@ for (const w of NW_REJECT) {
 // C3); the hook's intercept.log lands in the sandbox, never the live
 // .opencode/temp/.
 
-// clone (TODO #141): the v1 pair lives at .opencode/plugin-unported-v1/ (the S18/S19
-// named-core pins need the v1 split; the clone's .opencode/plugins/ v2 twin exports the
-// default factory only — no named core exports — so it is NOT this section's subject)
 const OBS_TS = path.join(REPO_ROOT, ".opencode", "plugin-unported-v1", "intercept_observer.ts");
 const OBS_CORE_TS = path.join(REPO_ROOT, ".opencode", "plugin-unported-v1", "intercept_observer_core.ts");
 const ioMod = await import(pathToFileURL(OBS_TS).href); // default factory ONLY
@@ -7123,8 +7118,9 @@ n28++;
 // factory (the probe's sandbox proj has NO opencode.jsonc — the FALLBACK
 // roots apply). NEW surface: the BASH `command`-string redirect — mapped
 // POSIX spans substituted in place (same 1:1 resolver, same kind=redirect
-// line); unmapped spans stay byte-identical (fail-closed — the
-// out-of-sandbox note stays for them).
+// line); unmapped spans stay byte-identical (fail-closed). #138 (2026-10-22)
+// NOTE: the out-of-sandbox note NO LONGER fires for a bash `command` span —
+// the note + anomaly scan the TYPED path fields only (pins 303/304 repinned).
 let n29 = 297;
 
 // 297 — pure: /tmp/<rest> + /var/tmp/<rest> → SCRATCHPAD_ROOT/<rest>
@@ -7232,9 +7228,11 @@ n29++;
   n29++;
 }
 
-// 303 — e2e BASH unmapped span (/etc/hostname) → NOT mutated
-//      (byte-identical) + NO kind=redirect line + the out-of-sandbox NOTE
-//      fires (as today)
+// 303 — e2e BASH unmapped span (/etc/hostname) → NOT mutated (byte-
+//      identical) + NO kind=redirect line + NO path verdict — #138
+//      (2026-10-22) repurpose: the note + anomaly scan the TYPED path
+//      fields only; a bash `command` carries none, so the old "the NOTE
+//      fires (as today)" half is flipped BY DESIGN
 {
   const a = { command: "cat /etc/hostname" };
   const aBefore = JSON.stringify(a);
@@ -7244,8 +7242,8 @@ n29++;
   check(
     String(n29),
     "S29",
-    "hook #102 bash unmapped span → NOT mutated (byte-identical) + NO kind=redirect line + the out-of-sandbox NOTE fires (as today)",
-    JSON.stringify(a) === aBefore && !nl.some((x) => x.includes("kind=redirect")) && nl.some((x) => x.split(" | ")[7] === "out-of-sandbox"),
+    "hook #102 bash unmapped span → NOT mutated (byte-identical) + NO kind=redirect line + NO out-of-sandbox/path-anomaly line (#138: bash free text is not a path candidate)",
+    JSON.stringify(a) === aBefore && !nl.some((x) => x.includes("kind=redirect")) && !nl.some((x) => x.split(" | ")[7] === "out-of-sandbox") && !nl.some((x) => x.split(" | ")[7] === "path-anomaly"),
     JSON.stringify(nl),
   );
   n29++;
@@ -7253,9 +7251,10 @@ n29++;
 
 // 304 — e2e BASH MIXED command (one mapped /tmp span + one unmapped /etc
 //      span) → the mapped span substituted, the unmapped span left
-//      byte-identical + exactly ONE kind=redirect line + the
-//      out-of-sandbox NOTE fires (the note is recomputed on the
-//      EFFECTIVE args — it fires for the unmapped span)
+//      byte-identical + exactly ONE kind=redirect line + NO path verdict —
+//      #138 (2026-10-22) repurpose: the note recomputed on the EFFECTIVE
+//      args scans the TYPED path-field text (empty for a bash call), so
+//      the unmapped span no longer fires the note
 {
   const a = { command: "cat /tmp/s29-m.txt && cat /etc/s29-u" };
   const aBefore = JSON.stringify(a);
@@ -7266,11 +7265,11 @@ n29++;
   check(
     String(n29),
     "S29",
-    "hook #102 bash mixed (mapped /tmp + unmapped /etc) → mapped span substituted, unmapped byte-identical + ONE kind=redirect line + out-of-sandbox NOTE fires",
+    "hook #102 bash mixed (mapped /tmp + unmapped /etc) → mapped span substituted, unmapped byte-identical + ONE kind=redirect line + NO out-of-sandbox line (#138: the bash command string is free text)",
     a.command === `cat ${S}/s29-m.txt && cat /etc/s29-u` && JSON.stringify(a) !== aBefore &&
       nl.filter((x) => x.includes("kind=redirect")).length === 1 &&
       nl.some((x) => x.includes(ioCore.flattenField(`kind=redirect tool=bash arg=command orig=/tmp/s29-m.txt value=${S}/s29-m.txt`))) &&
-      nl.some((x) => x.split(" | ")[7] === "out-of-sandbox"),
+      !nl.some((x) => x.split(" | ")[7] === "out-of-sandbox"),
     JSON.stringify({ after: a.command, nl }),
   );
   n29++;
@@ -7395,7 +7394,7 @@ n29++;
     "305",
     "S30",
     "WRITE single span: byte-exact Part F feedback `Wrote 2 lines to 'bt/bt-w1.txt' (lines 2..3, first: 'NEW-A one').` + the span replaced IN PLACE (byte-exact dst)",
-    rW1 === "Wrote 2 lines to 'bt/bt-w1.txt' (lines 2..3, first: 'NEW-A one')." && readFileSync(w1, "utf8") === "head\nNEW-A one\nNEW-B two\nfoot",
+    rW1 === "Wrote 2 lines to 'bt/bt-w1.txt' (old 2..3 -> new 2..3, file now 4 lines, first: 'NEW-A one')." && readFileSync(w1, "utf8") === "head\nNEW-A one\nNEW-B two\nfoot",
     JSON.stringify({ rW1, body: readFileSync(w1, "utf8") }),
   );
 
@@ -7428,10 +7427,11 @@ n29++;
   //      2026-10-22_03-26 — the recommended end state: REJECT). MORE THAN
   //      ONE region with the single 'text' arg is REJECTED (byte-exact
   //      teaching error + the dst byte-identical — NO fan-out of one text
-  //      into every region, no partial state); the PAIRED form (exactly
-  //      ONE region + one text) still writes with the clone's Part F
-  //      feedback line. The overlap teaching (308) stays reachable — the
-  //      reject guard runs AFTER it.
+  //      into every region, no partial state, no 'last_write' store); the
+  //      PAIRED form (exactly ONE region + one text) still writes with the
+  //      hardening-item-7 feedback line (a 1-region list adds NO summary
+  //      line). The overlap teaching (308) stays reachable — the reject
+  //      guard runs AFTER it.
   {
     const w2 = btWrite("bt-w2.txt", "h1\nA-A one\nA-B two\nmid\nB-A one\nB-B two\nh7");
     const before = readFileSync(w2, "utf8");
@@ -7450,7 +7450,7 @@ n29++;
       "WRITE 'regions' LIST contract: 2 regions + ONE 'text' is REJECTED (byte-exact teaching error, the dst byte-identical) + the paired 1-region form writes (byte-exact feedback + dst)",
       res === "Error: the 'regions' list has 2 regions but WRITE takes ONE 'text' (it would fan the same text into every region) — use exactly one region in the list, or one WRITE call per region." &&
         bodyAfterReject === before &&
-        resPaired === "Wrote 1 line to 'bt/bt-w2.txt' (lines 2..3, first: 'REPL')." &&
+        resPaired === "Wrote 1 line to 'bt/bt-w2.txt' (old 2..3 -> new 2..2, file now 6 lines, first: 'REPL')." &&
         readFileSync(w2, "utf8") === "h1\nREPL\nmid\nB-A one\nB-B two\nh7",
       JSON.stringify({ res, bodyAfterReject, resPaired, body: readFileSync(w2, "utf8") }),
     );
@@ -7562,7 +7562,7 @@ n29++;
       "S30",
       "unified Part F feedback (buffer ops): byte-exact CUT line + byte-exact PASTE line (resolved range + first-line echo + the buffer count AFTER) + the source cut byte-exact",
       r1 === "Cut 2 lines from 'bt/bt-fb-cut.txt' into buffer 'bt-fb' (lines 2..3, first: 'line-1') - buffer: 2 lines." &&
-        r2 === "Pasted 2 lines from buffer 'bt-fb' into 'bt/bt-fb-paste.txt' (lines 1..2, first: 'line-1') - buffer: 2 lines." &&
+        r2 === "Pasted 2 lines from buffer 'bt-fb' into 'bt/bt-fb-paste.txt' (lines 1..2, first: 'line-1') (inserted after line 1 in 'bt/bt-fb-paste.txt') - buffer: 2 lines." &&
         readFileSync(src, "utf8") === "AAA start\nZZZ end\ntail",
       JSON.stringify({ r1, r2, srcBody: readFileSync(src, "utf8") }),
     );
@@ -8164,7 +8164,6 @@ n29++;
   //      export (the plain-module pattern — never loaded by the host
   //      plugin loader)
   {
-    // clone (TODO #141): v1 subject at .opencode/plugin-unported-v1/compaction_core.ts
     const CORE_TS = path.join(REPO_ROOT, ".opencode", "plugin-unported-v1", "compaction_core.ts");
     const core = await import(pathToFileURL(CORE_TS).href);
     const fns = ["readCompactionConfig", "computeKeepTokens", "resolveCap", "resolveRoot", "budgetCount", "recordSuccess", "appendCompactLine", "recordVerifiedSuccess", "stripJsoncComments", "resolveCompactionModel", "readRootConfigContent", "resolveModel", "isKeepRejectedError", "compactionFailure", "errorMessage", "callSummarize", "localStamp"];

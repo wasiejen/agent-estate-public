@@ -18,12 +18,17 @@
 // verdict carrying the best-candidate d (`hint rejected …` — #106)) + the
 // journal's edit `old` = the ORIGINAL pre-mutation oldString)
 // (4b) 2026-10-01 (#134, maintainer ruling): the HARD-STOP — the mutating
-// typed path field (write/edit `filePath`) outside every allowed root
-// (the R8 set) whose containing directory is missing → the before hook
-// THROWS (the hook's catch re-throws a HardStopError; the agent sees the
-// error, one intercept-error line logs it) + the C fix: the doubled-folder
-// detector now sees the JSON-escaped typed Windows path (`\\` collapsed
-// back to one separator).
+//   typed path field (write/edit `filePath`) outside every allowed root
+//   (the R8 set) whose containing directory is missing → the before hook
+//   THROWS (the hook's catch re-throws a HardStopError; the agent sees the
+//   error, one intercept-error line logs it) + the C fix: the doubled-folder
+//   detector now sees the JSON-escaped typed Windows path (`\\` collapsed
+//   back to one separator).
+// (B) 2026-10-22 (#140 unit B): the FIELD CONTENT rule in flattenField —
+//   a field whose value IS one path-shaped token prints WHOLE (MAX_PATH_
+//   FIELD_CHARS raised cap); a mixed prose+path field's cut moves BACK —
+//   never inside a path substring (the 8-field shape + `...` marker byte-
+//   unchanged; fall-back = the short summary form).
 // (.opencode/plugin/intercept_observer.ts
 // + _core.ts). The plugin factory is called with a SCRATCHPAD sandbox
 // `directory` — the intercept.log lands in the sandbox
@@ -132,16 +137,23 @@ try {
     chk("priority order (pair before dense)", f[7] === "observed-redundancy-ok" && l1[1].split(" | ")[7] === "no-candidate", JSON.stringify(l1.map((l) => l.split(" | ")[7])));
   }
 
-  // ---- (2b) the 3-line cap + priority: this arg fires FIVE observations
-  //          (mismatch [5:four], doubled users, the c:\users\users\[5:four]
-  //          .txt span is out-of-sandbox, dense 20260916, numword four) —
-  //          the cap keeps the top-3 by rank: mismatch, path-anomaly,
-  //          out-of-sandbox
-  await before({ tool: "bash", sessionID: "ses_smoke_io1", callID: "c1b" }, { args: "c:\\users\\users\\[5:four].txt 20260916 four" });
+  // ---- (2b) the 3-line cap + priority, on a TYPED call (#138 2026-10-22:
+  //          the note + anomaly channels scan the TYPED path FIELDS, so the
+  //          cap fixture needs typed path text — the free-text path classes
+  //          of the old bash string arg are GONE by design). The call fires
+  //          the write pair channel's FAIL-CLOSED MISMATCH (the filePath
+  //          carries [5:four]) + FOUR observations: path-anomaly (the
+  //          filePath's doubled `dd\dd` segment), out-of-sandbox (the
+  //          filePath is outside every allowed root — tdir\dd\dd EXISTS, so
+  //          no #134 hard-stop, and no 1:1 redirect maps it), dense 20260916,
+  //          numword four — the obs cap keeps the top-3 by rank (numword
+  //          truncated); the channel line logs BEFORE the observation lines.
+  fs.mkdirSync(path.join(tdir, "dd", "dd"), { recursive: true });
+  await before({ tool: "write", sessionID: "ses_smoke_io1", callID: "c1b" }, { args: { filePath: path.join(tdir, "dd", "dd", "[5:four].txt"), content: "20260916 four" } });
   const l1b = readLines().slice(2);
-  chk("3-line cap + priority (mismatch, path-anomaly, out-of-sandbox; 2 truncated)",
-    l1b.length === 3 && l1b[0].split(" | ")[7] === "redundancy-mismatch" && l1b[1].split(" | ")[7] === "path-anomaly" &&
-      l1b[2].split(" | ")[7] === "out-of-sandbox", JSON.stringify(l1b.map((l) => l.split(" | ")[7])));
+  chk("3-line cap + priority (mismatch, path-anomaly, out-of-sandbox; the 4th firing observation truncated)",
+    l1b.length === 4 && l1b[0].split(" | ")[7] === "redundancy-mismatch" && l1b[1].split(" | ")[7] === "path-anomaly" &&
+      l1b[2].split(" | ")[7] === "out-of-sandbox" && l1b[3].split(" | ")[7] === "no-candidate", JSON.stringify(l1b.map((l) => l.split(" | ")[7])));
 
   // ---- (3) clean arg (an EXISTING file) → NO line (append-only: line count
   //          unchanged; the read-scope fuzzy channel fast-paths exact paths)
@@ -900,17 +912,20 @@ try {
   }
 
   // (12n) bash fail-closed: an UNmapped POSIX span stays byte-identical
-  //        (no mutation, no kind=redirect line) + the out-of-sandbox NOTE
-  //        fires (as today)
+  //        (no mutation, no kind=redirect line) + NO path verdict at all
+  //        (#138, 2026-10-22: the note + anomaly scan the TYPED path fields
+  //        only — a bash `command` carries none, so the span inside the
+  //        command string logs nothing; the old "the NOTE fires (as today)"
+  //        half is flipped by design)
   {
     const a = { command: "cat /etc/hostname" };
     const aBefore = JSON.stringify(a);
     const c0 = read2().length;
     await before2({ tool: "bash", sessionID: "ses_smoke_io1", callID: "c12n" }, { args: a });
     const nl = read2().slice(c0);
-    chk("R8#102 bash unmapped span → NOT mutated (byte-identical) + NO kind=redirect line + the out-of-sandbox NOTE fires (as today)",
+    chk("R8#102 bash unmapped span → NOT mutated (byte-identical) + NO kind=redirect line + NO out-of-sandbox line (#138: bash free text is not a path candidate)",
       JSON.stringify(a) === aBefore && !nl.some((x) => x.includes("kind=redirect")) &&
-        nl.some((x) => split8(x)[7] === "out-of-sandbox"),
+        !nl.some((x) => split8(x)[7] === "out-of-sandbox") && !nl.some((x) => split8(x)[7] === "path-anomaly"),
       JSON.stringify({ args: a, nl }));
   }
 
@@ -1227,6 +1242,102 @@ try {
       ca.length === 1 && ca[0].verdict === "path-anomaly" && ca[0].evidence === "doubled=Users" &&
         core.observePathAnomaly("C:" + "\\" + "Users" + "\\" + "x").length === 0,
       JSON.stringify(ca));
+  }
+
+  // ---- (B) FIELD CONTENT rule pins (TODO #140 unit B, 2026-10-22): a
+  //      single path-shaped field prints WHOLE (raised cap); a mixed field's
+  //      cut moves BACK — never inside a path substring; the 8-field line
+  //      shape + the `...` marker stay byte-compatible. Post-(12f) state →
+  //      before2/read2 only (MODULE-STATE FLIP, #111).
+  {
+    const LP = "home/" + "deep-dir-".repeat(16) + "leaf.txt"; // 168 > 160, <= 1024
+    chk("(B) pins surface: MAX_PATH_FIELD_CHARS = 1024 + the fixture path is > MAX_FIELD_CHARS",
+      core.MAX_PATH_FIELD_CHARS === 1024 && LP.length > core.MAX_FIELD_CHARS && LP.length <= core.MAX_PATH_FIELD_CHARS);
+    chk("(B1) a single path-shaped value > the generic cap prints UNTRUNCATED (raised cap; no `...` marker)",
+      core.flattenField(LP) === LP && !core.flattenField(LP).includes("..."), core.flattenField(LP));
+    const OVER = "C:/drive/" + "x".repeat(1030); // 1039 > MAX_PATH_FIELD_CHARS
+    chk("(B1) a single path > MAX_PATH_FIELD_CHARS → the existing short summary form (slice + `...`)",
+      core.flattenField(OVER) === OVER.slice(0, core.MAX_FIELD_CHARS - 3) + "...", core.flattenField(OVER));
+    chk("(B2) leading path > the cap + prose: no valid head position → the short summary form (fallback)",
+      core.flattenField(LP + " and the prose tail runs past the cap and on") === LP.slice(0, core.MAX_FIELD_CHARS - 3) + "...", core.flattenField(LP + " and the prose tail runs past the cap and on"));
+    chk("(B2) prose + trailing path: the cut moves BACK to the path token start — the trailing path NEVER prints partially",
+      core.flattenField("alpha ".repeat(24) + LP) === "alpha ".repeat(24) + "...", core.flattenField("alpha ".repeat(24) + LP));
+    chk("(B2) two paths + mid prose: the cut lands at the SECOND path token start — first whole, second dropped whole",
+      core.flattenField("C:/short/one.txt mid " + LP) === "C:/short/one.txt mid " + "...", core.flattenField("C:/short/one.txt mid " + LP));
+    const PROSE = "word ".repeat(50) + "end"; // 253 chars, NO path tokens — old generic cut byte-identical
+    chk("(B2) byte-compat with the old generic cut when NO path token covers the cut point (prose-only field)",
+      core.flattenField(PROSE) === PROSE.slice(0, core.MAX_FIELD_CHARS - 3) + "...", core.flattenField(PROSE));
+    // (B3) byte-shape on a long-path line THROUGH the hook: 8 pipe fields,
+    // order unchanged, no `...` anywhere (path evidence never cut mid-path).
+    // #138 (2026-10-22) retarget: the anomaly needs a TYPED path field — the
+    // old bash `command` fixture logs no path verdict now; the write target
+    // sits INSIDE the config-allowed rA (nested → no redirect, no #134 hard-
+    // stop) with a doubled segment → the anomaly fires from the field text.
+    const DSEG = "seg-abcdefgh";
+    const LDP = path.join(rA, DSEG, DSEG, DSEG, DSEG, DSEG, DSEG, DSEG, DSEG, DSEG, "leaf.txt");
+    const cB = read2().length;
+    await before2({ tool: "write", sessionID: "ses_smoke_io1", callID: "c15b" }, { args: { filePath: LDP, content: "x" } });
+    const nlB = read2().slice(cB);
+    const paLine = nlB.find((l) => l.includes("path-anomaly"));
+    chk("(B3) long doubled typed path via the hook: the path-anomaly line splits into EXACTLY 8 fields; field 5 = the WHOLE JSON arg (escaped backslashes, no `...` in the line, line > 160)",
+      paLine !== undefined && paLine.split(" | ").length === 8 && split8(paLine)[4] === JSON.stringify({ filePath: LDP, content: "x" }) &&
+        paLine.length > 160 && !paLine.includes("...") && split8(paLine)[7] === "path-anomaly", JSON.stringify(nlB));
+  }
+
+  // ---- (16) TODO #142 + #138 (2026-10-22): the observation note + anomaly
+  //      channels scan the TYPED path FIELDS (the REDIRECT_PATH_FIELDS
+  //      table) and the allow-list roots join the note check. Post-(12f)
+  //      state → before2/read2 only (MODULE-STATE FLIP, #111).
+  {
+    // (16a) #142 FALSE FORM: a typed path NESTED under a config-`allow`ed
+    //        root (rA — the (12f) fixture config) → NO out-of-sandbox line
+    //        (pre-fix the note fired: the config roots were absent from the
+    //        note check) + no kind=redirect (a nested span maps to no 1:1
+    //        root case). GENUINE FORM control: a span under NO allowed root
+    //        STILL logs the note (read — read-only, no hard-stop).
+    const nested = rA + "/nested/deep/x.txt";
+    const c16 = read2().length;
+    await before2({ tool: "write", sessionID: "ses_smoke_io1", callID: "c16a" }, { args: { filePath: nested, content: "q" } });
+    const nlA = read2().slice(c16);
+    const ctrl = path.join(tdir, "noexist2", "y.txt");
+    await before2({ tool: "read", sessionID: "ses_smoke_io1", callID: "c16b" }, { args: { filePath: ctrl } });
+    const nlB = read2().slice(c16 + nlA.length);
+    chk("#142: a path nested under a config-allowed root (rA) → NO out-of-sandbox line + no kind=redirect; an un-allowed path STILL logs the note",
+      nlA.length === 0 && !nlA.some((x) => split8(x)[7] === "out-of-sandbox" || x.includes("kind=redirect")) &&
+        nlB.some((x) => split8(x)[7] === "out-of-sandbox" && x.includes(`path=${ctrl}`)),
+      JSON.stringify({ nested, nlA, nlB: nlB.map((x) => split8(x)[7]) }));
+
+    // (16b) #138 FALSE FORM: an IN-ROOT write + an edit whose PAYLOAD
+    //        (content / newString) carries path-looking text — a doubled
+    //        Windows segment, a `/tmp-redirect`-looking token, the grep-
+    //        pattern `/^## #120/` from the incident — → ZERO path verdicts
+    //        (pre-fix: path-anomaly doubled=users + the out-of-sandbox note
+    //        both fired on the payload text).
+    const payload = 'see c:\\users\\users\\x.txt and /tmp-redirect and /^## #120/ here';
+    const c16c = read2().length;
+    await before2({ tool: "write", sessionID: "ses_smoke_io1", callID: "c16c" }, { args: { filePath: path.join(proj2, "inroot.txt"), content: payload } });
+    const nlC = read2().slice(c16c);
+    await before2({ tool: "edit", sessionID: "ses_smoke_io1", callID: "c16d" }, { args: { filePath: path.join(proj2, "inroot.txt"), oldString: "q", newString: payload } });
+    const nlD = read2().slice(c16c + nlC.length);
+    chk("#138: an in-root write/edit payload carrying path-looking text → ZERO path verdicts (no out-of-sandbox, no path-anomaly)",
+      !nlC.some((x) => split8(x)[7] === "out-of-sandbox" || split8(x)[7] === "path-anomaly") &&
+        !nlD.some((x) => split8(x)[7] === "out-of-sandbox" || split8(x)[7] === "path-anomaly"),
+      JSON.stringify({ nlC: nlC.map((x) => split8(x)[7]), nlD: nlD.map((x) => split8(x)[7]) }));
+
+    // (16e) #138 FALSE FORM (bash): a command with QUOTED doubled example
+    //        paths + an unmapped POSIX span → ZERO path verdicts (the
+    //        command string is FREE TEXT — the #102 redirect pass is
+    //        separate and maps NOTHING here, so the command also stays
+    //        byte-identical).
+    const cmd = 'grep -rn "doubled=c:\\\\users\\\\Users\\\\x.txt" "/usr/share/doc/sx/sx/README" /etc/hostname';
+    const cmdBefore = cmd;
+    const c16e = read2().length;
+    await before2({ tool: "bash", sessionID: "ses_smoke_io1", callID: "c16e" }, { args: { command: cmd } });
+    const nlE = read2().slice(c16e);
+    chk("#138: a bash command with quoted doubled example paths → ZERO path verdicts + the command byte-identical (no redirect)",
+      !nlE.some((x) => split8(x)[7] === "out-of-sandbox" || split8(x)[7] === "path-anomaly") && cmd === cmdBefore &&
+        !nlE.some((x) => x.includes("kind=redirect")),
+      JSON.stringify({ nlE: nlE.map((x) => split8(x)[7]) }));
   }
 
   // ---- (9) the LIVE log is untouched by this smoke

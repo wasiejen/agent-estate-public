@@ -223,6 +223,22 @@ try {
   const okH4 = (s) => bodyH4 === seeded + memEntry(s, "planner_slow", "ses_TEST_78", "second memory line");
   chk("(H4) existing inbox: sentinel stays byte-exact BEFORE the appended entry (append-only)", okH4(tH4a) || okH4(tH4b), `got=${JSON.stringify(bodyH4)}`);
 
+  // (H5) NEWLINE GUARD (2026-10-21): a target ending WITHOUT a trailing
+  //      newline gets a one-\n separator first — the entry HEADER starts
+  //      its own line (measured live 2026-10-16: a todo_inbox entry glued
+  //      into the last line when the target lacked the final \n)
+  const projH5 = mkproj("H5");
+  const fH5 = memFile(projH5, "planner");
+  fs.mkdirSync(path.dirname(fH5), { recursive: true });
+  const seededH5 = "SENTINEL no-newline end"; // deliberately NO trailing \n
+  fs.writeFileSync(fH5, seededH5, "utf-8");
+  const tH5a = localStamp();
+  await t.execute({ memory: "guard memory line" }, { directory: projH5, agent: "planner_slow", sessionID: "ses_TEST_79" });
+  const tH5b = localStamp();
+  const bodyH5 = fs.readFileSync(fH5, "utf-8");
+  const okH5 = (s) => bodyH5 === seededH5 + "\n" + memEntry(s, "planner_slow", "ses_TEST_79", "guard memory line");
+  chk("(H5) target WITHOUT trailing newline: one \\n separator lands, sentinel intact, header on its own line", okH5(tH5a) || okH5(tH5b), `got=${JSON.stringify(bodyH5)}`);
+
   // ---- (F) never-read preservation: pre-seeded sentinel lines stay
   //      BYTE-EXACT before the appended entry; the other targets (not
   //      provided in the call) are byte-identical — the tool appends, never

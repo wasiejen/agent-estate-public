@@ -142,14 +142,10 @@ const cfgRootsFor = (cfgFile) => {
     return []; // fail-open mirror: unreadable/malformed config -> no config roots
   }
 };
-// CLONE TWIN NOTE: the clone tool's sandboxCheck roots are
-// [cwd, ...CONFIG_ROOTS, TEMP ?? TMP] with NO EXACT-STRING DEDUPE (the
-// clone predates the hardening item 10) and no os.tmpdir() term. The
-// mirror mirrors THAT exact expression (env-robust; within-CONFIG_ROOTS
-// dedupe lives in loadConfigRoots, present in both trees).
 const expectedSandboxRoots = (cwdRoot, cfgRoots) =>
-  [cwdRoot, ...cfgRoots, process.env.TEMP ?? process.env.TMP]
-    .filter((x) => typeof x === "string" && x.length > 0);
+  [cwdRoot, ...cfgRoots, process.env.TEMP ?? process.env.TMP, os.tmpdir()]
+    .filter((x) => typeof x === "string" && x.length > 0)
+    .filter((x, i, all) => all.indexOf(x) === i);
 const liveCfgRoots = cfgRootsFor(path.join(REPO_ROOT, "opencode.jsonc"));
 
 try {

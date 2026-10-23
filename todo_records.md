@@ -1808,3 +1808,29 @@ smokes, pytest 459+1w, ruff F=0).
    (substitution bar approved 09-17, decision-record §5); R9 documented-
    optional. See NAP 2026-09-17 direct session.
 ## 64. (closed 2026-09-16, plan9 planner-direct; backfilled by the plan5 maintenance pass 2026-10-01 — the record was missing) — stale "84/84" probe baseline in `.opencode/plugin/README.md` → replaced by the curate-don't-duplicate pointer to the probe's self-annotated header total (the #58 convention).
+## #123. (closed 2026-09-30, plan45 maintenance pass — scripted sweep + batch re-point + one-line annotations; body retired from TODO.md at the plan20 maintenance pass) stale pre-carve commit hashes in TODO.md / NAP status lines — batch re-point or annotate (maintenance pass)
+- **Problem / evidence:** the 2026-09-29 carve (filter-repo rewrite)
+  invalidated every pre-carve commit hash; status lines still cited them.
+  The 4 measured DEAD revisions with known post-carve equivalents:
+  `cbbebf8` (#106) -> `7a9e291`, `0c90abe` (#115) -> `60f031b`,
+  `12e3262` (#114) -> `fea1cbb`, `44c50a2` (R3 import fix) ->
+  `9e91878`. Full sweep over TODO.md + todo_records.md + NAP: 340 unique
+  7-hex citations, 307 dead (the carve rewrote the whole history, not just
+  the 4 measured), 33 alive.
+- **Desired outcome:** every cited hash either re-pointed to the
+  post-carve equivalent or annotated pre-carve — a future `git cat-file -e`
+  never dead-ends.
+- **Acceptance criteria:** a scripted sweep (`git cat-file -e` over every
+  cited hash) reports zero dead revisions, or each dead one carries a
+  one-line annotation; TODO.md + todo_records.md + NAP archive covered.
+- **Suggested scope:** TODO.md, todo_records.md,
+  `agent/handover/handover_planner.md` (compressed archive), loop-folder
+  summaries (read-only annotation if stale).
+- **Status:** CLOSED (2026-09-30, plan45) — the 4 verified pairs re-pointed
+  inline (33 occurrences; each target script-verified on the current
+  branch); the one-line pre-carve annotation landed in the headers of
+  TODO.md, todo_records.md, and the NAP compressed archive, covering the
+  other 303 dead historical citations; the loop-folder summaries carry
+   179 dead citations (historical — not re-pointed per the read-only scope,
+   covered by this entry + the TODO.md header note).
+## #121. (closed 2026-09-30, plan40 planner-direct — inline, doc-only; moved verbatim from TODO.md at the plan20 maintenance pass) two stale refs in the repo_commands.md parts post-#117/#113 — fixed: (a) `agent/readme/repo_commands.md`'s FST-commands pointer now points at `projects/Free-Snap-Tap/repo/repo_commands.md` (was a self-reference); (b) the FST part's "(#113: the venv's python.exe is currently broken …)" note updated to the 3.12.9 close

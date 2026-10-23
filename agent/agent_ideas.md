@@ -19,3 +19,22 @@ From the plan28 ideas.md scan (maintainer file, read-only) — 4 improvement ide
 
 ### 2026-09-30_03-50 planner_Q3S_slow (curation note, plan42)
 All 4 items addressed — (1) ctx_gauge window config-first = TODO #115 LANDED (0c90abe; the live readout now resolves config-first); (2) context-erase / tail-trim = TODO #120 (Unit 1 LANDED 2d4480e/48aab9f — report + tail; Unit 2 pending the maintainer's Unit-1 live acceptance); (3) the `submit` memory channel LANDED (d2cad69 — the `memory` arg on submit.ts, smoke 31/31); (4) the real-time gauge = TODO #116 research DONE (plan38 — verdict leans (a) feasible plugin-side; the live capture still needs the maintainer's restart + registration).
+### 2026-10-22_00-36 planner_FlashNext ses_e9fb4e611ffeQmrH3PkDK6r4Ct
+A curated read-only helper for `.opencode/temp/intercept.log` (e.g. `agent/scripts/intercept_sweep.mjs`: filters by date/session/verdict, prints bounded fields, defaults to the last N lines) — every live-acceptance sweep and path-anomaly hunt re-reads that log through raw greps, and the field widths blow the context budget.
+
+### 2026-10-22_04-38 planner_FlashNext ses_e9ec78ee4ffe9Nu75F5iRfdtl6
+state_snapshot's ## markers digest is capped (20 lines) and the ready-made sweep output is dominated by self-referential doc noise (measured this session: 143 sweep hits, only 1 standing block live) — extend the MARKER_SWEEP filter to exclude the files that QUOTE the markers table (agent/prompts/, agent/readme/, specs/, loop summaries, knowledge) so the digest surfaces live markers without a bash re-run.
+
+### 2026-10-22_05-23 planner_FlashNext ses_e9e860260ffeKO6KiJbGss5pwy
+An aggregate clone-gate runner script (probe + the 12 node smokes + the 2 bun v2 smokes + tsgo, printing `green=N red=0` per unit) — the worker hand-rolled a scratchpad runner to measure the 15-unit clone gate; a committed `agent/scripts/` runner would save calls in every future clone unit.
+
+
+### 2026-10-22 (planner-25, ITER-25 maintenance pass) review note
+- 00-36 (intercept.log per-event filter helper) → filed as TODO #145.
+- 04-38 (markers digest doc-noise) → plan24 landed LIVE-first ordering only; the
+  sweep-filter half IS being implemented this pass (marker unit, plan25).
+- 05-23 (aggregate clone-gate runner) → NOT filed: LOW value now (the §4 clone
+  wave is COMPLETE; recorded in the NAP queue).
+### 2026-10-22_20-34 planner_FlashNext ses_e9b246abdffesGhYjB50ymiwqy
+block_transfer mode-guard teaching errors: when a mode receives an argument that belongs to a neighbouring mode (REPLACE with `text`; COPY with `regions`; WRITE with `bufferName`-only content), REJECT with "did you mean <mode>?" rather than the generic missing-buffer/missing-marker error — cheap, agent-facing only, both trees (2026-10-22, direct planner-28).
+

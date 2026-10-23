@@ -135,7 +135,6 @@
         "Qwen3.8-NEXT-Coder": {
           "name": "Qwen3.8-Flash-Next (local)",
           "tool_call": true,
-          "reasoning": true,
           "limit": {
             "context": 262144,
             "input": 258048,
@@ -240,7 +239,13 @@
       }
     }
   },
-  "subagent_depth": 2,
+  "experimental": {
+    // v2.1.3 (measured, fork packages/core/src/config/normalize.ts:45): the
+    // top-level `subagent_depth` sits in unsupportedTopLevel → DROPPED, and the
+    // runtime default is 1. The supported location is experimental.subagent_depth
+    // (:451-458), so the key moved here to keep the depth-2 behavior live.
+    "subagent_depth": 2
+  },
   "default_agent": "planner_FlashNext",
   "agent": {
     // when no compaction model is set, then the session own model will be used for compaction

@@ -274,7 +274,9 @@ async function onContext(event: {
     // the tail is left BYTE-UNCHANGED (the v2.3 cache ruling: anything
     // before the newest entry must not move — the cacheable prefix stays
     // byte-stable).
-    event.messages.push({ role: "user", content: [{ type: "text", text }] });
+
+    //2026-10-23_04-41: temporary deactivation to test if this causes cache invalidation
+    //event.messages.push({ role: "user", content: [{ type: "text", text }] });
     // (4) the per-fire evidence line (posted fires only).
     appendLog(
       buildLine(

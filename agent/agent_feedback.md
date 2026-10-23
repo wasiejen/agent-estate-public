@@ -944,3 +944,6 @@ Spec facts in handover_task.md were stale and cost re-derivation: the probe is 8
 ### 2026-10-23_02-11 planner_FlashNext ses_e9b246abdffesGhYjB50ymiwqy
 loop_log with `role`/`model` omitted printed the agent name TWICE (`planner_FlashNext ... planner_FlashNext`) instead of the model id — on this host `context.extra.model.id` is absent, so pass `model` explicitly from the launch context when the log's model column matters.
 
+### 2026-10-23_03-28 planner_FlashNext ses_e99be06a6ffeZsLdTtFsqm0WC4
+Direct calls to Code Mode catalog tools (block_transfer, submit) are NOT dispatched: the host prints the tool call as a message and executes nothing, so the caller sees only a silent zero-change. Cost this session: 4 wasted calls + a false 'the custom tools are broken' conclusion. Correct form: call execute with code that awaits tools.<name>(...). After any append claim, grep the target for the new heading before believing it.
+

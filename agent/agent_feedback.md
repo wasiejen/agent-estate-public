@@ -947,3 +947,6 @@ loop_log with `role`/`model` omitted printed the agent name TWICE (`planner_Flas
 ### 2026-10-23_03-28 planner_FlashNext ses_e99be06a6ffeZsLdTtFsqm0WC4
 Direct calls to Code Mode catalog tools (block_transfer, submit) are NOT dispatched: the host prints the tool call as a message and executes nothing, so the caller sees only a silent zero-change. Cost this session: 4 wasted calls + a false 'the custom tools are broken' conclusion. Correct form: call execute with code that awaits tools.<name>(...). After any append claim, grep the target for the new heading before believing it.
 
+### 2026-10-23_04-30 planner_FlashNext ses_e99be06a6ffeZsLdTtFsqm0WC4
+CORRECTION to my 2026-10-23_03-28 feedback entry: the payload-size claim was wrong. The three failed appends were DIRECT calls to Code Mode catalog tools (`block_transfer` x2, `submit` x1) — such calls never dispatch at ANY size, the runtime prints them and executes nothing; size was irrelevant. Measured via `execute`: `tools.submit({...})` DOES dispatch (three entries landed). `block_transfer` via `execute` is UNTESTED. Correct rule: call every Code Mode catalog tool through `execute` as `tools.<name>(...)` (use `search({query})` first for the signature), then grep the target file back before believing any append.
+

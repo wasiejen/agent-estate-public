@@ -39,7 +39,7 @@ const CONFIG_PATH = "opencode.jsonc";
 // drift stops accumulating. Sub-dirs that legitimately live under `.opencode/plugin/`
 // (probes/tests/tools/scripts) are NOT repointed.
 const PROBE_FILE = ".opencode/plugin/probes/handover_probe.mjs";
-const KEEP_UNDER_PLUGIN = ["probes/", "tests/", "tools/", "scripts/"];
+const KEEP_UNDER_PLUGIN = ["probes/", "tests/", "tools/", "scripts/", "deactivated/"];
 const PLUGIN_DIR = ".opencode/plugin/", UNPORTED_DIR = ".opencode/plugin-unported-v1/";
 
 // ---- pure rule layer (exported for the selftest) ----
@@ -47,7 +47,11 @@ function normPath(p) { return String(p).split("\\").join("/"); }
 function isTakeMain(p) { return TAKE_MAIN.some((pre) => (pre.endsWith("/") ? p.startsWith(pre) : p === pre)); }
 function classify(p) { return p === CONFIG_PATH ? "config" : isTakeMain(p) ? "take-main" : "normal"; }
 function keepLabel(p) { return "config: kept branch-local (host-owned)"; }
-function isGuardMove(p) { return p.startsWith(PLUGIN_DIR) && p.endsWith(".ts"); }
+function isGuardMove(p) {
+  if (!p.startsWith(PLUGIN_DIR) || !p.endsWith(".ts")) return false;
+  const seg = p.slice(PLUGIN_DIR.length);
+  return !KEEP_UNDER_PLUGIN.some(d => seg.startsWith(d)); // keep-dirs stay live under .opencode/plugin
+}
 function guardTarget(p) { return UNPORTED_DIR + p.slice(PLUGIN_DIR.length); }
 // Rule (A) patch: the probe arrives with MAIN's import paths (`".opencode", "plugin",
 // "<rel>.ts"` path.join segments). Repoint every such ref whose rel is NOT under a
@@ -61,6 +65,15 @@ function patchProbeImports(src, keep = KEEP_UNDER_PLUGIN) {
     return '".opencode", "plugin-unported-v1", ' + (mid || "") + last;
   });
   return { text, sites };
+}
+function restoreClone(o) {
+  const a = execPrint("git", ["-C", o.clone, "merge", "--abort"]);
+  if (a.status !== 0) console.log("restore: merge --abort refused (exit " + a.status + ") -> hard reset to HEAD");
+  const r = execPrint("git", ["-C", o.clone, "reset", "--hard", "HEAD"]);
+  if (r.status !== 0) { console.error("restore: FAILED (exit " + r.status + ") -- the clone may be mid-merge; inspect before retrying"); process.exit(2); }
+  const st = gitAt(o.clone, ["status", "--porcelain"]).stdout.trim();
+  const mh = gitAt(o.clone, ["rev-parse", "-q", "--verify", "MERGE_HEAD"]).stdout.trim();
+  console.log("restore: clone " + (st === "" && mh === "" ? "clean and merge-free (HEAD intact)" : "LEFTOVER: " + (st ? st.split("\n").length + " changed file(s)" : "clean") + (mh ? " + MERGE_HEAD still set" : "")));
 }
 function parseMergeTree(out) {
   const lines = String(out).split("\n");
@@ -268,14 +281,14 @@ function main() {
   const left = gitAt(o.clone, ["diff", "--name-only", "--diff-filter=U"]).stdout.split("\n").map(x => x.trim()).filter(Boolean);
   if (left.length) {
     for (const p of left) console.log("unmerged-left: " + p);
-    console.log("state: merge aborted, nothing applied (conflict markers would survive the gate)");
-    execPrint("git", ["-C", o.clone, "merge", "--abort"]);
+    console.log("state: merge refused, restoring (conflict markers would survive the gate)");
+    restoreClone(o);
     process.exit(1);
   }
   const gfail = o.gate ? runGate(o.clone) : (console.log("gate: skipped (--no-gate)"), 0);
   if (gfail > 0) {
     console.log("gate: FAIL (" + gfail + " suite step(s))");
-    execPrint("git", ["-C", o.clone, "merge", "--abort"]);
+    restoreClone(o);
     console.log("state: merge aborted, nothing applied");
     process.exit(1);
   }

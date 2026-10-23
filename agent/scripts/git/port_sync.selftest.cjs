@@ -41,12 +41,12 @@ for (const p of ["TODO.md.bak", "agent/handovers/x.md", ".opencode/plugin/x.ts",
 ck("classify config", PS.classify("opencode.jsonc") === "config");
 ck("classify probe = take-main (Rule A)", PS.classify(".opencode/plugin/probes/handover_probe.mjs") === "take-main");
 ck("classify gauge core = take-main", PS.classify(".opencode/plugin/scripts/gauge.mjs") === "take-main");
-ck("patch repoints v1 plugin refs (incl. subdir rel)", (() => {
-  const s = 'const A = path.join(R, ".opencode", "plugin", "ctx_watchdog.ts");\nconst B = path.join(R, ".opencode", "plugin", "deactivated", "compact_memory_v1.ts");\n';
+ck("patch repoints v1 plugin refs (incl. non-keep subdir rel)", (() => {
+  const s = 'const A = path.join(R, ".opencode", "plugin", "ctx_watchdog.ts");\nconst B = path.join(R, ".opencode", "plugin", "legacy", "old_module.ts");\n';
   const p = PS.patchProbeImports(s);
-  return p.sites.length === 2 && p.sites.includes("ctx_watchdog.ts") && p.sites.includes("deactivated/compact_memory_v1.ts") &&
+  return p.sites.length === 2 && p.sites.includes("ctx_watchdog.ts") && p.sites.includes("legacy/old_module.ts") &&
     p.text.includes('".opencode", "plugin-unported-v1", "ctx_watchdog.ts"') &&
-    p.text.includes('".opencode", "plugin-unported-v1", "deactivated", "compact_memory_v1.ts"');
+    p.text.includes('".opencode", "plugin-unported-v1", "legacy", "old_module.ts"');
 })());
 ck("patch leaves keep-dirs and non-plugin roots alone", (() => {
   const s = 'path.join(R, ".opencode", "plugin", "tests", "helper.ts"); path.join(R, ".opencode", "plugins", "x.ts"); path.join(R, ".opencode", "plugin", "probes", "handover_probe.mjs");';
@@ -54,15 +54,22 @@ ck("patch leaves keep-dirs and non-plugin roots alone", (() => {
   return p.sites.length === 0 && p.text === s;
 })());
 ck("patch is idempotent", (() => {
-  const s = 'path.join(R, ".opencode", "plugin-unported-v1", "ctx_watchdog.ts");';
-  const p = PS.patchProbeImports(s + "\n" + 'path.join(R, ".opencode", "plugin", "ctx_watchdog.ts");');
+  const s = 'path.join(R, ".opencode", "plugin-unported-v1", "ctx_watchdog.ts");\npath.join(R, ".opencode", "plugin", "ctx_watchdog.ts");';
+  const p = PS.patchProbeImports(s);
   const once = p.text;
   return p.sites.length === 1 && PS.patchProbeImports(once).sites.length === 0;
 })());
+ck("patch keeps deactivated/ refs live (the clone keeps retired v1 modules live)", (() => {
+  const s = 'const T = path.join(R, ".opencode", "plugin", "deactivated", "compact_memory_v1.ts");';
+  const p = PS.patchProbeImports(s);
+  return p.sites.length === 0 && p.text === s;
+})());
+ck("guard does not move keep-dir plugin .ts", !PS.isGuardMove(".opencode/plugin/deactivated/x.ts") && !PS.isGuardMove(".opencode/plugin/probes/x.ts") && !PS.isGuardMove(".opencode/plugin/tests/x.ts") && !PS.isGuardMove(".opencode/plugin/scripts/x.ts"));
+ck("guard still moves a top-level stray plugin .ts", PS.isGuardMove(".opencode/plugin/x.ts") && PS.guardTarget(".opencode/plugin/x.ts") === ".opencode/plugin-unported-v1/x.ts");
 ck("classify take-main", PS.classify("agent/handover/handover_task_to_planner.md") === "take-main");
 ck("classify normal", PS.classify("README.md") === "normal");
 ck("normPath windows", PS.isTakeMain(PS.normPath(".opencode\\tools\\x.ts")) && PS.normPath("a\\b.md") === "a/b.md");
-for (const [p, want] of [[".opencode/plugin/x.ts", true], [".opencode/plugin/probes/z.ts", true],
+for (const [p, want] of [[".opencode/plugin/x.ts", true], [".opencode/plugin/probes/z.ts", false], [".opencode/plugin/deactivated/z.ts", false],
   [".opencode/plugins/x.ts", false], [".opencode/plugin-unported-v1/x.ts", false], [".opencode/plugin/x.mjs", false]]) ck("guard " + p, PS.isGuardMove(p) === want);
 ck("guardTarget nested", PS.guardTarget(".opencode/plugin/sub/y.ts") === ".opencode/plugin-unported-v1/sub/y.ts");
 ck("parseMergeTree names", JSON.stringify(PS.parseMergeTree("c973825 tree\n.opencode/tools/block_transfer.ts\nopencode.jsonc\n\nAuto-merging x\nCONFLICT y\n")) === JSON.stringify([".opencode/tools/block_transfer.ts", "opencode.jsonc"]));
@@ -195,7 +202,8 @@ r = runScript(DRY.concat(["--apply"])); dbg("E apply", r);
 ck("E exit 1", r.code === 1);
 ck("E manual-conflict line", r.out.includes("manual: README.md left unmerged for a human 3-way"));
 ck("E unmerged-left line", r.out.includes("unmerged-left: README.md"));
-ck("E abort state line", r.out.includes("state: merge aborted, nothing applied (conflict markers would survive the gate)"));
+ck("E abort state line", r.out.includes("state: merge refused, restoring (conflict markers would survive the gate)"));
+ck("E restore line clean and merge-free", r.out.includes("restore: clone clean and merge-free (HEAD intact)"));
 ck("E gate never ran on a half-marked tree", !r.out.includes("gate probe:"));
 ck("E clone restored (clean + HEAD back + README back)", dirty(DST) === "" && head(DST) === T2 && rf(DST, "README.md") === "line1 clone-conflict\nline2\nline3 clone\n");
 

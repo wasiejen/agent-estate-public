@@ -35,23 +35,24 @@ verified live in a direct session). Unix idioms work natively: `ls -la`,
   shell.
 
 ## Run / test
-- Gate probe: `node .opencode/plugin/probes/handover_probe.mjs` (repo root; plain
+- Gate probe: `node .opencode/plugins/probes/handover_probe.mjs` (repo root; plain
   system `node`, no venv; one `MODULE_TYPELESS_PACKAGE_JSON` warning on stderr is
   expected and harmless — `.opencode/package.json` must NOT gain a "type" field,
   TODO #51). **The "standard gate" in THIS repo = this probe + the smoke suite**
   (no pytest — no FST product code in this repo, #117; the FST gate = pytest +
-  ruff, see `agent/readme/repo_commands.md`). The probe
+  ruff, see `projects/Free-Snap-Tap/repo/repo_commands.md`). The probe
   self-annotates its total: the output line `PROBE handover: <t>/<t> PASS` must
   agree with the header annotation (the section-sum line) — the annotation is
    the source; NO duplicated moving number lives here (curate-don't-duplicate,
    per #58/#64; refreshed 2026-09-17, planner-allowed per maintainer ruling for
    #71).
-- Smoke suite commands: v1 = from the repo root, `node .opencode/plugin/tests/<f>.smoke.mjs`
-  (12 files; final line `<n>/<n>` or `SMOKE: ALL PASS`). v2 = from `.opencode/plugins/tests`,
-  `bun run <f>.smoke.mjs` (final line `SMOKE: ALL PASS`) + typecheck
+- Smoke suite commands: v1 = from the repo root, `node .opencode/plugins/tests/v1/<f>.smoke.mjs`
+  (8 files; final line `<n>/<n>` or `SMOKE: ALL PASS`). v2 = from `.opencode/plugins/tests`,
+  `bun run <f>.smoke.mjs` (11 files + the composite `smoke.mjs`; final line `SMOKE: ALL PASS`) + typecheck
   `home/Repos/opencode/node_modules/.bin/tsgo.exe -p .opencode/plugins/tests/tsconfig.json`
   (repo root; exit 0, no output). The node-dir trio gauge_core/context_trim/auto_resume
-  can hit the Windows teardown `fs.rmSync` EBUSY flake (0 FAIL) — green on re-run.
+  uses the `rmTearSoft` retry teardown (#160, worker-36) — both node and bun runners
+  deterministic; the old `fs.rmSync` EBUSY re-run tax is gone.
 
 ## Marker sweep
 
@@ -84,7 +85,7 @@ interaction-contract table — this section keeps only the concrete repo facts:
   toolset (same readout, in-band — no shell-out); the command below is the
   fallback (the tool is registered host-side and takes effect at the
   maintainer's next process restart): run
-  `node .opencode/plugin/scripts/peek.mjs` from the repo root, read-only →
+  `node .opencode/plugins/scripts/peek.mjs` from the repo root, read-only →
   `SESSION=… CTX=n (p%) REM=m` (window unknown → `CTX=n` only; no finished
   step → `CTX=notAvailable`).
   **Margin rule (maintainer 2026-09-14):** the readout UNDER-reports actual

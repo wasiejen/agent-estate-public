@@ -8,9 +8,10 @@ this repo — its bookkeeping + repo docs sit in `projects/Free-Snap-Tap/`.
 The repo map is split into the parts in THIS folder; read the part(s) you need,
 not the whole set.
 
-Maintained by the maintainer; agents do not edit it directly. If a part
-conflicts with the code, the code wins — flag the discrepancy in your summary
-or `TODO.md`. Edit a part only if explicitly tasked.
+Maintained by the maintainer and the agents (ruling 2026-10-26: agents may edit
+these parts — they exist for agent work, not for the maintainer's screen). If a
+part conflicts with the code, the code wins — fix or flag the discrepancy in
+your summary or `TODO.md`.
 
 Parts (read when …):
 - `repo_commands.md` — read when running shells, the node-probe gate, or the
@@ -21,6 +22,8 @@ Parts (read when …):
 - `repo_opencode.md` — read when you need opencode host specifics:
   install/log/SDK paths, plugin registration, or opencode behavior not in
   the knowledge base (index → `agent/knowledge/opencode-plugins/`).
+- `readme_research.md` — read when starting a research pass (idle lane or a
+  delegated research unit): phases, bounded reads, output placement.
 Per-project doc sets live under `projects/<name>/repo/` — e.g. Free Snap Tap:
 `projects/Free-Snap-Tap/repo/` (repo_map, repo_testgate, repo_gotchas,
 repo_commands).

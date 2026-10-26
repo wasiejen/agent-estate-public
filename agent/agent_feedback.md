@@ -998,3 +998,6 @@ A repo-wide `grep -rn <docname> .` pulled an archive/sessions compaction dump (~
 ### 2026-10-26_17-50 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
 watchdog unit-4 false-wake RECURRED x2 in one session (ses_e8751597bffe…): clean `action: continue` close 17:49 → wake cause=compact forced post-compaction re-reads while ctx.log shows NO new COMPACT line (last = deliberate 17:09); next wake cause=idle again for the same maintainer-blocked session. Gate the wake predicate on a NEW per-sessionID COMPACT/DUMP ctx.log line instead of the last close's cause label — repeats burn planner calls + slot time.
 
+### 2026-10-26_18-15 worker_FlashNext ses_e86cdea73ffeClXqFsI97RYlJp
+agent/handover/handover_task.md was STALE at launch (it still held the #161/worker-37 spec while my instruction named the #170 spec) — the protocol's read-the-task-file-first step pointed at the wrong task; the planner should refresh that file with each delegation.
+

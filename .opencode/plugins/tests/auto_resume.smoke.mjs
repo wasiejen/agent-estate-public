@@ -6,7 +6,8 @@
 // pair lines surviving the trim), the UNIT 3 trigger spawn (the create input
 // shape with title/agent/model, the QUEUED prompt, the counter + `ident=`, the
 // failure lanes + the consume-even-on-failure rule), the UNIT 4 routing (stop/
-// ask/resume/recovery-cap/restart/dead-mark/deactivation/injected-busy), the
+// ask/continue/resume-no-op/recovery-cap/restart/dead-mark/deactivation/
+// injected-busy), the
 // #159 STEP-event ARM SOURCE (busy from `session.step.started`, idle from a
 // terminal `session.step.ended` finish, NO idle from tool-calls/unknown/
 // missing, the no-double-route, the old status legs still working), the #109
@@ -303,18 +304,48 @@ await sleep(20);
 await mod.runTick();
 chk("S4 `route= ask sid=ses_r_ask` and NO send", has("route= ask sid=ses_r_ask") && !PROMPT.calls.some((c) => c.sessionID === "ses_r_ask"));
 
+// #170 ruling: `action: resume` is a logged NO-OP — no task_id vehicle exists
+// yet, so it must NOT self-wake the session and NOT consume the recovery budget.
+// (The `arm= … injected` pin that rode this leg moved to the continue leg below:
+// the resume no-op sends nothing, so nothing injects.)
 await armOnScoped("ses_r_resume");
 pushEvent({ type: "session.status", data: { sessionID: "ses_r_resume", status: { type: "idle" } } });
 pushEvent({ type: "session.text.ended", data: { sessionID: "ses_r_resume", assistantMessageID: "m3", ordinal: 0, text: "keep going\naction: resume" } });
 await sleep(20);
 await mod.runTick();
-const resumeSend = PROMPT.calls.find((c) => c.sessionID === "ses_r_resume");
-chk("S4 `action: resume` -> ONE QUEUED CONTINUE (the locked text) + `recovery= attempt=1`",
-  has("recovery= sid=ses_r_resume attempt=1") && resumeSend?.delivery === "queue" && resumeSend.text.startsWith(`[auto-resume unit 4 — planner liveness watchdog, session ses_r_resume]`));
-pushEvent({ type: "session.status", data: { sessionID: "ses_r_resume", status: { type: "busy" } } });
+chk("S4 #170 `action: resume` -> NO-OP: `note= resume-unimplemented sid=ses_r_resume`, NO prompt call, NO recovery line",
+  has("note= resume-unimplemented sid=ses_r_resume") &&
+  !PROMPT.calls.some((c) => c.sessionID === "ses_r_resume") &&
+  !has("recovery= sid=ses_r_resume"));
+
+// #170: `action: continue` -> the SAME session wakes with the short continuation
+// text (not the #167 rebuild flavor), logs `route= continue`, and consumes NO
+// `MAX_RECOVERY_ATTEMPTS` budget. The injected-busy #80 semantics ride it.
+await armOnScoped("ses_r_continue");
+pushEvent({ type: "session.status", data: { sessionID: "ses_r_continue", status: { type: "idle" } } });
+pushEvent({ type: "session.text.ended", data: { sessionID: "ses_r_continue", assistantMessageID: "m4", ordinal: 0, text: "healthy, keep going\naction: continue" } });
 await sleep(20);
-chk("S4 the injection's busy is NOT a fresh cycle (#80 cap semantics): `arm= sid=ses_r_resume injected`",
-  has("arm= sid=ses_r_resume injected"));
+await mod.runTick();
+const contSend = PROMPT.calls.filter((c) => c.sessionID === "ses_r_continue");
+chk("S4 #170(a) `action: continue` -> `route= continue sid=ses_r_continue` + ONE QUEUED send to the SAME sid (NO recovery line)",
+  has("route= continue sid=ses_r_continue") && contSend.length === 1 && contSend[0].delivery === "queue" &&
+  contSend[0].text.startsWith(`[auto-resume unit 4 — planner liveness watchdog, session ses_r_continue]`) &&
+  !has("recovery= sid=ses_r_continue"));
+chk("S4 #170(a) the continuation text acknowledges the intentional `action: continue` and carries NO post-compaction ritual",
+  contSend.length === 1 && contSend[0].text.includes("action: continue") &&
+  !contSend[0].text.includes("readme_post_compaction") && !contSend[0].text.includes("compaction"));
+pushEvent({ type: "session.status", data: { sessionID: "ses_r_continue", status: { type: "busy" } } });
+await sleep(20);
+chk("S4 the injection's busy is NOT a fresh cycle (#80 cap semantics): `arm= sid=ses_r_continue injected`",
+  has("arm= sid=ses_r_continue injected"));
+// #170(b) the budget exemption: the NEXT idle with NO action line must still get
+// attempt=1 — the continue cycle consumed no budget.
+pushEvent({ type: "session.text.ended", data: { sessionID: "ses_r_continue", assistantMessageID: "m5", ordinal: 0, text: "mid-unit, no line yet" } });
+pushEvent({ type: "session.status", data: { sessionID: "ses_r_continue", status: { type: "idle" } } });
+await sleep(20);
+await mod.runTick();
+chk("S4 #170(b) budget exemption: a following null-action idle still gets `recovery= sid=ses_r_continue attempt=1`",
+  has("recovery= sid=ses_r_continue attempt=1") && !has("recovery= sid=ses_r_continue attempt=2"));
 
 // #167: the cause-sensitive continue text — the SAME predicate as the #109
 // clause-(4) skip. (a) a NEW ctx.log COMPACT line for the watched sid (the
@@ -534,9 +565,12 @@ chk("S6 the exhausted RESTART text carries the forced-new-session directive (the
 
 // ------------------------------------------------------------------ S7 pure-leg pins + fail-open + cleanup
 
-chk("S7 the action-line scan is LINE-ANCHORED, last match wins (#98 part A)",
+chk("S7 the action-line scan is LINE-ANCHORED, last match wins (#98 part A) + the #170 `continue` token",
   mod.actionFromText("x\naction: stop") === "stop" &&
   mod.actionFromText('a quoted "action: restart" mid-line') === null &&
+  mod.actionFromText('a quoted "action: continue" mid-line') === null &&
+  mod.actionFromText("closed.\naction: continue") === "continue" &&
+  mod.actionFromText("action: continue\naction: restart") === "restart" &&
   mod.actionFromText("action: resume\naction: restart") === "restart" &&
   mod.actionFromText("bullet-prefixed\n- action: restart") === null);
 chk("S7 the scope verdict ladder: Direct beats the agent test; an ON toggle is ANY agent; NO toggle falls to the planner prefix",

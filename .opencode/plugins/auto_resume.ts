@@ -131,7 +131,9 @@ const PENDING_INJECT_TTL = 120_000;
 // #98 part A: LINE-ANCHORED — `action:` matches ONLY at line start (after any
 // leading whitespace), never a PROSE-QUOTED MID-LINE mention. The anchor group
 // is NON-capturing so group 1 is the ACTION WORD.
-const ACTION_RE = /(?:^|\n)\s*action:\s*(restart|resume|stop|ask_maintainer)/g;
+// #170: `continue` is the INTENTIONAL same-session wake (the close ladder's
+// idle+context-healthy close) — it must NOT ride the recovery budget.
+const ACTION_RE = /(?:^|\n)\s*action:\s*(restart|resume|stop|ask_maintainer|continue)/g;
 
 // #98 part B: the COMPACT-line sid + keep extractors of the shared ctx.log
 // line form (the compact_memory plugin writes it BYTE-IDENTICally).
@@ -728,6 +730,19 @@ function continueText(sid: string): string {
   );
 }
 
+// #170: the INTENTIONAL `action: continue` close (the close ladder's
+// idle+context-healthy leg). The session's own context is still intact — this
+// wake is a plain continuation: NO compaction claim, NO `readme_post_compaction`
+// rebuild ritual. Kept SEPARATE from `continueText` so the recovery branch's
+// cause-flavored texts stay byte-identical (#167 pins).
+function intentionalContinueText(sid: string): string {
+  return (
+    `[auto-resume unit 4 — planner liveness watchdog, session ${sid}] Your last turn closed with an intentional ` +
+    "action: continue line. This wake keeps your session alive: pick up the current work where you left off, " +
+    "and close it with an action: line."
+  );
+}
+
 // Item 11: the forced-new-session budget check (the SAME compact_budget.json
 // the v1 leg read; READ-ONLY per restart-branch call). count > cap ->
 // exhausted. The cap mirrors compact_memory's resolveCap: the CPU invariant
@@ -943,7 +958,37 @@ async function routeScopedIdle(sid: string, w: Watch): Promise<void> {
     log(`route= ask sid=${sid}`);
     return;
   }
-  if (action === "resume" || (action === null && w.recoveryCount < MAX_RECOVERY_ATTEMPTS)) {
+  // #170: the INTENTIONAL continue — wake the SAME session with the short
+  // continuation text. NO `recovery=` log, NO budget consumption, NO `attempt=`.
+  // The mechanics are the recovery branch's: the `sending` latch, the QUEUED
+  // delivery, `pendingInject` (#80), and `send-fail=` + dead-mark on error.
+  if (action === "continue") {
+    log(`route= continue sid=${sid}`);
+    sending.add(sid);
+    try {
+      const api = sessionApi;
+      if (!api || typeof api.prompt !== "function") {
+        log(`send-fail= sid=${sid} prompt missing`);
+        w.deadMarked = true;
+        return;
+      }
+      await (api.prompt as (i: unknown) => Promise<unknown>)({ sessionID: sid, text: intentionalContinueText(sid), delivery: "queue" });
+      pendingInject.set(sid, Date.now()); // #80 cap semantics: the injection's busy is not a fresh cycle
+    } catch (e) {
+      log(`send-fail= sid=${sid} ${(e as { message?: string } | null)?.message ?? "unknown"}`);
+      w.deadMarked = true;
+    } finally {
+      sending.delete(sid);
+    }
+    return;
+  }
+  // #170 ruling: `action: resume` is a NO-OP until a task_id vehicle exists —
+  // it must not self-wake the planner's own session (the docs' divergence).
+  if (action === "resume") {
+    log(`note= resume-unimplemented sid=${sid}`);
+    return;
+  }
+  if (action === null && w.recoveryCount < MAX_RECOVERY_ATTEMPTS) {
     w.recoveryCount += 1;
     // #167: `cause=` names which event the watchdog OBSERVED last — the same
     // predicate `continueText` branches on.

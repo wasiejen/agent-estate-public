@@ -27,7 +27,11 @@
 //     `create` + ONE QUEUED prompt; the spawn marker/ident (`<folder> planner
 //     -<n>`) and the `spawn=` / `spawn-fail=` lines; NEVER throws outward.
 //   UNIT 4 — the LIVENESS WATCHDOG: per-session watch state armed by events
-//     ONLY; the tick is the ONE decision+send funnel; the `action:` line
+//     ONLY (#159: busy rides `session.step.started`, idle rides
+//     `session.step.ended` with a TERMINAL finish — `tool-calls` means the
+//     turn continues; the `session.status`/`session.idle` legs stay for a
+//     host that emits them; the v2 host publishes NEITHER status event);
+//     the tick is the ONE decision+send funnel; the `action:` line
 //     reading (LINE-ANCHORED, last match wins — #98 part A), the stop/ask
 //     no-send routes, the recovery CONTINUE budget (cap 2 per idle cycle,
 //     dead-mark on a failed send), the successor check, the LINEAGE-DEPTH cap
@@ -333,40 +337,58 @@ function keyFields(type: string, data: Record<string, unknown>): string {
   return bits.join(" ");
 }
 
+// #159: the ONE busy state-change path. The `session.status busy` leg and
+// `session.step.started` (the busy signal the v2 host ACTUALLY publishes —
+// the fork declares `session.status` EPHEMERAL with no producer) ride this
+// helper, so the `arm=`/pendingInject #80 semantics exist exactly once.
+function applyBusy(sid: string): void {
+  const w = getWatch(sid);
+  w.armed = true;
+  w.limitWarned = false; // #109: a fresh busy clears the per-episode latch
+  w.status = "busy";
+  w.idlePending = false;
+  const sentAt = pendingInject.get(sid);
+  if (sentAt !== undefined && Date.now() - sentAt <= PENDING_INJECT_TTL) {
+    // #80: the busy consumed a still-pending CONTINUE injection — NOT a
+    // fresh cycle, so the recovery cap keeps accumulating.
+    pendingInject.delete(sid);
+    log(`arm= sid=${sid} injected`);
+  } else {
+    w.recoveryCount = 0; // a fresh busy cycle resets the budget
+    w.deadMarked = false; // #85 part 2: a fresh busy clears the dead-mark
+    log(`arm= sid=${sid}`);
+  }
+}
+
+// #159: the ONE idle state-change path — the `session.status idle` leg, the
+// deprecated `session.idle`, and a TERMINAL `session.step.ended` finish ride
+// it. A duplicate idle is safe: `routeScopedIdle` clears `idlePending` before
+// it decides, and the `sending` latch guards an in-flight route.
+function applyIdle(sid: string): void {
+  const w = getWatch(sid);
+  w.status = "idle";
+  w.idlePending = true; // the tick decides
+}
+
 // The ARM-ONLY state machine (events never decide, never send — the tick is
 // the only decision+send funnel; v1 order unchanged).
 function armEvent(type: string, sid: string, data: Record<string, unknown>): void {
   if (type === "session.status") {
     const status = data.status as { type?: unknown } | undefined;
     const s = typeof status?.type === "string" ? status.type : typeof data.status === "string" ? data.status : null;
-    if (s === "busy") {
-      const w = getWatch(sid);
-      w.armed = true;
-      w.limitWarned = false; // #109: a fresh busy clears the per-episode latch
-      w.status = "busy";
-      w.idlePending = false;
-      const sentAt = pendingInject.get(sid);
-      if (sentAt !== undefined && Date.now() - sentAt <= PENDING_INJECT_TTL) {
-        // #80: the busy consumed a still-pending CONTINUE injection — NOT a
-        // fresh cycle, so the recovery cap keeps accumulating.
-        pendingInject.delete(sid);
-        log(`arm= sid=${sid} injected`);
-      } else {
-        w.recoveryCount = 0; // a fresh busy cycle resets the budget
-        w.deadMarked = false; // #85 part 2: a fresh busy clears the dead-mark
-        log(`arm= sid=${sid}`);
-      }
-    } else if (s === "idle") {
-      const w = getWatch(sid);
-      w.status = "idle";
-      w.idlePending = true; // the tick decides
-    }
+    if (s === "busy") applyBusy(sid);
+    else if (s === "idle") applyIdle(sid);
     return; // any other vocabulary: no state change, no log line
   }
   if (type === "session.idle") {
-    const w = getWatch(sid); // the deprecated v2 form, accepted defensively
-    w.status = "idle";
-    w.idlePending = true;
+    applyIdle(sid); // the deprecated v2 form, accepted defensively
+    return;
+  }
+  // #159: the v2 host publishes NEITHER `session.status` NOR `session.idle` —
+  // the step boundaries are its real busy/idle signals. Without this leg
+  // nothing ever armed and the routing tick never ran.
+  if (type === "session.step.started") {
+    applyBusy(sid);
     return;
   }
   // Unit 4: a FAILED/INTERRUPTED execution is an idle trigger too (a dead
@@ -399,6 +421,10 @@ function armEvent(type: string, sid: string, data: Record<string, unknown>): voi
       w.lastActivityAt = Date.now();
     }
     w.limitWarned = false; // a NEW assistant update clears the fire latch
+    // #159: a TERMINAL finish is the v2 host's idle signal. `tool-calls`
+    // means the turn continues (no idle); a missing or `"unknown"` finish is
+    // no signal at all.
+    if (finish !== null && finish !== "" && finish !== "tool-calls" && finish !== "unknown") applyIdle(sid);
     return;
   }
   // DEVIATION (a): the LAST assistant text rides this event (no messages()

@@ -7,7 +7,10 @@
 // shape with title/agent/model, the QUEUED prompt, the counter + `ident=`, the
 // failure lanes + the consume-even-on-failure rule), the UNIT 4 routing (stop/
 // ask/resume/recovery-cap/restart/dead-mark/deactivation/injected-busy), the
-// #109 detector (each clause + the fire + the `loop_log.md` -WARNING line +
+// #159 STEP-event ARM SOURCE (busy from `session.step.started`, idle from a
+// terminal `session.step.ended` finish, NO idle from tool-calls/unknown/
+// missing, the no-double-route, the old status legs still working), the #109
+// detector (each clause + the fire + the `loop_log.md` -WARNING line +
 // the latch), the budget-exhausted directive forms, and the fail-open discipline.
 //
 // Fixtures and BOTH logs (auto_resume.log + the shared ctx.log) live in
@@ -322,6 +325,78 @@ await sleep(20);
 await mod.runTick();
 chk("S4 a FAILED CONTINUE dead-marks the idle cycle: `send-fail= ... mock queue rejection` then `skip= dead`",
   has("send-fail= sid=ses_r_dead mock queue rejection") && has("skip= dead sid=ses_r_dead"));
+
+// ------------------------------------------------------------------ S4b #159: the STEP-event arm source (the v2 host publishes NO session.status/session.idle)
+
+async function armOnScopedStep(sid) {
+  // the context hook (DEVIATION (a) carrier): the own-line ON toggle + the agent
+  await HOOKS["context"]({ sessionID: sid, agent: "planner_FlashNext", messages: [userMsg("<|autonom|>")] });
+  pushEvent({ type: "session.step.started", data: { sessionID: sid, assistantMessageID: "m_s" } });
+  await sleep(20);
+}
+function routed(sid) {
+  return readLog().some((l) => l.includes(`sid=${sid}`) && /(route= |recovery= |skip= |send-fail=)/.test(l));
+}
+
+// (a) busy from `session.step.started` — the arm state the status-busy leg used to produce
+await armOnScopedStep("ses_st_arm");
+chk("S4b #159(a) `session.step.started` ARMS like the busy status leg: the event line + `arm= sid=ses_st_arm` + the scoped verdict",
+  has("event=session.step.started sid=ses_st_arm") && has("arm= sid=ses_st_arm") && has("scope= autorun sid=ses_st_arm"));
+pushEvent({ type: "session.text.ended", data: { sessionID: "ses_st_arm", assistantMessageID: "m_st_a", ordinal: 0, text: "closed.\naction: stop" } });
+pushEvent({ type: "session.step.ended", data: { sessionID: "ses_st_arm", assistantMessageID: "m_st_a", finish: "stop" } });
+await sleep(20);
+await mod.runTick();
+chk("S4b #159(a) the step-ended idle of the armed watch routes: `route= stop sid=ses_st_arm`",
+  has("route= stop sid=ses_st_arm"));
+
+// (b) idle from `session.step.ended finish=stop` + `action: restart` -> the successor SPAWN (the dead-loop symptom is gone)
+await armOnScopedStep("ses_st_restart");
+pushEvent({ type: "session.model.selected", data: { sessionID: "ses_st_restart", model: { id: "smoke-model-8K", providerID: "llama-swap" } } });
+pushEvent({ type: "session.text.ended", data: { sessionID: "ses_st_restart", assistantMessageID: "m_st_b", ordinal: 0, text: "unit done\naction: restart" } });
+pushEvent({ type: "session.step.ended", data: { sessionID: "ses_st_restart", assistantMessageID: "m_st_b", finish: "stop", tokens: { input: 500, output: 0, reasoning: 0, cache: { read: 0, write: 0 } } } });
+await sleep(20);
+await mod.runTick();
+// the spawn line rides the log right after the route line: `route= restart spawn` -> `spawn= sid=<new>`
+const stLines = readLog();
+const stRoute = stLines.findIndex((l) => l.includes("route= restart spawn sid=ses_st_restart"));
+const stSpawnSid = stRoute >= 0 ? (stLines[stRoute + 1]?.match(/spawn= sid=(\S+)/) ?? [])[1] : undefined;
+chk("S4b #159(b) the terminal step-ended idle routes the RESTART SPAWN: `route= restart spawn sid=ses_st_restart` + `deactivate=` + ONE QUEUED prompt on the spawned sid",
+  has("route= restart spawn sid=ses_st_restart") && has("deactivate= sid=ses_st_restart") &&
+  stSpawnSid !== undefined && PROMPT.calls.some((c) => c.sessionID === stSpawnSid && c.delivery === "queue" && c.text.includes("auto-resume unit 4 restart branch")));
+
+// (c) `finish=tool-calls` = the turn CONTINUES; a missing/"unknown" finish = no signal -> NOTHING routed
+await armOnScopedStep("ses_st_tool");
+pushEvent({ type: "session.text.ended", data: { sessionID: "ses_st_tool", assistantMessageID: "m_st_c", ordinal: 0, text: "mid turn\naction: stop" } });
+pushEvent({ type: "session.step.ended", data: { sessionID: "ses_st_tool", assistantMessageID: "m_st_c", finish: "tool-calls" } });
+pushEvent({ type: "session.step.ended", data: { sessionID: "ses_st_tool", assistantMessageID: "m_st_c", finish: "unknown" } });
+pushEvent({ type: "session.step.ended", data: { sessionID: "ses_st_tool", assistantMessageID: "m_st_c" } });
+await sleep(20);
+await mod.runTick();
+chk("S4b #159(c) `finish=tool-calls` / `finish=unknown` / a missing finish -> NO idle: runTick routes NOTHING for sid=ses_st_tool",
+  !routed("ses_st_tool"));
+
+// (d) no double route: duplicate idles (two terminal step.endeds + a status idle IN ONE WINDOW) route ONCE; the reset then the next tick route nothing
+await armOnScopedStep("ses_st_dup");
+pushEvent({ type: "session.text.ended", data: { sessionID: "ses_st_dup", assistantMessageID: "m_st_d", ordinal: 0, text: "x\naction: stop" } });
+pushEvent({ type: "session.step.ended", data: { sessionID: "ses_st_dup", assistantMessageID: "m_st_d", finish: "stop" } });
+pushEvent({ type: "session.step.ended", data: { sessionID: "ses_st_dup", assistantMessageID: "m_st_d", finish: "stop" } });
+pushEvent({ type: "session.status", data: { sessionID: "ses_st_dup", status: { type: "idle" } } });
+await sleep(20);
+await mod.runTick();
+chk("S4b #159(d) the duplicate idle (step-ended x2 + a status idle in ONE window) routes EXACTLY ONCE",
+  countOf("route= stop sid=ses_st_dup") === 1);
+await mod.runTick();
+chk("S4b #159(d) the `idlePending` reset: the NEXT tick routes nothing again",
+  countOf("route= stop sid=ses_st_dup") === 1);
+
+// (e) regression: the old `session.status busy`/`idle` legs still arm AND route (a host that emits them keeps working)
+await armOnScoped("ses_old_step");
+pushEvent({ type: "session.status", data: { sessionID: "ses_old_step", status: { type: "idle" } } });
+pushEvent({ type: "session.text.ended", data: { sessionID: "ses_old_step", assistantMessageID: "m_st_e", ordinal: 0, text: "old legs\naction: stop" } });
+await sleep(20);
+await mod.runTick();
+chk("S4b #159(e) regression: the `session.status busy`/`idle` legs still arm AND route (`arm=` + `route= stop`)",
+  has("arm= sid=ses_old_step") && has("route= stop sid=ses_old_step"));
 
 // ------------------------------------------------------------------ S5 #109: the silent limit-stop detector
 

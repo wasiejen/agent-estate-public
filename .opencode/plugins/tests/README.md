@@ -349,7 +349,7 @@ final line: `SMOKE: ALL PASS`.
 
     bun run auto_resume.smoke.mjs
 
-45 checks against a mock `ctx` (no opencode process; NO backend request; fixtures
+55 checks against a mock `ctx` (no opencode process; NO backend request; fixtures
 ride the scratchpad `home/AppData/Local/Temp/opencode/auto-resume-
 smoke-v2`, the LIVE temp estate NEVER touched): the loader shape `{id:'auto_resume',
 setup}` + the `context`-hook registration + the exported smoke levers
@@ -369,7 +369,14 @@ rejection); UNIT 4 — `route= stop|ask` with NO send, `action: resume` -> ONE
 QUEUED CONTINUE with the locked text, the #80 `arm= … injected` busy, the
 recovery budget (attempt 1, 2, then the RESTART route), the `spawn= … agent=
 model= ident=` line + `deactivate=`, the STICKY `skip= deactivated`, the
-`send-fail=` dead-mark + `skip= dead`; #109 — the detector's five clauses each
+`send-fail=` dead-mark + `skip= dead`; #159 — the ARM SOURCE the v2 host
+actually feeds (the fork publishes NEITHER `session.status` NOR `session.idle`):
+busy from `session.step.started` (one shared state-change path with the status
+leg), idle from a TERMINAL `session.step.ended` finish, NO idle from
+`finish=tool-calls` / `unknown` / a missing finish, duplicate idles route ONCE
+(the `idlePending` reset + the `sending` latch), and the old
+`session.status busy|idle` legs pinned unchanged for a host that emits them;
+#109 — the detector's five clauses each
 pinned NEGATIVE (finish ≠ length, total below the 0.99·window wall, an
 unresolvable window, the 60 s idle threshold via the `limitStopIdleMs` lever, a
 scope-"none" session), the FIRE (`limit-stop= sid= total=` + the byte-shape

@@ -1,29 +1,31 @@
 # readme_todo.md — the TODO system
 
-Read when writing, curating, or referencing TODO entries or IDs.
+Read this file when you write, curate, or reference TODO entries or IDs.
 
 ## Entry contract
-AGENTS.md §TODO.md-entry-contract: every entry is self-contained enough to be
-delegated by unique ID — title / problem + evidence, desired outcome,
-acceptance criteria, suggested scope, status.
+AGENTS.md §TODO.md-entry-contract governs every entry. Keep each entry
+self-contained: a planner must delegate it by unique ID alone. Each entry
+carries: title / problem + evidence, desired outcome, acceptance criteria,
+suggested scope, status.
 
 ## Who writes where
-- **Worker / explorer — APPEND to `todo_inbox.md`** (repo root). Loose format:
-  dated + role-tagged blocks, **no numbering**, no curation, no renumbering.
-  This is the APPEND target for their findings — NOT `TODO.md`.
-- **Planner — curates** `todo_inbox.md` → `TODO.md`: assigns the stable ID at
-  curation time, enriches the entry to the contract, then trims the inbox.
+- **Worker / explorer — APPEND to `todo_inbox.md`** (repo root). Use the
+  loose format: dated + role-tagged blocks, **no numbering**, no curation,
+  no renumbering. Use it for findings — NOT for `TODO.md`.
+- **Planner — curates** the inbox into the ledger: `todo_inbox.md` →
+  `TODO.md`. Assign the stable ID at curation time. Enrich the entry to
+  the contract, then trim the inbox.
 - Bare-ID handoffs reference **curated** IDs only.
 
 ## Curation rules (planner)
-- Close/condense solved or stale entries with a one-line record; the full text
-  of a closed entry moves to `todo_records.md`.
-- IDs are unique and NEVER reused; the next ID is recorded in the `TODO.md`
+- Close or condense solved and stale entries with a one-line record. Move
+  the full text of a closed entry to `todo_records.md`.
+- Keep IDs unique; NEVER reuse one. Record the next ID in the `TODO.md`
   header line.
-- Never delete open/unresolved content; when a fix lands, flag the entry it
-  closed.
+- Never delete open or unresolved content. When a fix lands, flag the
+  entry it closed.
 
 ## Files
 - `TODO.md` — curated open items + one-line records of fixed issues.
-- `todo_inbox.md` — raw drop zone (worker/explorer append only).
+- `todo_inbox.md` — raw drop zone; worker/explorer append only.
 - `todo_records.md` — full text of closed entries.

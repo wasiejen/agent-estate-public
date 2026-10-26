@@ -121,7 +121,17 @@
       "models": {
 
         "Qwen3.8-NEXT-Coder": {
-          "name": "Qwen3.8-Flash-Next (local)",
+          "name": "Qwen3.8-Flash-Next Coder",
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "input": 258048,
+            "output": 20480
+          }
+        },
+
+        "Qwen3.8-NEXT-GyroM": {
+          "name": "Qwen3.8-Flash-Next GyroM",
           "tool_call": true,
           "limit": {
             "context": 262144,
@@ -370,7 +380,7 @@
     "planner_FlashNext": {
       "description": "plans tasks and delegates to sub-agents: very high intelligence, speedrating 60, 262k context, high precision, highest general knowledge",
       "mode": "all",
-      "model": "strata/gyro-gyro-m",
+      "model": "llama-swap/Qwen3.8-NEXT-GyroM",
       "prompt": "{file:./agent/prompts/agent_planner.md}\n{file:agent/memory/planner/destilled_mem.md}",
       // "prompt": "{file:./prompts/base.txt}\n{file:./prompts/rules.txt}\n{file:./prompts/examples.txt}"
       "temperature": 1.0,
@@ -389,7 +399,7 @@
     "worker_FlashNext": {
       "description": "very high intelligence, speedrating 60, 262k context, high precision, highest general knowledge: best for very complex coding and code review work",
       "mode": "all",
-      "model": "strata/gyro-gyro-m",
+      "model": "llama-swap/Qwen3.8-NEXT-GyroM",
       "prompt": "{file:./agent/prompts/agent_worker.md}",
       "temperature": 1.0,
       "permission": {
@@ -411,7 +421,7 @@
     "explorer_FlashNext": {
       "description": "very high intelligence, speedrating 60, 262k context, high precision, highest general knowledge: for research and exploration of needed information",
       "mode": "all",
-      "model": "strata/gyro-gyro-m",
+      "model": "llama-swap/Qwen3.8-NEXT-GyroM",
       "prompt": "{file:./agent/prompts/agent_worker.md}\n{file:./agent/prompts/agent_explorer.md}",
       "temperature": 1.0,
       "permission": {

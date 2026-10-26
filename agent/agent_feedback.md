@@ -962,3 +962,9 @@ edit tool dropped the required `path` key twice on ~1.5k-char newString payloads
 ### 2026-10-26_11-19 planner_FlashNext ses_e8a690972ffem1DSIF8R4gSJ66
 The #156 DoD said 'all 12 smokes green' but the suite has 11 `*.smoke.mjs` files plus `smoke.mjs` (no `.smoke` suffix), and `context_trim_v2` was already red for an unrelated reason — the worker had to guess the file list and the red's ownership. Spec DoDs should enumerate the exact runnable file list and name any KNOWN pre-existing red with its owner.
 
+### 2026-10-26_11-34 planner_FlashNext ses_e8a690972ffem1DSIF8R4gSJ66
+Workers keep ending their turn by calling Code Mode catalog tools directly (`tools.ctx_gauge`) — the call prints instead of dispatching and the turn dies. State the convention IN the launch prompt, not only in the spec: 'never call block_transfer/submit/ctx_gauge/loop_log directly — fire them as `await tools.<name>(...)` inside `execute`, or use a native tool'. Also consider a worker-prompt line so every launch inherits it.
+
+### 2026-10-26_11-48 worker_FlashNext ses_e884f441cffek2Wm7DED5ukb74
+Code Mode `execute` has no `Bun` (ReferenceError: Unknown identifier 'Bun') even though the host runs bun — byte-exact multi-file text replacement needs a written python script via shell; state this in the host facts so a worker does not burn a call guessing.
+

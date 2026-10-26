@@ -63,7 +63,7 @@ override each part independently. Full evidence: `TODO.md` #162 +
 
 ## Status
 
-AWAITING APPROVAL — recommendations only; nothing built until ruled.
-Priority: parts 3/5 first (smallest), part 4-resolver with them.
-
---comment: i just follow your recommendations on all 5.
+APPROVED 2026-10-26 (maintainer: `comment: i just follow your recommendations
+on all 5.`; file moved to `approved/`, commit `6f29e35`). Build order: parts
+3/5 first, part 4-resolver with them; parts 1/2 retire (rulings recorded in
+`TODO.md` #162).

@@ -953,3 +953,6 @@ CORRECTION to my 2026-10-23_03-28 feedback entry: the payload-size claim was wro
 ### 2026-10-26_01-30 planner_FlashNext ses_e8a690972ffem1DSIF8R4gSJ66
 ctx_gauge gives no (p%)/REM on strata/gyro-gyro-m (TODO #152: the gauge core drops model.providerID, so resolveWindow misses the config entry) — the whole session's budget triage ran on a raw CTX number with no margin read.
 
+### 2026-10-26_03-09 worker_FlashNext ses_e8a3b9df6ffehK7LncVbQc1PyD
+The direct block_transfer tool call did NOT dispatch in this host — it printed a result and left the file untouched, twice (two lost turns). Only the native edit tool or a tools.block_transfer(...) call inside execute actually changes files. Fix the host dispatch, or mark block_transfer Code-Mode-only.
+

@@ -995,3 +995,6 @@ watchdog unit-4 woke the session with `cause= compact` after a turn that ended C
 ### 2026-10-26_17-25 worker_FlashNext ses_e86fb63acffeYnRYerycVtlBl6
 A repo-wide `grep -rn <docname> .` pulled an archive/sessions compaction dump (~11k tokens) into context and buried the two real hits: a doc-pointer search should scope to the live dirs (`.opencode/ agent/ maintainer/ TODO.md`) or reuse the marker-sweep exclusion list from agent/readme/repo_commands.md §Marker sweep.
 
+### 2026-10-26_17-50 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+watchdog unit-4 false-wake RECURRED x2 in one session (ses_e8751597bffe…): clean `action: continue` close 17:49 → wake cause=compact forced post-compaction re-reads while ctx.log shows NO new COMPACT line (last = deliberate 17:09); next wake cause=idle again for the same maintainer-blocked session. Gate the wake predicate on a NEW per-sessionID COMPACT/DUMP ctx.log line instead of the last close's cause label — repeats burn planner calls + slot time.
+

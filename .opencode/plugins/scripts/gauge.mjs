@@ -226,7 +226,9 @@ export function getLoopRoot() {
   return loopRoot;
 }
 
-// Part 2: the ctx-line iteration suffix — `""` or ` ITER=<n> <folder>`.
+// Part 2: the ctx-line iteration suffix — `""`, ` ITER=<n> <folder>`, or
+// (TODO #171, 2026-10-26) ` ITER=<n> <folder> ROUND=<r>` — plus ` MAINT=1`
+// when `r % 5 === 0` (the maintenance-clock token).
 // Resolves the CURRENT loop folder + reads the folder's `counter.json`
 // through the ONE read-only helper `./loop_root.mjs` (#164, 2026-10-26 —
 // the four duplicated folder locators unified; the folder rule stays
@@ -235,6 +237,9 @@ export function getLoopRoot() {
 // `looprun` field is NOT checked here) → the suffix. NEVER throws (any
 // failure → `""` — the readout line is byte-identical to the pre-counter
 // form). The `setLoopRootForTest` hook above steers the helper's root.
+// #171 fail-closed ROUND leg: a LEGACY counter WITHOUT a `round` key, or a
+// non-finite `round`, keeps the OLD ` ITER=<n> <folder>` form BYTE-EXACT —
+// the ROUND/MAINT tokens only ever ride a finite numeric `round`.
 export function loopIterationSuffix() {
   try {
     const folder = currentLoopFolder(loopRoot);
@@ -243,7 +248,10 @@ export function loopIterationSuffix() {
     if (data === null) return "";
     const n = data["n"];
     if (typeof n !== "number" || !Number.isFinite(n)) return "";
-    return ` ITER=${n} ${folder}`;
+    const base = ` ITER=${n} ${folder}`;
+    const r = data["round"];
+    if (typeof r !== "number" || !Number.isFinite(r)) return base;
+    return r % 5 === 0 ? `${base} ROUND=${r} MAINT=1` : `${base} ROUND=${r}`;
   } catch {
     return ""; // no loop root / no folder / no counter / malformed → no suffix
   }

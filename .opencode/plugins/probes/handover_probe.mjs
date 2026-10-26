@@ -10,7 +10,7 @@
 // S8-S11, S13-S14, S18-S21, S25-S29, S31-S32 (248 checks) are pruned —
 // coverage gaps recorded in TODO.md #150 unit B. The history below names
 // retired sections as history; the live pin set is the 13 KEEP sections
-// (112 checks — see EXPECTED OUTPUT).
+// (115 checks — see EXPECTED OUTPUT).
 // REBUILT 2026-09-10 (continuation 2) + EXTENDED 2026-09-10 (#37 S7 backend
 // chain section) + EXTENDED 2026-09-10/11 (v2.8: S9 readout append / ctx log /
 // deferred delivery + the S8 deferred-delivery ticks) + EXTENDED 2026-09-11
@@ -119,14 +119,18 @@
 // in the description; the digest BEHAVIOR is smoke-pinned
 // (state_snapshot.smoke.mjs) — the probe pins the SURFACE only
 // + EXTENDED 2026-10-05 (loop iteration counter Part 2 — the approved
-// proposal 2026-10-01_loop-iteration-counter.md): the new S36 section,
-// checks 357-358: the gauge core's `loopIterationSuffix()` (the injected
-// chat.message ctx-line suffix — the ` ITER=<n> <folder>` field) pinned
+// proposal 2026-10-01_loop-iteration-counter.md) + #171 (2026-10-26, ROUND
+// counter): the S36 section, checks 357-361: the gauge core's
+// `loopIterationSuffix()` (the injected chat.message ctx-line suffix — the
+// ` ITER=<n> <folder>` field + the ` ROUND=<r>` / ` MAINT=1` tokens) pinned
 // via the test hook (setLoopRootForTest — the setBudgetFileForTest
 // pattern, steered at a sandbox fixture loop root at probe start so the
 // pre-existing byte-exact ctx-line pins stay byte-identical): (i) a loop
 // root without a counter → `""` (the line stays byte-identical), (ii) a
-// fixture `autorun-X/counter.json` n=7 → ` ITER=7 autorun-X`:
+// fixture `autorun-X/counter.json` n=7 → ` ITER=7 autorun-X` (legacy, NO
+// `round` key — the OLD form stays byte-exact), (iii) round=9 →
+// ` ROUND=9` appended, (iv) round=10 → ` MAINT=1` rides (every 5th round),
+// (v) a non-finite round → the OLD byte-exact form (fail-closed):
 // the
 // pre-rebuild
 // probe
@@ -1055,7 +1059,7 @@
 //      (353) the 5 fail-closed rejections (exact reasons).
 //
 // EXPECTED OUTPUT:
-//   S6=8 S6b=8 S7=11 S12=4 S15=16 S16=6 S17=26 S22=9 S30=11 S33=6 S34=2 S35=3 S36=2  →  "PROBE handover: 112/112 PASS",
+//   S6=8 S6b=8 S7=11 S12=4 S15=16 S16=6 S17=26 S22=9 S30=11 S33=6 S34=2 S35=3 S36=5  →  "PROBE handover: 115/115 PASS",
 //   exit code 0. Anything else with THIS file = behavior drift or broken
 //   environment — read the failures, do not "fix" the plugin for the probe.
 //   On failure the sandbox root is KEPT (printed) for forensics.
@@ -3405,7 +3409,7 @@ let n35 = 354;
   n35++;
 }
 
-// ------------------------------------------------------------------ S36 loop iteration suffix (2) — 2026-10-05 (loop iteration counter Part 2 — the approved proposal 2026-10-01_loop-iteration-counter.md): the gauge core's `loopIterationSuffix()` (the injected chat.message ctx-line suffix) pinned via the test hook (setLoopRootForTest — the setBudgetFileForTest pattern, steered at a sandbox fixture loop root at probe start — the live loop root is never read by the probe).
+// ------------------------------------------------------------------ S36 loop iteration suffix (5) — 2026-10-05 (loop iteration counter Part 2 — the approved proposal 2026-10-01_loop-iteration-counter.md) + #171 (2026-10-26, ROUND counter + MAINT token): the gauge core's `loopIterationSuffix()` (the injected chat.message ctx-line suffix) pinned via the test hook (setLoopRootForTest — the setBudgetFileForTest pattern, steered at a sandbox fixture loop root at probe start — the live loop root is never read by the probe).
 const S36_LOOP = path.join(SANDBOX, "loop");
 let n36 = 357;
 
@@ -3434,6 +3438,50 @@ let n36 = 357;
     String(n36),
     "S36",
     "fixture autorun-X/counter.json n=7 → the suffix is byte-exact ` ITER=7 autorun-X`",
+    s === " ITER=7 autorun-X",
+    JSON.stringify(s),
+  );
+  n36++;
+}
+
+// 359 — #171 (iii) a fixture counter WITH round=9 (not %5) →
+//      ` ITER=7 autorun-X ROUND=9` (byte-exact, no MAINT token)
+{
+  writeFileSync(path.join(S36_LOOP, "autorun-X", "counter.json"), '{"looprun":"autorun-X","n":7,"round":9}', "utf-8");
+  const s = loopIterationSuffix();
+  check(
+    String(n36),
+    "S36",
+    "#171 fixture counter round=9 → the suffix is byte-exact ` ITER=7 autorun-X ROUND=9` (no MAINT)",
+    s === " ITER=7 autorun-X ROUND=9",
+    JSON.stringify(s),
+  );
+  n36++;
+}
+
+// 360 — #171 (iv) round=10 → ` MAINT=1` rides (every 5th round)
+{
+  writeFileSync(path.join(S36_LOOP, "autorun-X", "counter.json"), '{"looprun":"autorun-X","n":10,"round":10}', "utf-8");
+  const s = loopIterationSuffix();
+  check(
+    String(n36),
+    "S36",
+    "#171 fixture counter round=10 → the suffix is byte-exact ` ITER=10 autorun-X ROUND=10 MAINT=1`",
+    s === " ITER=10 autorun-X ROUND=10 MAINT=1",
+    JSON.stringify(s),
+  );
+  n36++;
+}
+
+// 361 — #171 (v) a NON-FINITE round → the OLD byte-exact form (fail-closed:
+//      no ROUND token; the `n` leg still renders)
+{
+  writeFileSync(path.join(S36_LOOP, "autorun-X", "counter.json"), '{"looprun":"autorun-X","n":7,"round":"nine"}', "utf-8");
+  const s = loopIterationSuffix();
+  check(
+    String(n36),
+    "S36",
+    "#171 non-finite round → the OLD byte-exact ` ITER=7 autorun-X` form (fail-closed, no ROUND token)",
     s === " ITER=7 autorun-X",
     JSON.stringify(s),
   );

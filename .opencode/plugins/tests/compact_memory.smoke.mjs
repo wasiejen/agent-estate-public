@@ -695,6 +695,69 @@ chk("D4c under the bun host the chain picks bun:sqlite FIRST (spec order) and th
   tBun.status === 0 && /backend=bun:sqlite/.test(tBun.stdout) && mdOf(path.join(SAN_OUT, "compaction_dumps/ses_fx_bun.md")).includes("# messages: 3  parts: 4"),
   JSON.stringify({ status: tBun.status, out: (tBun.stdout ?? "").slice(0, 140), err: (tBun.stderr ?? "").slice(0, 140) }));
 
+// ------------------------------------------------------------------ S-R171 the ROUND maintenance-clock leg (#171, 2026-10-26)
+// Verified success bumps the CURRENT loop folder's `counter.json` round:
+// round_new = (round ?? n ?? 0) + 1, keys preserved. A FAILED dispatch
+// increments NOTHING. Fail-closed legs (absent counter — NEVER created — /
+// wrong looprun / non-integer round) leave the file byte-unchanged. The
+// fixture folder lives in the mock ws ONLY NOW (earlier legs ran without a
+// loop root — they incremented nothing).
+{
+  MODELS.ses_r_ok = LISTED;
+  MODELS.ses_r_fail = LISTED;
+  MODELS.ses_r_legacy = LISTED;
+  MODELS.ses_r_wrong = LISTED;
+  MODELS.ses_r_missing = LISTED;
+  MODELS.ses_r_bad = LISTED;
+  const RDIR = path.join(WS, "loop", "autorun-r171");
+  mkdirSync(RDIR, { recursive: true });
+  const RC = path.join(RDIR, "counter.json");
+  const settle = async (sid, type = "session.compaction.ended", error = undefined) => {
+    await call({}, { sessionID: sid });
+    await sleep(5);
+    pushEvent({ type, data: error != null ? { sessionID: sid, error } : { sessionID: sid } });
+    await sleep(20);
+  };
+  {
+    writeFileSync(RC, '{"looprun":"autorun-r171","n":4,"round":9}', "utf8");
+    await settle("ses_r_ok");
+    chk("S-R171 (a) verified success: round 9 -> 10, looprun + n preserved (byte-exact)",
+      readFileSync(RC, "utf8") === '{"looprun":"autorun-r171","n":4,"round":10}', readFileSync(RC, "utf8"));
+  }
+  {
+    const before = '{"looprun":"autorun-r171","n":4,"round":10}';
+    writeFileSync(RC, before, "utf8");
+    await settle("ses_r_fail", "session.compaction.failed", { message: "mock r171 failure" });
+    chk("S-R171 (b) FAILED dispatch: NO round increment (byte-unchanged) + NO budget burn",
+      readFileSync(RC, "utf8") === before && count("ses_r_fail") === 0, readFileSync(RC, "utf8"));
+  }
+  {
+    writeFileSync(RC, '{"looprun":"autorun-r171","n":6}', "utf8");
+    await settle("ses_r_legacy");
+    chk("S-R171 (c) legacy counter (no round) seeds from n: {looprun,n:6} -> round 7 (byte-exact)",
+      readFileSync(RC, "utf8") === '{"looprun":"autorun-r171","n":6,"round":7}', readFileSync(RC, "utf8"));
+  }
+  {
+    const wrong = '{"looprun":"autorun-other","n":4,"round":9}';
+    writeFileSync(RC, wrong, "utf8");
+    await settle("ses_r_wrong");
+    chk("S-R171 (d) wrong-looprun counter: byte-unchanged (fail-closed, never rewritten)",
+      readFileSync(RC, "utf8") === wrong, readFileSync(RC, "utf8"));
+  }
+  {
+    rmSync(RC, { force: true });
+    await settle("ses_r_missing");
+    chk("S-R171 (e) absent counter: NO write, NEVER created", !existsSync(RC), "layout");
+  }
+  {
+    const bad = '{"looprun":"autorun-r171","n":4,"round":"nine"}';
+    writeFileSync(RC, bad, "utf8");
+    await settle("ses_r_bad");
+    chk("S-R171 (f) non-integer round: byte-unchanged (fail-closed, no increment)",
+      readFileSync(RC, "utf8") === bad, readFileSync(RC, "utf8"));
+  }
+}
+
 const logLenBefore = readLog().length;
 await cleanup();
 pushEvent({ type: "session.compaction.ended", data: { sessionID: "ses_self" } });

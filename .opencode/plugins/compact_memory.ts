@@ -44,6 +44,9 @@
 // budget tracks the AGENT-tool dispatches, as v1). The gauge-paired DB-read
 // fallback leg was NOT needed (the event leg is deterministic under the mock
 // and pinned in the smoke); recorded here per the spec's pin-the-leg rule.
+// #171 (2026-10-26): the ROUND increment (the maintenance clock in the loop
+// folder's counter.json) lands on the SAME verified-success path — a failed
+// dispatch increments NOTHING.
 //
 // DEVIATION (header REQUIRED): (a) the U3 marker mode has NO boundary control
 // in v2 — `recent` is core-computed from the config `compaction.keep.tokens`;
@@ -86,7 +89,7 @@
 // host runs (the backend slot); registration/config = maintainer domain.
 
 import type { Plugin } from "@opencode/plugin";
-import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { execFileSync } from "node:child_process";
 
@@ -101,6 +104,10 @@ import {
   recordSuccess,
   resolveRoot,
 } from "./scripts/compaction_core_v2.mjs";
+
+// #171 (2026-10-26): the ROUND maintenance-clock leg — the ONE read-only
+// loop-counter primitives (also plain JS, node: builtins only).
+import { currentLoopFolder, loopCounterPath, readLoopCounter } from "./scripts/loop_root.mjs";
 
 // ------------------------------------------------------------------ evidence log (v1 ladder, byte-shape)
 
@@ -198,14 +205,43 @@ async function onCompactionDraft(event: { sessionID?: unknown; result?: unknown 
 
 // ------------------------------------------------------------------ (4) the verify leg (events)
 
+// #171 (2026-10-26): the ROUND leg of the maintenance clock. Verified success
+// increments the CURRENT loop folder's `counter.json` round:
+// round_new = (round ?? n ?? 0) + 1, keys spread-preserved. SAME fail-closed
+// rules as the counter readers: no loop folder / absent counter (NEVER
+// created) / wrong looprun / non-integer round-or-n → NO write and NO log
+// change. A FAILED dispatch never reaches this function — it increments
+// NOTHING. BEST-EFFORT: any read/write failure is swallowed — the verified
+// success handling stands.
+function bumpRound(): void {
+  try {
+    const loopRoot = join(root(), "loop");
+    const folder = currentLoopFolder(loopRoot);
+    if (folder === null) return;
+    const data = readLoopCounter(loopRoot, folder);
+    if (data === null) return;
+    if (data["looprun"] !== folder) return;
+    // `??` semantics: a PRESENT (even corrupt) round is the base — a
+    // non-integer base fail-closes the write (no silent n-fallback past a
+    // corrupt round).
+    const base = data["round"] ?? data["n"] ?? 0;
+    if (typeof base !== "number" || !Number.isInteger(base)) return;
+    writeFileSync(loopCounterPath(loopRoot, folder), JSON.stringify({ ...data, round: base + 1 }), "utf8");
+  } catch {
+    // best effort — the counter lane never breaks the verify leg
+  }
+}
+
 // The verified-success handling (v1 order, same helpers): budget INCREMENT
-// THEN the COMPACT line, then the continuation queue (DEVIATION (b): the
-// native queue lands HERE, after verification).
+// THEN the COMPACT line, then the #171 ROUND increment (bumpRound), then the
+// continuation queue (DEVIATION (b): the native queue lands HERE, after
+// verification). A FAILURE path increments neither budget NOR round.
 function verifiedSuccess(sid: string, rec: PendingRecord): void {
   recordSuccess(root(), sid, rec.model);
   const keepResolved =
     rec.keepTokens != null ? { tokens: rec.keepTokens, source: "budget" as const } : { tokens: undefined, source: "none" as const };
   appendCompactLine(root(), sid, rec.model, rec.keepMessages, keepResolved, rec.isEmergency, rec.isOverride);
+  bumpRound();
   appendLog(
     buildLine(
       "verify",

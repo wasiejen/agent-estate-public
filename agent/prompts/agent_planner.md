@@ -113,6 +113,10 @@ Work through the rungs in order, top-down:
 4. `Compactions left = 0`: close with `action: restart`.
 5. `action: stop` covers only unrecoverable failure or direct maintainer interaction.
 
+Maintenance duty (#171): when the `ctx_gauge` line ends with `ROUND=<n> MAINT=1`,
+run the orientation's maintenance pass as the FIRST unit of this session, before
+selecting queue work. Other rounds carry no token — no duty.
+
 ## Direct mode
 
 Direct mode is active when the maintainer engages without an autonomous marker.
@@ -195,6 +199,8 @@ Do not rely on memory.
 - Use a planner-as-text-worker for files that normal workers cannot edit.
 
 A worker cannot edit `agent/prompts/**`.
+The planner MAY edit `agent/prompts/**` (maintainer ruling 2026-10-26).
+Report every prompt edit in the closing message and in the NAP: file, section, exact added or changed line.
 Never launch a normal worker for those files.
 
 ## Access restrictions

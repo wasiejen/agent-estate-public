@@ -12,11 +12,18 @@
 // terminal `session.step.ended` finish, NO idle from tool-calls/unknown/
 // missing, the no-double-route, the old status legs still working), the #109
 // detector (each clause + the fire + the `loop_log.md` -WARNING line +
-// the latch), the budget-exhausted directive forms, and the fail-open discipline.
+// the latch), the budget-exhausted directive forms, the #178 DURABLE MODE
+// STORE (toggle -> store write, sticky DIRECT across markerless follow-ups
+// with NO wake, the `<|autonom|>` re-arm, and the RESTART simulation — fresh
+// setup + existing store = DIRECT at watch creation), and the fail-open
+// discipline.
 //
-// Fixtures and BOTH logs (auto_resume.log + the shared ctx.log) live in
+// Fixtures and BOTH logs (auto_resume.log + the shared ctx.log) + the #178
+// store (`session_mode.json`) live in
 // home/AppData/Local/Temp/opencode/auto-resume-smoke-v2 (recreated
-// every run) — the LIVE DB and the LIVE temp estate are NEVER touched.
+// every run) — the LIVE DB and the LIVE temp estate are NEVER touched. The
+// store path derives from `ctx.location.directory` (the mock WS root), so the
+// same scratch steering that carries the budget fixture carries the store.
 // Run: bun run auto_resume.smoke.mjs (this dir). Expected final line:
 // `SMOKE: ALL PASS`.
 
@@ -36,6 +43,7 @@ const TEMP = path.join(WS, ".opencode", "temp");
 const LOG = path.join(TEMP, "auto_resume.log");
 const CTXLOG = path.join(TEMP, "ctx.log");
 const TRIGGER = path.join(TEMP, "auto_resume_spawn_trigger");
+const MODE = path.join(TEMP, "session_mode.json"); // #178 durable store (scratch-steered)
 const LOOPROOT = path.join(WS, "loop", "autorun-T");
 
 let failures = 0;
@@ -58,6 +66,13 @@ function has(substr) {
 }
 function countOf(substr) {
   return readLog().filter((l) => l.includes(substr)).length;
+}
+function scopeLines(sid) {
+  return readLog().filter((l) => l.includes("scope=") && l.includes(`sid=${sid}`));
+}
+function readModeStore() {
+  if (!existsSync(MODE)) return {};
+  return JSON.parse(readFileSync(MODE, "utf8"));
 }
 function lastLine() {
   const l = readLog();
@@ -563,6 +578,39 @@ for (const [sid, expectDirective] of [["ses_bud_exh", true], ["ses_bud_cpu", tru
 chk("S6 the exhausted RESTART text carries the forced-new-session directive (the dump-corpus sentence)",
   PROMPT.calls.some((c) => typeof c.text === "string" && c.text.includes("compaction budget exhausted — scan the dump of ses_bud_exh") && c.text.includes("`dump_session.cjs` in agent/scripts/db/")));
 
+// ------------------------------------------------------------------ S8a #178: the durable mode store (first setup)
+
+{
+  const store = readModeStore();
+  chk("S8a #178 the ON toggle WRITES the store: ses_r_stop -> autorun", store.ses_r_stop === "autorun", JSON.stringify(store));
+  chk("S8a #178 the OFF toggle WRITES the store: ses_n4 -> direct", store.ses_n4 === "direct");
+}
+
+// THE MEASURED FLAW (planner-36): the DIRECT toggle survived only while the
+// marked message stayed the newest user message — markerless follow-ups
+// flipped the verdict back to the planner prefix -> unit-4 fired again.
+await HOOKS["context"]({ sessionID: "ses_178_sticky", agent: "planner_FlashNext", messages: [userMsg("<|Direct|>")] });
+chk("S8a #178 the OFF toggle sticks: `scope= none sid=ses_178_sticky` + the store entry direct",
+  has("scope= none sid=ses_178_sticky") && readModeStore().ses_178_sticky === "direct");
+await HOOKS["context"]({ sessionID: "ses_178_sticky", agent: "planner_FlashNext", messages: [userMsg("plain markerless follow-up (post-compaction history, marker pruned)")] });
+chk("S8a #178 a MARKERLESS follow-up keeps DIRECT: the store beats the planner prefix — the ONLY scope line stays `scope= none`",
+  scopeLines("ses_178_sticky").length === 1 && scopeLines("ses_178_sticky")[0].includes("scope= none"),
+  scopeLines("ses_178_sticky").join(" | "));
+pushEvent({ type: "session.status", data: { sessionID: "ses_178_sticky", status: { type: "busy" } } });
+pushEvent({ type: "session.status", data: { sessionID: "ses_178_sticky", status: { type: "idle" } } });
+await sleep(20);
+await mod.runTick();
+chk("S8a #178 unit-4 NEVER wakes the DIRECT session: NO route/recovery/skip line, NO prompt call",
+  !routed("ses_178_sticky") && !PROMPT.calls.some((c) => c.sessionID === "ses_178_sticky"));
+await HOOKS["context"]({ sessionID: "ses_178_sticky", agent: "planner_FlashNext", messages: [userMsg("<|autonom|>")] });
+chk("S8a #178 `<|autonom|>` RE-ARMS: the store FLIPS to autorun + `scope= autorun sid=ses_178_sticky`",
+  readModeStore().ses_178_sticky === "autorun" && has("scope= autorun sid=ses_178_sticky"));
+pushEvent({ type: "session.status", data: { sessionID: "ses_178_sticky", status: { type: "idle" } } });
+await sleep(20);
+await mod.runTick();
+chk("S8a #178 routing RESUMES after the re-arm: `recovery= sid=ses_178_sticky attempt=1` + ONE QUEUED send",
+  has("recovery= sid=ses_178_sticky attempt=1") && PROMPT.calls.filter((c) => c.sessionID === "ses_178_sticky").length === 1);
+
 // ------------------------------------------------------------------ S7 pure-leg pins + fail-open + cleanup
 
 chk("S7 the action-line scan is LINE-ANCHORED, last match wins (#98 part A) + the #170 `continue` token",
@@ -593,6 +641,28 @@ chk("S7 the plugin stays alive after that poison (later events still log)", stat
 
 cleanup();
 chk("S7 teardown disposed the `context` hook registration", HOOKS["context"] === undefined);
+
+// ------------------------------------------------------------------ S8b #178: the RESTART simulation (fresh setup + existing store)
+
+{
+  const store = readModeStore();
+  store.ses_rs_direct = "direct"; // the durable store SURVIVED the host restart
+  writeFileSync(MODE, JSON.stringify(store), "utf8");
+}
+const cleanup2 = await plugin.setup(makeCtx());
+await sleep(10);
+chk("S8b #178 the fresh setup re-registers the hook (the reload path)", typeof HOOKS["context"] === "function");
+await HOOKS["context"]({ sessionID: "ses_rs_direct", agent: "planner_FlashNext", messages: [userMsg("plain markerless message — the chain alone would say planner")] });
+chk("S8b #178 at WATCH CREATION the existing store entry wins: `scope= none sid=ses_rs_direct` (NO planner verdict)",
+  has("scope= none sid=ses_rs_direct") && scopeLines("ses_rs_direct").every((l) => l.includes("scope= none")),
+  scopeLines("ses_rs_direct").join(" | "));
+pushEvent({ type: "session.status", data: { sessionID: "ses_rs_direct", status: { type: "idle" } } });
+await sleep(20);
+await mod.runTick();
+chk("S8b #178 the restarted DIRECT session NEVER wakes: NO route/recovery line, NO prompt call",
+  !routed("ses_rs_direct") && !PROMPT.calls.some((c) => c.sessionID === "ses_rs_direct"));
+cleanup2();
+chk("S8b #178 the second teardown disposed the hook registration", HOOKS["context"] === undefined);
 
 console.log(`\nFAILURES=${failures}`);
 console.log(failures === 0 ? "SMOKE: ALL PASS" : `SMOKE: ${failures} FAIL`);

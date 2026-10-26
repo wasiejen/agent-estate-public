@@ -44,6 +44,11 @@
 //     `limit-stop=` attribution line + the ONE `-WARNING` line in the current
 //     looprun's `loop/<folder>/loop_log.md`, fired ONCE per episode (the
 //     `limitWarned` latch), NO action on the session.
+//   #178 — the DURABLE MODE STORE: `.opencode/temp/session_mode.json` =
+//     `{ "<sid>": "autorun" | "direct" }`. A toggle in ANY user message writes
+//     it immediately (sticky); the STORE entry wins over the verdict chain at
+//     scope recompute AND at watch creation (the opencode-restart path).
+//     Fail-closed (unreadable/corrupt -> empty); NO new log kinds.
 //
 // EVIDENCE SHAPES CARRIED BYTE-IDENTICAL from v1 (same temp files): the event
 // line, `arm=` (`arm= sid=X injected`), `spawn=` / `spawn-fail=`, `rename-fail
@@ -115,6 +120,8 @@ import { resolveWindow } from "./scripts/gauge.mjs";
 
 const SPAWN_TRIGGER_FILE = "auto_resume_spawn_trigger";
 const COMPACT_BUDGET_FILE = "compact_budget.json";
+// #178: the DURABLE per-session mode store — `{ "<sid>": "autorun" | "direct" }`.
+const SESSION_MODE_FILE = "session_mode.json";
 const LINEAGE_FILE = "lineage_max_depth";
 const AUTONOM_MARKER = "<|autonom|>";
 const TOGGLE_ON_MARKERS: ReadonlyArray<string> = ["<|autonom|>", "<|autorun|>"];
@@ -156,6 +163,11 @@ let projectDir = "";
 let sessionApi: Plugin.Context["session"] | undefined;
 let tickTimer: ReturnType<typeof setInterval> | null = null;
 let tailCursor = 0; // the ctx.log tail-read cursor
+// #178: the durable mode store — path set at setup, lazy in-memory mirror of
+// the JSON file (reset on (re)load — a restart re-reads the store).
+let modeStorePath = "";
+type SessionMode = "autorun" | "direct";
+let modeStoreCache: Map<string, SessionMode> | null = null;
 
 type Watch = {
   armed: boolean;
@@ -196,6 +208,14 @@ function getWatch(sid: string): Watch {
       lastCompactAt: null, limitWarned: false, userMessageCount: 0, lastUserToggle: null,
       lastText: "", lastTextMessageID: null,
     };
+    // #178: the STORE wins at watch creation (the restart path: a fresh process
+    // rebuilds the scope from the durable store, NOT from the message history).
+    // The existing `scope= <v> sid=` token shape rides the creation log.
+    const stored = storeScopeOf(storeModeGet(sid));
+    if (stored !== null) {
+      w.scope = stored;
+      log(`scope= ${stored} sid=${sid}`);
+    }
     watches.set(sid, w);
   }
   return w;
@@ -243,6 +263,55 @@ function toggleOf(text: string): "on" | "off" | null {
     else if (s === TOGGLE_OFF_MARKER) t = "off";
   }
   return t;
+}
+
+// ------------------------------------------------------------------ #178: the durable mode store
+
+// Fail-closed: an unreadable/corrupt file behaves like an EMPTY store; the
+// helpers NEVER throw out of the plugin. The in-memory mirror keeps the modes
+// sticky within the process and is the write source (rewrite the WHOLE map).
+function storeModeLoad(): Map<string, SessionMode> {
+  if (modeStoreCache !== null) return modeStoreCache;
+  const m = new Map<string, SessionMode>();
+  try {
+    const data: unknown = JSON.parse(readFileSync(modeStorePath, "utf8"));
+    if (typeof data === "object" && data !== null && !Array.isArray(data)) {
+      for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
+        if (v === "autorun" || v === "direct") m.set(k, v);
+      }
+    }
+  } catch {
+    // unreadable/corrupt -> empty (fail-closed)
+  }
+  modeStoreCache = m;
+  return m;
+}
+
+function storeModeGet(sid: string): SessionMode | null {
+  return storeModeLoad().get(sid) ?? null;
+}
+
+// A seen toggle WRITES the store immediately (sticky, not last-message). The
+// single writeFileSync is best-effort (ratified design: a temp+rename is NOT
+// required); a failed write never escapes — the mirror keeps this process
+// sticky and the next toggle change retries the file.
+function storeModeSet(sid: string, mode: SessionMode): void {
+  const m = storeModeLoad();
+  if (m.get(sid) === mode) return; // already sticky -> no rewrite per request
+  m.set(sid, mode);
+  try {
+    writeFileSync(modeStorePath, `${JSON.stringify(Object.fromEntries(m))}\n`, "utf8");
+  } catch {
+    // swallow — a store write failure is not a session failure
+  }
+}
+
+// The store entry -> the watch-scope vocabulary (`direct` -> "none", the same
+// value the OFF toggle yields); null = no entry -> the verdict chain decides.
+function storeScopeOf(stored: SessionMode | null): "planner" | "autorun" | "none" | null {
+  if (stored === "autorun") return "autorun";
+  if (stored === "direct") return "none";
+  return null;
 }
 
 // #98 part A of the action-line scan: the LAST line-anchored action match wins.
@@ -516,7 +585,14 @@ async function onContextDraft(event: { sessionID?: unknown; agent?: unknown; mes
       }
       w.userMessageCount = userCount;
       w.lastUserToggle = toggleOf(lastUserText); // #90 part B: the LAST user message alone
-      const verdict = scopeVerdict(toggle, w.firstAgent ?? (typeof event.agent === "string" ? event.agent : null));
+      // #178: a toggle in ANY message is STICKY — write the durable store now
+      // (on -> autorun, off -> direct). No log: the verdict-change line below
+      // already carries the `scope= <v> sid=` token.
+      if (toggle !== null) storeModeSet(sid, toggle === "on" ? "autorun" : "direct");
+      // #178: the STORE entry wins over today's verdict chain (last-toggle ->
+      // agent prefix); no entry -> the chain UNCHANGED (#85 behavior kept).
+      const stored = storeScopeOf(storeModeGet(sid));
+      const verdict = stored ?? scopeVerdict(toggle, w.firstAgent ?? (typeof event.agent === "string" ? event.agent : null));
       if (verdict !== w.scope) {
         w.scope = verdict;
         log(`scope= ${verdict} sid=${sid}`);
@@ -1152,6 +1228,10 @@ const plugin: Plugin.Plugin = {
     projectDir = root;
     logPath = join(root, ".opencode", "temp", "auto_resume.log");
     ctxLogPath = join(root, ".opencode", "temp", "ctx.log");
+    // #178: the durable mode store lives in the temp estate (same dir as the
+    // logs); the (re)load re-reads the file — the opencode-restart path.
+    modeStorePath = join(root, ".opencode", "temp", SESSION_MODE_FILE);
+    modeStoreCache = null;
     sessionApi = ctx.session;
     const maxBytesOpt = options.maxLogBytes;
     const maxLogBytes = typeof maxBytesOpt === "number" && Number.isFinite(maxBytesOpt) && maxBytesOpt > 0 ? maxBytesOpt : MAX_LOG_BYTES_DEFAULT;

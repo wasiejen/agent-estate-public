@@ -3,7 +3,11 @@
 // `.opencode/plugins/state_snapshot.ts`: the loader shape {id:'state_snapshot',
 // setup} + the `tool.transform`/`editor.add` registration (NO-argument object
 // input, string output, teardown disposes the registration, NO hooks), the
-// six-section digest byte-shape carried from v1 (the section ORDER, the fixture
+// seven-section digest byte-shape carried from v1 (the section ORDER incl. the
+// `## loop` section AFTER `## todo` — spec #155 pins BOTH loop forms: the
+// present `loop=<folder> ITER=<n> log=loop/<folder>/loop_log.md` line from a
+// fixture `loop/autorun-X/counter.json` and the `no-looprun` empty form, plus
+// the counter fail-closes), the fixture
 // commit subject under `## git`, the todo header count + the LAST-15 `#<id> —
 // <60-char-truncated>` forms, the maintainer inbox first-lines max-5 + `… (+k
 // more)`, priority.md's first 10, the sorted proposals filenames, the READY-
@@ -20,7 +24,8 @@
 // get the digest).
 //
 // Fixtures (scratchpad fixture repo trees incl. a `git init` + a marker-line
-// .md) live in home/AppData/Local/Temp/opencode/state-snapshot-
+// .md, and FX4's `loop/autorun-X/counter.json` for the loop section) live in
+// home/AppData/Local/Temp/opencode/state-snapshot-
 // smoke-v2 (recreated every run) — the LIVE repo, loop folder, and DB are
 // NEVER touched. Run: bun run state_snapshot.smoke.mjs (this dir). Expected
 // final line: `SMOKE: ALL PASS`.
@@ -164,8 +169,8 @@ chk("S1 tool surface: NO-argument object input (no properties, no required), str
   const out = (await TOOL.execute({}, { agent: "planner_FlashNext" })).output;
   const after = treeOf(ROOT1);
   const l1 = digestOf(out);
-  const idx = ["git", "nap", "todo", "maintainer", "proposals", "markers"].map((n) => l1.indexOf(`## ${n}`));
-  chk("(1) the six section headers appear IN ORDER (git<nap<todo<maintainer<proposals<markers)",
+  const idx = ["git", "nap", "todo", "loop", "maintainer", "proposals", "markers"].map((n) => l1.indexOf(`## ${n}`));
+  chk("(1) the seven section headers appear IN ORDER (git<nap<todo<loop<maintainer<proposals<markers)",
     idx.every((x) => x >= 0) && idx.every((x, i) => i === 0 || x > idx[i - 1]), JSON.stringify(idx));
   chk("(2) `## git` carries the fixture commit subject",
     sectionBody(l1, "git")?.some((l) => l.includes("snapshot fixture commit A")), JSON.stringify(sectionBody(l1, "git")));
@@ -201,8 +206,13 @@ chk("S1 tool surface: NO-argument object input (no properties, no required), str
     liveAt >= 0 && docAt >= 0 && liveAt < docAt, JSON.stringify([liveAt, docAt]));
   chk("(11) READ-ONLY: the digest run leaves the fixture tree byte-identical",
     before === after, `before=${before.length} after=${after.length}`);
-  chk("(12) FX1 digest is under the 150-line cap untouched (47 lines — the WIKI.md fixture added one sweep hit)",
-    l1.length === 47, `len=${l1.length}`);
+  chk("(12) FX1 digest is under the 150-line cap untouched (49 lines — the WIKI.md fixture added one sweep hit, the `## loop` section adds 2)",
+    l1.length === 49, `len=${l1.length}`);
+  const loopB = sectionBody(l1, "loop");
+  chk("(26) loop: FX1 has NO autorun-* dir (only the loop/hidden.md FILE) → the EMPTY form `no-looprun`, positioned after `## todo` and before `## maintainer`",
+    loopB?.length === 1 && loopB[0] === "no-looprun" &&
+      l1.indexOf("## loop") > l1.indexOf("## todo") && l1.indexOf("## loop") < l1.indexOf("## maintainer"),
+    JSON.stringify([loopB, l1.indexOf("## loop")]));
 }
 
 // (24) — the doc-noise pass: the DOC-QUOTE fixture hits (agent/prompts/quoted.md,
@@ -262,10 +272,13 @@ const ROOT2 = path.join(SCRATCH, "fx2");
     mtB?.[0] === "(none)" && mtB?.[1] === "(priority.md missing)", JSON.stringify(mtB));
   chk("(19) FX2 empties: proposals `(none)` + markers `(none)` (grep exit 1 on no matches is NOT a failure)",
     prB?.[0] === "(none)" && mkB?.[0] === "(none)", JSON.stringify([prB, mkB]));
+  const loopB2 = sectionBody(l2, "loop");
+  chk("(27) FX2 loop: `loop/quiet.md` only, NO autorun-* dir → the EMPTY form `no-looprun`",
+    loopB2?.length === 1 && loopB2[0] === "no-looprun", JSON.stringify(loopB2));
   cleanup2();
 }
 
-// ------------------------------------------------------------------ FX3 — the 150-line hard cap (156-line digest → trims 6)
+// ------------------------------------------------------------------ FX3 — the 150-line hard cap (158-line digest → trims 8)
 
 const ROOT3 = path.join(SCRATCH, "fx3");
 {
@@ -282,22 +295,55 @@ const ROOT3 = path.join(SCRATCH, "fx3");
   const cleanup3 = await plugin.setup(makeCtx(ROOT3));
   const T3 = TOOLS[2];
   const l3 = digestOf((await T3.execute({}, { agent: "planner_Q3S" })).output);
-  const idx3 = ["git", "nap", "todo", "maintainer", "proposals", "markers"].map((n) => l3.indexOf(`## ${n}`));
+  const idx3 = ["git", "nap", "todo", "loop", "maintainer", "proposals", "markers"].map((n) => l3.indexOf(`## ${n}`));
   const mk3 = sectionBody(l3, "markers");
   const pr3 = sectionBody(l3, "proposals");
-  chk("(20) FX3 cap: EXACTLY 150 lines, all six headers preserved",
+  chk("(20) FX3 cap: EXACTLY 150 lines, all seven headers preserved",
     l3.length === 150 && idx3.every((x) => x >= 0) && idx3.every((x, i) => i === 0 || x > idx3[i - 1]), `len=${l3.length} idx=${JSON.stringify(idx3)}`);
   chk("(21) FX3 cap: the markers steer `… (+20 more)` survives (steer lines never trim)",
     mk3?.includes("… (+20 more)"), JSON.stringify(mk3?.slice(-2)));
-  chk("(22) FX3 cap: the LAST section's content lines trimmed from the end backwards (markers keeps 14 of 20), proposals INTACT 100",
-    mk3?.filter((l) => l.startsWith("maintainer/big.md")).length === 14 && pr3?.length === 100, `mk=${mk3?.length} pr=${pr3?.length}`);
+  chk("(22) FX3 cap: the LAST section's content lines trimmed from the end backwards (markers keeps 12 of 20), proposals INTACT 100",
+    mk3?.filter((l) => l.startsWith("maintainer/big.md")).length === 12 && pr3?.length === 100, `mk=${mk3?.length} pr=${pr3?.length}`);
   cleanup3();
+}
+
+// ------------------------------------------------------------------ FX4 — the looprun fixture (spec #155): the PRESENT form + the counter fail-closes
+// (its own `setup` retargets the repo-root carrier — the root-carrier trap)
+
+const ROOT4 = path.join(SCRATCH, "fx4");
+{
+  w(ROOT4, "TODO.md", "# TODO\n");
+  w(ROOT4, "loop/autorun-X/counter.json", '{"looprun":"autorun-X","n":7}');
+  w(ROOT4, "loop/autorun-X/loop_log.md", "2026-10-26_12-00 -->START planner_fx4 model info\n");
+}
+{
+  const cleanup4 = await plugin.setup(makeCtx(ROOT4));
+  const T4 = TOOLS[3];
+  const digest4 = async () => digestOf((await T4.execute({}, { agent: "planner_Q3S" })).output);
+  const lp = sectionBody(await digest4(), "loop");
+  chk("(28) FX4 loop PRESENT form byte-exact `loop=autorun-X ITER=7 log=loop/autorun-X/loop_log.md`",
+    lp?.length === 1 && lp[0] === "loop=autorun-X ITER=7 log=loop/autorun-X/loop_log.md", JSON.stringify(lp));
+  w(ROOT4, "loop/autorun-X/counter.json", '{"looprun":"autorun-Y","n":7}');
+  const mismatch = sectionBody(await digest4(), "loop");
+  rmSync(path.join(ROOT4, "loop", "autorun-X", "counter.json"), { force: true });
+  const missing = sectionBody(await digest4(), "loop");
+  w(ROOT4, "loop/autorun-X/counter.json", '{"looprun":"autorun-X","n":"seven"}');
+  const badN = sectionBody(await digest4(), "loop");
+  rmSync(path.join(ROOT4, "loop", "autorun-X"), { recursive: true, force: true });
+  const emptyLoop = sectionBody(await digest4(), "loop");
+  chk("(29) FX4 loop fail-closes: `looprun` MISMATCH / missing counter / non-integer n / EMPTY `loop/` dir → `no-looprun`",
+    mismatch?.length === 1 && mismatch[0] === "no-looprun" &&
+      missing?.length === 1 && missing[0] === "no-looprun" &&
+      badN?.length === 1 && badN[0] === "no-looprun" &&
+      emptyLoop?.length === 1 && emptyLoop[0] === "no-looprun",
+    JSON.stringify({ mismatch, missing, badN, emptyLoop }));
+  cleanup4();
 }
 
 // ------------------------------------------------------------------ Z cleanup
 
 cleanup1();
-chk("Z the teardowns dispose their registrations (3 setups, 3 disposals)", DISPOSED === 3, `disposed=${DISPOSED}`);
+chk("Z the teardowns dispose their registrations (4 setups, 4 disposals)", DISPOSED === 4, `disposed=${DISPOSED}`);
 
 console.log(failures === 0 ? "SMOKE: ALL PASS" : `SMOKE: ${failures} FAIL`);
 process.exit(failures === 0 ? 0 : 1);

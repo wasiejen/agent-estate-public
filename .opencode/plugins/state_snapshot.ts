@@ -6,16 +6,18 @@
 // the registration). Auto-discovered from `.opencode/plugins/` (NO `opencode.jsonc`
 // change — the 3a precedent).
 //
-// CARRIED (the digest byte-shape unchanged): the six sections IN ORDER (`## git`
-// / `## nap` / `## todo` / `## maintainer` / `## proposals` / `## markers`), the
-// `git log --oneline -20` execFileSync leg, the nap first-40 + read-more steer,
-// the todo header count + LAST 15 headers form, the maintainer inbox first-lines
-// (max 5 + `… (+<k> more)`) + priority.md's first 10 lines, the proposals root
-// `.md` filenames, the READY-MADE marker sweep run VERBATIM via
+// CARRIED (the digest byte-shape unchanged): the seven sections IN ORDER
+// (`## git` / `## nap` / `## todo` / `## loop` / `## maintainer` / `## proposals`
+// / `## markers`), the `git log --oneline -20` execFileSync leg, the nap
+// first-40 + read-more steer, the todo header count + LAST 15 headers form, the
+// looprun line (spec #155: the `autorun-*` folder + its `counter.json` →
+// `loop=<folder> ITER=<n> log=loop/<folder>/loop_log.md`, else `no-looprun`), the
+// maintainer inbox first-lines (max 5 + `… (+<k> more)`) + priority.md's first 10
+// lines, the proposals root `.md` filenames, the READY-MADE marker sweep run VERBATIM via
 // `execFileSync("bash", ["-c", MARKER_SWEEP])` (the pattern list is NOT re-
 // derived), the `(none)` empties, the fail-closed section lines, and the 150-line
 // hard cap that truncates the LAST section's content lines first while preserving
-// all six headers + their `… (…)` steers. The soft role gate carries: a non-
+// all seven headers + their `… (…)` steers. The soft role gate carries: a non-
 // empty `context.agent` that is not a planner gets the EXACT one-line refusal.
 // READ-ONLY — it NEVER writes anywhere.
 //
@@ -126,6 +128,37 @@ const todoSection = (root: string): string[] => {
   return out;
 };
 
+// `## loop` — the current looprun (spec #155): the `autorun-*` subdirectory of
+// `<root>/loop/` (exactly one → it; several → the most-recently-modified, the
+// same resolution `loop_log` uses), and its `counter.json`
+// (`{"looprun": "<folder>", "n": <int>}`, written by auto_resume at spawn):
+// present form `loop=<folder> ITER=<n> log=loop/<folder>/loop_log.md`. ZERO
+// folders, an unreadable counter, a non-integer `n`, or a `looprun` field that
+// mismatches the folder name → the empty form `no-looprun`. NEVER throws
+// (fail-closed into the empty form). Reads the folder + counter LOCALLY — no
+// gauge.mjs import (its `loopIterationSuffix()` stays the ctx-line carrier).
+const loopSection = (root: string): string[] => {
+  try {
+    const loopRoot = path.join(root, "loop");
+    const dirs = fs
+      .readdirSync(loopRoot, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && e.name.startsWith("autorun-"))
+      .map((e) => e.name)
+      .sort();
+    if (dirs.length === 0) return ["no-looprun"];
+    const folder =
+      dirs.length === 1
+        ? dirs[0]
+        : dirs.map((n) => ({ n, m: fs.statSync(path.join(loopRoot, n)).mtimeMs })).sort((a, b) => b.m - a.m)[0].n;
+    const counter = JSON.parse(fs.readFileSync(path.join(loopRoot, folder, "counter.json"), "utf8"));
+    if (counter === null || typeof counter !== "object" || Array.isArray(counter)) return ["no-looprun"];
+    if (counter.looprun !== folder || typeof counter.n !== "number" || !Number.isInteger(counter.n)) return ["no-looprun"];
+    return [`loop=${folder} ITER=${counter.n} log=loop/${folder}/loop_log.md`];
+  } catch {
+    return ["no-looprun"];
+  }
+};
+
 // `## maintainer` — for each .md file in maintainer/inbox_planner/
 // (excluding README.md): `<filename>: <first line truncated to 80 chars>`
 // (max 5 files, then `… (+<k> more)`); then priority.md: its first 10
@@ -217,10 +250,10 @@ const markersSection = (root: string): string[] => {
   if (ordered.length > 20) body.push(`… (+${ordered.length - 20} more)`);
   return body;
 };
-// Assemble the digest: the six sections IN ORDER, each under its
+// Assemble the digest: the seven sections IN ORDER, each under its
 // `## <name>` header, then the total hard cap 150 lines: truncate the
 // LAST section's lines first (content lines only, from the end backwards)
-// preserving all six headers + their `… (…)` steer lines. The 2026-10-22
+// preserving all seven headers + their `… (…)` steer lines. The 2026-10-22
 // raise (60 → 150): at a 60-line cap the markers section was ALWAYS starved
 // by the bigger sections in a full-size repo (git ~21 + nap ~42 alone
 // exceed it) — live maintainer markers never surfaced in the planner digest
@@ -230,6 +263,7 @@ const buildDigest = (root: string): string => {
     ["git", gitSection(root)],
     ["nap", napSection(root)],
     ["todo", todoSection(root)],
+    ["loop", loopSection(root)],
     ["maintainer", maintainerSection(root)],
     ["proposals", proposalsSection(root)],
     ["markers", markersSection(root)],
@@ -249,7 +283,7 @@ const buildDigest = (root: string): string => {
 };
 
 const TOOL_DESCRIPTION =
-  `The planner's init digest — the 6–8-call session-start sequence as ONE capped, deterministic read (no interpretation). Sections IN ORDER: \`## git\` (git log --oneline -20), \`## nap\` (the first 40 lines of agent/handover/handover_planner.md + a read-more steer when truncated), \`## todo\` (the TODO.md open-entry header count + the LAST 15 headers), \`## maintainer\` (the maintainer/inbox_planner/ .md files — first line each, max 5 — + priority.md's first 10 lines), \`## proposals\` (the proposals/ root .md filenames), \`## markers\` (the ready-made marker sweep, capped at 20 lines). Empty sections read \`(none)\`; the whole digest is hard-capped at 150 lines (the LAST section's lines truncate first, all six headers + their steers are preserved). PLANNER ONLY — a non-planner agent gets the one-line refusal instead of the digest. Fire at session start; follow up with a full read only where a section needs a decision.`;
+  `The planner's init digest — the 6–8-call session-start sequence as ONE capped, deterministic read (no interpretation). Sections IN ORDER: \`## git\` (git log --oneline -20), \`## nap\` (the first 40 lines of agent/handover/handover_planner.md + a read-more steer when truncated), \`## todo\` (the TODO.md open-entry header count + the LAST 15 headers), \`## loop\` (the current looprun: \`loop=<folder> ITER=<n> log=loop/<folder>/loop_log.md\`, or \`no-looprun\` when there is no autorun-* folder or no readable counter), \`## maintainer\` (the maintainer/inbox_planner/ .md files — first line each, max 5 — + priority.md's first 10 lines), \`## proposals\` (the proposals/ root .md filenames), \`## markers\` (the ready-made marker sweep, capped at 20 lines). Empty sections read \`(none)\`; the whole digest is hard-capped at 150 lines (the LAST section's lines truncate first, all seven headers + their steers are preserved). PLANNER ONLY — a non-planner agent gets the one-line refusal instead of the digest. Fire at session start; follow up with a full read only where a section needs a decision.`;
 
 // The input schema — the v1 `args: {}` carried: a plain JSON object schema
 // with NO properties (the digest takes no parameters).

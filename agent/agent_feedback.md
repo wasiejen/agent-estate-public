@@ -989,3 +989,6 @@ block_transfer APPEND/CUT chains: the description's APPEND target is the BUFFER 
 
 ### 2026-10-26_17-18 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
 sesdata.cjs returns `SESSION: undefined / message count: 0` for a v2 sessionID with NO v1-vs-v2 hint — it silently misleads any v2 retention/kept-message measurement (cost one wasted probe in the #172 pass); dump_session_v2.mjs worked immediately. Suggest: sesdata.cjs print a "no v1 row — try dump_session_v2.mjs" line on zero-hit sessions, or probe both schemas.
+
+### 2026-10-26_17-22 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+watchdog unit-4 woke the session with `cause= compact` after a turn that ended CLEANLY with `action: continue` (no new compaction fired) — the post-compaction protocol re-read was then demanded without a real compaction; cause labeling should distinguish `turn-ended` from `compacted` so the wake does not mandate redundant protocol steps.

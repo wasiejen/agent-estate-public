@@ -27,15 +27,15 @@ plus the area files. Read those on need-to-know.
 ## Behavior index (pointers, need-to-know)
 - Plugin architecture + v1 SDK shapes: the `{ data }` unwrap, the
   `summarize` vs `compact` client surface, the `Event` union. Deep-dives:
-  `knowledge/opencode-plugins/` (surface report + A/B/C) +
-  `knowledge_tools.md`.
+  `agent/knowledge/opencode-plugins/` (surface report + A/B/C) +
+  `agent/knowledge/knowledge_tools.md`.
 - Compaction mechanics: budgets, keep, dumps, the auto-resume interplay.
   Docs: AGENTS.md `# Compaction Guidelines` +
-  `maintainer/draft/compaction_guide/full_guide.md`.
+  `maintainer/draft/archive/compaction_guide/full_guide.md`.
 - auto_resume internals: units, scope, the spawn/restart path. Docs: TODO
   #75/#85/#90/#91 + `knowledge/opencode-plugins/auto-resume-*`.
 - The single backend slot: NEVER launch raw inference-server requests.
-  Route all model traffic through opencode sessions (`knowledge_tools.md`).
+  Route all model traffic through opencode sessions (`agent/knowledge/knowledge_tools.md`).
 
-## Onlione Source Code of Opencode (as reference - may be not the same version as host install)
+## Online Source Code of Opencode (as reference - may be not the same version as host install)
 - Reference source of the session engine: `https://github.com/anomalyco/opencode/tree/dev/packages/opencode/src/session`

@@ -950,3 +950,6 @@ Direct calls to Code Mode catalog tools (block_transfer, submit) are NOT dispatc
 ### 2026-10-23_04-30 planner_FlashNext ses_e99be06a6ffeZsLdTtFsqm0WC4
 CORRECTION to my 2026-10-23_03-28 feedback entry: the payload-size claim was wrong. The three failed appends were DIRECT calls to Code Mode catalog tools (`block_transfer` x2, `submit` x1) — such calls never dispatch at ANY size, the runtime prints them and executes nothing; size was irrelevant. Measured via `execute`: `tools.submit({...})` DOES dispatch (three entries landed). `block_transfer` via `execute` is UNTESTED. Correct rule: call every Code Mode catalog tool through `execute` as `tools.<name>(...)` (use `search({query})` first for the signature), then grep the target file back before believing any append.
 
+### 2026-10-26_01-30 planner_FlashNext ses_e8a690972ffem1DSIF8R4gSJ66
+ctx_gauge gives no (p%)/REM on strata/gyro-gyro-m (TODO #152: the gauge core drops model.providerID, so resolveWindow misses the config entry) — the whole session's budget triage ran on a raw CTX number with no margin read.
+

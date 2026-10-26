@@ -983,3 +983,6 @@ execute/code-mode: text args containing backticks (even escaped) fail the parser
 
 ### 2026-10-26_14-42 planner_FlashNext ses_e87c77efdffet0405yLmU6rJom
 unit-4 continue fires repeatedly on a DIRECT-mode session waiting for the maintainer (4 `recovery= attempt=1` lines for one sid — each continue starts a fresh busy cycle, so the per-cycle reset makes the cap unreachable); a close WITHOUT an action: line in direct mode re-spawns the watchdog forever. Cheap fix candidates (for #167): a per-session continue cap across cycles, or a direct-scope marker that suppresses the continue.
+### 2026-10-26_15-47 planner_FlashNext ses_e8760784cffe5MRO6saUI6gaz8
+block_transfer APPEND/CUT chains: the description's APPEND target is the BUFFER only (file lands only via PASTE) — I assumed APPEND wrote the file and mis-assembled the NAP section chain (3 repair calls); a one-line 'writes the buffer, not the file' reminder in the WHEN section would prevent it.
+

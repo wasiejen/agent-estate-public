@@ -103,6 +103,106 @@ chkW("(f) no provider prefix → the name-parse fallback", "x-256K", 256000);
 chkW("non-string → undefined (the parseWindow contract)", null, undefined);
 rmTear(tmpC, { recursive: true, force: true }); // #144 retry-on-EBUSY
 
+// ---- #152 (2026-10-26): the provider-qualified model REF. The v2 session row
+// is {"id":"gyro-gyro-m","providerID":"strata"}; a markerless id alone cannot
+// reach the config walk, so the core must build `providerID/id` for the window
+// lookup while keeping the BARE id as the budget/readout key. Pins: parseModelRef
+// forms (1-4), then the end-to-end read through a fixture DB + fixture config —
+// the provider-qualified row resolves the CONFIG window (5: this pin is RED on
+// the pre-#152 core, the discriminator), the same row WITHOUT providerID falls
+// to the name parse = undefined (6), and a name-marked provider-qualified id
+// still keeps its bare modelId (7: the budget-key guard).
+{
+  const dP = freshSandbox("gauge_model_ref");
+  const cfgP = path.join(dP, "opencode.jsonc");
+  fs.writeFileSync(
+    cfgP,
+    [
+      "// #152 fixture: provider-qualified window, no name marker",
+      "{",
+      '  "provider": {',
+      '    "fxp": {',
+      '      "models": {',
+      '        "gyro-no-marker": { "limit": { "context": 555555 } }, // tail comment',
+      "      },",
+      "    },",
+      "  },",
+      "}",
+    ].join("\n"),
+    "utf-8",
+  );
+  const chkP = (label, ok, detail = "") => {
+    if (!ok) fail++;
+    console.log(`${ok ? "PASS" : "FAIL"} ${label}${detail !== "" ? `: ${detail}` : ""}`);
+  };
+  chkP(
+    "#152 parseModelRef(provider-qualified row) → bare id + ref",
+    JSON.stringify(m.parseModelRef('{"id":"gyro-gyro-m","providerID":"strata"}')) ===
+      JSON.stringify({ id: "gyro-gyro-m", ref: "strata/gyro-gyro-m" }),
+  );
+  chkP(
+    "#152 parseModelRef(row WITHOUT providerID) → ref = bare id",
+    JSON.stringify(m.parseModelRef('{"id":"x-100K"}')) === JSON.stringify({ id: "x-100K", ref: "x-100K" }),
+  );
+  chkP(
+    "#152 parseModelRef(legacy plain string) → unchanged pair",
+    JSON.stringify(m.parseModelRef("plain-v1-model-100K")) ===
+      JSON.stringify({ id: "plain-v1-model-100K", ref: "plain-v1-model-100K" }),
+  );
+  chkP(
+    "#152 parseModelRef(bad JSON / non-string) → empty pair, never throws",
+    JSON.stringify(m.parseModelRef("{not-json")) === JSON.stringify({ id: "", ref: "" }) &&
+      JSON.stringify(m.parseModelRef(null)) === JSON.stringify({ id: "", ref: "" }),
+  );
+  chkP(
+    "#152 DEFAULT_CONFIG_FILE reaches the REPO ROOT config (the T1-move path fix)",
+    fs.existsSync(m.DEFAULT_CONFIG_FILE) && path.basename(path.dirname(m.DEFAULT_CONFIG_FILE)) !== ".opencode",
+    m.DEFAULT_CONFIG_FILE,
+  );
+  const mkP = (name, stmts) => {
+    const db = new DatabaseSync(path.join(dP, name));
+    for (const s of stmts) db.exec(s);
+    db.close();
+  };
+  mkP("fx_ref.db", [
+    "CREATE TABLE session_v2(id TEXT PRIMARY KEY, model TEXT, time_updated INTEGER)",
+    `INSERT INTO session_v2 VALUES('ses_ref_fx','{"id":"gyro-no-marker","providerID":"fxp"}',3000)`,
+    "CREATE TABLE session_message(id TEXT, session_id TEXT, type TEXT, time_created INTEGER, data TEXT)",
+    `INSERT INTO session_message VALUES('msg_ref','ses_ref_fx','assistant',1,'{"type":"assistant","time":{"completed":5},"tokens":{"input":1000,"output":50,"reasoning":0,"cache":{"read":300,"write":0}}}')`,
+  ]);
+  mkP("fx_ref_nopid.db", [
+    "CREATE TABLE session_v2(id TEXT PRIMARY KEY, model TEXT, time_updated INTEGER)",
+    `INSERT INTO session_v2 VALUES('ses_ref_fx','{"id":"gyro-no-marker"}',3000)`,
+    "CREATE TABLE session_message(id TEXT, session_id TEXT, type TEXT, time_created INTEGER, data TEXT)",
+    `INSERT INTO session_message VALUES('msg_ref','ses_ref_fx','assistant',1,'{"type":"assistant","time":{"completed":5},"tokens":{"input":1000,"output":50,"reasoning":0,"cache":{"read":300,"write":0}}}')`,
+  ]);
+  mkP("fx_ref_marker.db", [
+    "CREATE TABLE session_v2(id TEXT PRIMARY KEY, model TEXT, time_updated INTEGER)",
+    `INSERT INTO session_v2 VALUES('ses_ref_fx','{"id":"fx-v2-model-120K","providerID":"llama-swap"}',3000)`,
+  ]);
+  m.setConfigFileForTest(cfgP);
+  const rP = await m.readGauge(path.join(dP, "fx_ref.db"), "ses_ref_fx");
+  chkP(
+    "#152 (5) provider-qualified markerless row → the CONFIG window (RED pre-#152)",
+    rP.ok === true && rP.sid === "ses_ref_fx" && rP.modelId === "gyro-no-marker" && rP.window === 555555 && rP.ctx === 1350,
+    JSON.stringify(rP),
+  );
+  const rP2 = await m.readGauge(path.join(dP, "fx_ref_nopid.db"), "ses_ref_fx");
+  chkP(
+    "#152 (6) the SAME row without providerID → no marker → no window",
+    rP2.ok === true && rP2.modelId === "gyro-no-marker" && rP2.window === undefined,
+    JSON.stringify(rP2),
+  );
+  const rP3 = await m.readGauge(path.join(dP, "fx_ref_marker.db"), "ses_ref_fx");
+  chkP(
+    "#152 (7) a name-marked provider-qualified row keeps the BARE modelId (budget-key guard)",
+    rP3.modelId === "fx-v2-model-120K" && rP3.window === 120000,
+    JSON.stringify(rP3),
+  );
+  m.setConfigFileForTest(path.join(dP, "absent.jsonc")); // the following units expect a MISSING config
+  rmTear(dP, { recursive: true, force: true }); // #144 retry-on-EBUSY
+}
+
 // ---- item 3 (2026-09-24): the "N compactions left" budget suffix — the 3
 // states + fail-open. remaining = max(0, cap - count) + 1 iff the emergency
 // 1 is still available (count === cap && effective emergency_budget >= 1 —

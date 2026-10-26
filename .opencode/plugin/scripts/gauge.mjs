@@ -260,12 +260,19 @@ export function loopIterationSuffix() {
 // the name-marker parse (resolveWindow below — parseWindow is the
 // fallback). The live config is JSONC (comments + trailing commas; a `//`
 // INSIDE a string literal is NOT a comment — the strip is string-aware).
-// Resolved RELATIVE to this file (.opencode/plugin/scripts → ../.. = repo
-// root), preferring opencode.jsonc and falling back to opencode.json when
+// Resolved RELATIVE to this file: `.opencode/plugin/scripts` → THREE levels up
+// = the repo root (`../..` only reaches `.opencode` — #152 fix, see below),
+// preferring opencode.jsonc and falling back to opencode.json when
 // absent. READ per resolveWindow call (small file — same precedent as the
 // budget-store read in compactionsLeftSuffix); NEVER throws (missing /
 // unparseable / no entry → the parseWindow fallback stands).
-export const DEFAULT_CONFIG_FILE = join(THIS_DIR, "..", "..", "opencode.jsonc");
+// #152 (2026-10-26) P0: the T1 estate lived at `<root>/plugin/scripts/`, so the
+// original `../..` reached the root. The move into `.opencode/plugin/` left this
+// pointing at `.opencode/opencode.jsonc` (never exists) → the config walk was
+// DEAD for every model, including the provider-qualified ones. The budget read
+// at :200 (`temp` lives under `.opencode`) and DEFAULT_LOOP_ROOT (:217, three
+// levels) were already correct.
+export const DEFAULT_CONFIG_FILE = join(THIS_DIR, "..", "..", "..", "opencode.jsonc");
 let configOverride = null; // test hook: an explicit config path (the setBudgetFileForTest pattern)
 export function setConfigFileForTest(p) {
   configOverride = p;
@@ -333,6 +340,29 @@ export function parseModelId(raw) {
   return raw;
 }
 
+// #152 (2026-10-26): the SAME column read as { id, ref }. The v2 row shape is
+// {"id":"gyro-gyro-m","providerID":"strata"}, so the bare id alone can NEVER
+// reach the config walk in resolveWindow (no "/" → name-marker only, and a
+// markerless id like `gyro-gyro-m` yields no window → no pct/REM and a dead
+// nudge ladder). `ref` = `providerID/id` when BOTH are non-empty strings, the
+// bare id otherwise (and the legacy plain string verbatim). The bare `id`
+// STAYS the key for the budget map and the readout model slot — only the
+// window lookup uses `ref` (never change the budget semantics here).
+export function parseModelRef(raw) {
+  if (typeof raw !== "string" || raw === "") return { id: "", ref: "" };
+  if (raw.startsWith("{")) {
+    try {
+      const o = JSON.parse(raw);
+      const id = o != null && typeof o.id === "string" ? o.id : "";
+      const pid = o != null && typeof o.providerID === "string" ? o.providerID : "";
+      return { id, ref: id !== "" && pid !== "" ? `${pid}/${id}` : id };
+    } catch {
+      return { id: "", ref: "" };
+    }
+  }
+  return { id: raw, ref: raw };
+}
+
 // #115 (2026-09-28): the JSONC → strict-JSON strip — REPLICATED from
 // auto_resume.ts's parseJsonc (string-aware: a `//` inside a string
 // literal is NOT a comment; trailing commas stripped before `}`/`]`;
@@ -388,7 +418,7 @@ function parseJsonc(text) {
 function readWindowConfig() {
   const p =
     configOverride ??
-    (existsSync(DEFAULT_CONFIG_FILE) ? DEFAULT_CONFIG_FILE : join(THIS_DIR, "..", "..", "opencode.json"));
+    (existsSync(DEFAULT_CONFIG_FILE) ? DEFAULT_CONFIG_FILE : join(THIS_DIR, "..", "..", "..", "opencode.json"));
   if (!existsSync(p)) return null;
   let text;
   try {
@@ -961,20 +991,20 @@ function gaugeFromRaw(raw) {
     // (resolveWindow: config-first, name-marker fallback). The gauge family
     // gets the LIMITS half for a v2 session before the mass leg lands
     // (unit 2); the SESSION-ROW half (sid/modelId) resolves from `session_v2`.
-    const modelId = parseModelId(raw.model);
-    return { ok: false, kind: "no-total", sid, modelId, window: resolveWindow(modelId) };
+    const { id, ref } = parseModelRef(raw.model);
+    return { ok: false, kind: "no-total", sid, modelId: id, window: resolveWindow(ref) };
   }
   const output = raw.output == null || Number.isNaN(Number(raw.output)) ? 0 : Number(raw.output);
-  const modelId = parseModelId(raw.model);
+  const { id, ref } = parseModelRef(raw.model);
   return {
     ok: true,
     kind: "ok",
     sid,
-    modelId,
+    modelId: id,
     total,
     output, // evidence field — kept in the shape, NOT subtracted (#103)
     ctx: total, // #103: in+out+cr — the context at the start of the NEXT turn
-    window: resolveWindow(modelId), // #115: config-first, name-marker fallback
+    window: resolveWindow(ref), // #115 config-first via the provider-qualified ref (#152), name-marker fallback
   };
 }
 

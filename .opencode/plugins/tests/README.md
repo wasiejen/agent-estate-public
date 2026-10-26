@@ -8,6 +8,9 @@ below FROM this directory in the MAIN checkout
 checkout owns `tests/`. The only absolute paths left are the fork workspace
 (`home/Repos/opencode`) and the scratchpad
 (`home/AppData/Local/Temp/opencode`) (TODO #156, 2026-10-26).
+Subfolder `v1/`: the plain-`node` smokes for `.opencode/tools/**` + the gauge
+core (relocated from the deleted v1 estate, #150 unit B) — run those from the
+repo root with `node`, not from here with bun.
 
 ## Smoke (bun, mock ctx — no opencode process)
 

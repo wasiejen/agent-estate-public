@@ -2,7 +2,7 @@
 // T3 smoke, iter-13; moved per the 2026-09-15_smoke-harness-home proposal).
 // The context object carries a SCRATCHPAD temp `directory` — NEVER the live
 // loop/ (the live loop folder is DO-NOT-touch for this smoke).
-// Run: node .opencode/plugin/tests/loop_log.smoke.mjs (plain node, exit 0 iff green).
+// Run: node .opencode/plugins/tests/v1/loop_log.smoke.mjs (plain node, exit 0 iff green).
 import fs from "node:fs";
 import path from "node:path";
 import { REPO_ROOT, SCRATCHPAD, loadRepo, freshSandbox, makeChecker } from "./_smoke_base.mjs";

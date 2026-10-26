@@ -6,7 +6,7 @@
 // (the real agent/agent_feedback.md /
 // agent/knowledge/knowledge_inbox.md / todo_inbox.md are
 // DO-NOT-touch for this smoke).
-// Run: node .opencode/plugin/tests/submit.smoke.mjs (plain node, exit 0 iff green).
+// Run: node .opencode/plugins/tests/v1/submit.smoke.mjs (plain node, exit 0 iff green).
 import fs from "node:fs";
 import path from "node:path";
 import { loadRepo, freshSandbox, makeChecker } from "./_smoke_base.mjs";

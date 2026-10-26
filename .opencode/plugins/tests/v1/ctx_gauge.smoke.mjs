@@ -9,7 +9,7 @@
 // - (3) db-error path (setDbPath to a nonexistent path, in-process): NO
 //   throw, the line is NEVER replaced — `CTX=notAvailable` + the appended
 //   ` — <error>` note
-// Run: node .opencode/plugin/tests/ctx_gauge.smoke.mjs (plain node, exit 0 iff green).
+// Run: node .opencode/plugins/tests/v1/ctx_gauge.smoke.mjs (plain node, exit 0 iff green).
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { REPO_ROOT, loadRepo, makeChecker } from "./_smoke_base.mjs";

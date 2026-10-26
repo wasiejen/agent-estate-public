@@ -29,7 +29,7 @@
 // 4 after) — ALL mass figures MACHINE-RECOMPUTED from the fixture DB
 // (#99 pin style — no hardcoded tokens); the full form stays
 // byte-identical through the core reportWindow (no opts).
-// Run: node .opencode/plugin/tests/context_trim.smoke.mjs (plain node, exit 0 iff green).
+// Run: node .opencode/plugins/tests/v1/context_trim.smoke.mjs (plain node, exit 0 iff green).
 import { DatabaseSync } from "node:sqlite";
 // #144: the retry-on-EBUSY teardown helper (rmTear) replaces the bare node:fs rmSync import.
 import path from "node:path";

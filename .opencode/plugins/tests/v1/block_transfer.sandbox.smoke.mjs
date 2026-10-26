@@ -4,7 +4,7 @@
 // The REJECT fixtures aim at paths OUTSIDE the sandbox — computed from the
 // repo root (parent dir + a Windows system file); none of them is ever
 // written (the guard must fire first; the smoke asserts that).
-// Run: node .opencode/plugin/tests/block_transfer.sandbox.smoke.mjs (plain node, exit 0 iff green).
+// Run: node .opencode/plugins/tests/v1/block_transfer.sandbox.smoke.mjs (plain node, exit 0 iff green).
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";

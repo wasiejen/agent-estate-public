@@ -22,7 +22,7 @@
 // → the 150-line hard cap: the LAST section's lines truncate first, all six
 // headers + the markers steer survive). The 15-cap TODO behavior is pinned by extending
 // FX1's TODO.md in place (17 headers → the LAST 15 shown).
-// Run: node .opencode/plugin/tests/state_snapshot.smoke.mjs (plain node,
+// Run: node .opencode/plugins/tests/v1/state_snapshot.smoke.mjs (plain node,
 // exit 0 iff green).
 import fs from "node:fs";
 import path from "node:path";

@@ -5,9 +5,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// The repo root resolved from THIS file's location (tests/ -> plugin/ ->
-// .opencode/ -> root) — every smoke runs from any cwd.
-export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+// The repo root resolved from THIS file's location (v1/ -> tests/ -> plugins/
+// -> .opencode/ -> root) — every smoke runs from any cwd.
+export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 
 // The host's runtime scratchpad — fixture writes only (each smoke creates and
 // cleans its own subdir there; it is NEVER a source path). Deliberately fixed:

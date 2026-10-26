@@ -12,7 +12,7 @@
 // data.tokens sum + in-flight/compaction exclusion), the readout line, the
 // coexisting pairing both ways, and the spawn backend FORCED (REAL exe) on
 // every v2 form + the v1-only regression.
-// Run: node .opencode/plugin/tests/gauge_core.smoke.mjs (plain node, exit 0 iff green).
+// Run: node .opencode/plugins/tests/v1/gauge_core.smoke.mjs (plain node, exit 0 iff green).
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";

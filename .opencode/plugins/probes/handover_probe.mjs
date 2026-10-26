@@ -129,7 +129,7 @@
 // EXACT RUN COMMAND (from the repo root — the shell switched to Git-Bash on
 // 2026-09-15, so the command is the bash form; this IS the run command, do
 // not rediscover anything):
-//     node .opencode/plugin/probes/handover_probe.mjs
+//     node .opencode/plugins/probes/handover_probe.mjs
 //
 // WHY THAT COMMAND:
 //   - the probe runs under plain system `node` (v24.19.0 on this host — the
@@ -1194,7 +1194,7 @@ const MISSING_DB = path.join(SANDBOX, "missing_fx.db"); // never created — the
 // the core — SAME module instance the plugin imports (same resolved file), so
 // setDbPath below steers the plugin's chat.message read to the fixtures.
 const { readGauge, formatGauge, parseWindow, parseModelId, setDbPath, getDbPath, setBackends, getBackends, DEFAULT_BACKENDS, setImportForTest, clearImportForTest, importAttemptsForTest, setBudgetFileForTest, getBudgetFile, compactionsLeftSuffix, loopIterationSuffix, setLoopRootForTest } =
-  await import(new URL("../../plugins/scripts/gauge.mjs", import.meta.url).href);
+  await import(new URL("../scripts/gauge.mjs", import.meta.url).href);
 
 // Item 3 (2026-09-24): the "N compactions left" suffix reads the budget
 // store PER formatGauge call — steered to a NEVER-CREATED sandbox path so

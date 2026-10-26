@@ -2,7 +2,7 @@
 // (scratchpad origin: bt_smoke.mjs, iter-4 verification; moved per the
 // 2026-09-15_smoke-harness-home proposal). Functional round-trips run in a
 // scratchpad sandbox subdir.
-// Run: node .opencode/plugin/tests/block_transfer.smoke.mjs (plain node, exit 0 iff green).
+// Run: node .opencode/plugins/tests/v1/block_transfer.smoke.mjs (plain node, exit 0 iff green).
 import fs from "node:fs";
 import path from "node:path";
 import { loadRepo, freshSandbox, makeChecker } from "./_smoke_base.mjs";

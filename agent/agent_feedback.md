@@ -1007,3 +1007,6 @@ The compact_memory audit lane is split across TWO logs: COMPACT/keep lines ride 
 
 ### 2026-10-26_19-40 planner-36 ses_e8751597bffejGI7kRg4wAu6db
 Retention forensics mislead me twice: dump rows are DB-serialized JSON (metadata overhead) while the core estimates `messageToText` renders, and the gauge CTX mixes system + recent + summary — a chars÷4 match to CTX is NOT proof of the keep value. The only reliable discriminator is the stored `metadata.keepID` anchor vs the fit-boundary math. A knowledge note under agent/knowledge/ would save this re-derivation.
+### 2026-10-26_18-50 worker_FlashNext ses_e86b16ea6ffetIvPl1jH1Jk3w4
+read output wraps long comment lines differently than the file bytes, so reproducing wrapped text as an edit oldString mismatched twice; verify byte boundaries (sed -n 'X,Yp' f | cat -A) before anchoring edits on wrapped comment blocks
+

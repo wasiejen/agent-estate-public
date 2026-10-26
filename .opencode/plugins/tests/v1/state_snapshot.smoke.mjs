@@ -15,13 +15,17 @@
 // quotes agent/readme INLINE (path-anchored filter must KEEP that hit) + a filtered
 // maintainer/done/ fixture whose --now line the sweep's older grep -v filter must
 // remove) — the assembled
-// digest is EXACTLY 60 lines (no truncation); FX2 = the minimal fixture
+// digest is EXACTLY 62 lines (no truncation); FX2 = the minimal fixture
 // (no git, no NAP, empty inbox, no priority, no proposals → every
 // fail-closed / empty line); FX3 = the oversized fixture (20 TODO headers
 // + 30 priority lines + 30 proposals + 40 marker lines in maintainer/big.md
-// → the 150-line hard cap: the LAST section's lines truncate first, all six
+// → the 150-line hard cap: the LAST section's lines truncate first, all seven
 // headers + the markers steer survive). The 15-cap TODO behavior is pinned by extending
-// FX1's TODO.md in place (17 headers → the LAST 15 shown).
+// FX1's TODO.md in place (17 headers → the LAST 15 shown). FX4/FX5 (spec #155) pin
+// the two `## loop` forms: FX4 = one `loop/autorun-X/` folder with a readable
+// counter.json → the present line; FX5 = an empty `loop/` dir → `no-looprun`
+// (+ the counter fail-closes: a `looprun` mismatch and an unreadable counter
+// → `no-looprun`).
 // Run: node .opencode/plugins/tests/v1/state_snapshot.smoke.mjs (plain node,
 // exit 0 iff green).
 import fs from "node:fs";
@@ -40,11 +44,13 @@ const write = (root, rel, content) => {
 
 const git = (root, ...args) => execFileSync("git", args, { cwd: root });
 
-// FX1 — the full fixture (the digest is EXACTLY 60 lines — under the
+// FX1 — the full fixture (the digest is EXACTLY 62 lines — under the
 // 150-line cap it is NOT truncated:
-// git 2 + nap 40+steer + todo 1+3 + maintainer 2+1 + proposals 2 + markers 2
-// (the LIVE hit + the kept DOC hit — the excluded doc-quote fixtures add
-// ZERO marker lines) = 54 content + 6 headers = 60 — no truncation).
+// git 2 + nap 40+steer + todo 1+3 + loop 1 (FX1 has NO autorun-* dir — only
+// the loop/hidden.md FILE — so the empty `no-looprun` line) + maintainer 2+1 +
+// proposals 2 + markers 2 (the LIVE hit + the kept DOC hit — the excluded
+// doc-quote fixtures add ZERO marker lines) = 55 content + 7 headers = 62 — no
+// truncation).
 const FX1 = freshSandbox("state_snapshot_fx1");
 write(FX1, "TODO.md", [
   "# TODO",
@@ -89,11 +95,12 @@ const FX2 = freshSandbox("state_snapshot_fx2");
 write(FX2, "TODO.md", "# TODO\n");
 fs.mkdirSync(path.join(FX2, "maintainer", "inbox_planner"), { recursive: true });
 
-// FX3 — the oversized fixture (no git, no NAP): the 150-line hard cap.
-// todo 1+15 + maintainer (none)+10 + proposals 100 + markers 20+steer → 156
-// lines → the cap trims 6 from the end backwards: markers content lines go
-// FIRST (14 of 20 survive + the `… (+20 more)` steer — steer lines never
-// trim), the proposals section stays INTACT at 100.
+// FX3 — the oversized fixture (no git, no NAP, NO autorun-* folder): the
+// 150-line hard cap. todo 1+15 + loop 1 (`no-looprun`) + maintainer (none)+10 +
+// proposals 100 + markers 20+steer → 158 lines → the cap trims 8 from the end
+// backwards: markers content lines go FIRST (12 of 20 survive + the
+// `… (+20 more)` steer — steer lines never trim), the proposals section stays
+// INTACT at 100.
 const FX3 = freshSandbox("state_snapshot_fx3");
 {
   const todo = ["# TODO"];
@@ -108,6 +115,19 @@ const FX3 = freshSandbox("state_snapshot_fx3");
   for (let i = 1; i <= 40; i++) big.push(`--now marker line ${i}`);
   write(FX3, "maintainer/big.md", big.join("\n") + "\n");
 }
+
+// FX4 — the looprun fixture (spec #155): exactly one `autorun-*` folder with a
+// readable counter.json `{"looprun":"autorun-X","n":7}` → the PRESENT loop form.
+const FX4 = freshSandbox("state_snapshot_fx4");
+write(FX4, "TODO.md", "# TODO\n");
+write(FX4, "loop/autorun-X/counter.json", '{"looprun":"autorun-X","n":7}');
+write(FX4, "loop/autorun-X/loop_log.md", "2026-10-26_12-00 -->START planner_fx4 model info\n");
+
+// FX5 — the empty-looprun fixture (spec #155): `loop/` exists with NO autorun-*
+// subdirectory → the EMPTY loop form.
+const FX5 = freshSandbox("state_snapshot_fx5");
+write(FX5, "TODO.md", "# TODO\n");
+fs.mkdirSync(path.join(FX5, "loop"), { recursive: true });
 
 // ------------------------------------------------------------------ the tool
 const toolMod = await loadRepo(".opencode/tools/state_snapshot.ts");
@@ -137,13 +157,13 @@ chk(
   JSON.stringify({ keys: Object.keys(ssTool ?? {}), args: Object.keys(ssTool?.args ?? {}) }),
 );
 
-// 2 — the six section headers present IN ORDER + the assembled digest is
-//      EXACTLY 60 lines (the FX1 fixture is sized to land on the cap with
-//      no truncation)
+// 2 — the seven section headers present IN ORDER (`loop` AFTER `todo`, BEFORE
+//      `maintainer`) + the assembled digest is EXACTLY 62 lines (the FX1 fixture
+//      is sized to land on the cap with no truncation)
 {
-  const idx = ["git", "nap", "todo", "maintainer", "proposals", "markers"].map((n) => l1.indexOf(`## ${n}`));
+  const idx = ["git", "nap", "todo", "loop", "maintainer", "proposals", "markers"].map((n) => l1.indexOf(`## ${n}`));
   const inOrder = idx.every((v) => v >= 0) && idx.every((v, i) => i === 0 || v > idx[i - 1]);
-  chk("six section headers in order + the digest is exactly 60 lines (no truncation)", inOrder && l1.length === 60, JSON.stringify({ idx, len: l1.length }));
+  chk("seven section headers in order (loop after todo, before maintainer) + the digest is exactly 62 lines (no truncation)", inOrder && l1.length === 62, JSON.stringify({ idx, len: l1.length }));
 }
 
 // 3 — the git section carries the fixture commit subjects (git log
@@ -176,7 +196,7 @@ chk(
 
 // 6 — the todo 15-CAP: extend the fixture TODO.md to 17 headers → the
 //      count line 17 + the LAST 15 headers requested (#3..#17, 16 lines —
-//      under the 150-line cap the extended digest (72 lines) is NOT trimmed
+//      under the 150-line cap the extended digest (74 lines) is NOT trimmed
 //      at all: the pure 15-cap leg; the cap itself is pinned at FX3)
 {
   const extra = [];
@@ -291,23 +311,23 @@ chk(
   chk("agent absent: the digest is built (the soft gate passes)", ok, JSON.stringify(r.split("\n")[0]));
 }
 
-// 19 — FX3: the 150-line HARD CAP: the assembled digest (156 lines) truncates
-//       the LAST section's lines first — exactly 150 lines, all six headers
+// 19 — FX3: the 150-line HARD CAP: the assembled digest (158 lines) truncates
+//       the LAST section's lines first — exactly 150 lines, all seven headers
 //       present, the markers steer `… (+20 more)` survives and the markers
-//       section keeps 14 of the 20 shown hits (6 trimmed from the end,
+//       section keeps 12 of the 20 shown hits (8 trimmed from the end,
 //       steer lines never trim), the proposals section stays INTACT at 100
 {
   const d3 = await run(FX3, "planner_Q3S");
   const l3 = d3.split("\n");
-  const idx = ["git", "nap", "todo", "maintainer", "proposals", "markers"].map((n) => l3.indexOf(`## ${n}`));
+  const idx = ["git", "nap", "todo", "loop", "maintainer", "proposals", "markers"].map((n) => l3.indexOf(`## ${n}`));
   const inOrder = idx.every((v) => v >= 0) && idx.every((v, i) => i === 0 || v > idx[i - 1]);
   const mk = sectionBody(d3, "markers");
   const p = sectionBody(d3, "proposals");
   const ok = l3.length === 150 && inOrder &&
-    Array.isArray(mk) && mk.length === 15 && mk[14] === "… (+20 more)" &&
-    mk.filter((l) => l.startsWith("maintainer/big.md:")).length === 14 &&
+    Array.isArray(mk) && mk.length === 13 && mk[12] === "… (+20 more)" &&
+    mk.filter((l) => l.startsWith("maintainer/big.md:")).length === 12 &&
     Array.isArray(p) && p.length === 100 && p[0] === "prop_01.md" && p[99] === "prop_99.md";
-  chk("FX3 150-line hard cap: 150 lines, all headers, the markers steer, markers 14 of 20, proposals INTACT 100", ok, JSON.stringify({ len: l3.length, idx, mkN: mk?.length, p0: p?.[0], p99: p?.[99] }));
+  chk("FX3 150-line hard cap: 150 lines, all seven headers, the markers steer, markers 12 of 20, proposals INTACT 100", ok, JSON.stringify({ len: l3.length, idx, mkN: mk?.length, p0: p?.[0], p99: p?.[99] }));
 }
 
 // 20 — FX3: the todo section is INTACT under the cap (the cap truncates the
@@ -357,6 +377,48 @@ chk(
   const mk = sectionBody(await run(FX1, "planner_Q3S"), "markers");
   const ok = Array.isArray(mk) && mk.some((l) => l.startsWith("proposals/approved/ref.md:"));
   chk("markers: the inline-quote line SURVIVES (the grep -v patterns are path-anchored)", ok, JSON.stringify(mk));
+}
+
+// 24 — spec #155 (the `## loop` section): FX1 has NO autorun-* directory (only
+//      the loop/hidden.md FILE) → the EMPTY form, positioned AFTER `## todo`
+//      and BEFORE `## maintainer`
+{
+  const lp = sectionBody(d1, "loop");
+  const at = l1.indexOf("## loop");
+  const ok = Array.isArray(lp) && lp.length === 1 && lp[0] === "no-looprun" &&
+    at > l1.indexOf("## todo") && at < l1.indexOf("## maintainer");
+  chk("#155 loop: FX1 (no autorun-* dir) → the EMPTY form `no-looprun` (2 lines: header + form)", ok, JSON.stringify({ lp, at }));
+}
+
+// 25 — spec #155: FX4's PRESENT form is byte-exact: `loop=<folder> ITER=<n>
+//      log=loop/<folder>/loop_log.md` from `counter.json` {"looprun":"autorun-X","n":7}
+{
+  const lp = sectionBody(await run(FX4, "planner_Q3S"), "loop");
+  chk("#155 loop: FX4 present form byte-exact `loop=autorun-X ITER=7 log=loop/autorun-X/loop_log.md`",
+    Array.isArray(lp) && lp.length === 1 && lp[0] === "loop=autorun-X ITER=7 log=loop/autorun-X/loop_log.md", JSON.stringify(lp));
+}
+
+// 26 — spec #155: FX5's EMPTY form — `loop/` exists but holds NO autorun-*
+//      subdirectory → `no-looprun`
+{
+  const lp = sectionBody(await run(FX5, "planner_Q3S"), "loop");
+  chk("#155 loop: FX5 empty `loop/` dir → `no-looprun`", Array.isArray(lp) && lp.length === 1 && lp[0] === "no-looprun", JSON.stringify(lp));
+}
+
+// 27 — spec #155: the counter fail-closes on FX4's folder (re-run in place):
+//      a `looprun` field that MISMATCHES the folder name / a MISSING counter /
+//      a non-integer `n` → all `no-looprun`
+{
+  write(FX4, "loop/autorun-X/counter.json", '{"looprun":"autorun-Y","n":7}');
+  const mismatch = sectionBody(await run(FX4, "planner_Q3S"), "loop");
+  fs.rmSync(path.join(FX4, "loop", "autorun-X", "counter.json"));
+  const missing = sectionBody(await run(FX4, "planner_Q3S"), "loop");
+  write(FX4, "loop/autorun-X/counter.json", '{"looprun":"autorun-X","n":"seven"}');
+  const badN = sectionBody(await run(FX4, "planner_Q3S"), "loop");
+  const ok = mismatch?.length === 1 && mismatch[0] === "no-looprun" &&
+    missing?.length === 1 && missing[0] === "no-looprun" &&
+    badN?.length === 1 && badN[0] === "no-looprun";
+  chk("#155 loop: looprun-mismatch / missing counter / non-integer n → `no-looprun` (fail-closed)", ok, JSON.stringify({ mismatch, missing, badN }));
 }
 
 finish();

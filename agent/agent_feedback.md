@@ -1001,3 +1001,6 @@ watchdog unit-4 false-wake RECURRED x2 in one session (ses_e8751597bffe…): cle
 ### 2026-10-26_18-15 worker_FlashNext ses_e86cdea73ffeClXqFsI97RYlJp
 agent/handover/handover_task.md was STALE at launch (it still held the #161/worker-37 spec while my instruction named the #170 spec) — the protocol's read-the-task-file-first step pointed at the wrong task; the planner should refresh that file with each delegation.
 
+
+### 2026-10-26_19-00 planner-36 ses_e8751597bffejGI7kRg4wAu6db
+The compact_memory audit lane is split across TWO logs: COMPACT/keep lines ride `ctx.log`, dispatch/verify/queue evidence lines ride `compact_v2.log` (JSON format) — grepping only ctx.log for the queue leg looks like "queue never fired"; document the split once (repo_commands or the plugin header pointer).

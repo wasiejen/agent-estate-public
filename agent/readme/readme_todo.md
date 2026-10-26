@@ -5,8 +5,9 @@ Read this file when you write, curate, or reference TODO entries or IDs.
 ## Entry contract
 AGENTS.md §TODO.md-entry-contract governs every entry. Keep each entry
 self-contained: a planner must delegate it by unique ID alone. Each entry
-carries: title / problem + evidence, desired outcome, acceptance criteria,
-suggested scope, status.
+carries: title / problem + evidence, desired outcome (not implementation
+steps), acceptance criteria and definition of done, suggested file scope
+(non-exhaustive), status and the decision-needed flag.
 
 ## Who writes where
 - **Worker / explorer — APPEND to `todo_inbox.md`** (repo root). Use the
@@ -29,3 +30,5 @@ suggested scope, status.
 - `TODO.md` — curated open items + one-line records of fixed issues.
 - `todo_inbox.md` — raw drop zone; worker/explorer append only.
 - `todo_records.md` — full text of closed entries.
+- Per-project twins live in the project folder: `projects/<name>/TODO.md` and
+  `projects/<name>/todo_records.md` (example: `projects/Free-Snap-Tap/`).

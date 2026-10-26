@@ -375,6 +375,22 @@ const outOf = async (args, toolCtx = {}) => String((await call(args, toolCtx)).o
     readFileSync(counterJe, "utf-8"));
   cleanupJe();
 }
+{
+  // (J-f) #171 (2026-10-26): the bump leg PRESERVES an existing `round` key
+  // (as-is) — the {looprun,n} rewrite keeps the maintenance clock.
+  const projJf = path.join(ROOT, "wsJf");
+  const folderJf = "autorun-2026-01-11_00-11";
+  const counterJf = path.join(projJf, "loop", folderJf, "counter.json");
+  mkdirSync(path.join(projJf, "loop", folderJf), { recursive: true });
+  writeFileSync(counterJf, JSON.stringify({ looprun: folderJf, n: 3, round: 9 }), "utf-8");
+  const cleanupJf = await plugin.setup(makeCtx(projJf));
+  const outF = await outOf({ status: "info", content: "round preserve probe", role: "planner-5" }, {});
+  chk("(J-f) #171 bump with round: {looprun,n:3,round:9} + planner-5 -> byte-exact {looprun,n:5,round:9}",
+    readFileSync(counterJf, "utf-8") === JSON.stringify({ looprun: folderJf, n: 5, round: 9 }) &&
+      outF.split("\n")[2] === "verified: readback-match",
+    readFileSync(counterJf, "utf-8"));
+  cleanupJf();
+}
 
 // ------------------------------------------------------------------ I cleanup
 

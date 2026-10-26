@@ -96,6 +96,8 @@ function normalizeStatus(raw: unknown): string | null {
 // maxN > n. Fail-closed on every other leg (non-planner line, absent file —
 // NEVER created, unparseable, wrong looprun, bad n, maxN <= n): no write at
 // all. Best-effort: any read/write failure is swallowed — the append stands.
+// #171 (2026-10-26): the rewrite PRESERVES an existing `round` key (the
+// maintenance clock) and never fabricates one.
 // #164 (2026-10-26): the counter READ + the counter FILE PATH come from the
 // ONE read-only helper `./scripts/loop_root.mjs` (absent/unreadable/
 // unparseable/non-object → null → no write; the read NEVER creates the file).
@@ -113,14 +115,20 @@ function bumpCounter(folderName: string, line: string): void {
     if (rec["looprun"] !== folderName) return; // wrong-looprun file -> unchanged
     const n = rec["n"];
     if (typeof n !== "number" || !Number.isFinite(n) || maxN <= n) return;
-    writeFileSync(loopCounterPath(path.join(dir, "loop"), folderName), JSON.stringify({ looprun: folderName, n: maxN }), "utf-8");
+    // #171 (2026-10-26): the n-bump PRESERVES an existing `round` key (the
+    // maintenance clock written by the spawn/compaction legs) as-is and NEVER
+    // fabricates it — a counter without `round` keeps the {looprun,n} shape.
+    const next = "round" in rec
+      ? { looprun: folderName, n: maxN, round: rec["round"] }
+      : { looprun: folderName, n: maxN };
+    writeFileSync(loopCounterPath(path.join(dir, "loop"), folderName), JSON.stringify(next), "utf-8");
   } catch {
     // unwritable -> fail-closed, append stands
   }
 }
 
 const TOOL_DESCRIPTION =
-  `Appends ONE machine-timestamped loop-log line to the current looprun's loop_log.md (auto-creates the dated autorun-* folder when loop/ is empty) and CONFIRMS the write (reads the file back, byte-compares the last line). status = a free-form word containing one of the keywords (checked in order): start / done / return / warn / info / correct -> the established 8-char tokens (-->START / DONE<--- / -RETURN- / -WARNING / --INFO-- / CORRECT-); case/dash/arrow variants normalize ('restart' -> START); an unrecognized status returns an error naming the keywords (nothing is written). role / model / session are OPTIONAL — auto-filled from the v2 ToolContext (role/model <- context.agent, session <- context.sessionID; else the literal 'unknown' — v2 carries no sessionId/session.id/extra.model.id fields; the v1 twin's extra chain legs have no v2 carrier). Return: folder: <name> (created|existing) + line: <exact line> + verified: readback-match (or readback-MISMATCH: <actual last line>) + corrects: <previous log line> (status 'correct' only) + the ANOMALY note (several autorun-* folders). The line format is unchanged: <stamp> <status> <role> <session> <model> <content>; append-only (no earlier line is ever rewritten). A line carrying planner-<N> additionally bumps the folder's counter.json to {looprun, n: N} when an EXISTING parseable counter for THIS looprun has n < N — fail-closed: an absent/unparseable/wrong-looprun counter is never written and never created; non-planner lines never touch the counter.`;
+  `Appends ONE machine-timestamped loop-log line to the current looprun's loop_log.md (auto-creates the dated autorun-* folder when loop/ is empty) and CONFIRMS the write (reads the file back, byte-compares the last line). status = a free-form word containing one of the keywords (checked in order): start / done / return / warn / info / correct -> the established 8-char tokens (-->START / DONE<--- / -RETURN- / -WARNING / --INFO-- / CORRECT-); case/dash/arrow variants normalize ('restart' -> START); an unrecognized status returns an error naming the keywords (nothing is written). role / model / session are OPTIONAL — auto-filled from the v2 ToolContext (role/model <- context.agent, session <- context.sessionID; else the literal 'unknown' — v2 carries no sessionId/session.id/extra.model.id fields; the v1 twin's extra chain legs have no v2 carrier). Return: folder: <name> (created|existing) + line: <exact line> + verified: readback-match (or readback-MISMATCH: <actual last line>) + corrects: <previous log line> (status 'correct' only) + the ANOMALY note (several autorun-* folders). The line format is unchanged: <stamp> <status> <role> <session> <model> <content>; append-only (no earlier line is ever rewritten). A line carrying planner-<N> additionally bumps the folder's counter.json n to N (a present round key is PRESERVED, never fabricated — #171) when an EXISTING parseable counter for THIS looprun has n < N — fail-closed: an absent/unparseable/wrong-looprun counter is never written and never created; non-planner lines never touch the counter.`;
 
 // The input schema — a plain JSON schema (the promise surface accepts
 // Tool.ValueSchema; InputValue resolves to `unknown`, so `execute` reads

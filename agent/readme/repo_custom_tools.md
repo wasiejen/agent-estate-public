@@ -1,10 +1,10 @@
 # repo_custom_tools.md — host tools for this repo (read when you use one, or its behavior surprises you)
 
 This repo registers host-specific tools: `.opencode/tools/{block_transfer,ctx_gauge,loop_log}.ts`
-plus the `compact_memory` plugin (`.opencode/plugin/compact_memory.ts`).
+plus the `compact_memory` plugin (`.opencode/plugins/compact_memory.ts`).
 The tool description injected into your context is CURRENT and authoritative.
 This part adds WHEN-to-use guidance and traps the description omits.
-Contract pinning lives in `.opencode/plugin/probes/handover_probe.mjs`.
+Contract pinning lives in `.opencode/plugins/probes/handover_probe.mjs`.
 
 ## block_transfer — multi-line block MOVE / COPY / CUT / PASTE / DELETE / CLEAR
 - Use it to move multi-line blocks: TODO sections, log sections, prompt blocks.
@@ -36,8 +36,11 @@ Contract pinning lives in `.opencode/plugin/probes/handover_probe.mjs`.
 - Loop roles (planner / worker) write bookkeeping here, not hand-formatted
   into `loop_log.md`: the tool appends the formatted line to the current looprun folder.
 - The tool auto-creates the dated folder.
-- `status` is exactly one of the 8-char tokens: `-->START`, `DONE<---`,
-  `-RETURN-`, `-WARNING`, `--INFO--` (a bogus token is rejected at parse).
+- `status` maps to an 8-char token — the accepted keywords and their tokens:
+  `start` → `-->START`, `done` → `DONE<---`, `return` → `-RETURN-`,
+  `warn` → `-WARNING`, `info` → `--INFO--`, `correct` → `CORRECT-`. The
+  lookup is lenient (lowercase, non-alphanumeric characters stripped); an
+  unrecognized word is rejected at parse.
 - DONE content = the final gauge readout + one-line outcome.
 - START content = the task one-liner. RETURN carries `role session model`.
 - WARNING carries the failed session id + cause.
@@ -68,5 +71,5 @@ Contract pinning lives in `.opencode/plugin/probes/handover_probe.mjs`.
 
 ## NOT here
 - Built-ins (`task`, `skill`, `webfetch`, …) are not custom tools.
-- The probe/gauge scripts (`.opencode/plugin/scripts/`, `repo_commands.md`) are not custom tools.
+- The probe/gauge scripts (`.opencode/plugins/scripts/`, `repo_commands.md`) are not custom tools.
 - Their docs live with them.

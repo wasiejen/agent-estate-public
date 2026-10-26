@@ -15,11 +15,11 @@ files) — read those on need-to-know.
   roster before a delegation; never stage/flag his live files.
 
 ## Plugins (ours)
-- Auto-loaded from `.opencode/plugin/*.ts` — there is NO registration key in
+- Auto-loaded from `.opencode/plugins/*.ts` — there is NO registration key in
   opencode.jsonc (measured: zero `plugin` hits in the file); the folder IS
   the registration (a file move in/out of `deactivated/` = activate/deactivate).
-- Smokes: `.opencode/plugin/tests/`; the probe:
-  `.opencode/plugin/probes/handover_probe.mjs`.
+- Smokes: `.opencode/plugins/tests/`; the probe:
+  `.opencode/plugins/probes/handover_probe.mjs`.
 
 ## Behavior index (pointers, need-to-know)
 - Plugin architecture + the v1 SDK shapes (the `{ data }` unwrap, the

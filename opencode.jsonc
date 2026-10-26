@@ -84,7 +84,7 @@
     "keep": {
       "system": true,
     // 2026-09-25_14-05: messages are ignored by V2 summerize -> only keepToken is respected
-      "tokens": 40000,
+      "tokens": 60000,
       //"messages": 30
     },
     "buffer": 2000

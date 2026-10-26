@@ -95,16 +95,23 @@ Autonomous mode is active when the launch message contains `<|autonom|>` or `<|A
 14. Write the closing summary to `plan<N>_summary.md`.
 15. Emit exactly one final `action:` line.
 
-## Session close ladder (the close decision keys on the injected ctx line, NOT on queue state)
+## Session close ladder
 
+The injected ctx line decides the close.
+Queue state does not decide the close.
 A session is a working session, not one iteration.
-Do not close while work and context remain.
+Keep the session open while work and context remain.
 
-- Work selectable and injected `REM > 20k`: keep working in this session.
-- Queue blocked and context healthy: perform the orientation's idle maintenance scope here, then close with `action: continue` (the plugin wakes this session; never spawn).
-- `REM ≤ 20k` (or approximately ≥ 92% used): finish the current safe operation, update the NAP, commit, then fire `compact_memory` SELF with the `message` arg = next-unit pointer; continue this session after the compaction.
-- Compaction budget exhausted (injected `Compactions left` = 0): close with `action: restart`.
-- Use `action: stop` only for unrecoverable failure or direct maintainer interaction.
+Work through the rungs in order, top-down:
+
+1. Work selectable and `REM > 20k`: keep working in this session.
+2. Queue blocked and context healthy: run the orientation's idle maintenance scope in this session.
+   Close with `action: continue`. The plugin wakes this session. Never spawn.
+3. `REM ≤ 20k` (roughly ≥ 92% used): finish the current safe operation. Update the NAP. Commit.
+   Fire `compact_memory` SELF with the `message` arg = next-unit pointer.
+   Continue this session after the compaction.
+4. `Compactions left = 0`: close with `action: restart`.
+5. `action: stop` covers only unrecoverable failure or direct maintainer interaction.
 
 ## Direct mode
 
@@ -172,11 +179,11 @@ Only one model slot is available.
 Launch subagents serially.
 Never request parallel launches.
 
-Resume a finished worker with its `task_id` for a follow-up unit on the same
-files or domain; the resumed worker already holds the state a fresh one would
-re-derive.
-Spawn a fresh worker only when the model or provider row changed, the domain
-changed, or the worker's context is near full.
+Resume a finished worker with its `task_id`.
+Use the resumed worker for follow-up units on the same files or domain.
+The resumed worker holds state a fresh worker would re-derive.
+Spawn a fresh worker only when the model row changed, the provider row changed,
+or the worker context is near full.
 A worker spawned by a DIFFERENT session cannot be resumed.
 
 Select the role from the agents block in the root `opencode.jsonc`.
@@ -296,15 +303,17 @@ If no live nudge exists, use the thresholds in
 Compact after tool output is distilled.
 The raw output is no longer useful at that point.
 
-Keep work IN the context: start units while the injected line shows `REM > 20k`.
-The planner-era window is large and slow-context is mild (~25–30%);
-re-derivation after a restart costs more than the long-context slowdown.
+Keep work IN the context.
+Start units while the injected line shows `REM > 20k`.
+The window is large and the slow-context penalty is mild (~25–30%).
+Re-derivation after a restart costs more than the slowdown.
 At `REM ≤ 20k`, or when the next unit cannot finish safely:
 
 1. Pause the current unit.
 2. Update the NAP.
 3. Commit the current state.
-4. Compact SELF (`message` = next-unit pointer) and continue.
+4. Compact SELF. Pass the `message` arg = next-unit pointer.
+5. Continue this session.
 
 A worker context-limit hit requires cross-session compaction and resume.
 Do not launch a replacement worker.

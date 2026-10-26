@@ -30,7 +30,11 @@ import { pathToFileURL } from "node:url";
 const SCRATCHPAD = "home/AppData/Local/Temp/opencode";
 const SCRATCH = path.join(SCRATCHPAD, "block-transfer-sandbox-smoke-v2");
 const SCRATCH2 = path.join(SCRATCHPAD, "..", "bt_fx_sandbox_v2"); // fixture repos OUTSIDE the scratchpad config root
-const CLONE_ROOT = "repo-root-v2";
+// The repo root this suite lives in (`.opencode/plugins/tests` -> up 3). Resolved
+// from the file so the suite runs in whatever checkout owns the tests dir — the
+// old absolute archived-clone path no longer exists on this machine (TODO #156,
+// 2026-10-26).
+const CLONE_ROOT = path.join(import.meta.dirname, "..", "..", "..");
 const PLUGIN = path.join(CLONE_ROOT, ".opencode", "plugins", "block_transfer.ts");
 
 const ambientTEMP = process.env.TEMP;

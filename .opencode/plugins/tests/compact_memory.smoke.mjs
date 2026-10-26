@@ -26,7 +26,11 @@ import { pathToFileURL } from "node:url";
 
 const SCRATCH = "home/AppData/Local/Temp/opencode/compact-smoke-v2";
 const WS = path.join(SCRATCH, "ws"); // the mock workspace (ctx.location.directory)
-const CLONE_ROOT = "repo-root-v2";
+// The repo root this suite lives in (`.opencode/plugins/tests` -> up 3). Resolved
+// from the file so the suite runs in whatever checkout owns the tests dir — the
+// old absolute archived-clone path no longer exists on this machine (TODO #156,
+// 2026-10-26).
+const CLONE_ROOT = path.join(import.meta.dirname, "..", "..", "..");
 const PLUGIN = path.join(CLONE_ROOT, ".opencode", "plugins", "compact_memory.ts");
 const CORE = path.join(CLONE_ROOT, ".opencode", "plugin", "scripts", "compaction_core_v2.mjs");
 const TWIN = path.join(CLONE_ROOT, "agent", "scripts", "db", "dump_session_v2.mjs"); // the 4c dump twin script

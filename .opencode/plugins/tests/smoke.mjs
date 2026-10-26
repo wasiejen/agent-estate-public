@@ -15,8 +15,12 @@ import { pathToFileURL } from "node:url";
 
 const SCRATCH = "home/AppData/Local/Temp/opencode/intercept-smoke-v2";
 const WS = path.join(SCRATCH, "ws"); // the mock workspace (ctx.location.directory)
-const PLUGIN = "repo-root-v2/.opencode/plugins/intercept_observer.ts";
-const CLONE_ROOT = "repo-root-v2";
+// The repo root this suite lives in (`.opencode/plugins/tests` -> up 3). Resolved
+// from the file so the suite runs in whatever checkout owns the tests dir — the
+// old absolute archived-clone path no longer exists on this machine (TODO #156,
+// 2026-10-26).
+const CLONE_ROOT = path.join(import.meta.dirname, "..", "..", "..");
+const PLUGIN = path.join(CLONE_ROOT, ".opencode", "plugins", "intercept_observer.ts");
 const SID = "ses_smoke000111";
 
 let failures = 0;
@@ -65,7 +69,7 @@ writeFileSync(
     `      "${WS.replace(/\\/g, "/")}": "allow",`,
     `      "home/AppData/Local/Temp/opencode": "allow",`,
     `      "${ROOTA}": "allow",`,
-    `      "${CLONE_ROOT}": "allow"`,
+    `      "${CLONE_ROOT.replace(/\\/g, "/")}": "allow"`,
     "    }",
     "  }",
     "}",
@@ -315,7 +319,7 @@ chk("setup: registers the execute.before hook + returns a cleanup", typeof ctx._
   const span = "home/Repos/zzz-sibling-dir";
   const input = { path: span };
   await ctx.fire("read", input);
-  const target = "repo-root-v2/zzz-sibling-dir";
+  const target = path.join(CLONE_ROOT, "zzz-sibling-dir").replace(/\\/g, "/");
   chk("C13 R8 redirect (read): input.path mutated under the clone root", input.path === target, `got ${input.path}`);
   const lines = readLog().slice(before);
   const rd = lines.find((f) => f[5].includes("kind=redirect"));

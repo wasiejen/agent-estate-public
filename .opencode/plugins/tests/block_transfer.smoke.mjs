@@ -21,7 +21,12 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const SCRATCH = "home/AppData/Local/Temp/opencode/block-transfer-smoke-v2";
-const PLUGIN = "repo-root-v2/.opencode/plugins/block_transfer.ts";
+// The repo root this suite lives in (`.opencode/plugins/tests` -> up 3). Resolved
+// from the file so the suite runs in whatever checkout owns the tests dir — the
+// old absolute archived-clone path no longer exists on this machine (TODO #156,
+// 2026-10-26).
+const CLONE_ROOT = path.join(import.meta.dirname, "..", "..", "..");
+const PLUGIN = path.join(CLONE_ROOT, ".opencode", "plugins", "block_transfer.ts");
 const WS = path.join(SCRATCH, "work"); // the mock workspace (ctx.location.directory)
 
 let failures = 0;

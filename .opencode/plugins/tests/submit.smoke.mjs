@@ -28,7 +28,11 @@ import { pathToFileURL } from "node:url";
 
 const SCRATCH = "home/AppData/Local/Temp/opencode/small-write-tools-smoke-v2";
 const ROOT = path.join(SCRATCH, "submit"); // this smoke's fixture root
-const CLONE_ROOT = "repo-root-v2";
+// The repo root this suite lives in (`.opencode/plugins/tests` -> up 3). Resolved
+// from the file so the suite runs in whatever checkout owns the tests dir — the
+// old absolute archived-clone path no longer exists on this machine (TODO #156,
+// 2026-10-26).
+const CLONE_ROOT = path.join(import.meta.dirname, "..", "..", "..");
 const PLUGIN = path.join(CLONE_ROOT, ".opencode", "plugins", "submit.ts");
 
 let failures = 0;

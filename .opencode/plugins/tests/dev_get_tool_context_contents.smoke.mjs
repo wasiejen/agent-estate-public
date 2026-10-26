@@ -21,7 +21,11 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-const CLONE_ROOT = "repo-root-v2";
+// The repo root this suite lives in (`.opencode/plugins/tests` -> up 3). Resolved
+// from the file so the suite runs in whatever checkout owns the tests dir — the
+// old absolute archived-clone path no longer exists on this machine (TODO #156,
+// 2026-10-26).
+const CLONE_ROOT = path.join(import.meta.dirname, "..", "..", "..");
 const PLUGIN = path.join(CLONE_ROOT, ".opencode", "plugins", "dev_get_tool_context_contents.ts");
 
 let failures = 0;

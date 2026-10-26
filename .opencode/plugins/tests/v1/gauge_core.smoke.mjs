@@ -11,7 +11,9 @@
 // TABLE-AWARE TOKEN-MASS read pins: the v2-shaped DB (session_message
 // data.tokens sum + in-flight/compaction exclusion), the readout line, the
 // coexisting pairing both ways, and the spawn backend FORCED (REAL exe) on
-// every v2 form + the v1-only regression.
+// every v2 form + the v1-only regression + the #165 (2026-10-26) MESSAGE-LEVEL
+// MODEL fallback pins (a NULL `session_v2.model` row resolves through the
+// latest paired `session_message` row's `$.model`; the v1 pair stays modelless).
 // Run: node .opencode/plugins/tests/v1/gauge_core.smoke.mjs (plain node, exit 0 iff green).
 import fs from "node:fs";
 import os from "node:os";
@@ -463,6 +465,86 @@ rmTear(tmpB, { recursive: true, force: true }); // #144 retry-on-EBUSY
     JSON.stringify(r14),
   );
   m.setBackends([...m.DEFAULT_BACKENDS]);
+  rmTear(d, { recursive: true, force: true });
+}
+
+// ---- #165 (2026-10-26): the MESSAGE-LEVEL MODEL fallback for a NULL session
+// row — the v2 PAIR only. Spawn-created planner sessions have
+// `session_v2.model` NULL while their latest `session_message` row carries
+// `data.$.model` (the `{"id","providerID"}` JSON). Pins: (a) v2 NULL row +
+// assistant `$.model` + a completed step → the OK read with the bare modelId
+// and the CONFIG-resolved window (RED on the pre-#165 core — measured there:
+// modelId "" and no window); the newer in-flight row WITHOUT a model must not
+// block the pick of the latest row that HAS one; (b) NULL row + a PRESENT but
+// EMPTY `session_message` → the unchanged no-model outcome; (c) the v1 pair
+// (`session`↔`message`) with a NULL row model and a message `$.model` → STILL
+// no model (the v1 leg stays byte-identical).
+{
+  const d = freshSandbox("gauge_null_model");
+  const cfgP = path.join(d, "opencode.jsonc");
+  fs.writeFileSync(
+    cfgP,
+    [
+      "// #165 fixture: the fallback model resolves through the config walk",
+      "{",
+      '  "provider": {',
+      '    "fxp": {',
+      '      "models": {',
+      '        "gyro-null-fx": { "limit": { "context": 555555 } }, // tail comment',
+      "      },",
+      "    },",
+      "  },",
+      "}",
+    ].join("\n"),
+    "utf-8",
+  );
+  const mk = (name, stmts) => {
+    const db = new DatabaseSync(path.join(d, name));
+    for (const s of stmts) db.exec(s);
+    db.close();
+  };
+  mk("fx_null_msg.db", [
+    "CREATE TABLE session_v2(id TEXT PRIMARY KEY, model TEXT, time_updated INTEGER)",
+    "INSERT INTO session_v2 VALUES('ses_null_fx',NULL,2000)",
+    "CREATE TABLE session_message(id TEXT, session_id TEXT, type TEXT, seq INTEGER, time_created INTEGER, time_updated INTEGER, data TEXT)",
+    `INSERT INTO session_message VALUES('m_done','ses_null_fx','assistant',1,100,150,'{"type":"assistant","finish":"stop","model":{"id":"gyro-null-fx","providerID":"fxp"},"tokens":{"input":30000,"output":4000,"reasoning":100,"cache":{"read":10000,"write":50}},"time":{"created":1792000000100,"completed":1792000000150}}')`,
+    `INSERT INTO session_message VALUES('m_inflight','ses_null_fx','assistant',2,200,200,'{"type":"assistant","time":{"created":1792000000200}}')`,
+  ]);
+  mk("fx_null_nomsg.db", [
+    "CREATE TABLE session_v2(id TEXT PRIMARY KEY, model TEXT, time_updated INTEGER)",
+    "INSERT INTO session_v2 VALUES('ses_null_fx',NULL,2000)",
+    "CREATE TABLE session_message(id TEXT, session_id TEXT, type TEXT, seq INTEGER, time_created INTEGER, time_updated INTEGER, data TEXT)",
+  ]);
+  mk("fx_v1_null.db", [
+    "CREATE TABLE session(id TEXT PRIMARY KEY, model TEXT, time_updated INTEGER)",
+    "INSERT INTO session VALUES('ses_v1_null_fx',NULL,1000)",
+    "CREATE TABLE message(id TEXT, session_id TEXT, time_created INTEGER, time_updated INTEGER, data TEXT)",
+    `INSERT INTO message VALUES('msg_v1n','ses_v1_null_fx',1,1,'{"finish":"stop","model":{"id":"gyro-null-fx","providerID":"fxp"},"tokens":{"total":43210,"output":999}}')`,
+  ]);
+  const chkR = (label, ok, detail = "") => {
+    if (!ok) fail++;
+    console.log(`${ok ? "PASS" : "FAIL"} ${label}${detail !== "" ? `: ${detail}` : ""}`);
+  };
+  m.setConfigFileForTest(cfgP);
+  const ra = await m.readGauge(path.join(d, "fx_null_msg.db"), "ses_null_fx");
+  chkR(
+    "#165 (a) v2 NULL row + message $.model + completed step → modelId + CONFIG window (RED pre-#165)",
+    ra.ok === true && ra.sid === "ses_null_fx" && ra.modelId === "gyro-null-fx" && ra.window === 555555 && ra.total === 44150 && ra.ctx === 44150,
+    JSON.stringify(ra),
+  );
+  const rb = await m.readGauge(path.join(d, "fx_null_nomsg.db"), "ses_null_fx");
+  chkR(
+    "#165 (b) NULL row + EMPTY paired message table: the unchanged no-model outcome",
+    rb.ok === false && rb.kind === "no-total" && rb.sid === "ses_null_fx" && rb.modelId === "" && rb.window === undefined,
+    JSON.stringify(rb),
+  );
+  const rc = await m.readGauge(path.join(d, "fx_v1_null.db"), "ses_v1_null_fx");
+  chkR(
+    "#165 (c) v1 pair NULL row + message $.model: STILL no model (byte-identical v1 leg)",
+    rc.ok === true && rc.sid === "ses_v1_null_fx" && rc.modelId === "" && rc.window === undefined && rc.total === 43210,
+    JSON.stringify(rc),
+  );
+  m.setConfigFileForTest(path.join(d, "absent.jsonc")); // the following units expect a MISSING config
   rmTear(d, { recursive: true, force: true });
 }
 

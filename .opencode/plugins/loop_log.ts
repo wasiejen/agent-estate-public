@@ -26,8 +26,15 @@
 // WHAT IT IS: a v2 plugin (DEFAULT export only, the loader contract; the
 // `@opencode/plugin` import is TYPE-ONLY, erased at runtime; no value imports
 // beyond node: builtins — the compact_memory/context_family pattern). NEVER throws.
+//
+// #161 (2026-10-26): after a successful append whose line carries `planner-<N>`
+// (same `/planner-(\d+)/g` scan as auto_resume's spawnCounterFor), the tool bumps
+// `loop/<folder>/counter.json` to `{looprun, n: N}` when the counter exists,
+// parses, its `looprun` matches the folder, and N > its n. Fail-closed: absent /
+// unparseable / wrong-looprun / non-planner line / N <= n -> NO counter write and
+// NEVER a created file; the append stands either way.
 import type { Plugin } from "@opencode/plugin";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 // The repo-root carrier — captured at setup from `ctx.location.directory`;
@@ -80,8 +87,38 @@ function normalizeStatus(raw: unknown): string | null {
   return null;
 }
 
+// #161 — counter sync: `counter.json` must never LAG the log's `planner-<N>`
+// max. After a successful append whose line carries `planner-<N>` (the SAME
+// `/planner-(\d+)/g` scan auto_resume's spawnCounterFor uses), rewrite the
+// folder's `counter.json` as `{looprun, n: maxN}` — ONLY when the file exists,
+// parses, its `looprun` matches the folder, its `n` is a finite number, and
+// maxN > n. Fail-closed on every other leg (non-planner line, absent file —
+// NEVER created, unparseable, wrong looprun, bad n, maxN <= n): no write at
+// all. Best-effort: any read/write failure is swallowed — the append stands.
+function bumpCounter(folderName: string, line: string): void {
+  try {
+    let maxN = 0;
+    for (const m of line.matchAll(/planner-(\d+)/g)) {
+      const n = parseInt(m[1], 10);
+      if (n > maxN) maxN = n;
+    }
+    if (maxN === 0) return; // no `planner-<N>` token in the line -> no write
+    const counterPath = path.join(dir, "loop", folderName, "counter.json");
+    if (!existsSync(counterPath)) return; // absent -> no write, NEVER created
+    const data: unknown = JSON.parse(readFileSync(counterPath, "utf-8"));
+    if (typeof data !== "object" || data === null) return; // unparseable shape
+    const rec = data as Record<string, unknown>;
+    if (rec["looprun"] !== folderName) return; // wrong-looprun file -> unchanged
+    const n = rec["n"];
+    if (typeof n !== "number" || !Number.isFinite(n) || maxN <= n) return;
+    writeFileSync(counterPath, JSON.stringify({ looprun: folderName, n: maxN }), "utf-8");
+  } catch {
+    // absent-unreadable / unparseable / unwritable -> fail-closed, append stands
+  }
+}
+
 const TOOL_DESCRIPTION =
-  `Appends ONE machine-timestamped loop-log line to the current looprun's loop_log.md (auto-creates the dated autorun-* folder when loop/ is empty) and CONFIRMS the write (reads the file back, byte-compares the last line). status = a free-form word containing one of the keywords (checked in order): start / done / return / warn / info / correct -> the established 8-char tokens (-->START / DONE<--- / -RETURN- / -WARNING / --INFO-- / CORRECT-); case/dash/arrow variants normalize ('restart' -> START); an unrecognized status returns an error naming the keywords (nothing is written). role / model / session are OPTIONAL — auto-filled from the v2 ToolContext (role/model <- context.agent, session <- context.sessionID; else the literal 'unknown' — v2 carries no sessionId/session.id/extra.model.id fields; the v1 twin's extra chain legs have no v2 carrier). Return: folder: <name> (created|existing) + line: <exact line> + verified: readback-match (or readback-MISMATCH: <actual last line>) + corrects: <previous log line> (status 'correct' only) + the ANOMALY note (several autorun-* folders). The line format is unchanged: <stamp> <status> <role> <session> <model> <content>; append-only (no earlier line is ever rewritten).`;
+  `Appends ONE machine-timestamped loop-log line to the current looprun's loop_log.md (auto-creates the dated autorun-* folder when loop/ is empty) and CONFIRMS the write (reads the file back, byte-compares the last line). status = a free-form word containing one of the keywords (checked in order): start / done / return / warn / info / correct -> the established 8-char tokens (-->START / DONE<--- / -RETURN- / -WARNING / --INFO-- / CORRECT-); case/dash/arrow variants normalize ('restart' -> START); an unrecognized status returns an error naming the keywords (nothing is written). role / model / session are OPTIONAL — auto-filled from the v2 ToolContext (role/model <- context.agent, session <- context.sessionID; else the literal 'unknown' — v2 carries no sessionId/session.id/extra.model.id fields; the v1 twin's extra chain legs have no v2 carrier). Return: folder: <name> (created|existing) + line: <exact line> + verified: readback-match (or readback-MISMATCH: <actual last line>) + corrects: <previous log line> (status 'correct' only) + the ANOMALY note (several autorun-* folders). The line format is unchanged: <stamp> <status> <role> <session> <model> <content>; append-only (no earlier line is ever rewritten). A line carrying planner-<N> additionally bumps the folder's counter.json to {looprun, n: N} when an EXISTING parseable counter for THIS looprun has n < N — fail-closed: an absent/unparseable/wrong-looprun counter is never written and never created; non-planner lines never touch the counter.`;
 
 // The input schema — a plain JSON schema (the promise surface accepts
 // Tool.ValueSchema; InputValue resolves to `unknown`, so `execute` reads
@@ -195,6 +232,10 @@ async function execute(
   }
 
   appendFileSync(logPath, line + "\n", "utf-8");
+
+  // #161 — counter sync (fail-closed, best-effort — never affects the append
+  // or the return surface): a `planner-<N>` line bumps the folder counter.
+  bumpCounter(folderName, line);
 
   // Part B — write confirmation: read the file back and byte-compare the
   // last line against the line just written (a mismatch surfaces the file's

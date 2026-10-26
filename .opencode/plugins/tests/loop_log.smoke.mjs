@@ -9,8 +9,11 @@
 // the (created)/(existing) flags and the SEVERAL-folders ANOMALY note, the line
 // format `<stamp> <status> <role> <session> <model> <content>`, the readback
 // readback-match / readback-MISMATCH confirmation, the `corrects:` line (omitted
-// for an empty log), and the Part A auto-fill chains on the v2 carrier (args
-// beat context; context.sessionID/context.agent fill; the `unknown` fallbacks).
+// for an empty log), the Part A auto-fill chains on the v2 carrier (args
+// beat context; context.sessionID/context.agent fill; the `unknown` fallbacks),
+// and the #161 counter bump (a `planner-<N>` line with N > counter n rewrites
+// counter.json to {looprun,n:N}; N <= n / non-planner lines / absent /
+// unparseable / wrong-looprun counters -> byte-unchanged, NEVER created).
 //
 // Fixtures live in home/AppData/Local/Temp/opencode/
 // small-write-tools-smoke-v2/looplog (recreated every run) — the LIVE loop
@@ -303,6 +306,74 @@ const outOf = async (args, toolCtx = {}) => String((await call(args, toolCtx)).o
   chk("(H3) empty context, no args: role/session/model all -> the literal 'unknown' (the v2 carrier has no sessionId/session.id/extra.model.id legs — the fallthrough carries)",
     got3.split(" ").slice(2, 5).join(",") === "unknown,unknown,unknown", `got=${got3}`);
   cleanupH();
+}
+
+// ------------------------------------------------------------------ J counter bump (#161, 2026-10-26)
+
+{
+  // (J-ab) counter n=29: a `planner-31` line rewrites it byte-exact to
+  // {looprun,n:31}; N == n, N < n, and non-planner lines leave it unchanged.
+  const projJ = path.join(ROOT, "wsJ");
+  const folderJ = "autorun-2026-01-06_00-06";
+  const counterJ = path.join(projJ, "loop", folderJ, "counter.json");
+  mkdirSync(path.join(projJ, "loop", folderJ), { recursive: true });
+  writeFileSync(counterJ, JSON.stringify({ looprun: folderJ, n: 29 }), "utf-8");
+  const cleanupJ = await plugin.setup(makeCtx(projJ));
+  const outA = await outOf({ status: "info", content: "counter bump probe", role: "planner-31" }, {});
+  chk("(J-a) planner-31 line on counter n=29: counter rewritten byte-exact {looprun,n:31} + append still verified",
+    readFileSync(counterJ, "utf-8") === JSON.stringify({ looprun: folderJ, n: 31 }) &&
+      outA.split("\n")[2] === "verified: readback-match",
+    readFileSync(counterJ, "utf-8"));
+  const beforeB = readFileSync(counterJ, "utf-8");
+  await outOf({ status: "info", content: "equal N", role: "planner-31" }, {}); // N == n
+  await outOf({ status: "info", content: "lower N", role: "planner-5" }, {}); // N < n
+  await outOf({ status: "done", content: "worker leg", role: "worker-37" }, {}); // non-planner
+  chk("(J-b) N == n, N < n, and a non-planner (worker) line: counter file byte-unchanged",
+    readFileSync(counterJ, "utf-8") === beforeB, readFileSync(counterJ, "utf-8"));
+  cleanupJ();
+}
+{
+  // (J-c) absent counter.json -> the append succeeds and NO file is created.
+  const projJc = path.join(ROOT, "wsJc");
+  const folderJc = "autorun-2026-01-07_00-07";
+  mkdirSync(path.join(projJc, "loop", folderJc), { recursive: true });
+  const cleanupJc = await plugin.setup(makeCtx(projJc));
+  const outC = await outOf({ status: "info", content: "no counter probe", role: "planner-99" }, {});
+  chk("(J-c) absent counter.json: append OK (readback-match) + NO counter file created",
+    outC.split("\n")[2] === "verified: readback-match" &&
+      !existsSync(path.join(projJc, "loop", folderJc, "counter.json")),
+    JSON.stringify(outC.split("\n")));
+  cleanupJc();
+}
+{
+  // (J-d) wrong-looprun counter.json -> byte-unchanged (the append still OK).
+  const projJd = path.join(ROOT, "wsJd");
+  const folderJd = "autorun-2026-01-08_00-08";
+  const counterJd = path.join(projJd, "loop", folderJd, "counter.json");
+  mkdirSync(path.join(projJd, "loop", folderJd), { recursive: true });
+  const wrongJd = JSON.stringify({ looprun: "autorun-2026-01-09_00-09", n: 3 });
+  writeFileSync(counterJd, wrongJd, "utf-8");
+  const cleanupJd = await plugin.setup(makeCtx(projJd));
+  const outD = await outOf({ status: "info", content: "wrong looprun probe", role: "planner-40" }, {});
+  chk("(J-d) wrong-looprun counter.json: byte-unchanged + append OK",
+    readFileSync(counterJd, "utf-8") === wrongJd && outD.split("\n")[2] === "verified: readback-match",
+    readFileSync(counterJd, "utf-8"));
+  cleanupJd();
+}
+{
+  // (J-e) unparseable counter.json -> append OK, file byte-unchanged (fail-closed).
+  const projJe = path.join(ROOT, "wsJe");
+  const folderJe = "autorun-2026-01-10_00-10";
+  const counterJe = path.join(projJe, "loop", folderJe, "counter.json");
+  mkdirSync(path.join(projJe, "loop", folderJe), { recursive: true });
+  const badJe = "{not json";
+  writeFileSync(counterJe, badJe, "utf-8");
+  const cleanupJe = await plugin.setup(makeCtx(projJe));
+  const outE = await outOf({ status: "info", content: "unparseable probe", role: "planner-41" }, {});
+  chk("(J-e) unparseable counter.json: byte-unchanged + append OK (readback-match)",
+    readFileSync(counterJe, "utf-8") === badJe && outE.split("\n")[2] === "verified: readback-match",
+    readFileSync(counterJe, "utf-8"));
+  cleanupJe();
 }
 
 // ------------------------------------------------------------------ I cleanup

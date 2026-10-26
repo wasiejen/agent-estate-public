@@ -323,6 +323,20 @@ const ROOT4 = path.join(SCRATCH, "fx4");
   const lp = sectionBody(await digest4(), "loop");
   chk("(28) FX4 loop PRESENT form byte-exact `loop=autorun-X ITER=7 log=loop/autorun-X/loop_log.md`",
     lp?.length === 1 && lp[0] === "loop=autorun-X ITER=7 log=loop/autorun-X/loop_log.md", JSON.stringify(lp));
+  // #171 (2026-10-26, ROUND counter): the digest ROUND/MAINT legs + the
+  // legacy fail-close (non-integer round → the OLD byte-exact line).
+  w(ROOT4, "loop/autorun-X/counter.json", '{"looprun":"autorun-X","n":7,"round":9}');
+  const lpR = sectionBody(await digest4(), "loop");
+  chk("(28b) #171 FX4 round=9 → byte-exact `loop=autorun-X ITER=7 ROUND=9 log=loop/autorun-X/loop_log.md`",
+    lpR?.length === 1 && lpR[0] === "loop=autorun-X ITER=7 ROUND=9 log=loop/autorun-X/loop_log.md", JSON.stringify(lpR));
+  w(ROOT4, "loop/autorun-X/counter.json", '{"looprun":"autorun-X","n":10,"round":10}');
+  const lpM = sectionBody(await digest4(), "loop");
+  chk("(28c) #171 FX4 round=10 → ` MAINT=1` rides the line (every 5th round)",
+    lpM?.length === 1 && lpM[0] === "loop=autorun-X ITER=10 ROUND=10 MAINT=1 log=loop/autorun-X/loop_log.md", JSON.stringify(lpM));
+  w(ROOT4, "loop/autorun-X/counter.json", '{"looprun":"autorun-X","n":7,"round":"nine"}');
+  const lpB = sectionBody(await digest4(), "loop");
+  chk("(28d) #171 FX4 non-integer round → the OLD byte-exact line (fail-closed, no ROUND token)",
+    lpB?.length === 1 && lpB[0] === "loop=autorun-X ITER=7 log=loop/autorun-X/loop_log.md", JSON.stringify(lpB));
   w(ROOT4, "loop/autorun-X/counter.json", '{"looprun":"autorun-Y","n":7}');
   const mismatch = sectionBody(await digest4(), "loop");
   rmSync(path.join(ROOT4, "loop", "autorun-X", "counter.json"), { force: true });

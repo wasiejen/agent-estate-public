@@ -105,13 +105,17 @@ const todoSection = (root: string): string[] => {
 // `## loop` — the current looprun (spec #155): the `autorun-*` subdirectory of
 // `<root>/loop/` (exactly one → it; several → the most-recently-modified, the
 // same resolution `loop_log` uses), and its `counter.json`
-// (`{"looprun": "<folder>", "n": <int>}`, written by auto_resume at spawn):
-// present form `loop=<folder> ITER=<n> log=loop/<folder>/loop_log.md`. ZERO
-// folders, an unreadable counter, a non-integer `n`, or a `looprun` field that
-// mismatches the folder name → the empty form `no-looprun`. NEVER throws
-// (fail-closed into the empty form). The folder locate + counter READ go
-// through the ONE read-only helper `../plugins/scripts/loop_root.mjs`
-// (#164, 2026-10-26 — no gauge import; the looprun/n validation stays HERE).
+// (`{"looprun": "<folder>", "n": <int>}` — plus the TODO #171 `round` key,
+// written by auto_resume at spawn and by the compact verify leg): present
+// form `loop=<folder> ITER=<n> log=loop/<folder>/loop_log.md`, and with a
+// readable integer `round` the ` ROUND=<r>` token rides AFTER `ITER=<n>`
+// (` MAINT=1` on every 5th round); legacy counters (no `round`) keep the old
+// byte-exact line. ZERO folders, an unreadable counter, a non-integer `n`, or
+// a `looprun` field that mismatches the folder name → the empty form
+// `no-looprun`. NEVER throws (fail-closed into the empty form). The folder
+// locate + counter READ go through the ONE read-only helper
+// `../plugins/scripts/loop_root.mjs` (#164, 2026-10-26 — no gauge import;
+// the looprun/n validation stays HERE).
 const loopSection = (root: string): string[] => {
   try {
     const loopRoot = path.join(root, "loop")
@@ -120,7 +124,14 @@ const loopSection = (root: string): string[] => {
     const counter = readLoopCounter(loopRoot, folder)
     if (counter === null) return ["no-looprun"]
     if (counter.looprun !== folder || typeof counter.n !== "number" || !Number.isInteger(counter.n)) return ["no-looprun"]
-    return [`loop=${folder} ITER=${counter.n} log=loop/${folder}/loop_log.md`]
+    // #171 (2026-10-26): the ROUND token (+ MAINT=1 every 5th round) rides
+    // only on a readable INTEGER round — a legacy/absent/non-integer `round`
+    // keeps the pre-#171 line byte-exact (fail-closed).
+    const roundToken =
+      typeof counter.round === "number" && Number.isInteger(counter.round)
+        ? ` ROUND=${counter.round}${counter.round % 5 === 0 ? " MAINT=1" : ""}`
+        : ""
+    return [`loop=${folder} ITER=${counter.n}${roundToken} log=loop/${folder}/loop_log.md`]
   } catch {
     return ["no-looprun"]
   }
@@ -250,7 +261,7 @@ const buildDigest = (root: string): string => {
 }
 
 export default tool({
-  description: `The planner's init digest — the 6–8-call session-start sequence as ONE capped, deterministic read (no interpretation). Sections IN ORDER: \`## git\` (git log --oneline -20), \`## nap\` (the first 40 lines of agent/handover/handover_planner.md + a read-more steer when truncated), \`## todo\` (the TODO.md open-entry header count + the LAST 15 headers), \`## loop\` (the current looprun: \`loop=<folder> ITER=<n> log=loop/<folder>/loop_log.md\`, or \`no-looprun\` when there is no autorun-* folder or no readable counter), \`## maintainer\` (the maintainer/inbox_planner/ .md files — first line each, max 5 — + priority.md's first 10 lines), \`## proposals\` (the proposals/ root .md filenames), \`## markers\` (the ready-made marker sweep, capped at 20 lines). Empty sections read \`(none)\`; the whole digest is hard-capped at 150 lines (the LAST section's lines truncate first, all seven headers + their steers are preserved). PLANNER ONLY — a non-planner agent gets the one-line refusal instead of the digest. Fire at session start; follow up with full reads only where a section needs a decision.`,
+  description: `The planner's init digest — the 6–8-call session-start sequence as ONE capped, deterministic read (no interpretation). Sections IN ORDER: \`## git\` (git log --oneline -20), \`## nap\` (the first 40 lines of agent/handover/handover_planner.md + a read-more steer when truncated), \`## todo\` (the TODO.md open-entry header count + the LAST 15 headers), \`## loop\` (the current looprun: \`loop=<folder> ITER=<n> log=loop/<folder>/loop_log.md\`, + \` ROUND=<r>\` — with \` MAINT=1\` on every 5th round — when the counter carries an integer \`round\` (#171), or \`no-looprun\` when there is no autorun-* folder or no readable counter), \`## maintainer\` (the maintainer/inbox_planner/ .md files — first line each, max 5 — + priority.md's first 10 lines), \`## proposals\` (the proposals/ root .md filenames), \`## markers\` (the ready-made marker sweep, capped at 20 lines). Empty sections read \`(none)\`; the whole digest is hard-capped at 150 lines (the LAST section's lines truncate first, all seven headers + their steers are preserved). PLANNER ONLY — a non-planner agent gets the one-line refusal instead of the digest. Fire at session start; follow up with full reads only where a section needs a decision.`,
   args: {},
 
   execute: async (_args: any, context: any) => {

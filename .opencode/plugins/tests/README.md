@@ -256,24 +256,31 @@ final line: `SMOKE: ALL PASS`.
 
     bun run state_snapshot.smoke.mjs
 
-24 checks against a mock `ctx` (no opencode process): the loader shape `{id:'
+33 checks against a mock `ctx` (no opencode process): the loader shape `{id:'
 state_snapshot', setup}` + the `tool.transform`/`editor.add` registration (a
 NO-argument object input, string output, teardown disposes the registration,
-NO hooks) and the digest byte-shape carried from v1 over three scratchpad FIXTURE
+NO hooks) and the digest byte-shape carried from v1 over FOUR scratchpad FIXTURE
 repo trees (per-fixture `setup` retargets the repo-root carrier; NEVER the live
-repo/loop folder/DB): the six-section order, the fixture `git init` commit
+repo/loop folder/DB): the seven-section order (`## loop` AFTER `## todo`), the
+fixture `git init` commit
 under `## git`, the todo header count + LAST-15 `#<id> — <60-char truncation>`
-forms (`## Notes` NOT counted), the maintainer inbox first-lines max-5 + `… (+1
+forms (`## Notes` NOT counted), the `## loop` section pinned in BOTH forms
+(spec #155: FX1/FX2 have no `autorun-*` dir → `no-looprun`; FX4's
+`loop/autorun-X/counter.json` → byte-exact `loop=autorun-X ITER=7
+log=loop/autorun-X/loop_log.md`, and the fail-closes — a `looprun` MISMATCH, a
+missing counter, a non-integer `n`, an EMPTY `loop/` dir → `no-looprun`),
+the maintainer inbox first-lines max-5 + `… (+1
 more)` + priority.md's first 10, the sorted proposals root filenames (subfolder
 + .txt excluded), the READY-MADE marker sweep run via bash carrying the fixture
 `--now` line with the `/done/`-filtered line ABSENT, the READ-ONLY pin (the
-fixture tree byte-identical around a digest run) and the 46-line FX1 digest
+fixture tree byte-identical around a digest run) and the 49-line FX1 digest
 under the cap; FX2 pins the EXACT non-planner refusal line, the EMPTY/absent-
 agent soft-gate pass, the fail-closed `(git log failed: …)` / `(nap missing: …)`
 lines, the `0 open-entry headers` count line and the `(none)` / `(priority.md
-missing)` empties; FX3 pins the 150-line hard cap (all six headers preserved,
+missing)` empties; FX3 pins the 150-line hard cap (a 158-line digest, all seven
+headers preserved,
 the `… (+20 more)` steer SURVIVES, the LAST section's content lines trimmed
-from the end backwards — markers keeps 14 of 20, proposals INTACT at 100). The child's
+from the end backwards — markers keeps 12 of 20, proposals INTACT at 100). The child's
 `fatal: not a git repository` stderr noise on the non-repo fixtures is expected.
 Fixtures ride the scratchpad `home/AppData/Local/Temp/opencode/
 state-snapshot-smoke-v2`. Expected final line: `SMOKE: ALL PASS`.

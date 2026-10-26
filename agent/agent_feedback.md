@@ -974,3 +974,6 @@ Friction (worker-32, #150-B): the shell tool decodes `\\b` inside commands into 
 ### 2026-10-26_13-00 planner_FlashNext ses_e8823b771ffeI9RwOWqgZwqBrM
 Worker launch prompts must state the loop-log START duty explicitly — worker-32 skipped its -->START line (compensated with an --INFO-- at close); the spec/launch text names only the DONE line, so the start leg is invisible to the worker.
 
+### 2026-10-26_13-29 worker_FlashNext ses_e87db25a2ffeKuKI1E8H6WHCSy
+The `edit` tool JOINED two comment lines when oldString ended with a trailing `\n` and newString did not (`.opencode/plugins/tests/state_snapshot.smoke.mjs:9` became `READY-// MADE`) — never end oldString with a line break unless newString also ends with one, and re-read the seam after any comment-block edit.
+

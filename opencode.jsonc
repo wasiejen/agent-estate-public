@@ -102,8 +102,6 @@
       "models": {
         "gyro-gyro-m": {
           "name": "Qwen3.8-Flash-Next GyroM",
-          "tool_call": true,
-          "reasoning": true,
           "limit": {
             "context": 262144,
             "input": 258048,

@@ -38,8 +38,8 @@
 //   - tail index = the message whose id === the part's `tail_start_id`;
 //   - the host guard (:568): `tailIndex >= 0 && tailIndex < compactionIndex
 //     && summaryIndex > compactionIndex` — guard fail → the FULL
-//     un-reordered history is sent (overflow; the context_recovery plugin
-//     backstop fires — #93).
+//     un-reordered history is sent (overflow — the #93 v1 context_recovery
+//     backstop was RETIRED with #150 unit B: a guard fail just sends the full history).
 //
 // Surface (the tool() form — the shape of submit.ts / ctx_gauge.ts; the
 // host names the tool by FILENAME — no `name` field):

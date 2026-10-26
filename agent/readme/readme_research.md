@@ -2,30 +2,50 @@
 
 Read when researching a topic and producing a comprehensive research doc or proposal.
 
-The lane INVESTIGATES and RECOMMENDS. The maintainer DECIDES. It builds nothing.
-`agent/research/README.md` binds the folder rules. `agent/readme/readme_task_spec.md`
-is the shape reference for the phase drafts. The intent source is
-`maintainer/ideas/ideas.md` lines 154-163 (read-only).
+The lane INVESTIGATES and RECOMMENDS. The maintainer DECIDES. It builds
+nothing. `agent/research/README.md` binds the folder rules.
+`agent/readme/readme_task_spec.md` is the shape reference for the phase
+drafts. The intent source is `maintainer/ideas/ideas.md` lines 154-163
+(read-only).
 
 ## When this lane runs
 - The maintainer asks for an analysis of an idea: `maintainer/ideas/ideas.md`, or a file under `maintainer/inbox_*`.
 - A delegable `TODO.md` entry asks for research (e.g. #173, #174).
 - An idle-lane planner pass triages ideas — precedent: `agent/research/2026-10-26_ideas-disposition-map.md`.
-- Skip the lane when the disposition map already answers the topic, or the change is a small local fix.
+- Skip the lane when the disposition map already answers the topic. Skip it
+  too when the change is a small local fix.
 
 ## Phases
 
 Run the phases in order. Commit after each one — an interrupted session loses at most one phase.
 
-1. **Intent capture.** Record the topic, the maintainer's words verbatim, and the one question the doc answers. Name the source file and line range.
+1. **Intent capture.** Record the topic. Record the maintainer's words
+   verbatim. Record the one question the doc answers. Name the source file
+   and line range.
 2. **Check the record — no re-deriving.** Grep before you read:
    - `agent/research/2026-10-26_ideas-disposition-map.md` — read your topic's row first.
    - `agent/research/`, `agent/knowledge/`, `TODO.md` — grep the topic keywords, bounded (`head -30`).
    - A committed doc answers the question → cite it and research only the delta.
-3. **Viability check in THIS build.** List what already exists: plugins, tools, prompts, pins, prior rulings. Cite each claim by full repo-relative path. Mark a claim verified only after you read the file; state what you did not verify.
-4. **Bounded external search.** Fetch at most three sources. Distill each source immediately — a fetched page consumes the window. Check the gauge first (`ctx_gauge` tool, or `node .opencode/plugins/scripts/peek.mjs`). End the phase at `REM ≤ 20k` or ≥ 90% used (`AGENTS.md` §Context Budget). Keep 10–15k for the write-up. Never re-fetch a distilled source; record its URL and finding instead.
-5. **Comprehensive overview doc.** Write one dated doc per `agent/research/README.md`: problem framing with short citations, reference design(s), options, cost (files, sessions, context), expected benefit, risks, a ranked recommendation, and a priority order. Start with `Session_ID:` and `Agent:` header lines. Build nothing.
-6. **Phase drafts.** Split an approved build into ordered stages. Give each stage one spec, sized and shaped by `agent/readme/readme_task_spec.md`: one goal, measurable DoD, verified facts, a DO-NOT-touch list, under 100 lines. Store the staged specs in the topic folder; copy the launchable one to `agent/handover/handover_task.md`.
+3. **Viability check in THIS build.** List what already exists: plugins,
+   tools, prompts, pins, prior rulings. Cite each claim by full
+   repo-relative path. Read the file before marking a claim verified. State
+   what you did not verify.
+4. **Bounded external search.** Fetch at most three sources. Distill each
+   source immediately — a fetched page consumes the window. Check the gauge
+   first (`ctx_gauge` tool, or `node .opencode/plugins/scripts/peek.mjs`).
+   End the phase at `REM ≤ 20k` or ≥ 90% used (`AGENTS.md` §Context Budget).
+   Keep 10–15k for the write-up. Never re-fetch a distilled source; record
+   its URL and finding instead.
+5. **Comprehensive overview doc.** Write one dated doc per
+   `agent/research/README.md`. Cover: problem framing with short citations,
+   reference design(s), options, cost (files, sessions, context), expected
+   benefit, risks, a ranked recommendation, and a priority order. Start with
+   `Session_ID:` and `Agent:` header lines. Build nothing.
+6. **Phase drafts.** Split an approved build into ordered stages. Give each
+   stage one spec, sized and shaped by `agent/readme/readme_task_spec.md`:
+   one goal, measurable DoD, verified facts, a DO-NOT-touch list, under 100
+   lines. Store the staged specs in the topic folder. Copy the launchable
+   one to `agent/handover/handover_task.md`.
 
 ## History preservation — the topic folder
 
@@ -42,7 +62,8 @@ A topic that grows past one doc gets `agent/research/<topic>/`.
 - A procedure or convention → `agent/readme/readme_*.md`. Never inside `agent/research/`.
 - A verified, actionable fact → `submit` with the `knowledge` arg; the curator moves it into `agent/knowledge/`.
 - A loose finding → `submit` with the `todo` arg. A maintainer decision → a `TODO.md` entry.
-- The short rule agents must follow belongs in `AGENTS.md` (maintainer paste); the folder keeps the detailed basis.
+- The short rule agents must follow belongs in `AGENTS.md` (maintainer paste).
+  The folder keeps the detailed basis.
 
 ## Bounded reads
 - Never read a large artifact whole. Take the heading skeleton (`grep -n "^#" | head -40`) and the head (`head -40`), then read only the cited sections.

@@ -959,3 +959,6 @@ The direct block_transfer tool call did NOT dispatch in this host — it printed
 ### 2026-10-26_11-16 worker_FlashNext ses_e884f441cffek2Wm7DED5ukb74
 edit tool dropped the required `path` key twice on ~1.5k-char newString payloads (error: 'path: Missing key', retry identical shorter payload succeeded) — the failure is payload-size-triggered, so long TODO/handover rewrites need splitting into short hunks or block_transfer WRITE.
 
+### 2026-10-26_11-19 planner_FlashNext ses_e8a690972ffem1DSIF8R4gSJ66
+The #156 DoD said 'all 12 smokes green' but the suite has 11 `*.smoke.mjs` files plus `smoke.mjs` (no `.smoke` suffix), and `context_trim_v2` was already red for an unrelated reason — the worker had to guess the file list and the red's ownership. Spec DoDs should enumerate the exact runnable file list and name any KNOWN pre-existing red with its owner.
+

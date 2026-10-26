@@ -1,38 +1,41 @@
 # repo_opencode — opencode host specifics (need-to-know index)
-Keep this an INDEX: short facts + pointers, not copies. The details live in
-`agent/knowledge/` (`opencode-plugins/` deep-dives + the area
-files) — read those on need-to-know.
+
+Keep this file an INDEX: short facts plus pointers, no copies.
+Details live under `agent/knowledge/`: the `opencode-plugins/` deep-dives
+plus the area files. Read those on need-to-know.
 
 ## Host paths
 - Log: `home\.local\share\opencode\log\opencode.log`
 - npm install (opencode CLI): `home\AppData\Roaming\npm`
-- SDK type defs (installed): `.opencode\node_modules\@opencode-ai\sdk\dist\gen\`
-  (types.gen.d.ts = the `Event` union + the error classes; the plugin hooks
-  are in `@opencode-ai/plugin` dist/index.d.ts — `event?: (input: { event:
-  Event }) => Promise<void>`, notification-only).
-- Live config: `opencode.jsonc` (repo root) — the agent roster, permissions,
-  the compaction defaults block. LIVE-edited by the maintainer: verify the
-  roster before a delegation; never stage/flag his live files.
+- SDK type defs (installed): `.opencode\node_modules\@opencode-ai\sdk\dist\gen\`.
+  types.gen.d.ts = the `Event` union + the error classes. Plugin hooks live
+  in `@opencode-ai/plugin` dist/index.d.ts; they are notification-only:
+  `event?: (input: {
+  Event }) => Promise<void>`.
+- Live config: `opencode.jsonc` (repo root). It holds the agent roster,
+  permissions, and the compaction defaults block. The maintainer LIVE-edits
+  it. Verify the roster before a delegation. Never stage or flag his live files.
 
 ## Plugins (ours)
-- Auto-loaded from `.opencode/plugins/*.ts` — there is NO registration key in
-  opencode.jsonc (measured: zero `plugin` hits in the file); the folder IS
-  the registration (a file move in/out of `deactivated/` = activate/deactivate).
-- Smokes: `.opencode/plugins/tests/`; the probe:
+- The host auto-loads `.opencode/plugins/*.ts`. opencode.jsonc has NO
+  registration key — measured: zero `plugin` hits in the file. The folder IS
+  the registration: moving a file in or out of `deactivated/` activates or
+  deactivates it.
+- Smokes: `.opencode/plugins/tests/`. The probe:
   `.opencode/plugins/probes/handover_probe.mjs`.
 
 ## Behavior index (pointers, need-to-know)
-- Plugin architecture + the v1 SDK shapes (the `{ data }` unwrap, the
-  `summarize` vs `compact` client surface, the `Event` union):
-  `knowledge/opencode-plugins/` (surface report + deep-dives A/B/C) +
+- Plugin architecture + v1 SDK shapes: the `{ data }` unwrap, the
+  `summarize` vs `compact` client surface, the `Event` union. Deep-dives:
+  `knowledge/opencode-plugins/` (surface report + A/B/C) +
   `knowledge_tools.md`.
-- Compaction mechanics (budgets, keep, dumps, the auto-resume interplay):
-  AGENTS.md `# Compaction Guidelines` +
+- Compaction mechanics: budgets, keep, dumps, the auto-resume interplay.
+  Docs: AGENTS.md `# Compaction Guidelines` +
   `maintainer/draft/compaction_guide/full_guide.md`.
-- auto_resume internals (units, scope, the spawn/restart path): TODO
+- auto_resume internals: units, scope, the spawn/restart path. Docs: TODO
   #75/#85/#90/#91 + `knowledge/opencode-plugins/auto-resume-*`.
-- The single backend slot: NEVER launch raw inference-server requests — all
-  model traffic via opencode sessions (`knowledge_tools.md`).
+- The single backend slot: NEVER launch raw inference-server requests.
+  Route all model traffic through opencode sessions (`knowledge_tools.md`).
 
 ## Onlione Source Code of Opencode (as reference - may be not the same version as host install)
-- `https://github.com/anomalyco/opencode/tree/dev/packages/opencode/src/session`
+- Reference source of the session engine: `https://github.com/anomalyco/opencode/tree/dev/packages/opencode/src/session`

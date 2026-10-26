@@ -290,6 +290,33 @@ await sleep(20);
 chk("S4 the injection's busy is NOT a fresh cycle (#80 cap semantics): `arm= sid=ses_r_resume injected`",
   has("arm= sid=ses_r_resume injected"));
 
+// #167: the cause-sensitive continue text — the SAME predicate as the #109
+// clause-(4) skip. (a) a NEW ctx.log COMPACT line for the watched sid (the
+// #98 re-arm tail stamps `lastCompactAt` in the SAME tick) -> the compaction
+// flavor; (b) no COMPACT line -> the plain flavor.
+await armOnScoped("ses_r_cause_c");
+writeFileSync(CTXLOG, "2026-10-26_00-00 [smoke-model] COMPACT ses_r_cause_c keep=12m tok=40000 budget #167 cause fixture\n", "utf8");
+pushEvent({ type: "session.status", data: { sessionID: "ses_r_cause_c", status: { type: "idle" } } });
+await sleep(20);
+await mod.runTick();
+const compactSend = PROMPT.calls.find((c) => c.sessionID === "ses_r_cause_c");
+chk("S4 #167 (a) a fresh COMPACT-line watch state -> `recovery= … cause= compact` + the compaction-flavored text (the readme pointer)",
+  has("recovery= sid=ses_r_cause_c attempt=1 cause= compact") &&
+  compactSend?.delivery === "queue" && compactSend !== undefined &&
+  compactSend.text.startsWith(`[auto-resume unit 4 — planner liveness watchdog, session ses_r_cause_c]`) &&
+  compactSend.text.includes("readme_post_compaction") && compactSend.text.includes("cause= compact"));
+
+await armOnScoped("ses_r_cause_i");
+pushEvent({ type: "session.status", data: { sessionID: "ses_r_cause_i", status: { type: "idle" } } });
+await sleep(20);
+await mod.runTick();
+const idleSend = PROMPT.calls.find((c) => c.sessionID === "ses_r_cause_i");
+chk("S4 #167 (b) a no-compact watch state -> `recovery= … cause= idle` + the plain text (NO compaction / readme_post_compaction words)",
+  has("recovery= sid=ses_r_cause_i attempt=1 cause= idle") &&
+  idleSend?.delivery === "queue" && idleSend !== undefined &&
+  idleSend.text.startsWith(`[auto-resume unit 4 — planner liveness watchdog, session ses_r_cause_i]`) &&
+  !idleSend.text.includes("compaction") && !idleSend.text.includes("readme_post_compaction"));
+
 // the no-line recovery budget -> the restart branch
 await armOnScoped("ses_r_noline");
 pushEvent({ type: "session.model.selected", data: { sessionID: "ses_r_noline", model: { id: "smoke-model-8K", providerID: "llama-swap" } } });

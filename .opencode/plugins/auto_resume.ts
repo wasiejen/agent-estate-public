@@ -688,12 +688,31 @@ async function checkSpawnTrigger(): Promise<void> {
 
 // ------------------------------------------------------------------ (UNIT 4) texts + budget
 
+// #167: the OBSERVED cause of the idle-without-action-line cycle. The SAME
+// ordering predicate as the #109 clause-(4) skip in `limitStopCheck`: the LAST
+// observed event for this sid is a ctx.log COMPACT line (the #98 re-arm tail
+// stamps `lastCompactAt`; a step-end stamps `lastFinishAt`).
+function compactCause(w: Watch): boolean {
+  return w.lastCompactAt != null && (w.lastFinishAt == null || w.lastCompactAt >= w.lastFinishAt);
+}
+
+// #167: TWO text branches — the compaction-flavored pointer ONLY when a
+// compaction is the observed cause; a plain idle never claims one and never
+// mandates the post-compaction readme.
 function continueText(sid: string): string {
+  const w = watches.get(sid);
+  if (w && compactCause(w)) {
+    return (
+      `[auto-resume unit 4 — planner liveness watchdog, session ${sid}] Your last turn ended after a compaction ` +
+      "(cause= compact). Follow agent/readme/readme_post_compaction.md — " +
+      "re-read the named head files, rebuild from the committed state (git log + NAP + TODO), and continue the current " +
+      "unit or close it with an action: line."
+    );
+  }
   return (
     `[auto-resume unit 4 — planner liveness watchdog, session ${sid}] Your last turn ended without a recognized action: line ` +
-    "(compaction, sudden stop, or protocol gap). Follow agent/readme/readme_post_compaction.md — " +
-    "re-read the named head files, rebuild from the committed state (git log + NAP + TODO), and continue the current " +
-    "unit or close it with an action: line."
+    "(cause= idle — a plain stop or protocol gap). Rebuild from the committed state (git log + NAP + TODO), and continue " +
+    "the current unit or close it with an action: line."
   );
 }
 
@@ -914,7 +933,9 @@ async function routeScopedIdle(sid: string, w: Watch): Promise<void> {
   }
   if (action === "resume" || (action === null && w.recoveryCount < MAX_RECOVERY_ATTEMPTS)) {
     w.recoveryCount += 1;
-    log(`recovery= sid=${sid} attempt=${w.recoveryCount}`);
+    // #167: `cause=` names which event the watchdog OBSERVED last — the same
+    // predicate `continueText` branches on.
+    log(`recovery= sid=${sid} attempt=${w.recoveryCount} cause= ${compactCause(w) ? "compact" : "idle"}`);
     sending.add(sid);
     try {
       const api = sessionApi;

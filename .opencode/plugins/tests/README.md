@@ -359,7 +359,7 @@ final line: `SMOKE: ALL PASS`.
 
     bun run auto_resume.smoke.mjs
 
-55 checks against a mock `ctx` (no opencode process; NO backend request; fixtures
+57 checks against a mock `ctx` (no opencode process; NO backend request; fixtures
 ride the scratchpad `home/AppData/Local/Temp/opencode/auto-resume-
 smoke-v2`, the LIVE temp estate NEVER touched): the loader shape `{id:'auto_resume',
 setup}` + the `context`-hook registration + the exported smoke levers
@@ -376,7 +376,10 @@ QUEUED `delivery:"queue"` prompt, the `loop/<folder>/counter.json` n = max
 (candidate, loop-log `planner-N` + 1) and the `ident=` bit, plus every failure
 lane (`create missing` / rejection / `create no id` / `prompt missing` /
 rejection); UNIT 4 — `route= stop|ask` with NO send, `action: resume` -> ONE
-QUEUED CONTINUE with the locked text, the #80 `arm= … injected` busy, the
+QUEUED CONTINUE with the locked text + the #167 cause-sensitive branches (a fresh
+ctx.log COMPACT line -> `recovery= … cause= compact` + the compaction flavor with the
+`readme_post_compaction.md` pointer; a no-compact state -> `cause= idle` + the plain
+text with NO compaction words), the #80 `arm= … injected` busy, the
 recovery budget (attempt 1, 2, then the RESTART route), the `spawn= … agent=
 model= ident=` line + `deactivate=`, the STICKY `skip= deactivated`, the
 `send-fail=` dead-mark + `skip= dead`; #159 — the ARM SOURCE the v2 host

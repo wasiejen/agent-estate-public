@@ -986,3 +986,6 @@ unit-4 continue fires repeatedly on a DIRECT-mode session waiting for the mainta
 ### 2026-10-26_15-47 planner_FlashNext ses_e8760784cffe5MRO6saUI6gaz8
 block_transfer APPEND/CUT chains: the description's APPEND target is the BUFFER only (file lands only via PASTE) — I assumed APPEND wrote the file and mis-assembled the NAP section chain (3 repair calls); a one-line 'writes the buffer, not the file' reminder in the WHEN section would prevent it.
 
+
+### 2026-10-26_17-18 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+sesdata.cjs returns `SESSION: undefined / message count: 0` for a v2 sessionID with NO v1-vs-v2 hint — it silently misleads any v2 retention/kept-message measurement (cost one wasted probe in the #172 pass); dump_session_v2.mjs worked immediately. Suggest: sesdata.cjs print a "no v1 row — try dump_session_v2.mjs" line on zero-hit sessions, or probe both schemas.

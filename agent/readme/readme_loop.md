@@ -8,16 +8,22 @@ NAP — not here.
 - N is 1-based. It counts across the whole looprun; it does not reset per
   planner session. The launch message gives N at its top.
 - **The machine-side counter (2026-10-05, approved
-  2026-10-01_loop-iteration-counter):** `loop/<folder>/counter.json`
-  (`{"looprun": <folder>, "n": N}`) is the AUTHORITATIVE iteration state.
+  2026-10-01_loop-iteration-counter; `round` key added by #171, 2026-10-26):**
+  `loop/<folder>/counter.json`
+  (`{"looprun": <folder>, "n": N, "round": R}`) is the AUTHORITATIVE
+  iteration state. `n` counts SPAWNS (the ` ITER=<n>` + title leg); `round`
+  counts spawns PLUS verified compactions (`(round ?? n ?? 0) + 1`).
   The auto_resume plugin writes it at every autorun spawn — a dead session
   can never leave it behind. Candidate = counter.n + 1; an absent or
   foreign-looprun counter gives 1. N_final = max(candidate, log-max + 1),
   counted against the loop log's `planner-<N>` lines. The launch message
   carries the explicit N ("your iteration number is <N>"). The bounded log
-  grep stays the FALLBACK verification only. The injected `ctx:` line
-  carries ` ITER=<N> <folder>` while a counter exists for the current loop
-  folder.
+  grep stays the FALLBACK verification only. The ` ITER=<n> ROUND=<r>`
+  tokens ride the `state_snapshot` digest's `## loop` line
+  (`loop=<folder> ITER=<n> ROUND=<r> log=…`) — NOT the injected `ctx:` line
+  (the maintainer's no-waste ruling keeps ITER out of the per-message
+  append). The `ctx_gauge` tool line carries ` ROUND=<r> MAINT=1` on every
+  5th round only (#171 maintenance clock).
 - **Counter mismatch (loop-signals Part 2, approved 2026-09-15):** the
   machine-side max() above supersedes the planner-side detection for
   plugin-spawned sessions. If a launch N is ever smaller than the last
@@ -67,11 +73,11 @@ NAP — not here.
   `<loop-folder> planner-<N>` (the #89 spawn ident — live-verified
   2026-09-25: the spawned planner reads its own number from the title,
   no loop-log read needed). Since 2026-10-05 the PRIMARY sources are the
-  launch message's explicit N + the ` ITER=<N> <folder>` suffix on the
-  injected `ctx:` line (the counter file is the machine source of truth —
-  see §Iteration semantics). Verify or recover the number otherwise with a
-  BOUNDED grep — never a full read (the log is 30k+ chars of dense
-  numbers): `grep -oE "planner-[0-9]+" <loop folder>/loop_log.md |
+  launch message's explicit N + the ` ITER=<n> <folder>` token on the
+  `state_snapshot` digest's `## loop` line (the counter file is the machine
+  source of truth — see §Iteration semantics). Verify or recover the number
+  otherwise with a BOUNDED grep — never a full read (the log is 30k+ chars
+  of dense numbers): `grep -oE "planner-[0-9]+" <loop folder>/loop_log.md |
   sort -u -V | tail -1` (before your own START line has landed: +1 =
   yours).
 
@@ -119,8 +125,10 @@ NAP — not here.
       find the session); content = the task oneliner.
     - `DONE<---` — every agent WITH loop-folder write access (planner,
       worker) writes one on task completion. Content = the final gauge
-      readout `<CTX>%/<REM>K` — verbatim from the gauge command, never
-      guessed. (The explorer's completion normally rides the planner's
+      readout, verbatim from the gauge tool or command and never guessed:
+      the full `CTX=n (p%) REM=m | N compactions left` line (the usual form
+      live today) or the condensed `<CTX>%/<REM>K` form. (The explorer's
+      completion normally rides the planner's
       `-RETURN-` line — under the CURRENT pre-tightening permissions the
       explorer ALSO has loop-folder write access and writes its own DONE
       line; the maintainer's write-access tightening is pending, #105 (e) —
@@ -159,9 +167,13 @@ NAP — not here.
   retired `loop_log.md` at `.opencode/` level) no longer exists.
 
 ## Maintenance unit (counter-triggered, planner-run — GO 2026-09-25)
-- Trigger: every 5th iteration (iteration N of the current looprun, N % 5 ==
-  0), run at session START — after the state rebuild (git log / NAP / TODO)
-  and BEFORE task selection. Never idle-triggered (idle detection is the
+- Trigger: every 5th ROUND — `round % 5 == 0` in `counter.json` (#171,
+  2026-10-26: rounds count spawns PLUS verified compactions, so a session
+  that survives by compaction still advances the clock). The token surfaces
+  as `ROUND=<r> MAINT=1` on the `state_snapshot` digest's `## loop` line and
+  on the `ctx_gauge` tool line (that one only on %5 rounds). Run the pass at
+  session START — after the state rebuild (git log / NAP / TODO) and BEFORE
+  task selection. Never idle-triggered (idle detection is the
   ghost/unit-4 pathology zone) and not via the priority list (that channel
   is for urgent items).
 - Scope (bounded, ~12 tool calls total):

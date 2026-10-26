@@ -74,7 +74,7 @@ A topic that grows past one doc gets `agent/research/<topic>/`.
 
 Read the minimum in this order. Every path is repo-relative.
 
-1. `agent/research/fuzzy-numword/README.md` (21 lines) — the folder convention: decision-record canonical, staged `spec_R*.md` per stage, drafting record pointed at and not copied.
+1. `agent/research/fuzzy-numword/README.md` (23 lines) — the folder convention: decision-record canonical, staged `spec_R*.md` per stage, drafting record pointed at and not copied.
 2. `agent/research/fuzzy-numword/drafting/2026-09-16_fuzzy-and-numword-tool-reliability.md` (564) — the seed. Heading skeleton plus the first 50 lines. Shows the shape: measured problem framing, feasibility marked "verified — do not re-derive", risks and non-recommendations, ranked options 5.1 prompt-rule → 5.2 scriptlet → 5.3 plugin, a one-shot live-host verification plan, a machine-checked source appendix, and a dated verdict appended at the end.
 3. `agent/research/fuzzy-numword/drafting/2026-09-16_fuzzy-numword-addendum.md` (153) — the maintainer-comment review phase: per-comment rulings and their scope consequences. Head 60 lines.
 4. `agent/research/fuzzy-numword/drafting/FB_2026-09-16_number-w2n-convention.md` (147) — his feedback file, `--comment` lines preserved as his input record. Head 60 lines.

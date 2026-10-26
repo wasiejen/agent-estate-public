@@ -57,13 +57,18 @@
 // request"; core compaction.ts:402 → fromHook :601-612), and the DURABLE
 // compaction message is written by the CORE. The v1 `markerSet` quartet
 // DB-write lane (compact_memory.ts:80 import) has NO v2 counterpart — the
-// biggest deviation of this unit. (b) THE QUEUE LEG: the v1 temp-file store +
-// auto_resume unit-4 resume-relay is NOT ported (auto_resume is order 2, skipped)
-// — relay semantics CHANGE to the native inbox queue: `delivery:"queue"` on
-// `session.prompt` (the 3b nudge precedent), and the delivery lands AFTER
-// VERIFIED SUCCESS (NOT at queue time) so the v1 zombie-guard guarantee is
-// kept: a queued continuation present ⇒ the compaction happened; NO temp-file
-// queue store needed. Rejection/sync-throw → evidence, NEVER fails the tool.
+// biggest deviation of this unit. (b) THE CONTINUATION FILE LEG (#158, 2026-10-26
+// DROP ruling): the native `delivery:"queue"` leg is REMOVED — measured
+// UNRELIABLE (delivered late, can deliver TWICE, uncancellable, unobservable;
+// TODO #158 measurements). The `message` continuation becomes the v1 TEMP FILE
+// again: `.opencode/temp/compact_message_<sid>` (plain UTF-8, OVERWRITTEN on
+// every verified compaction), written AT VERIFIED SUCCESS (NOT at dispatch) so
+// the v1 zombie-guard guarantee stays: a continuation file present ⇒ the
+// compaction happened. It is consumed ONCE at a genuine resume — the
+// auto_resume item-4 relay renames it to `.consumed`; the post-compaction
+// protocol STEP 0 covers the relay-bypassing channels. NO `session.prompt`
+// call for the continuation, EVER. Write failure → evidence, NEVER fails the
+// tool (kind "queue" kept: `file-written` / `file-fail`).
 // (c) KEEP KEYS: the budget file's `keepMessages`/`keepTokens` DO NOT apply
 // to a v2 dispatch (no keep fields on the compact body) — read for AUDITABILITY
 // only, ONE `keep-not-applied` evidence line when either key is present;
@@ -234,7 +239,7 @@ function bumpRound(): void {
 
 // The verified-success handling (v1 order, same helpers): budget INCREMENT
 // THEN the COMPACT line, then the #171 ROUND increment (bumpRound), then the
-// continuation queue (DEVIATION (b): the native queue lands HERE, after
+// continuation FILE (DEVIATION (b): the #158 message file lands HERE, after
 // verification). A FAILURE path increments neither budget NOR round.
 function verifiedSuccess(sid: string, rec: PendingRecord): void {
   recordSuccess(root(), sid, rec.model);
@@ -256,7 +261,7 @@ function verifiedSuccess(sid: string, rec: PendingRecord): void {
       {},
     ),
   );
-  if (rec.queueText !== "") deliverQueue(sid, rec.queueText);
+  if (rec.queueText !== "") writeMessageFile(sid, rec.queueText);
 }
 
 function onVerifyFailure(sid: string, rec: PendingRecord, error: unknown): void {
@@ -316,31 +321,24 @@ function watchEvents(stream: AsyncIterable<unknown>): void {
   })();
 }
 
-// ------------------------------------------------------------------ (3b) the native queue leg
+// ------------------------------------------------------------------ (3b) the continuation FILE leg (#158)
 
-// The continuation message (`message` arg) rides `session.prompt` with
-// `delivery:"queue"` (the 3b nudge-delivery precedent, the inbox channel).
-// FIRE-AND-FORGET: a sync throw or a rejection is evidence-logged (kind
-// "queue"), NEVER a failure of the tool call; a missing `prompt` fn (a probe
-// mock without it) logs `queue-skipped` (v1 discipline).
-function deliverQueue(sid: string, text: string): void {
+// The continuation message (`message` arg) becomes the OBSERVABLE v1 TEMP
+// FILE: `.opencode/temp/compact_message_<sid>` — plain UTF-8, OVERWRITTEN on
+// every verified compaction. NO `session.prompt`, EVER (the #158 DROP ruling:
+// the native queue delivered late, twice, and could not be cancelled). The
+// file is consumed ONCE at a genuine resume: the auto_resume item-4 relay
+// renames it to `.consumed`; protocol STEP 0 covers the other channels; an
+// unconsumed file simply STAYS as readable evidence (#158 DoD — no age
+// sweep). Evidence: kind "queue" (kept) — `file-written` / `file-fail`; a
+// write failure NEVER fails the tool.
+function writeMessageFile(sid: string, text: string): void {
+  const msgPath = join(root(), ".opencode", "temp", `compact_message_${sid}`);
   try {
-    const api = sessionApi;
-    const fn = api?.prompt;
-    if (typeof fn !== "function") {
-      appendLog(buildLine("queue", { session: sid, reason: "queue-skipped" }, {}));
-      return;
-    }
-    const p = fn.call(api, { sessionID: sid, text, delivery: "queue" });
-    appendLog(buildLine("queue", { session: sid, state: "queued", chars: String(text.length) }, {}));
-    void Promise.resolve(p).then(
-      () => undefined,
-      (e: unknown) => {
-        appendLog(buildLine("queue", { session: sid, reason: "delivery-rejected", preview: cap(String((e as { message?: unknown } | undefined)?.message ?? e ?? ""), 120) }, {}));
-      },
-    );
+    writeFileSync(msgPath, text, "utf8");
+    appendLog(buildLine("queue", { session: sid, state: "file-written", chars: String(text.length) }, {}));
   } catch (e) {
-    appendLog(buildLine("queue", { session: sid, reason: "delivery-threw", preview: cap(String((e as { message?: unknown } | undefined)?.message ?? e ?? ""), 120) }, {}));
+    appendLog(buildLine("queue", { session: sid, reason: "file-fail", preview: cap(String((e as { message?: unknown } | undefined)?.message ?? e ?? ""), 120) }, {}));
   }
 }
 
@@ -522,7 +520,7 @@ export function preCompactionDump(rootDir: string, sessionID: string, count: num
 // ------------------------------------------------------------------ (2) the tool surface
 
 const TOOL_DESCRIPTION =
-  "Compacts a session to free context space. Two paths: SELF (sessionID omitted) — the CALLING session is compacted and continues from committed files via the post-compaction protocol; CROSS (explicit sessionID) — a fire-and-forget dispatch: it returns immediately and is NEVER awaited (an await would deadlock the single llama-swap model slot); success is verified ASYNCHRONOUSLY — the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success (the session.compaction.ended event), and a failed dispatch burns NO budget. The budget is per TARGET session, per model — the cap comes from the compact_budget.json model_budget map (bare model id -> cap; unlisted models get the configured default; CPU models denied — cap 0). The total budget per session is the cap + ONE emergency compaction: once the normal cap is drained, the `emergency` argument may consume the 1 (count -> cap+1 = fully exhausted). A CROSS caller (explicit sessionID != the calling session) gets an effective cap of cap + 1 (the caller-scoped override, ruling 2026-09-30) — the spendable TOTAL stays THE SAME AS SELF (cap + the one emergency): a cross at count == cap dispatches via the override slot (the COMPACT line gains the ` ovr` token), and a cross at count == cap + 1 stays REFUSED. MARKER mode (args mode:'marker' + summary): the agent writes the summary itself (compaction style, the current model) and the plugin supplies it at the v2 `compaction` draft hook (event.result — the core skips the summarizer model request and writes the durable compaction message). DEVIATIONS vs v1: the `boundary` argument is IGNORED (v2 computes the retained `recent` from the config compaction.keep.tokens; ONE boundary-ignored evidence line); the budget file's keepMessages/keepTokens are NOT applied (the compact body has no keep fields — ONE keep-not-applied line); the `message` continuation is delivered on the native inbox queue (delivery:'queue') AT verified success; the pre-compaction dump lands in archive/sessions/compaction_dumps/ (BOTH the md and json artifacts) BEFORE the dispatch — a dump failure adds a WARNING to the response, it NEVER blocks the compaction. Use it at the stop line / near-limit triage (self) or before a task_id resume of a session that died at its limit (cross); do NOT use it as a restart substitute.";
+  "Compacts a session to free context space. Two paths: SELF (sessionID omitted) — the CALLING session is compacted and continues from committed files via the post-compaction protocol; CROSS (explicit sessionID) — a fire-and-forget dispatch: it returns immediately and is NEVER awaited (an await would deadlock the single llama-swap model slot); success is verified ASYNCHRONOUSLY — the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success (the session.compaction.ended event), and a failed dispatch burns NO budget. The budget is per TARGET session, per model — the cap comes from the compact_budget.json model_budget map (bare model id -> cap; unlisted models get the configured default; CPU models denied — cap 0). The total budget per session is the cap + ONE emergency compaction: once the normal cap is drained, the `emergency` argument may consume the 1 (count -> cap+1 = fully exhausted). A CROSS caller (explicit sessionID != the calling session) gets an effective cap of cap + 1 (the caller-scoped override, ruling 2026-09-30) — the spendable TOTAL stays THE SAME AS SELF (cap + the one emergency): a cross at count == cap dispatches via the override slot (the COMPACT line gains the ` ovr` token), and a cross at count == cap + 1 stays REFUSED. MARKER mode (args mode:'marker' + summary): the agent writes the summary itself (compaction style, the current model) and the plugin supplies it at the v2 `compaction` draft hook (event.result — the core skips the summarizer model request and writes the durable compaction message). DEVIATIONS vs v1: the `boundary` argument is IGNORED (v2 computes the retained `recent` from the config compaction.keep.tokens; ONE boundary-ignored evidence line); the budget file's keepMessages/keepTokens are NOT applied (the compact body has no keep fields — ONE keep-not-applied line); the `message` continuation is WRITTEN to `.opencode/temp/compact_message_<sid>` AT verified success (plain UTF-8, overwritten per compaction; consumed ONCE at the resume — the auto_resume restart relay tombstones it to `.consumed`, protocol STEP 0 covers the other channels; NO native queue call); the pre-compaction dump lands in archive/sessions/compaction_dumps/ (BOTH the md and json artifacts) BEFORE the dispatch — a dump failure adds a WARNING to the response, it NEVER blocks the compaction. Use it at the stop line / near-limit triage (self) or before a task_id resume of a session that died at its limit (cross); do NOT use it as a restart substitute.";
 
 // The input schema — a plain JSON schema (the promise surface accepts
 // Tool.ValueSchema = a JsonSchema literal; InputValue resolves to `unknown`,
@@ -541,7 +539,7 @@ const TOOL_INPUT = {
     },
     message: {
       type: "string",
-      description: "The post-compaction continuation message (1-3 lines: what to resume + which files to re-read). Queued natively (delivery:'queue') at verified success.",
+      description: "The post-compaction continuation message (1-3 lines: what to resume + which files to re-read). WRITTEN to `.opencode/temp/compact_message_<sid>` at verified success (#158 file channel — overwritten per compaction; consumed ONCE at the resume).",
     },
     mode: {
       type: "string",
@@ -622,8 +620,8 @@ async function execute(args: unknown, toolContext: { sessionID?: unknown }): Pro
   const cfg = readCompactionConfig(root());
 
   // The pending record — written BEFORE the dispatch (the compaction hook
-  // and the verify leg read it); the queue text is remembered, NOT yet deliv
-  // -ered (DEVIATION (b): the native queue lands at verified success).
+  // and the verify leg read it); the continuation text is remembered, NOT yet
+  // written (DEVIATION (b): the #158 message FILE lands at verified success).
   pending.set(sessionID, {
     model,
     isEmergency: gate.isEmergency,
@@ -701,7 +699,7 @@ async function execute(args: unknown, toolContext: { sessionID?: unknown }): Pro
   if (gate.isEmergency) responseParts.push(" — the emergency slot is consumed (count → cap+1)");
   if (gate.isOverride) responseParts.push(" — the caller-scoped cross override slot is consumed (the COMPACT line gains the ` ovr` token)");
   responseParts.push(`; the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success (the session.compaction.ended event) — a failed compaction burns NO budget. Used ${gate.count}/${gate.cap} (model class ${gate.label}).`);
-  if (typeof a.message === "string" && a.message !== "") responseParts.push(" The continuation message rides the native inbox queue (delivery:'queue') at verified success.");
+  if (typeof a.message === "string" && a.message !== "") responseParts.push(" The continuation message lands in `.opencode/temp/compact_message_<sid>` at verified success (#158 file channel — no native queue; consumed once at the resume).");
   if (keepAudit) responseParts.push(" keepMessages/keepTokens are NOT applied in v2 (the compact body has no keep fields).");
   if (dumpWarning !== "") responseParts.push(dumpWarning);
   if (modelNote !== "") responseParts.push(`\n${modelNote}`);

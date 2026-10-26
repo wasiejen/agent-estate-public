@@ -15,7 +15,9 @@
 // the latch), the budget-exhausted directive forms, the #178 DURABLE MODE
 // STORE (toggle -> store write, sticky DIRECT across markerless follow-ups
 // with NO wake, the `<|autonom|>` re-arm, and the RESTART simulation — fresh
-// setup + existing store = DIRECT at watch creation), and the fail-open
+// setup + existing store = DIRECT at watch creation), the #158 item-4 INTENT
+// RELAY (hint line + `.consumed` tombstone + `intent=` line, consumed EVEN ON
+// FAILURE, missing file = unchanged), and the fail-open
 // discipline.
 //
 // Fixtures and BOTH logs (auto_resume.log + the shared ctx.log) + the #178
@@ -610,6 +612,45 @@ await sleep(20);
 await mod.runTick();
 chk("S8a #178 routing RESUMES after the re-arm: `recovery= sid=ses_178_sticky attempt=1` + ONE QUEUED send",
   has("recovery= sid=ses_178_sticky attempt=1") && PROMPT.calls.filter((c) => c.sessionID === "ses_178_sticky").length === 1);
+
+// ------------------------------------------------------------------ S9 #158: the item-4 INTENT relay (the restart-spawn leg)
+
+// The parent's continuation file (compact_memory's #158 channel) rides the
+// successor's first prompt as ONE capped hint line; the file is TOMBSTONED to
+// `.consumed` BEFORE the spawn (the trigger pattern: consumed EVEN ON FAILURE)
+// and ONE `intent= sid=<parent>` line lands. A missing file = unchanged.
+async function restartRoute(sid) {
+  await armOnScoped(sid);
+  for (let i = 0; i < 3; i += 1) {
+    pushEvent({ type: "session.status", data: { sessionID: sid, status: { type: "idle" } } });
+    await sleep(20);
+    await mod.runTick();
+  }
+}
+const itFile = (sid) => path.join(TEMP, `compact_message_${sid}`);
+
+writeFileSync(itFile("ses_it_ok"), "continue the handover unit: edit X\nthen run the gate", "utf8");
+await restartRoute("ses_it_ok");
+chk("S9 #158 the restart-spawn carries the INTENT HINT (the file text, collapsed to one line) + `intent= sid=` + the `.consumed` tombstone",
+  has("route= restart spawn sid=ses_it_ok") && has("intent= sid=ses_it_ok") &&
+    PROMPT.calls.some((c) => typeof c.text === "string" &&
+      c.text.includes("Intent hint (the closing session's continuation, ses_it_ok): continue the handover unit: edit X then run the gate")) &&
+    existsSync(`${itFile("ses_it_ok")}.consumed`) && !existsSync(itFile("ses_it_ok")),
+  readLog().filter((l) => l.includes("ses_it_ok")).slice(-3).join(" | "));
+
+CREATE.mode = "throw";
+writeFileSync(itFile("ses_it_fail"), "hint text for the failed spawn", "utf8");
+await restartRoute("ses_it_fail");
+CREATE.mode = "ok";
+chk("S9 #158 consumed EVEN ON FAILURE: a REJECTED spawn still tombstones the file + logs `intent= sid=ses_it_fail`",
+  has("route= restart spawn sid=ses_it_fail") && has("intent= sid=ses_it_fail") &&
+    existsSync(`${itFile("ses_it_fail")}.consumed`) && !existsSync(itFile("ses_it_fail")));
+
+await restartRoute("ses_it_none");
+chk("S9 #158 a MISSING file = unchanged behavior: NO `intent=` line, NO hint in the spawn prompt, no tombstone",
+  has("route= restart spawn sid=ses_it_none") && !has("intent= sid=ses_it_none") &&
+    !PROMPT.calls.some((c) => typeof c.text === "string" && c.text.includes("Intent hint (the closing session's continuation, ses_it_none")) &&
+    !existsSync(`${itFile("ses_it_none")}.consumed`));
 
 // ------------------------------------------------------------------ S7 pure-leg pins + fail-open + cleanup
 

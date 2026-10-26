@@ -8,8 +8,10 @@
 // and the ` ovr` token, INCREMENT-ON-SUCCESS ONLY (the
 // `session.compaction.ended` event leg), `.failed` → no burn + evidence,
 // the marker `result` override at the compaction draft hook + the
-// boundary-ignored line, the native `delivery:"queue"` continuation +
-// rejection evidence, the keep-not-applied line, and the pin that the
+// boundary-ignored line, the #158 continuation FILE channel
+// (`compact_message_<sid>` written at verified success, NO native queue — the
+// mock PROMPT receives ZERO calls) + the file-fail evidence, the
+// keep-not-applied line, and the pin that the
 // compact body carries NO keep fields (the captured call).
 //
 // Fixtures and BOTH logs (the plugin's compact_v2.log + the shared ctx.log
@@ -68,6 +70,13 @@ function readCtxLog() {
 function count(sid) {
   const d = JSON.parse(readFileSync(BUDGET, "utf8"));
   return d.sessions?.[sid]?.count ?? 0;
+}
+// The #158 continuation file (scratch-steered: root() = the mock WS).
+function msgFile(sid) {
+  return path.join(WS, ".opencode", "temp", `compact_message_${sid}`);
+}
+function msgContent(sid) {
+  return existsSync(msgFile(sid)) ? readFileSync(msgFile(sid), "utf8") : null;
 }
 
 // The budget fixture: cap 3 for the listed model, default 2; ONE emergency;
@@ -239,7 +248,7 @@ chk("S2 cap forms: CPU guard FIRST (cap 0 + cpu label), listed exact, unlisted -
 
 {
   MODELS.ses_ff = LISTED;
-  MODELS.ses_q = LISTED;
+  MODELS["ses_bad/y"] = LISTED; // #158 file-fail lane: a valid model, an unwriteable file path
   const compactBefore = COMPACT.calls.length;
   const ctxBefore = readCtxLog().length;
   const logBefore = readLog().length;
@@ -273,16 +282,16 @@ chk("S2 cap forms: CPU guard FIRST (cap 0 + cpu label), listed exact, unlisted -
   chk("S4 the compact body carries NO keep fields: keys EXACTLY [sessionID]",
     body != null && Object.keys(body).join(",") === "sessionID",
     JSON.stringify(body ?? null));
-  chk("S4 increment NOT at dispatch (INCREMENT-ON-SUCCESS only): count stays 1; the queue is NOT delivered yet",
-    count("ses_self") === 1 && PROMPT.calls.length === 0,
-    `count=${count("ses_self")} promptCalls=${PROMPT.calls.length}`);
+  chk("S4 increment NOT at dispatch (INCREMENT-ON-SUCCESS only): count stays 1; the message FILE is NOT written yet and the mock PROMPT got NOTHING",
+    count("ses_self") === 1 && PROMPT.calls.length === 0 && msgContent("ses_self") === null,
+    `count=${count("ses_self")} promptCalls=${PROMPT.calls.length} msg=${msgContent("ses_self")}`);
   chk("S4 audit lines: keep-not-applied (12/40000) + dump ok + dispatch accepted (auto)",
     lines.some((l) => l.kind === "keep" && l.reason === "keep-not-applied" && l.keepMessages === "12" && l.keepTokens === "40000") &&
       lines.some((l) => l.kind === "dump" && l.state === "ok" && l.session === "ses_self") &&
       lines.some((l) => l.kind === "dispatch" && l.state === "accepted" && l.mode === "auto" && l.cap === "3" && l.count === "1"),
     JSON.stringify(lines.map((l) => `${l.kind}:${l.reason ?? l.state ?? ""}`)));
-  chk("S4 the response states the keep-keys deviation and NO dump-skip/skip-warning text (4c: the dump leg landed)",
-    r.output.includes("keepMessages/keepTokens are NOT applied in v2") && !r.output.includes("dump is skipped") && !r.output.includes("WARNING: pre-compaction dump") && r.output.includes("native inbox queue"),
+  chk("S4 the response states the keep-keys deviation, the #158 FILE channel, and NO dump-skip/skip-warning text (4c: the dump leg landed)",
+    r.output.includes("keepMessages/keepTokens are NOT applied in v2") && !r.output.includes("dump is skipped") && !r.output.includes("WARNING: pre-compaction dump") && r.output.includes("compact_message_<sid>") && !r.output.includes("inbox queue"),
     JSON.stringify(r.output));
 }
 
@@ -304,14 +313,34 @@ chk("S2 cap forms: CPU guard FIRST (cap 0 + cpu label), listed exact, unlisted -
     lines.some((l) => l.kind === "verify" && l.state === "started" && l.session === "ses_self") &&
       lines.some((l) => l.kind === "verify" && l.state === "success" && l.model === LISTED && l.mode === "auto"),
     JSON.stringify(lines.filter((l) => l.kind === "verify").map((l) => l.state)));
-  chk("S5 the queue leg fires ONLY at verified success: delivery:'queue' + the message text",
-    PROMPT.calls.length === 1 && PROMPT.calls[0].delivery === "queue" && PROMPT.calls[0].text === "resume from the handover file" && PROMPT.calls[0].sessionID === "ses_self",
-    JSON.stringify(PROMPT.calls[0] ?? null));
+  chk("S5 the continuation lands ONLY at verified success: the FILE, content EXACT; NO `delivery:\"queue\"` call EVER",
+    PROMPT.calls.length === 0 && msgContent("ses_self") === "resume from the handover file" &&
+      readLog().some((l) => l.kind === "queue" && l.session === "ses_self" && l.state === "file-written" && l.chars === "29"),
+    `promptCalls=${PROMPT.calls.length} msg=${JSON.stringify(msgContent("ses_self"))}`);
   // an UNRELATED (auto) compaction of a session WITHOUT a pending record:
   pushEvent({ type: "session.compaction.ended", data: { sessionID: "ses_autonome" } });
   await sleep(10);
   chk("S5 a compaction WITHOUT a pending dispatch record is SILENT (no burn, no line)",
     count("ses_autonome") === 0 && !readLog().some((l) => l.session === "ses_autonome"), "");
+}
+
+// ------------------------------------------------------------------ S5b #158 the SECOND compaction OVERWRITES the file
+
+{
+  MODELS.ses_ovr = LISTED;
+  await call({ message: "FIRST continuation text" }, { sessionID: "ses_ovr" });
+  await sleep(5);
+  pushEvent({ type: "session.compaction.ended", data: { sessionID: "ses_ovr" } });
+  await sleep(20);
+  const first = msgContent("ses_ovr");
+  await call({ message: "SECOND continuation text" }, { sessionID: "ses_ovr" });
+  await sleep(5);
+  pushEvent({ type: "session.compaction.ended", data: { sessionID: "ses_ovr" } });
+  await sleep(20);
+  chk("S5b the second verified compaction OVERWRITES the file (content = the newest message ONLY) and NO prompt call ever",
+    first === "FIRST continuation text" && msgContent("ses_ovr") === "SECOND continuation text" &&
+      PROMPT.calls.length === 0 && count("ses_ovr") === 2,
+    `first=${JSON.stringify(first)} msg=${JSON.stringify(msgContent("ses_ovr"))} count=${count("ses_ovr")}`);
 }
 
 // ------------------------------------------------------------------ S6 fire-and-forget (slow dispatch)
@@ -436,18 +465,20 @@ chk("S2 cap forms: CPU guard FIRST (cap 0 + cpu label), listed exact, unlisted -
     stray.result === undefined, JSON.stringify(stray.result ?? null));
 }
 
-// ------------------------------------------------------------------ S11 queue rejection evidence
+// ------------------------------------------------------------------ S11 #158 file-fail evidence (the DROP lane: a write failure NEVER fails the tool)
 
 {
-  PROMPT.mode = "reject";
-  await call({ message: "queued continuation" }, { sessionID: "ses_q" });
+  // A path SEGMENT in the sid -> the `compact_message_...` write fails (its
+  // parent dir does not exist) while the compaction itself SUCCEEDS: the
+  // failure is evidence-only, the burn stands, NO prompt call ever.
+  const r = await call({ message: "continuation with an unwriteable target" }, { sessionID: "ses_bad/y" });
   await sleep(5);
-  pushEvent({ type: "session.compaction.ended", data: { sessionID: "ses_q" } });
+  pushEvent({ type: "session.compaction.ended", data: { sessionID: "ses_bad/y" } });
   await sleep(20);
-  PROMPT.mode = "ok";
-  const lines = readLog().filter((l) => l.session === "ses_q");
-  chk("S11 a queue delivery REJECTION is evidence-logged, NEVER a burn-loss (count 1)",
-    count("ses_q") === 1 && lines.some((l) => l.kind === "queue" && l.reason === "delivery-rejected" && l.preview.includes("mock queue rejection")),
+  const lines = readLog().filter((l) => l.session === "ses_bad/y");
+  chk("S11 a file-write FAILURE is evidence-logged (`file-fail`), NEVER a tool failure and NEVER a burn-loss (count 1, NO prompt call)",
+    r.output.includes("Compaction dispatched") && count("ses_bad/y") === 1 && PROMPT.calls.length === 0 &&
+      lines.some((l) => l.kind === "queue" && l.reason === "file-fail" && typeof l.preview === "string"),
     JSON.stringify(lines.map((l) => l.kind + ":" + (l.state ?? l.reason ?? ""))));
 }
 
@@ -472,9 +503,11 @@ chk("S2 cap forms: CPU guard FIRST (cap 0 + cpu label), listed exact, unlisted -
     kinds.size === 6 && [...kinds].sort().join(",") === "dispatch,dump,keep,marker,queue,verify", JSON.stringify([...kinds]));
   chk("INV every line carries ts + kind and stays under the LINE_CAP ladder",
     lines.every((l) => typeof l.ts === "string" && typeof l.kind === "string" && JSON.stringify(l).length <= 2000), "");
-  chk("INV the dump-skipped + keep-not-applied lines land ONCE PER ALLOWED DISPATCH (7 dispatch legs, equal counts)",
-    dumps === keeps && dumps === accepts && dumps === 7,
+  chk("INV the dump-skipped + keep-not-applied lines land ONCE PER ALLOWED DISPATCH (9 dispatch legs, equal counts)",
+    dumps === keeps && dumps === accepts && dumps === 9,
     JSON.stringify({ dumps, keeps, accepts }));
+  chk("INV #158 the mock PROMPT received ZERO calls — the continuation NEVER rides the native queue",
+    PROMPT.calls.length === 0, JSON.stringify(PROMPT.calls));
   chk("INV COMPACT lines: every one byte-forms the v1 convention (stamp + model + keep=12m + tok=40000 budget [+ token]) — the DUMP-* lines now share this file, so the pin scopes to COMPACT lines (4c repin)",
     readCtxLog().filter((l) => l.includes(" COMPACT ")).every((l) => /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2} \S+ COMPACT \S+ keep=12m tok=40000 budget( emergency| ovr)*$/.test(l)) &&
       readCtxLog().some((l) => l.includes(" COMPACT ")),
@@ -489,7 +522,8 @@ chk("S2 cap forms: CPU guard FIRST (cap 0 + cpu label), listed exact, unlisted -
 
 // ------------------------------------------------------------------ S-D4c the pre-compaction dump leg (TODO #137 unit 4c)
 //
-// The 4a INV block above counted the 4a dispatch legs (7); the 4c legs below
+// The 4a INV block above counted the 4a dispatch legs (9, incl. the #158 S5b
+// overwrite pair); the 4c legs below
 // run AFTER it ON PURPOSE so that byte-expectation pin keeps its number. EVERY
 // allowed dispatch already dumped BOTH artifacts through the fixture stub twin
 // (success by default) — the lanes below move the stub aside to pin the failure

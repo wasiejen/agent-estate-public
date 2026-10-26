@@ -54,7 +54,8 @@
 // line, `arm=` (`arm= sid=X injected`), `spawn=` / `spawn-fail=`, `rename-fail
 // =`, `route= stop|ask|restart spawn`, `recovery= sid= attempt=N`, `send-fail
 // =`, `scope=`, `skip= successor|depth|dead|deactivated`, `deactivate= sid=`,
-// `budget= exhausted sid=`, `rearm= compact sid=`, `limit-stop= sid= total=`,
+// `intent= sid=` (#158), `budget= exhausted sid=`, `rearm= compact sid=`,
+// `limit-stop= sid= total=`,
 // `-WARNING auto_resume <sid> <model> silent limit-stop: finish=length total
 // =… window=… no-COMPACT`, `log-trim= old= new=`, `surface= v=<sha8> …`.
 //
@@ -81,11 +82,16 @@
 //   (c) The #120 post-compaction TAIL-SET leg is NOT ported: its write lane
 //     is the context_trim core, whose v2 twin (`plugins/context_trim_v2.ts`)
 //     is a separate unit. The RE-ARM half of that leg (#98) IS ported.
-//   (d) The compact_message_* temp-file legs (item-2 CONTINUE relay, item-4
-//     restart INTENT HINT, the item-3 age SWEEP) have NO v2 carrier: the v2
-//     compact_memory plugin delivers continuations on the native inbox queue
-//     (`delivery:"queue"`), so no file store exists to relay. The `intent=`
-//     and `queue-sweep=` lines are therefore absent by construction.
+//   (d) The compact_message_* temp-file legs: the item-4 restart INTENT HINT
+//     IS PORTED (#158, 2026-10-26) — the continuation rides the v1 FILE
+//     channel again (`compact_memory` writes `compact_message_<sid>` at
+//     verified success; the RESTART-SPAWN branch reads it, tombstones it to
+//     `.consumed` via the renameTrigger pattern — consumed EVEN ON FAILURE —
+//     and appends ONE capped `Intent hint` line to the successor's first
+//     prompt, logging `intent= sid=<parent>`). The item-2 CONTINUE relay and
+//     the item-3 age SWEEP stay unported: an unconsumed file simply STAYS as
+//     readable evidence (#158 DoD), and protocol STEP 0 covers the
+//     relay-bypassing channels. The `queue-sweep=` line stays absent.
 //   (e) v1's `extra.model.id` / `session?.id` / `input.directory` /
 //     `client.app.log` carriers: the plugin root rides `ctx.location
 //     directory` (the same deviation the 5b units recorded), the caller
@@ -877,6 +883,29 @@ function restartText(sid: string, exhausted: boolean, n?: number | null): string
   );
 }
 
+// #158 item-4 INTENT relay: the CLOSING session's continuation file
+// (`compact_message_<sid>` — written by compact_memory at verified success,
+// the v1 channel restored). At the RESTART-SPAWN branch the file is read,
+// TOMBSTONED via the renameTrigger pattern (consumed EVEN ON FAILURE: the
+// rename lands BEFORE the spawn), and the continuation rides the successor's
+// first prompt as ONE capped hint line; ONE `intent= sid=<parent>` log line.
+// A missing file -> "" + NO line: unchanged behavior. NEVER throws.
+function consumeIntentHint(sid: string): string {
+  const msgPath = join(dirname(logPath), `compact_message_${sid}`);
+  if (!existsSync(msgPath)) return "";
+  let text = "";
+  try {
+    text = readFileSync(msgPath, "utf8");
+  } catch {
+    // unreadable -> consumed with NO hint (the tombstone still lands)
+  }
+  renameTrigger(msgPath);
+  log(`intent= sid=${sid}`);
+  const one = text.replace(/\s+/g, " ").trim();
+  if (one === "") return "";
+  return `\nIntent hint (the closing session's continuation, ${sid}): ${one.slice(0, 400)}`;
+}
+
 // Unit 4: the successor check — a DIFFERENT sid created since the closing
 // session's lastActivityAt (the most recent creation wins).
 function findSuccessor(closingSid: string, since: number | null): string | null {
@@ -1108,7 +1137,10 @@ async function routeScopedIdle(sid: string, w: Watch): Promise<void> {
   log(`route= restart spawn sid=${sid}`);
   const counter = spawnCounterFor(); // computed ONCE (the title N == the text N)
   const ident = w.agent || w.model ? { agent: w.agent ?? undefined, model: w.model ?? undefined } : null;
-  const restart = restartText(sid, exhausted, counter?.n ?? null);
+  // #158: the item-4 relay — the parent's continuation file (if any) is read +
+  // tombstoned BEFORE the spawn, consumed EVEN ON FAILURE.
+  const intent = consumeIntentHint(sid);
+  const restart = restartText(sid, exhausted, counter?.n ?? null) + intent;
   const newSid = await spawnPlanner(restart, ident, counter);
   if (newSid) {
     spawned.set(newSid, depth + 1); // #90 part A

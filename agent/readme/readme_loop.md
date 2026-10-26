@@ -1,27 +1,28 @@
 # readme_loop.md — the loop protocol
 
-Planner-owned static file; the planner reads it when driving the loop
-(autonomous launch). Iteration state lives in the launch message + the NAP —
-not here.
+The planner owns this static file. The planner reads it when driving the
+loop (autonomous launch). Iteration state lives in the launch message + the
+NAP — not here.
 
 ## Iteration semantics
-- N is 1-based and counts across the whole looprun (it does not reset per
-  planner session); it is given at the top of the launch message.
+- N is 1-based. It counts across the whole looprun; it does not reset per
+  planner session. The launch message gives N at its top.
 - **The machine-side counter (2026-10-05, approved
   2026-10-01_loop-iteration-counter):** `loop/<folder>/counter.json`
-  (`{"looprun": <folder>, "n": N}`) is the AUTHORITATIVE iteration state —
-  the auto_resume plugin writes it at every autorun spawn (a dead session
-  can never leave it behind): candidate = counter.n + 1 (absent /
-  foreign-looprun counter → 1), N_final = max(candidate, log-max + 1)
-  against the loop log's `planner-<N>` lines. The launch message carries
-  the explicit N ("your iteration number is <N>"); the bounded log grep
-  stays the FALLBACK verification only. The injected `ctx:` line carries
-  ` ITER=<N> <folder>` while a counter exists for the current loop folder.
+  (`{"looprun": <folder>, "n": N}`) is the AUTHORITATIVE iteration state.
+  The auto_resume plugin writes it at every autorun spawn — a dead session
+  can never leave it behind. Candidate = counter.n + 1; an absent or
+  foreign-looprun counter gives 1. N_final = max(candidate, log-max + 1),
+  counted against the loop log's `planner-<N>` lines. The launch message
+  carries the explicit N ("your iteration number is <N>"). The bounded log
+  grep stays the FALLBACK verification only. The injected `ctx:` line
+  carries ` ITER=<N> <folder>` while a counter exists for the current loop
+  folder.
 - **Counter mismatch (loop-signals Part 2, approved 2026-09-15):** the
   machine-side max() above supersedes the planner-side detection for
-  plugin-spawned sessions — if a launch N is ever smaller than the last
+  plugin-spawned sessions. If a launch N is ever smaller than the last
   `planner-N` in the loop log (e.g. a hand-typed session), use the BIGGER
-  number for the `plan<N>_*` files — never clobber existing ones; the
+  number for the `plan<N>_*` files — never clobber existing ones. The
   planner notes it in an `--INFO--` loop line and in its summary.
 
 ## Action line
@@ -39,11 +40,11 @@ not here.
      nothing else (no trigger file, no sticky state — by design); shallower
      sessions spawn normally. The depth is RESTORED from `auto_resume.log`
      on host restart (#90 part C) — a restart never resets the chain.
-  - `resume` — resume the same sub-agent session via `task_id`
-  - `ask_maintainer: <q>` — pause the loop until the maintainer answers
-  - `stop` — goal reached / unrecoverable
+  - `resume` — resume the same sub-agent session via `task_id`.
+  - `ask_maintainer: <q>` — pause the loop until the maintainer answers.
+  - `stop` — goal reached / unrecoverable.
 - The planner ends each autonomous session with a closing summary
-  (`plan<N>_summary.md`) and exactly one `action:` line; the auto-resume
+  (`plan<N>_summary.md`) and exactly one `action:` line. The auto-resume
   plugin reads the LAST one.
 
 ## Loop folder
@@ -53,8 +54,8 @@ not here.
 - Rollover: when the planner starts at ITERATION 1 (a new looprun), it moves
   the current `loop/autorun-…/` folder into `archive/loop/` and creates a fresh
   `loop/autorun-<now>/` (folder name machine-generated, never retyped). A
-  direct (non-looprun) planner run starts its own current folder the same way
-  if `loop/` is empty.
+  direct (non-looprun) planner run starts its own current folder the same
+  way if `loop/` is empty.
 - Spec/summary copies ride along in the current folder: `plan<N>_ho_task.md`
   (the task spec, copied before the worker launch) and
   `plan<N>_ho_task_to_planner.md` (the worker summary, copied after
@@ -68,27 +69,27 @@ not here.
   no loop-log read needed). Since 2026-10-05 the PRIMARY sources are the
   launch message's explicit N + the ` ITER=<N> <folder>` suffix on the
   injected `ctx:` line (the counter file is the machine source of truth —
-  see §Iteration semantics). To verify or recover the number otherwise:
-  a BOUNDED grep, never a full read (the log is 30k+ chars of dense
+  see §Iteration semantics). Verify or recover the number otherwise with a
+  BOUNDED grep — never a full read (the log is 30k+ chars of dense
   numbers): `grep -oE "planner-[0-9]+" <loop folder>/loop_log.md |
   sort -u -V | tail -1` (before your own START line has landed: +1 =
   yours).
 
 ## Loop log
-- The looprun activity log — who ran when, on what; for the loop itself and for
-  the maintainer after the fact.
+- The looprun activity log — who ran when, on what. For the loop itself,
+  and for the maintainer after the fact.
 - ONE file per looprun, in its loop folder:
   `loop/autorun-<YYYY-MM-DD_HH-MM>/loop_log.md` — append only,
-  created on first write. Logged: loopruns and direct planner runs; plain
+  created on first write. Log loopruns and direct planner runs. Plain
   interactive chat has no log.
 - Tool (v2, landed 2026-09-26): when the `loop_log` tool is in your toolset,
-  WRITE your lines via it — it resolves the current looprun folder (creating
-  the dated one when absent), machine-stamps, and appends exactly one line,
-  returning `folder: <name> (created|existing)` + the exact line +
+  WRITE your lines via it. It resolves the current looprun folder (creating
+  the dated one when absent), machine-stamps, and appends exactly one line.
+  It returns `folder: <name> (created|existing)` + the exact line +
   `verified: readback-match` (or `readback-MISMATCH: …`), plus
-  `corrects: <previous line>` for a `correct` status. v2 details: `status` is
-  a free-form KEYWORD — `start` / `done` / `return` / `warn` / `info` /
-  `correct` — normalized into the 8-char tokens below; `role`, `model`,
+  `corrects: <previous line>` for a `correct` status. v2 details: `status`
+  is a free-form KEYWORD — `start` / `done` / `return` / `warn` / `info` /
+  `correct` — normalized into the 8-char tokens below. `role`, `model`,
   `session` are OPTIONAL (auto-filled from the host context: agent
   identifier + model, your session id). An unrecognized status is rejected
   with the accepted keywords named (nothing is written). The line-format
@@ -96,11 +97,11 @@ not here.
   (hand-append in that case, in the exact form below).
 - **Role/model slots and the `role-N` format:** the tool's auto-fill puts the
   host AGENT ID in BOTH the role and the model slots (e.g.
-  `planner_Q3S_245K_slow`) — the iteration token can NEVER be auto-filled
-  (it exists only in the launch message / task spec). To keep the
-  documented `role-N` format, pass `role` (e.g. `planner-28`) and `model`
-  (your model id verbatim) explicitly. An auto-filled line is still a valid
-  log line (the agent attribution is preserved).
+  `planner_Q3S_245K_slow`). The iteration token can NEVER be auto-filled —
+  it exists only in the launch message / task spec. To keep the documented
+  `role-N` format, pass `role` (e.g. `planner-28`) and `model` (your model
+  id verbatim) explicitly. An auto-filled line is still a valid log line
+  (the agent attribution is preserved).
 - One line per event:
   `date_time <STATUS> <role>[-<iteration>] <session_id> <agent_model> <content>`
   - `<STATUS>` is exactly one of these 8-char tokens: `-->START`, `DONE<---`,
@@ -116,14 +117,15 @@ not here.
       task spec - before planning or heavy tool calls, because an interrupted
       delegation does not return the task_id and the log is the only way to
       find the session); content = the task oneliner.
-    -     `DONE<---` — every agent WITH loop-folder write access (planner, worker)
-      writes one on task completion; content = the final gauge readout
-      `<CTX>%/<REM>K` — verbatim from the gauge command, never guessed.
-      (The explorer's completion normally rides the planner's `-RETURN-`
-      line — under the CURRENT pre-tightening permissions the explorer ALSO
-      has loop-folder write access and writes its own DONE line; the
-      maintainer's write-access tightening is pending, #105 (e) — once it
-      lands, the explorer's completion rides the `-RETURN-` line again.)
+    - `DONE<---` — every agent WITH loop-folder write access (planner,
+      worker) writes one on task completion. Content = the final gauge
+      readout `<CTX>%/<REM>K` — verbatim from the gauge command, never
+      guessed. (The explorer's completion normally rides the planner's
+      `-RETURN-` line — under the CURRENT pre-tightening permissions the
+      explorer ALSO has loop-folder write access and writes its own DONE
+      line; the maintainer's write-access tightening is pending, #105 (e) —
+      once it lands, the explorer's completion rides the `-RETURN-` line
+      again.)
     - `-RETURN-` — the planner writes one when a sub-agent
       returns; content = the returned agent's `role-N session_id model`.
     - `-WARNING` — the supervising agent writes one when a sub-agent task FAILS
@@ -144,18 +146,17 @@ not here.
   2026-09-11_09-45 -RETURN-  planner-3 ses_abc123 Qwen3.8-27B-IQ4KT-120K worker-3 ses_def456 Qwen3.8-27B-IQ4KT-120K
   2026-09-11_10-02 DONE<---  planner-3 ses_abc123 Qwen3.8-27B-IQ4KT-120K 42%/78K
   ```
-- Discipline: append only; NO curation of this file — a dead session loses at
-  most its unfinished tail.
+- Discipline: append only; NO curation of this file. A dead session loses
+  at most its unfinished tail.
 
 ## Interrupt handling
 - Rebuild from committed state: `git log`, the NAP
   (`agent/handover/handover_planner.md`), `TODO.md` — never from memory.
 
 ## Looprunner's own file (retired)
-- The looprunner's own bookkeeping file (the retired `loop_log.md` at
-  `.opencode/` level) no longer exists. The role is
-  retired (2026-09-24) — the auto-resume plugin covers launch/relay/restart —
-  and the file no longer exists.
+- The looprunner role is retired (2026-09-24). The auto-resume plugin
+  covers launch/relay/restart. The looprunner's own bookkeeping file (the
+  retired `loop_log.md` at `.opencode/` level) no longer exists.
 
 ## Maintenance unit (counter-triggered, planner-run — GO 2026-09-25)
 - Trigger: every 5th iteration (iteration N of the current looprun, N % 5 ==
@@ -180,8 +181,8 @@ not here.
      category) / proposal file / knowledge / TODO — mark handled entries in
      the summary/NAP (the files stay append-only; the maintainer cures them).
 - Precedence: a pending maintainer call wins — the pass defers to the next
-  trigger; if the session starts above ~70% context, defer (record in the
+  trigger. If the session starts above ~70% context, defer (record in the
   NAP).
-- Run inline by the planner (the surfaces it touches — NAP/TODO/knowledge —
-  are the planner's lane; no delegation). Close it with ONE `--INFO--` loop
+- Run inline by the planner: the surfaces it touches — NAP/TODO/knowledge —
+  are the planner's lane; no delegation. Close it with ONE `--INFO--` loop
   line: what was curated, what was flagged.

@@ -33,6 +33,7 @@
 import { DatabaseSync } from "node:sqlite";
 // #144: the retry-on-EBUSY teardown helper (rmTear) replaces the bare node:fs rmSync import.
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { freshSandbox, loadRepo, makeChecker, rmTear } from "./_smoke_base.mjs";
 
 const { chk, finish } = makeChecker("CONTEXT_TRIM_SMOKE");
@@ -214,6 +215,17 @@ const EXPECT_SPX = [
   "row: msg_s15 15000 user bytes4=2",
   "row: msg_s16 16000 assistant tokens=460",
 ].join("\n");
+// #150 unit A (2026-10-26): the gauge core AND the maintainer-placed CLI moved into
+// the v2 estate. The exe is resolved from the CORE's own directory, so the forced
+// spawn lane must still find it — the path numbers in the core stayed valid.
+{
+  const core150 = await loadRepo(".opencode/plugins/scripts/gauge.mjs");
+  chk(
+    "spawn-sqlite3 (#126): DEFAULT_EXE_PATH resolves to an EXISTING file under .opencode/plugins/tools/ after the move (#150)",
+    existsSync(core150.DEFAULT_EXE_PATH) && core150.DEFAULT_EXE_PATH.includes(path.join("plugins", "tools")),
+    core150.DEFAULT_EXE_PATH,
+  );
+}
 {
   const W = new DatabaseSync(FX);
   W.exec("PRAGMA foreign_keys = ON;");
@@ -512,7 +524,7 @@ tool.setBackends(); // restore the default chain
   putFa("msg_f14", 16000);
   W.close();
 }
-const gauge = await loadRepo(".opencode/plugin/scripts/gauge.mjs");
+const gauge = await loadRepo(".opencode/plugins/scripts/gauge.mjs");
 const surf = tool.default;
 const dbBefore = gauge.getDbPath();
 gauge.setDbPath(FX); // steer the tool surface at the fixture (restored after)

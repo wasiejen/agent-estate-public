@@ -39,7 +39,7 @@
 // Backend chain (the v1 context_trim / gauge-core discipline, FIRST SUCCESS
 // wins): (1) `bun:sqlite` (the bun-compiled host's native module), (2) `node:sqlite`
 // (system node v24+ — the smoke host), (3) `spawn-sqlite3` — the LAST-RESORT
-// maintainer-placed CLI (`<clone root>/.opencode/plugin/tools/sqlite3.exe`):
+// maintainer-placed CLI (`<clone root>/.opencode/plugins/tools/sqlite3.exe`):
 // ARGS ARRAY (no shell), a hard 2500 ms KILL per call (a stuck child = db-error,
 // never a hang), and a `file:...?mode=ro` URI so no journal write happens while
 // the host writes concurrently. Every read is a one-shot query; NO write
@@ -56,7 +56,7 @@ const execFileAsync = promisify(execFile);
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.resolve(THIS_DIR, "..", "..", "..", "archive", "sessions");
-const DEFAULT_EXE_PATH = path.resolve(THIS_DIR, "..", "..", "..", ".opencode", "plugin", "tools", "sqlite3.exe");
+const DEFAULT_EXE_PATH = path.resolve(THIS_DIR, "..", "..", "..", ".opencode", "plugins", "tools", "sqlite3.exe");
 const BUSY_TIMEOUT_MS = 2500;
 const SPAWN_TIMEOUT_MS = 2500; // hard KILL per CLI call — never a hang
 const MAX_BUFFER = 16 * 1024 * 1024; // the data JSON of a session's rows in one exec

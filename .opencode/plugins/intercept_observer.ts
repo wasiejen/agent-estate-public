@@ -57,7 +57,7 @@
 // value import would break the host load).
 //
 // MODEL ID FIELD: read from the session DB through the SHARED gauge reader —
-// `readGauge(undefined, sessionID)` from ../plugin/scripts/gauge.mjs (the
+// `readGauge(undefined, sessionID)` from ./scripts/gauge.mjs (the
 // v2-migration unit 1 port, 2026-10-21: the SESSION-ROW leg is table-aware,
 // so a row in `session_v2` resolves; the `model` column's JSON `{"id":…}`
 // unwraps via the reader's own parseModelId). Per-session cache with a TTL
@@ -84,7 +84,7 @@ import { dirname, isAbsolute, join, relative } from "node:path";
 // The shared session-DB reader (the gauge core, unit 1 port). A VALUE import
 // — plain JS whose own imports are node: builtins only (no node_modules
 // surface; the host's plugin load resolves it from the repo tree).
-import { readGauge } from "../plugin/scripts/gauge.mjs";
+import { readGauge } from "./scripts/gauge.mjs";
 
 // ------------------------------------------------------------------ constants
 

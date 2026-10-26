@@ -137,7 +137,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 import { existsSync } from "node:fs";
 import { tool } from "@opencode-ai/plugin";
-import { getDbPath, BUSY_TIMEOUT_MS, DEFAULT_EXE_PATH } from "../plugin/scripts/gauge.mjs";
+import { getDbPath, BUSY_TIMEOUT_MS, DEFAULT_EXE_PATH } from "../plugins/scripts/gauge.mjs";
 // The keepMessages floor (round-2 ruling — stated in the description).
 const FLOOR = 6;
 

@@ -2,10 +2,10 @@
 // proposals/approved/2026-09-12_loop-tool-batch.md): the `ctx_gauge`
 // custom tool — the context-gauge readout as a DIRECTLY-FIRED tool. The
 // agent fires this for context-budget decisions instead of the bash shell-out
-// `node .opencode\plugin\scripts\peek.mjs` (the shell-out costs ~15k tokens
+// `node .opencode\plugins\scripts\peek.mjs` (the shell-out costs ~15k tokens
 // per readout — the maintainer's observation that motivated the batch).
 //
-// The tool wraps the ONE shared gauge core (.opencode/plugin/scripts/gauge.mjs
+// The tool wraps the ONE shared gauge core (.opencode/plugins/scripts/gauge.mjs
 // — backend chain, window rule, readout forms; NOTHING re-derived here) and
 // mirrors peek.mjs IN-BAND: the same readout string, and on a db failure the
 // core's error text is APPENDED to the line (` — <error>`) where peek.mjs
@@ -15,7 +15,7 @@
 // Registration is the maintainer's domain (the live opencode.jsonc — this
 // file is deliberately NOT registered in any repo config).
 import { tool } from "@opencode-ai/plugin"
-import { readGauge, formatGauge } from "../plugin/scripts/gauge.mjs"
+import { readGauge, formatGauge } from "../plugins/scripts/gauge.mjs"
 
 export default tool({
   description: `Reads the context usage of the current (or a named) session, read-only.

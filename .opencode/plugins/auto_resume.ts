@@ -105,7 +105,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // The window carrier (DEVIATION (f)) — the shared gauge core, plain JS.
-import { resolveWindow } from "../plugin/scripts/gauge.mjs";
+import { resolveWindow } from "./scripts/gauge.mjs";
 
 // ------------------------------------------------------------------ constants (v1 values, byte-carried)
 

@@ -11,7 +11,7 @@
 // node: builtins only — the context_family.ts / gauge.mjs pattern).
 //
 // (1) THE BUDGET LAYER rides the paired module
-// `.opencode/plugin/scripts/compaction_core_v2.mjs` (the v1 core ported:
+// `.opencode/plugins/scripts/compaction_core_v2.mjs` (the v1 core ported:
 // same `.opencode/temp/compact_budget.json`, same keys, same cap-resolver
 // semantics — CPU models cap 0, the SAFETY INVARIANT — same budget-store
 // v2 schema, INCREMENT-ON-SUCCESS only, the #119 additive-rewrite invariant,
@@ -100,7 +100,7 @@ import {
   readCompactionConfig,
   recordSuccess,
   resolveRoot,
-} from "../plugin/scripts/compaction_core_v2.mjs";
+} from "./scripts/compaction_core_v2.mjs";
 
 // ------------------------------------------------------------------ evidence log (v1 ladder, byte-shape)
 

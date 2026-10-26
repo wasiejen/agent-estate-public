@@ -82,7 +82,7 @@ const FX_BUDGET = path.join(SCRATCH, "fx_budget.json");
 
 // ------------------------------------------------------------------ steer the shared gauge core
 
-const gaugeMod = await import(pathToFileURL(path.join(CLONE_ROOT, ".opencode", "plugin", "scripts", "gauge.mjs")).href);
+const gaugeMod = await import(pathToFileURL(path.join(CLONE_ROOT, ".opencode", "plugins", "scripts", "gauge.mjs")).href);
 gaugeMod.setDbPath(FX_DB); // the plugin's readGauge(undefined, sid) reads THIS file
 gaugeMod.setBudgetFileForTest(FX_BUDGET);
 

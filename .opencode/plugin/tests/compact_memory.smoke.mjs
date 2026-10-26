@@ -910,7 +910,7 @@ const CFG_PATH = path.join(SANDBOX, "opencode.jsonc");
   stMk0.model_budget = { "Qwen3.8-27B-IQ4KT-120K": 3, default: 1 };
   writeFileSync(storePath, JSON.stringify(stMk0, null, 2) + "\n");
 
-  const gauge = await loadRepo(".opencode/plugin/scripts/gauge.mjs");
+  const gauge = await loadRepo(".opencode/plugins/scripts/gauge.mjs");
   const dbBefore = gauge.getDbPath();
   gauge.setDbPath(FXMK); // steer the tool surface at the fixture (restored after)
   const ctTool = await loadRepo(".opencode/tools/context_trim.ts");

@@ -29,8 +29,10 @@ call). **Recovery protocol (doc, not code):** on a failed edit/write or a
 dead session, the journal line + hint line are the one-command fallback —
 `cp` the journal payload in place (a write), or apply the hinted edit /
 block_transfer-PASTE the section by anchor (an edit); the agent or rescue
-session fires it (the hook NEVER auto-retries). `tools/` — bundled binaries; `scripts/` — the gauge core (`gauge.mjs` +
-`peek.mjs`, node:sqlite); `probes/` — the test gates (`handover_probe.mjs`
+session fires it (the hook NEVER auto-retries). `tools/` + `scripts/` — MOVED out
+of this estate into the v2 estate (TODO #150 unit A, 2026-10-26):
+`.opencode/plugins/scripts/{gauge,peek,compaction_core_v2}.mjs` +
+`.opencode/plugins/tools/sqlite3.exe`; `probes/` — the test gates (`handover_probe.mjs`
 under NODE; the total is self-annotated in the probe header — the annotation
 is the source, no duplicated moving number); `deactivated/` — retired plugins
 (frozen); `dev/` —

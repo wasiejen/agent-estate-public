@@ -9,7 +9,7 @@ type-stripped import, sandbox setup, assert/fail-count) lives in
 
 What goes here: behavior smokes for the tools in `.opencode/tools/`, the
 plugin tools in `.opencode/plugin/`, and the gauge core
-(`scripts/gauge.mjs`). Runtime fixture files are created under the host
+(`.opencode/plugins/scripts/gauge.mjs`). Runtime fixture files are created under the host
 scratchpad `home/AppData/Local/Temp/opencode/` (each smoke in
 its own subdir, cleaned on start) — that hardcoded path is deliberate
 (runtime sandbox, not a source path); no absolute SOURCE path belongs here.

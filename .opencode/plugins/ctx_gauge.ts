@@ -7,7 +7,7 @@
 // change — the 3a precedent).
 //
 // CARRIED (behavior byte-compatible with v1 where the surface carries pins): the
-// tool wraps the ONE shared gauge core (`.opencode/plugin/scripts/gauge.mjs` —
+// tool wraps the ONE shared gauge core (`.opencode/plugins/scripts/gauge.mjs` —
 // already v2-paired by migration units 1-2: the session-row + token-mass legs
 // read the v2 tables FIRST) and mirrors peek.mjs IN-BAND: the same readout
 // string, and on a db failure the core's error text is APPENDED to the line
@@ -29,7 +29,7 @@
 // import is a value import of plain `.mjs` — the context_family.ts pattern).
 // NEVER throws.
 import type { Plugin } from "@opencode/plugin";
-import { formatGauge, readGauge } from "../plugin/scripts/gauge.mjs";
+import { formatGauge, readGauge } from "./scripts/gauge.mjs";
 
 const TOOL_DESCRIPTION =
   `Reads the context usage of the current (or a named) session, read-only.

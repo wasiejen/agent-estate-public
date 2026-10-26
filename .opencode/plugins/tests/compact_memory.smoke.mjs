@@ -1,7 +1,7 @@
 // compact_memory.smoke.mjs — TODO #137 unit 4a: the v2 compaction plugin smoke.
 // bun, MOCK ctx — no opencode process, NO backend request. Pins the DoD 2-9
 // contract of `.opencode/plugins/compact_memory.ts` + the ported budget core
-// (`.opencode/plugin/scripts/compaction_core_v2.mjs`): the cap-resolver forms
+// (`.opencode/plugins/scripts/compaction_core_v2.mjs`): the cap-resolver forms
 // (the CPU guard FIRST, unlisted default, listed), denial = ZERO side effects,
 // the emergency-1 at count == cap and the exhausted state above, SELF via
 // the ToolContext sessionID, CROSS fire-and-forget with the effective cap+1
@@ -32,9 +32,9 @@ const WS = path.join(SCRATCH, "ws"); // the mock workspace (ctx.location.directo
 // 2026-10-26).
 const CLONE_ROOT = path.join(import.meta.dirname, "..", "..", "..");
 const PLUGIN = path.join(CLONE_ROOT, ".opencode", "plugins", "compact_memory.ts");
-const CORE = path.join(CLONE_ROOT, ".opencode", "plugin", "scripts", "compaction_core_v2.mjs");
+const CORE = path.join(CLONE_ROOT, ".opencode", "plugins", "scripts", "compaction_core_v2.mjs");
 const TWIN = path.join(CLONE_ROOT, "agent", "scripts", "db", "dump_session_v2.mjs"); // the 4c dump twin script
-const SQLITE_EXE = path.join(CLONE_ROOT, ".opencode", "plugin", "tools", "sqlite3.exe"); // its spawn-lane exe
+const SQLITE_EXE = path.join(CLONE_ROOT, ".opencode", "plugins", "tools", "sqlite3.exe"); // its spawn-lane exe
 
 let failures = 0;
 function chk(label, ok, detail = "") {
@@ -603,9 +603,9 @@ rmSync(path.join(WS, "dump_flag_once"), { force: true });
 // ------------------------------------------------------------------ S-T4c the dump twin CLI (the real script, sandbox copy, fixture DBs)
 const SAN = path.join(SCRATCH, "san4c");
 mkdirSync(path.join(SAN, "agent", "scripts", "db"), { recursive: true });
-mkdirSync(path.join(SAN, ".opencode", "plugin", "tools"), { recursive: true });
+mkdirSync(path.join(SAN, ".opencode", "plugins", "tools"), { recursive: true });
 copyFileSync(TWIN, path.join(SAN, "agent", "scripts", "db", "dump_session_v2.mjs"));
-copyFileSync(SQLITE_EXE, path.join(SAN, ".opencode", "plugin", "tools", "sqlite3.exe"));
+copyFileSync(SQLITE_EXE, path.join(SAN, ".opencode", "plugins", "tools", "sqlite3.exe"));
 const TWIN_SAN = path.join(SAN, "agent", "scripts", "db", "dump_session_v2.mjs");
 const SAN_OUT = path.join(SAN, "archive", "sessions");
 const FXV2 = path.join(SAN, "fxv2.db");

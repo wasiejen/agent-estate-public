@@ -146,7 +146,7 @@ import { dirname, join } from "node:path";
 
 // The shared v2-paired gauge core (VALUE import of plain JS — node: builtins
 // only). Used for the report header figure + its readout form only.
-import { formatGauge, readGauge } from "../plugin/scripts/gauge.mjs";
+import { formatGauge, readGauge } from "./scripts/gauge.mjs";
 
 // ------------------------------------------------------------------ constants
 

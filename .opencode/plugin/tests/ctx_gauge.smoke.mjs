@@ -15,11 +15,11 @@ import path from "node:path";
 import { REPO_ROOT, loadRepo, makeChecker } from "./_smoke_base.mjs";
 
 const cgTool = (await loadRepo(".opencode/tools/ctx_gauge.ts")).default;
-const gauge = await loadRepo(".opencode/plugin/scripts/gauge.mjs");
+const gauge = await loadRepo(".opencode/plugins/scripts/gauge.mjs");
 const { chk, finish } = makeChecker("CTX_GAUGE_SMOKE");
 
 // (1) + (2) — live db: peek.mjs (child) vs the tool (in-process)
-const peekOut = execFileSync("node", [path.join(REPO_ROOT, ".opencode", "plugin", "scripts", "peek.mjs")], {
+const peekOut = execFileSync("node", [path.join(REPO_ROOT, ".opencode", "plugins", "scripts", "peek.mjs")], {
   cwd: REPO_ROOT, encoding: "utf8",
 }).trim();
 const live = await cgTool.execute({}, {});

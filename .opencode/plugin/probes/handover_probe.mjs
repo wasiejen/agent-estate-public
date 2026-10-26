@@ -1194,7 +1194,7 @@ const MISSING_DB = path.join(SANDBOX, "missing_fx.db"); // never created — the
 // the core — SAME module instance the plugin imports (same resolved file), so
 // setDbPath below steers the plugin's chat.message read to the fixtures.
 const { readGauge, formatGauge, parseWindow, parseModelId, setDbPath, getDbPath, setBackends, getBackends, DEFAULT_BACKENDS, setImportForTest, clearImportForTest, importAttemptsForTest, setBudgetFileForTest, getBudgetFile, compactionsLeftSuffix, loopIterationSuffix, setLoopRootForTest } =
-  await import(new URL("../scripts/gauge.mjs", import.meta.url).href);
+  await import(new URL("../../plugins/scripts/gauge.mjs", import.meta.url).href);
 
 // Item 3 (2026-09-24): the "N compactions left" suffix reads the budget
 // store PER formatGauge call — steered to a NEVER-CREATED sandbox path so
@@ -1829,7 +1829,7 @@ const MOCK_LOG = [];
       construct !== undefined && construct.path === FX_OK && construct.opts !== undefined && construct.opts.readonly === true && construct.opts.timeout === 2500 &&
       execs.length === 1 && execs[0].sql === "PRAGMA busy_timeout = 2500;" &&
       // clone twin (TODO #141): the gauge core here is the table-aware unit-1
-      // port (`.opencode/plugin/scripts/gauge.mjs`), so the session-row leg
+      // port (`.opencode/plugins/scripts/gauge.mjs`), so the session-row leg
       // drives 7 ordered prepares, not the v1 2 — mirrored EXACTLY from the core.
       prepares.length === 7 &&
       prepares[0].sql === "SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = ?" &&

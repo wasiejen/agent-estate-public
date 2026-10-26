@@ -132,7 +132,7 @@ import { dirname, join } from "node:path";
 // v2-paired since units 1+2). A VALUE import — plain JS whose own imports are
 // node: builtins only (no node_modules surface; the host's plugin load resolves
 // it from the repo tree) — the intercept plugin's pattern.
-import { formatGauge, readGauge } from "../plugin/scripts/gauge.mjs";
+import { formatGauge, readGauge } from "./scripts/gauge.mjs";
 
 // ------------------------------------------------------------------ constants (v1 ladder, byte-shape)
 

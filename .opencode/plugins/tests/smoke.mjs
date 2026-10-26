@@ -116,7 +116,7 @@ function makeCtx(directory) {
 
 // ------------------------------------------------------------------ the session-DB fixture (v2-migration unit 1, 2026-10-21)
 // The plugin's model field reads the session DB through the SHARED gauge
-// core (`../plugin/scripts/gauge.mjs`). The smoke STEERS that core — the
+// core (`./scripts/gauge.mjs`). The smoke STEERS that core — the
 // SAME module instance the plugin imports — at a FIXTURE DB under the
 // scratchpad (NEVER the live `~/.local/share/opencode/opencode.db`): a
 // `session_v2` row for the mock SID, the v2 column shape (`model` = the
@@ -130,7 +130,7 @@ const FX_DB = path.join(SCRATCH, "fx_gauge_v2.db");
   db.exec(`INSERT INTO session_v2 VALUES('${SID}', '{"id":"${FX_MODEL_ID}","providerID":"llama-swap"}', 2000)`);
   db.close();
 }
-const gaugeMod = await import(pathToFileURL(path.join(CLONE_ROOT, ".opencode", "plugin", "scripts", "gauge.mjs")).href);
+const gaugeMod = await import(pathToFileURL(path.join(CLONE_ROOT, ".opencode", "plugins", "scripts", "gauge.mjs")).href);
 gaugeMod.setDbPath(FX_DB); // the plugin's readGauge(undefined, sid) reads THIS file
 
 const plugin = (await import(pathToFileURL(PLUGIN).href)).default;

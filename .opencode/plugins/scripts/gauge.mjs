@@ -41,7 +41,7 @@
 //                      never swallowed).
 //   3. spawn-sqlite3 — the retired v1.x backend, PROVEN IN PRODUCTION under
 //                      the production bun host (maintainer-placed SQLite
-//                      CLI at .opencode/plugin/tools/sqlite3.exe — resolved
+//                      CLI at .opencode/plugins/tools/sqlite3.exe — resolved
 //                      RELATIVE to this file, never a hardcoded user path).
 //                      The v1.x discipline, recovered from git history
 //                      (2cf5f33): ARGS ARRAY (no shell — no quoting
@@ -156,7 +156,7 @@ const THIS_DIR = dirname(fileURLToPath(import.meta.url));
 // The opencode.db location (fact-2 of the T1 spec, planner-verified).
 export const DEFAULT_DB_PATH = join(os.homedir(), ".local", "share", "opencode", "opencode.db");
 // The maintainer-placed SQLite CLI, resolved RELATIVE TO THIS FILE (stable
-// for the CLI cwd and the plugin import alike): .opencode/plugin/scripts →
+// for the CLI cwd and the plugin import alike): .opencode/plugins/scripts →
 // ../tools. NEVER deleted or moved (maintainer-placed, TODO #30/#37).
 export const DEFAULT_EXE_PATH = join(THIS_DIR, "..", "tools", "sqlite3.exe");
 // The backend chain, in selection order (see the READ BACKEND CHAIN header).
@@ -196,7 +196,7 @@ export function getBackends() {
 // reads (the compact_memory budget store — the SAME file auto_resume.ts
 // reads per nudge-eligible call; READ-ONLY here, read per formatGauge call —
 // small file, a per-call read is fine). Resolved RELATIVE to this file
-// (.opencode/plugin/scripts → ../.. = repo root → .opencode/temp/).
+// (.opencode/plugins/scripts → ../.. = repo root → .opencode/temp/).
 export const DEFAULT_BUDGET_FILE = join(THIS_DIR, "..", "..", "temp", "compact_budget.json");
 let budgetFile = DEFAULT_BUDGET_FILE;
 // Test hook (the setDbPath pattern — the probe/smokes steer the read at
@@ -260,12 +260,15 @@ export function loopIterationSuffix() {
 // the name-marker parse (resolveWindow below — parseWindow is the
 // fallback). The live config is JSONC (comments + trailing commas; a `//`
 // INSIDE a string literal is NOT a comment — the strip is string-aware).
-// Resolved RELATIVE to this file: `.opencode/plugin/scripts` → THREE levels up
+// Resolved RELATIVE to this file: `.opencode/plugins/scripts` → THREE levels up
 // = the repo root (`../..` only reaches `.opencode` — #152 fix, see below),
 // preferring opencode.jsonc and falling back to opencode.json when
 // absent. READ per resolveWindow call (small file — same precedent as the
 // budget-store read in compactionsLeftSuffix); NEVER throws (missing /
 // unparseable / no entry → the parseWindow fallback stands).
+// #150 unit A (2026-10-26): the core moved from `.opencode/plugin/scripts/` to
+// `.opencode/plugins/scripts/` — the SAME depth, so every THIS_DIR number above
+// stays valid (the exe moved with it to `.opencode/plugins/tools/`).
 // #152 (2026-10-26) P0: the T1 estate lived at `<root>/plugin/scripts/`, so the
 // original `../..` reached the root. The move into `.opencode/plugin/` left this
 // pointing at `.opencode/opencode.jsonc` (never exists) → the config walk was

@@ -1,7 +1,7 @@
 // gauge_core.smoke.mjs — the gauge core parseWindow/parseModelId fixtures
 // (scratchpad origin: pw_test.mjs, moved per the 2026-09-15_smoke-harness-home
 // proposal; the old `.opencode/ctxgauge/gauge.mjs` reference is rewired to the
-// current location `.opencode/plugin/scripts/gauge.mjs`) + the item 3
+// current location `.opencode/plugins/scripts/gauge.mjs`) + the item 3
 // (2026-09-24) "N compactions left" budget suffix (the 3 states + fail-open
 // — the budget store steered at temp fixtures via setBudgetFileForTest) +
 // the v2-migration unit 1 (2026-10-21) TABLE-AWARE SESSION-ROW read pins:
@@ -19,7 +19,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite"; // v2unit1: the fixture-DB read pins
 import { loadRepo, freshSandbox, rmTear } from "./_smoke_base.mjs"; // #144: rmTear = retry-on-EBUSY teardown
 
-const m = await loadRepo(".opencode/plugin/scripts/gauge.mjs");
+const m = await loadRepo(".opencode/plugins/scripts/gauge.mjs");
 const cases = [
   ["Qwen3.8-27B-IQ4KT-100K", 100_000],
   ["Qwen3.8-27B-IQ3KT-120K_MTP", 120_000],

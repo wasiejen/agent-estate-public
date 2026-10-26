@@ -1,6 +1,6 @@
 # ctx_gauge.ts — the context-gauge readout tool
 
-T2 (iter-10, the loop-tool-batch part 2). The gauge readout as a DIRECTLY-FIRED tool instead of the `node .opencode\plugin\scripts\peek.mjs` bash shell-out (~15k tokens per readout — the maintainer's observation that motivated the batch).
+T2 (iter-10, the loop-tool-batch part 2). The gauge readout as a DIRECTLY-FIRED tool instead of the `node .opencode\plugins\scripts\peek.mjs` bash shell-out (~15k tokens per readout — the maintainer's observation that motivated the batch).
 
 ## What it does
 
@@ -9,7 +9,7 @@ Reads the context usage of the current (or a named) session, read-only, and retu
 ## Implementation sketch
 
 - Entry: `export default tool({ description, args, execute })` — args: `sessionID?` (empty/omitted → the newest-updated session, the default peek read).
-- Wraps the ONE shared gauge core `../plugin/scripts/gauge.mjs` (`readGauge`/`formatGauge` — backend chain, window rule, readout forms; NOTHING re-derived here; the core NEVER throws — a hard failure comes back as `kind: "db-error"` with the capped, backend-naming error text, APPENDED in-band where peek.mjs would write stderr).
+- Wraps the ONE shared gauge core `../plugins/scripts/gauge.mjs` (`readGauge`/`formatGauge` — backend chain, window rule, readout forms; NOTHING re-derived here; the core NEVER throws — a hard failure comes back as `kind: "db-error"` with the capped, backend-naming error text, APPENDED in-band where peek.mjs would write stderr).
 - The budget suffix (item 3, 2026-09-24): when the compaction budget store (`.opencode/temp/compact_budget.json`) resolves, the readout line ENDS with the distinct ` | N compactions left` field (file absent / unparseable → no suffix) — the per-model cap (+ the once-per-session emergency).
 
 ## Gotchas / lessons

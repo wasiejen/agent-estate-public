@@ -37,7 +37,7 @@
 // 2026-10-22_137u4c-dump-twin — the plugin logs `dump-skipped` instead).
 //
 // Root: the caller's context `directory` when present, else SELF-
-// LOCATION (this file lives at <root>/.opencode/plugin/scripts/ — the
+// LOCATION (this file lives at <root>/.opencode/plugins/scripts/ — the
 // gauge.mjs pattern; the grandparent of the scripts dir is the repo root).
 // =============================================================================
 

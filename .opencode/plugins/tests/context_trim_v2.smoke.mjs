@@ -34,7 +34,7 @@ const WS = path.join(SCRATCH, "ws"); // ctx.location.directory (store + log root
 const CLONE_ROOT = path.join(import.meta.dirname, "..", "..", "..");
 const PLUGIN = path.join(CLONE_ROOT, ".opencode", "plugins", "context_trim_v2.ts");
 const CF_PLUGIN = path.join(CLONE_ROOT, ".opencode", "plugins", "context_family.ts");
-const GAUGE = path.join(CLONE_ROOT, ".opencode", "plugin", "scripts", "gauge.mjs");
+const GAUGE = path.join(CLONE_ROOT, ".opencode", "plugins", "scripts", "gauge.mjs");
 const SID = "ses_trim001";
 const MODEL_ID = "smoke-trim-model-120K"; // name-marker window: 120000
 

@@ -39,34 +39,40 @@ scratchpad fixtures. The `tests/` dir has no `server.ts`/`index.ts`
 entrypoint, so v2 plugin discovery drops it at scan time (fork
 `packages/core/src/config/plugin/source.ts:164-167`).
 
-## Context-family smoke (TODO #137 units 3a + 3b, 2026-10-22)
+## Context-family smoke (TODO #137 units 3a + 3b, RE-PINNED for the #153/#154 append leg, 2026-10-26)
 
     bun run context_family.smoke.mjs
 
-46 checks against a mock `ctx` (no opencode process): the 3a legs — the
-`context`-hook registration, the `ctx: ` tail injection with the byte-exact
-gauge readout (name-marker window + budget + ITER suffixes from fixture
-stores), the APPEND-ONLY cache pin (the untouched messages prefix byte-
-compares), the own-session gate (mismatch -> no post, no line), the honest
-`CTX=notAvailable` post, `db-error` -> ONE evidence line (no post),
-`messages-not-array`, the suffix fail-open forms, the singular budget-at-cap
-form — plus the 3b legs: the 5-rung nudge ladder on `tool.execute.after`
-(each rung boundary: pct 50 / REM 30k / REM 20k / REM 10k / REM<5k —
-fixture sessions with 120K/80K name-marker windows), the highest-rung-met
-rule, per-rung dedup (second fire same rung -> no line, no call), the
-no-total/db-error silence (ZERO lines on that channel), the `session.synthetic`
-delivery captured on the mock (`delivery:"queue"`, text = the bare formatGauge
-readout + the v1 rung text VERBATIM), the mock rejection/sync-throw ->
-`delivery-rejected`/`delivery-threw` evidence lines with the tool call NOT
-failed, and the handover pre-flight on `tool.execute.before` (missing/EMPTY/
+46 checks against a mock `ctx` (no opencode process): the loader shape + the
+hook list EXACTLY `execute.before` + `execute.after` (the `session.hook(
+"context")` draft leg is NOT registered — a separate session-hook map pins that);
+the append lanes (a string `output`, the LAST text item of a content array, a
+content array without a text item -> a NEW tail item, a string `content`, an
+empty result -> `output` SET), the append-only tail (the original output survives
+as a byte prefix), the byte-exact gauge line `ctx: CTX=<n> (<p>%) REM=<m> | N
+compactions left` (NO `SESSION=` token, NO `ITER=`), the >= 1%-of-window economy
+gate (delta below -> nothing, delta at exactly 1% -> append), the `ctx_gauge`
+skip on a below-rung AND on a rung session, the silence lanes (a no-total read —
+which carries a resolved window but NO ctx —, an sid mismatch, a missing event
+sessionID, an ERROR-status call with nothing appendable), `db-error` -> ONE
+`kind:gauge` line with a capped preview and NO append, and the durable store
+`.opencode/temp/ctx_family_store.json` (the first-append CTX baseline, the
+reload-surviving rung dedup from a pre-seeded `fired` list, the additive #119
+write that keeps a foreign key + another session's entry, the fail-open read on
+a malformed file); the 5-rung ladder ON THE APPEND CHANNEL (each boundary: pct
+50 / REM 30k / REM 20k / REM 10k / REM<5k over the 120K/80K name-marker
+fixtures, the highest-rung-met rule, per-rung dedup, and ZERO
+`session.synthetic` calls — the mock keeps the method so any call WOULD be
+counted); and the handover pre-flight on `tool.execute.before` (missing/EMPTY/
 whitespace spec file -> ONE `handover-preflight` warn; non-handover and
-non-object input silent; `event.input` never mutated) and the whole-log
-JSON invariants (kinds ONLY `ctxmsg`/`gauge`/`nudge`/`handover-preflight`).
+non-object input silent; `event.input` never mutated) + the whole-log JSON
+invariants (kinds ONLY `ctx-append`/`gauge`/`handover-preflight` — `ctxmsg` and
+`nudge` retired) + the cleanup dispose pin.
 Fixtures ride the scratchpad `home/AppData/Local/Temp/opencode/
-ctx-family-smoke-v2` (fixture `session_v2`/`session_message` DB, budget +
-loop-root files — NEVER the live DB; the shared gauge core is steered via
-its test hooks). Expected final line: `SMOKE: ALL PASS`.
-`packages/core/src/config/plugin/source.ts:164-167`).
+ctx-family-smoke-v2` (fixture `session_v2`/`session_message` DB + the budget
+file — NEVER the live DB; the shared gauge core is steered via its test hooks;
+the store and the evidence log ride the mock WS root). Expected final line:
+`SMOKE: ALL PASS`.
 
 ## compact_memory smoke (TODO #137 units 4a + 4c, 2026-10-22)
 
@@ -146,6 +152,12 @@ entries byte-compare) + cleanup. Fixtures ride the scratchpad
 `session_v2`/`session_message` DB + budget file; the boundary store + the
 evidence log ride the mock WS root — NEVER the live DB). Expected final line:
 `SMOKE: ALL PASS`.
+
+NOTE (2026-10-26, the #153 append leg): the COMPOSITION pins above pre-date that
+leg — the `ctx: ` line no longer rides the request draft, so this suite needs a
+re-pin onto the `execute.after` append before it can go green again (it also
+still resolves the removed `the estate (former name)-v2` clone root). Filed as an inbox
+finding; the append-leg pins live in `context_family.smoke.mjs`.
 
 ## loop_log smoke (TODO #137 unit 5a, 2026-10-22)
 

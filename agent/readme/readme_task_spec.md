@@ -42,9 +42,9 @@
   to infer the scope.
 - **Full repo-relative paths for file references:** name proposal / spec /
   knowledge files by their FULL repo-relative path. The failure mode this
-  rule targets — the truncated form `proposals/
-  approved/…`, not `proposals/approved/…` — shows how a bare name costs
-  the worker a find/glob call (2026-09-26/27 frictions).
+  rule targets is a bare or truncated name (`approved/…`) where the full
+  path belongs (`proposals/approved/…`): it costs the worker a find/glob
+  call (2026-09-26/27 frictions).
 - **Probe line refs point at the CODE block, re-verified at authoring:**
   when the spec cites a probe case by line range, point at the case's code
   block (never the header annotation). Re-verify the range + the baseline
@@ -79,9 +79,8 @@
   one unit. `TODO.md` + the handover file ride the FINAL commit (carrying
   the code commits' hashes, never their own). Spec DoDs state "checkpoint
   commits per verified unit; TODO + handover in the final commit" — never
-  "ONE commit" for the whole task. AGENTS.md §Commit-routine step 1
-  carries the same rule (maintainer paste pending — this bullet + the
-  spec DoD line govern until it lands).
+  "ONE commit" for the whole task. AGENTS.md §Commit-routine step 1 carries
+  the same rule ("Commit one verified unit at a time" — the paste LANDED).
 - **Verified facts are verified at authoring time (2026-10-01 feedback
   cluster — #128/#129/#131 specs):**
   - (a) API signatures cited in the verified-facts section are verified
@@ -102,8 +101,11 @@
     been closed 2026-09-30; the worker flagged the discrepancy.
 - **Pin-audit: probe registration-shape pins (2026-10-01, U3):** a tool
   mode that GAINS surface ARGS makes the probe's registration-shape check
-  a pin surface (the exact args key list — e.g. compact_memory check 86,
-  context_trim check 346). The spec names it and the in-scope re-pin. The
-  U3 spec named only the smoke pins — the worker committed with the probe
-  RED, then died at the wall before the fix (the planner re-pinned 86 in
-  place; the gate is green again).
+  a pin surface (the exact args key list + NO `name` field). Name the
+  check's LABEL, never its printed number: the numbers shift whenever a
+  probe section is added (the 2026-10-01 run printed `86` / `346`; the
+  2026-10-26 run prints `[355]` for the state_snapshot registration
+  shape, total 115). The spec names it and the in-scope re-pin. The U3
+  spec named only the smoke pins — the worker committed with the probe
+  RED, then died at the wall before the fix (the planner re-pinned that
+  check in place; the gate is green again).

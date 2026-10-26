@@ -1,8 +1,13 @@
 # v2 plugins — smokes + typecheck (TODO #137)
 
 Machine-local verification for `.opencode/plugins/` (Unit A: the intercept
-observer; unit 3a: the context-family core). The absolute paths point at
-this machine's fork workspace and scratchpad.
+observer; unit 3a: the context-family core). Every smoke resolves its repo
+root from its own file (`import.meta.dirname` -> up 3), so run the commands
+below FROM this directory in the MAIN checkout
+(`repo-root`) — the suite follows whatever
+checkout owns `tests/`. The only absolute paths left are the fork workspace
+(`home/Repos/opencode`) and the scratchpad
+(`home/AppData/Local/Temp/opencode`) (TODO #156, 2026-10-26).
 
 ## Smoke (bun, mock ctx — no opencode process)
 
@@ -155,9 +160,11 @@ evidence log ride the mock WS root — NEVER the live DB). Expected final line:
 
 NOTE (2026-10-26, the #153 append leg): the COMPOSITION pins above pre-date that
 leg — the `ctx: ` line no longer rides the request draft, so this suite needs a
-re-pin onto the `execute.after` append before it can go green again (it also
-still resolves the removed `the estate (former name)-v2` clone root). Filed as an inbox
-finding; the append-leg pins live in `context_family.smoke.mjs`.
+re-pin onto the `execute.after` append before it can go green again (C1 fails:
+the real `context_family` plugin registers `execute.before`/`execute.after`,
+no `context` handler). Filed as an inbox finding; the append-leg pins live in
+`context_family.smoke.mjs`. The clone-root resolution is fixed: this suite now
+resolves its root from its own file (TODO #156, 2026-10-26).
 
 ## loop_log smoke (TODO #137 unit 5a, 2026-10-22)
 

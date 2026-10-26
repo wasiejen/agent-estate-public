@@ -956,3 +956,6 @@ ctx_gauge gives no (p%)/REM on strata/gyro-gyro-m (TODO #152: the gauge core dro
 ### 2026-10-26_03-09 worker_FlashNext ses_e8a3b9df6ffehK7LncVbQc1PyD
 The direct block_transfer tool call did NOT dispatch in this host — it printed a result and left the file untouched, twice (two lost turns). Only the native edit tool or a tools.block_transfer(...) call inside execute actually changes files. Fix the host dispatch, or mark block_transfer Code-Mode-only.
 
+### 2026-10-26_11-16 worker_FlashNext ses_e884f441cffek2Wm7DED5ukb74
+edit tool dropped the required `path` key twice on ~1.5k-char newString payloads (error: 'path: Missing key', retry identical shorter payload succeeded) — the failure is payload-size-triggered, so long TODO/handover rewrites need splitting into short hunks or block_transfer WRITE.
+

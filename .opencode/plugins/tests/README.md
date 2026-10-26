@@ -129,7 +129,7 @@ the bun host).
 
     bun run context_trim_v2.smoke.mjs
 
-65 checks against a mock `ctx` (no opencode process — the window rows come from
+71 checks against a mock `ctx` (no opencode process — the window rows come from
 a MOCKED `session.context` RPC, the header's ctx figure from the gauge core
 steered at a v2-shaped fixture DB): the loader shape + the `tool.transform`/
 `editor.add` registration (name `context_trim`, the v1-mirroring args + the v2
@@ -149,22 +149,29 @@ projections, appends NOTHING, ONE `trim` line), the STALE-boundary fail-open
 (ONE deduped `boundary-stale` line, nothing dropped, the report's `boundary-
 state=stale` header), the read-failure channels (`context-read-failed`/`session-
 not-found`/`messages-not-array`), the whole-log kind/cap invariants, and the
-COMPOSITION pins with the REAL context_family plugin registered on the same
-mock (both handler orders on ONE draft: the `ctx: ` injection survives the
-filter byte-exactly, the pre-boundary entries are gone in both, the surviving
-entries byte-compare) + cleanup. Fixtures ride the scratchpad
+COMPOSITION block against the REAL context_family plugin on the CURRENT channel
+(#157 re-pin, 2026-10-26): context_family registers EXACTLY `execute.before` +
+`execute.after` and APPENDS its `ctx: ` line to the tool RESULT — so the pins
+cover the registration shape, ONE append per after-event (the original output
+survives as a byte prefix), the `ctx-append` evidence line in its own log with
+NO `ctxmsg`/`nudge` kind, the draft filter's inability to mutate a tool result
+(silent with no boundary, one honest `messages-not-array` line with one), the
+>= 1%-of-window economy gate, the append surviving a SET boundary (a moved fill),
+and cleanup disposing both hooks + the trim plugin keeping its draft handler.
+Fixtures ride the scratchpad
 `home/AppData/Local/Temp/opencode/ctx-trim-smoke-v2` (fixture
 `session_v2`/`session_message` DB + budget file; the boundary store + the
 evidence log ride the mock WS root — NEVER the live DB). Expected final line:
 `SMOKE: ALL PASS`.
 
-NOTE (2026-10-26, the #153 append leg): the COMPOSITION pins above pre-date that
-leg — the `ctx: ` line no longer rides the request draft, so this suite needs a
-re-pin onto the `execute.after` append before it can go green again (C1 fails:
-the real `context_family` plugin registers `execute.before`/`execute.after`,
-no `context` handler). Filed as an inbox finding; the append-leg pins live in
-`context_family.smoke.mjs`. The clone-root resolution is fixed: this suite now
-resolves its root from its own file (TODO #156, 2026-10-26).
+NOTE (2026-10-26, #157): the COMPOSITION block is re-pinned onto the `execute.after`
+append channel — the `ctx: ` line no longer rides the request draft, and
+`context_family` registers no draft handler at all (#153). PLANNER RULING recorded
+here: the `kind:"gauge"` db-error evidence line STAYS on `execute.after` (one
+channel, pinned as A14 in `context_family.smoke.mjs`); the retired
+`session.hook("context")` leg was never revived. The append-leg ladder pins live in
+`context_family.smoke.mjs`. The clone-root resolution is fixed: this suite resolves
+its root from its own file (TODO #156, 2026-10-26).
 
 ## loop_log smoke (TODO #137 unit 5a, 2026-10-22)
 

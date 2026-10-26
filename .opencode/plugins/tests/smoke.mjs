@@ -46,6 +46,10 @@ rmSync(ROOTA, { recursive: true, force: true });
 mkdirSync(path.join(WS, "fx"), { recursive: true });
 mkdirSync(path.join(WS, "fx", "sub"), { recursive: true });
 mkdirSync(path.join(WS, "fx", "dd"), { recursive: true });
+// #162-build P-SEG fixture: a SEPARATE root with EXACTLY ONE corpus entry — the
+// parent-dir entry cannot tie at seg-d (C5's fail-close), so the segment
+// matcher RESOLVES there (d=1, gap=inf).
+mkdirSync(path.join(WS, "fx", "segfix"), { recursive: true });
 mkdirSync(ROOTA, { recursive: true });
 mkdirSync(path.join(WS, ".opencode", "temp"), { recursive: true });
 
@@ -55,6 +59,7 @@ writeFileSync(fx("fx/edit-target.txt"), "hello\n");
 writeFileSync(fx("fx/read-exact.txt"), "exact\n");
 writeFileSync(fx("fx/sub/file-4b.txt"), "SUBTWIN\n");
 writeFileSync(fx("fx/dd/x.txt"), "DD\n");
+writeFileSync(fx("fx/segfix/keep-1.txt"), "SEGKEEP\n");
 
 // the mock workspace config (v1 syntax — v2 normalizes it in memory; the
 // plugin must resolve the allowed roots from it): ws + scratchpad + rootA
@@ -476,6 +481,23 @@ chk("setup: registers the execute.before hook + returns a cleanup", typeof ctx._
   const lines = readLog().slice(before);
   const fr = lines.find((f) => f[7] === "fuzzy-resolved");
   chk("v2unit1 id in NEITHER table: the model field stays `unknown` (8 fields, sid as given)", fr !== undefined && fr.length === 8 && fr[1] === "ses_absent000000" && fr[2] === "unknown", fr ? fr.join(" | ") : "no line");
+}
+
+// ------------------------------------------------------------------ #162-build P-SEG pin (leg 3, 2026-10-26)
+//
+// The POSITIVE counterpart of C5: a >=2-segment near-miss the R7 segment
+// matcher RESOLVES. The corpus under the nearest existing dir (`fx/segfix`)
+// is the single file `keep-1.txt` (no dir entry to tie at seg-d) — seg d=1,
+// gap=inf -> input.path MUTATED + the `kind=seg` fuzzy-resolved line.
+// Scoped-checked after the whole-log invariants (like the #142 pins).
+{
+  const before = readLog().length;
+  const input = { path: "fx/segfix/segmiss/keep-1.txt" };
+  await ctx.fire("read", input);
+  chk("P-SEG segment-matched read: input.path mutated to the existing seg file", input.path === fx("fx/segfix/keep-1.txt"), `got ${input.path}`);
+  const lines = readLog().slice(before);
+  const seg = lines.find((f) => f[7] === "fuzzy-resolved" && f[5].includes("kind=seg"));
+  chk("P-SEG kind=seg fuzzy-resolved line (scope=read, d=1, gap=inf, orig + whole resolved target)", seg !== undefined && seg[5].includes("scope=read") && seg[5].includes("d=1") && seg[5].includes("gap=inf") && seg[5].includes("orig=fx/segfix/segmiss/keep-1.txt") && seg[5].includes("-> keep-1.txt"), seg ? seg[5] : "no line");
 }
 
 await cleanup();

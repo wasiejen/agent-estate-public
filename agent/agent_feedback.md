@@ -968,3 +968,6 @@ Workers keep ending their turn by calling Code Mode catalog tools directly (`too
 ### 2026-10-26_11-48 worker_FlashNext ses_e884f441cffek2Wm7DED5ukb74
 Code Mode `execute` has no `Bun` (ReferenceError: Unknown identifier 'Bun') even though the host runs bun — byte-exact multi-file text replacement needs a written python script via shell; state this in the host facts so a worker does not burn a call guessing.
 
+### 2026-10-26_12-57 worker_FlashNext ses_e88003e05ffePmE5eqUVJ8cx43
+Friction (worker-32, #150-B): the shell tool decodes `\\b` inside commands into a backspace, so `new RegExp("\\b"+id+"\\b")` in `node -e`/heredoc scripts silently matches NOTHING (hit twice while mapping probe identifiers) — write regex-bearing scripts with the write tool (exact bytes), never heredoc/-e.
+

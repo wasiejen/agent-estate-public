@@ -1,89 +1,76 @@
-// context_family.ts — the v2-native context-family core (TODO #137 unit 3a,
-// 2026-10-22, clone `migration`). Port of the ctx readout + ctx-line injection
-// of the v1 `.opencode/plugin/ctx_watchdog.ts` (v2.4 / v2.4.1 / v2.5 / Part 2
+// context_family.ts — the v2-native context-family core (TODO #137 units 3a +
+// 3b, 2026-10-22, clone `migration`; TODO #153 + #154 append leg, 2026-10-26).
+// Port of the ctx readout + ctx-line injection and the nudge ladder of the v1
+// `.opencode/plugin/ctx_watchdog.ts` (v2.4 / v2.4.1 / v2.5 / v2.6 / Part 2
 // vocabulary — the v1 file is the design of record; this header records only
-// what CHANGES at the v2 landing). The nudge ladder + the handover pre-flight
-// rode spec 3b (same file, next launch after 3a) — landed below under sections
-// (6) and (7); the 3a regions (1)-(5) stay intact and byte-stable around them.
+// what CHANGES at the v2 landing). The 3a regions (1)-(5) and the 3b ladder (6)
+// + pre-flight (7) keep their v1 semantics; the append leg RE-HOMES their
+// delivery onto `tool.execute.after` (spec 2026-10-26_153-154-gauge-append-leg).
 //
 // WHAT IT IS: a v2 plugin (`Plugin.define` shape — DEFAULT export only, the
-// loader contract; the `@opencode/plugin` import is TYPE-ONLY, erased at
-// runtime — the clone has no node_modules; the gauge core import is a VALUE
-// import of plain `.mjs` whose own imports are node: builtins only, the
-// intercept plugin's pattern). It registers ONE hook: `ctx.session.hook("context",
-// …)` — the v2 `SessionContext` draft hook, fired per PRIMARY model request
-// before `LLM.request` (fork `packages/core/src/session/model-request.ts:422-431`
-// — `prepare("primary", …, agentHook("context", …))`; the `compaction` /
-// `generate` / `title` kinds register separately and never fire this handler).
-// The draft's `messages` is MUTABLE (`SessionRequest` —
-// `packages/plugin/src/promise/session.ts:25-31`); this is the official v2
-// destination for v1's chat.message injection (research
-// `agent/research/2026-10-15_opencode-v2-impact.md` §3: the injection lands on
-// the request DRAFT — transient, NEVER persisted; filter-at-assembly ≠ persisted
-// history).
+// loader contract; the `@opencode/plugin` import is TYPE-ONLY, erased at runtime
+// — the clone has no node_modules; the gauge core import is a VALUE import of
+// plain `.mjs` whose own imports are node: builtins only, the intercept plugin's
+// pattern). It registers TWO hooks: `ctx.tool.hook("execute.before", …)` (the
+// handover pre-flight, section 7) and `ctx.tool.hook("execute.after", …)` (the
+// ONE context channel — gauge line + rung ladder, sections 1-6). The
+// `ctx.session.hook("context")` draft hook is NOT registered anymore (#153): its
+// entries were never persisted, so every injected line invalidated the prompt
+// checkpoint (#151) while its `ctxmsg` evidence line printed a post that never
+// happened. `session.synthetic({delivery: "queue"})` is gone too (#154): it
+// landed as the next turn at idle and woke deliberately-idle sessions with a
+// stale readout. One channel, persisted, cache-safe, never wakes an idle session.
 //
 // (1) READOUT — the SHARED gauge core (the clone copy is ALREADY v2-paired:
 // unit 1 `922f74c` table-aware session-row leg, unit 2 `2c1fa23` paired token-
-// mass leg). `readGauge(undefined, sessionID)` with the request's OWN session
-// id (the v1 v2.6 per-session read discipline; the read NEVER throws — a hard
-// failure is `kind:"db-error"`); the injected text is `formatGauge(g)` + the
-// Part 2 `loopIterationSuffix()` — BYTE-IDENTICAL to v1's injected chat.message
-// ctx line (`ctx: <peek line>[ ITER=<n> <folder>]`); the peek CLI / ctx_gauge
-// tool readouts are UNCHANGED by the suffix rule (formatGauge untouched there).
+// mass leg, #152 `3aa4743` provider-qualified window). `readGauge(undefined,
+// sid)` with the EVENT's OWN session id (the v1 v2.6 per-session read discipline;
+// the read NEVER throws — a hard failure is `kind:"db-error"`); the appended text
+// is `"ctx: " + formatGauge(g)` WITHOUT the `SESSION=<sid> ` token (DoD 2's form:
+// the line sits inside the session's own tool result, so naming the session is
+// waste) and WITHOUT the `ITER=<n> <folder>` suffix (the maintainer ruling —
+// `loop_log` auto-locates its folder from `status`/`content` alone, so repeating
+// it ~100 times is waste; the session-start carrier is TODO #155). The peek CLI /
+// ctx_gauge tool readouts are UNCHANGED (`formatGauge` untouched).
 //
-// (2) CACHE DISCIPLINE (the v2.3 REJECTED-approach ruling, kept verbatim in
-// spirit): the injection is APPEND-ONLY AT THE TAIL of `event.messages`.
-// EVERY entry BEFORE the injection point is left BYTE-UNCHANGED — no existing
-// entry is mutated, no `system` item, no `options`, nothing earlier in the
-// prompt is touched (the cacheable prefix stays byte-stable; mutating anything
-// in front of the newest entry invalidates the prompt cache EVERY turn —
-// the recorded v2.3 root cause). The injected entry is a NEW plain object:
-// `{ role: "user", content: [{ type: "text", text: "ctx: <readout>" }] }` —
-// the bounded shape question answered at spec time (tsgo + one fork grep):
-// the injectable entry type is `@opencode/ai`'s `LLM.Message`
-// (`packages/ai/src/schema/messages.ts:237-244` — a Schema.Class over Struct
-// fields; instance type = the plain structural fields, so a plain object
-// literal passes tsgo). `id` is OMITTED (optional; no id is required at this
-// hook — unlike the v1 v2.4.1 prt/msg id wall, the draft entry is not a
-// persisted part and `LLM.Message.id` carries no prefix contract). Role
-// `"user"`: the universally translatable role (v1 appended the ctx text part
-// onto the just-received USER message; research §2 `to-llm-message.ts:269` has
-// a user case; a mid-conversation `system` entry's provider translation is
-// unverified — fail toward the safe role). Fail-closed: if the append shape
-// cannot be built, NOTHING is appended (the house rule never-throw covers a
-// defensive failure; it logs no new reason — the shape is static).
+// (2) CACHE DISCIPLINE (the v2.3 REJECTED-approach ruling, now satisfied by
+// construction): the text is appended to the TAIL of the tool RESULT, which the
+// host persists into the tool part — so history grows append-only, every earlier
+// entry stays byte-identical, and the prompt checkpoint written at that tool
+// return keeps matching. The old `session.hook("context")` leg was the opposite:
+// its draft entry was never persisted, so prompt N+1 diverged at the injection
+// point and the checkpoint was discarded (#151/#153). The append targets the
+// field the host actually persists (see the `appendLine` note: content beats
+// output in `normalizeContent`); fail-closed — when nothing is appendable,
+// NOTHING is written and a rung is not marked fired.
 //
-// (3) OWN-SESSION GATE (the v1 v2.5 / #32 cross-session-feed semantics,
-// kept): the gauge result carries the `sid` it read. A MISMATCH
-// (`g.sid !== the request's sessionID`) → SILENT SKIP: no post, NO log line
-// (a normal multi-session state, not a failure). On EQUALITY ANY honest
-// own-session readout form POSTS — known window, unknown window, and
-// `CTX=notAvailable` (no-total) are information, not error. A missing/empty
-// request sessionID short-circuits the same silent path (session gating).
+// (3) OWN-SESSION GATE (the v1 v2.5 / #32 cross-session-feed semantics, kept):
+// the gauge result carries the `sid` it read. A MISMATCH (`g.sid` !== the
+// event's sessionID) → SILENT SKIP: no append, NO log line (a normal
+// multi-session state, not a failure). A missing/empty event sessionID
+// short-circuits the same silent path before the read. On EQUALITY the gate math
+// and the rung ladder run against THAT session's numbers only.
 //
 // (4) EVIDENCE LOG — this plugin's own log file: `.opencode/temp/ctx_family.log`
-// (the v1 role of `.opencode/plugin.log` for these lines MOVES HERE — the v1
-// event/tool observer channel has no v2 role here and is retired-in-v2 for
-// this family). Lines are capped JSON (the v1 ladder: LINE_CAP 2000, CAPS
-// [500,150,60], the `…` cut char — helpers replicated from v1 byte-shape).
-// Vocabulary (v1 words, kept):
-//   - kind "ctxmsg" — ONE line per FIRED-and-POSTED request:
-//     { ts, kind, session, agent, sess (the read session id — the v2.5 `sess`
-//     field: a post and its source sit side by side), line (the injected text) }
-//     The v1 `message`/`midSource` fields are GONE (the v2 draft carries no
-//     messageID — the v1 v2.4.1 `invalid-messageID` reason has no v2 branch
-//     and stays unemitted; recorded here, NOT invented).
-//   - kind "gauge" — the failure channel, v1 vocabulary: reason `db-error`
-//     (session + `preview` = the capped-120 error text, omitted when empty —
-//     the read failed even after busy_timeout + one retry) and `messages-not-
-//     array` (session; the v1 `parts-not-array` analogue on the draft array).
-//   DEVIATION vs v1 (spec DoD 5 — "db-error → no injection + ONE evidence
-//   line"): v1 logged its chatmsg line BEFORE the db-error check (two lines);
-//   here the per-fire line is suppressed whenever a gauge-failure line is
-//   emitted — exactly ONE line per failed fire, zero on the silent paths.
-//   The ok+posted path logs exactly ONE "ctxmsg" line (v1 discipline: no
-//   extra volume). SILENT (no line): the mismatch skip, the missing-session
-//   skip. Best-effort, NEVER throws out of the hook (the v1 house rule).
+// (the v1 role of `.opencode/plugin.log` for these lines MOVES HERE). Lines are
+// capped JSON (the v1 ladder: LINE_CAP 2000, CAPS [500,150,60], the `…` cut
+// char — helpers replicated from v1 byte-shape). Vocabulary AFTER the append leg
+// (#153/#154, 2026-10-26):
+//   - kind `ctx-append` — ONE line per ACTUAL append: { ts, kind, session,
+//     line (the appended text), and the discriminator `gauge` ("line" — the plain
+//     gauge line) or `rung` ("1".."5" — a firing rung) }. The line is written
+//     AFTER the result mutation succeeded, so the log says what was really
+//     persisted (the #153 complaint: the retired `ctxmsg` kind printed a posted
+//     line for a push that was commented out).
+//   - kind `gauge` — the failure channel, v1 vocabulary kept: reason `db-error`
+//     (session + `preview` = the capped-120 error text, omitted when empty). The
+//     draft-only `messages-not-array` reason is GONE with the draft leg.
+//   - kind `handover-preflight` — the section (7) warn.
+//   RETIRED kinds: `ctxmsg` (the draft fire) and `nudge` (the fire line + the
+//   `delivery-threw`/`delivery-rejected` reasons — no delivery channel left to
+//   fail). SILENT (no line): the sid-mismatch skip, the missing-session skip, an
+//   unknown-window read, a below-gate fill, an already-fired rung. Best-effort,
+//   NEVER throws out of the hook (the v1 house rule).
 //
 // (5) BUDGET SUFFIX — comes FREE via formatGauge (item 3: ` | N compactions
 // left`, fail-open when the store is missing/unparseable or the read session
@@ -92,33 +79,26 @@
 // the v2-paired host of that store).
 //
 // (6) NUDGE LADDER (spec 3b — the v1 v2.6 rung table + texts VERBATIM; design
-// of record = v1 header lines 98-122) — registered on `ctx.tool.hook("execute.after",
-// …)`, agent-independent, fired on EVERY tool call (completed OR error — v1
-// behavior: every tool.after). ONE gauge read per event for the event's OWN
-// sessionID (the v1 v2.6 per-session ruling stays — a newest-session read would
-// blind-spot concurrent sessions). Rungs: 1 `pct>=50` | 2 `pct>=70 or REM<=30k` |
-// 3 `pct>=80 or REM<=20k` | 4 `pct>=90 or REM<=10k` | 5 `REM<5k`; condition = pct
-// OR REM whichever hits first; the HIGHEST rung met fires; at most ONE nudge
-// PER RUNG PER SESSION (in-memory `nudgeFired` map keyed by session id — v1
-// shape). Unknown window / no-total / db-error reads NEVER fire — SILENT, and
-// NO gauge line rides this channel (the §(4) gauge failure vocabulary belongs
-// to the context hook; v1: "no NEW gauge-failure reasons"). Evidence: kind
-// "nudge" lines ONLY when a nudge fires — {session, rung, readout} capped JSON
-// (v1 volume discipline; no line for a non-fire). DELIVERY replaces v1's
-// promptAsync with the v2 synthetic channel: `ctx.session.synthetic({sessionID,
-// text, delivery: "queue"})` — the session-domain Pick carries `synthetic`
-// (promise/session.ts:139-163), `SessionSyntheticInput` = {sessionID, id?, text,
-// description?, metadata?, delivery?: "steer"|"queue", resume?} (generated
-// client types :4592; POST path /api/session/:id/synthetic) — "queue" queues
-// the nudge as the next turn at idle (the v1 synthetic-part semantics). FIRE-
-// AND-FORGET: never awaited in the hook; sync throws + rejections caught and
-// evidence-logged (kind "nudge", reason delivery-threw/delivery-rejected,
-// capped-120 preview — the v1 delivery-* vocabulary); a rejection NEVER fails
-// the tool call. The v2.8 busy-check/setImmediate race block is NOT ported:
-// delivery:"queue" is the native v2 idle-queueing mechanic (no steer race at
-// this channel). v2.7 P02 lesson (v1 lines 128-140): the `tool.execute.after`
-// SUMMARY MIRROR was REMOVED in v1 (7 collisions) — NOT (re-)ported here; the
-// committed worker summary file stays canonical, this plugin NEVER writes it.
+// of record = v1 header lines 98-122) — fired on EVERY `tool.execute.after`,
+// agent-independent, on the SAME channel as the gauge line. ONE gauge read per
+// event for the event's OWN sessionID (the v1 v2.6 per-session ruling stays).
+// Rungs: 1 `pct>=50` | 2 `pct>=70 or REM<=30k` | 3 `pct>=80 or REM<=20k` |
+// 4 `pct>=90 or REM<=10k` | 5 `REM<5k`; condition = pct OR REM whichever hits
+// first; the HIGHEST rung met fires. Unknown window / no-total / db-error reads
+// NEVER fire — SILENT (the stop line is defined in pct/REM). A firing rung's
+// text is APPENDED to the tool result — the #154 ruling: the old
+// `session.synthetic({delivery: "queue"})` leg was PERSISTED but landed as the
+// NEXT TURN at idle (fork `session/inbox.ts:98-139` reads `user|synthetic`
+// rows), so it woke a deliberately-idle session and carried a readout many turns
+// stale. Appending inside the call that caused the growth is current by
+// construction and NEVER wakes an idle session: a session with no tool call
+// receives nothing. NO `synthetic` call remains in this file. DEDUP: at most one
+// append per rung per session, read from the durable store (section 8) — an
+// in-memory map reset on every plugin reconciliation and re-fired rungs. The
+// v2.8 busy-check/setImmediate race block is NOT ported (no queue channel left).
+// v2.7 P02 lesson (v1 lines 128-140): the `tool.execute.after` SUMMARY MIRROR was
+// REMOVED in v1 (7 collisions) — NOT (re-)ported here; the committed worker
+// summary file stays canonical, this plugin NEVER writes it.
 //
 // (7) HANDOVER PRE-FLIGHT (spec 3b — the v1 v2.7 survivor) — registered on
 // `ctx.tool.hook("execute.before", …)`. The v2 delegation tool is `subagent`
@@ -133,25 +113,37 @@
 // that MAY reject a call — fork core/src/plugin/hooks.ts:23 — the pre-flight
 // never does; other fs read errors swallow silently like v1).
 //
-// STILL PENDING (unchanged by 3b): LIVE v2-host activation of all channels is
-// PENDING maintainer restart (registration/config = maintainer domain).
+// (8) THE DURABLE STORE — `.opencode/temp/ctx_family_store.json` (the
+// `context_trim_v2.ts:228 readStore()` precedent): per session the fired rungs
+// (reload-surviving dedup, #154) + the CTX of the last appended line (the >=1%
+// economy gate, #153). Read per use; read/write NEVER throw (fail-open).
+//
+// (9) THE ctx_gauge SKIP — a `ctx_gauge` call already answers with the readout,
+// so the whole append leg (both the gauge line and the rung ladder) skips it.
+//
+// STILL PENDING: LIVE v2-host activation of all channels is PENDING maintainer
+// restart (registration/config = maintainer domain).
 
-import type { Message } from "@opencode/ai";
 import type { Plugin } from "@opencode/plugin";
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 // The shared session-DB reader + the readout formatters (the gauge core,
 // v2-paired since units 1+2). A VALUE import — plain JS whose own imports are
 // node: builtins only (no node_modules surface; the host's plugin load resolves
 // it from the repo tree) — the intercept plugin's pattern.
-import { formatGauge, loopIterationSuffix, readGauge } from "../plugin/scripts/gauge.mjs";
+import { formatGauge, readGauge } from "../plugin/scripts/gauge.mjs";
 
 // ------------------------------------------------------------------ constants (v1 ladder, byte-shape)
 
 const LINE_CAP = 2000;
 const CAPS = [500, 150, 60];
 const DOT = "\u2026";
+
+// Section 9: the gauge tool's own call is skipped on the append leg — it already
+// answers with the readout in-band, so a second line there is pure duplication
+// (and would consume a rung's dedup slot).
+const GAUGE_TOOL = "ctx_gauge";
 
 // ------------------------------------------------------------------ hook state
 
@@ -205,106 +197,121 @@ function appendLog(line: string): void {
   }
 }
 
-// ------------------------------------------------------------------ the handler
+// ------------------------------------------------------------------ the durable per-session store
 
-// The `context` hook handler (the per-fire sequence; NEVER throws). The
-// messages array is typed against the REAL injectable element type — the
-// spec's bounded shape question, answered by tsgo + ONE grep in the fork's
-// `packages/ai/src/**`: `@opencode/ai`'s `LLM.Message`
-// (`packages/ai/src/schema/messages.ts:237-244`) is a `Schema.Class` over
-// Struct fields — instance type = the plain structural fields: `role`
-// required (`system|user|assistant|tool`), `content: Array<ContentPart>`
-// required, `id` optional. The appended literal is therefore type-checked
-// (a wrong shape turns DoD 7 RED — fail-closed, never a cast-away). The
-// `@opencode/ai` import is TYPE-ONLY (erased at runtime — the clone has no
-// node_modules; the same rule the intercept plugin records for
-// `@opencode/plugin`). The remaining wire fields are read defensively
-// (`unknown`-typed) — the guards never rely on the hook's static types.
-async function onContext(event: {
-  sessionID?: unknown;
-  agent?: unknown;
-  messages?: Array<Message>;
-}): Promise<void> {
+// Section 8: `.opencode/temp/ctx_family_store.json` under the plugin's own repo
+// root — the `context_trim_v2.ts:228 readStore()` precedent (a JSON file, read
+// per use, NEVER throws). Per session it carries the FIRED RUNGS (the #154
+// reload-surviving dedup) and the CTX of this session's LAST APPENDED line
+// (the #153 >= 1%-of-window economy gate). A read failure yields an EMPTY view
+// and a write failure returns false — both fail-open: the append still happens,
+// the plugin simply cannot see this session's history.
+type SessionEntry = { ctx?: number; fired: number[] };
+
+function storePath(): string {
+  return join(dir, ".opencode", "temp", "ctx_family_store.json");
+}
+
+function readStore(): Record<string, SessionEntry> {
+  let data: unknown;
   try {
-    const sid = str(event.sessionID);
-    if (!sid) return; // session gating: no request id -> silent skip (no read)
-    // (1) the own-session read (the v1 v2.6 per-session discipline; the read
-    // NEVER throws — the db-error kind IS the fallback).
-    const g = await readGauge(undefined, sid);
-    // The gauge core is plain JS — the result union does not narrow
-    // through `kind`, so the result fields are read wire-defensively through
-    // one object view (the v1 field semantics unchanged: `kind`, `sid`,
-    // `error` — the db-error `error` text names the failing backend).
-    const gr = g as { kind?: unknown; sid?: unknown; error?: unknown };
-    if (gr.kind === "db-error") {
-      // (4b) v1 vocabulary: ONE evidence line (capped preview — the read
-      // failed even after busy_timeout + one retry), no post. The per-fire
-      // "ctxmsg" line is SUPPRESSED on this branch (the spec DoD 5
-      // deviation from v1's two-line order — recorded in the header).
-      const errRaw = typeof gr.error === "string" ? gr.error.trim() : "";
-      appendLog(
-        buildLine(
-          "gauge",
-          { reason: "db-error", session: sid, preview: errRaw === "" ? undefined : cap(errRaw, 120) },
-          {},
-        ),
-      );
-      return;
-    }
-    // (3) the v2.5 match-only gate (the #32 cross-session feed): a mismatch
-    // is a NORMAL multi-session state — no post, no log (silence where silent).
-    if (gr.sid !== sid) return;
-    // The draft's `messages` must be an array to append into (wire-defensive
-    // guard: the host declares the array typed; a non-array on the wire
-    // gets the v1-analogue failure line).
-    if (!Array.isArray(event.messages)) {
-      appendLog(buildLine("gauge", { reason: "messages-not-array", session: sid }, {}));
-      return;
-    }
-    // (2) the APPEND-ONLY tail injection: the readout text is computed ONCE
-    // and shared byte-for-byte with the evidence line (the Part 2 ITER suffix
-    // resolves at injection time; the logged line carries the INJECTED text).
-    const text = `ctx: ${formatGauge(g)}${loopIterationSuffix()}`;
-    // The injectable entry: a NEW tail object — role "user" (the universally
-    // translatable role; v1 appended the ctx part onto the just-received USER
-    // message; a mid-conversation `system` entry's provider translation is
-    // unverified — fail toward the safe role) + ONE text part; `id` OMITTED
-    // (optional; the draft entry is not a persisted part — the v1 v2.4.1
-    // prt/msg id wall has no counterpart at this hook). Every entry BEFORE
-    // the tail is left BYTE-UNCHANGED (the v2.3 cache ruling: anything
-    // before the newest entry must not move — the cacheable prefix stays
-    // byte-stable).
-
-    //2026-10-23_04-41: temporary deactivation to test if this causes cache invalidation
-    //event.messages.push({ role: "user", content: [{ type: "text", text }] });
-    // (4) the per-fire evidence line (posted fires only).
-    appendLog(
-      buildLine(
-        "ctxmsg",
-        {
-          session: sid,
-          agent: str(event.agent),
-          sess: g.sid,
-          line: text,
-        },
-        {},
-      ),
-    );
+    data = JSON.parse(readFileSync(storePath(), "utf8"));
   } catch {
-    // the v1 house rule: never throw out of a hook — a defensive failure is
-    // swallowed (the injection shape is static; no new failure reason).
+    return {}; // missing / unreadable / malformed -> no history (fail-open)
+  }
+  if (data == null || typeof data !== "object" || Array.isArray(data)) return {};
+  const sessions = (data as Record<string, unknown>)["sessions"];
+  if (sessions == null || typeof sessions !== "object" || Array.isArray(sessions)) return {};
+  const out: Record<string, SessionEntry> = {};
+  for (const [sid, entry] of Object.entries(sessions)) {
+    if (entry == null || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const rec = entry as Record<string, unknown>;
+    const fired = Array.isArray(rec["fired"])
+      ? rec["fired"].filter((n): n is number => typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 5)
+      : [];
+    const ctx = rec["ctx"];
+    out[sid] = { ctx: typeof ctx === "number" && Number.isFinite(ctx) ? ctx : undefined, fired };
+  }
+  return out;
+}
+
+// Additive read-modify-write (the #119 invariant, the context_trim_v2 twin):
+// every other top-level key and every OTHER session's entry survives — only
+// this session's entry is replaced. NEVER throws; false on a write failure.
+function writeSessionEntry(sid: string, entry: SessionEntry): boolean {
+  try {
+    let raw: Record<string, unknown> = {};
+    try {
+      const parsed = JSON.parse(readFileSync(storePath(), "utf8"));
+      if (parsed != null && typeof parsed === "object" && !Array.isArray(parsed)) raw = parsed as Record<string, unknown>;
+    } catch {
+      // malformed / missing -> start from an empty object (this file is ours)
+    }
+    let sessions = raw["sessions"];
+    if (sessions == null || typeof sessions !== "object" || Array.isArray(sessions)) sessions = {};
+    (sessions as Record<string, unknown>)[sid] = { ctx: entry.ctx, fired: entry.fired, at: new Date().toISOString() };
+    raw["sessions"] = sessions;
+    mkdirSync(dirname(storePath()), { recursive: true });
+    writeFileSync(storePath(), JSON.stringify(raw), "utf8");
+    return true;
+  } catch {
+    return false;
   }
 }
 
+// ------------------------------------------------------------------ the result append (the ONE channel)
+//
+// Section 2: the append lands in the tool RESULT — the persisted, cache-safe
+// channel (fork `packages/core/src/tool.ts:132-152`: the hook mutates
+// `afterEvent.result` and the host returns THAT object, so the appended text
+// becomes part of the PERSISTED tool part and history grows append-only —
+// nothing earlier moves, so the v2.3 cache rule holds by construction).
+//
+// DEVIATION from the spec's field order, measured in the fork: the host derives
+// the model-visible text through `normalizeContent(content, output)`
+// (`packages/core/src/tool/runtime.ts:261-265`) — content WINS (a string becomes
+// one text item, a non-empty array is kept as-is) and `output` is read ONLY when
+// content is absent or empty. Appending to `output` while a content array exists
+// would persist nothing. The order below therefore targets the field the host
+// actually persists: 1) a string `content`, 2) the LAST text item of a non-empty
+// content array (a NEW tail item when it carries none), 3) a string `output`,
+// 4) a fresh `output`. Returns false when there is nothing to append into
+// (fail-closed: no append, and a rung is NOT marked fired).
+type MutableResult = { output?: unknown; content?: unknown };
+function appendLine(result: unknown, line: string): boolean {
+  if (result == null || typeof result !== "object") return false;
+  const r = result as MutableResult;
+  const content = r.content;
+  if (typeof content === "string") {
+    r.content = content + "\n" + line;
+    return true;
+  }
+  if (Array.isArray(content) && content.length > 0) {
+    for (let i = content.length - 1; i >= 0; i--) {
+      const item = content[i] as { type?: unknown; text?: unknown } | undefined;
+      if (item != null && item.type === "text" && typeof item.text === "string") {
+        item.text = item.text + "\n" + line;
+        return true;
+      }
+    }
+    content.push({ type: "text", text: line }); // no text item -> a NEW tail item
+    return true;
+  }
+  if (typeof r.output === "string") {
+    r.output = r.output + "\n" + line;
+    return true;
+  }
+  r.output = line;
+  return true;
+}
 // ------------------------------------------------------------------ 3b: the nudge ladder (v1 v2.6, verbatim semantics)
 
 // The spec file a HANDOVER delegation references (v1 constant, kept verbatim).
 const HANDOVER_SPEC_PATH = "agent/handover/handover_task.md";
 
-// Per-session rung state: sessionID -> the rungs already fired for it (dedup:
-// at most ONE nudge per rung per session; the map lives for the plugin process
-// lifetime — bounded by the number of sessions, negligible — the v1 shape).
-const nudgeFired = new Map<string, Set<number>>();
+// Per-session rung state lives in the DURABLE store (section 8), not in a
+// process-lifetime map: a plugin reconciliation rebuilds the module, so the old
+// in-memory `nudgeFired` map reset and re-fired an already-fired rung (#154).
 
 // The nudge-rung ladder (the v1 #33 T2 rungs, documented behavior — NOT config):
 // rung 5 = REM < 5k; rungs 4/3/2 = the pct rung OR the REM rung; rung 1 = pct.
@@ -357,80 +364,61 @@ function nudgeText(rung: number, readout: string): string {
   }
 }
 
-// The session domain captured at setup — the synthetic-delivery carrier (the
-// real v2 domain, typed through the plugin Context; the same object whose
-// `hook` registered the §(1) context handler).
-let sessionApi: Plugin.Context["session"] | undefined;
-
-// The v2 synthetic delivery (the §(6) channel): `delivery: "queue"` queues the
-// nudge as the NEXT turn at idle. FIRE-AND-FORGET: never awaited by the caller
-// hook; a sync throw or a rejection is evidence-logged (kind "nudge", reason
-// delivery-threw / delivery-rejected, capped-120 preview — the v1 delivery-*
-// vocabulary) and NEVER fails the tool call; a missing `synthetic` fn (a probe
-// mock without it) is a NO-OP (v1 discipline).
-function deliverNudge(sid: string, rung: number, text: string): void {
+// The append leg, run on EVERY tool.execute.after (agent-independent — the v1
+// firing point). ONE gauge read per event for the event's OWN sessionID (the v1
+// v2.6 per-session ruling stays — a newest-session read would blind-spot
+// concurrent sessions). At most ONE line is appended per call: a firing rung's
+// text already carries the readout, so the plain gauge line is suppressed on
+// that call (~25 tokens per append, not per leg). NEVER throws; SILENT on every
+// non-append: the ctx_gauge skip (section 9), a missing session id, an ERROR-
+// status call (that branch carries `error`, no result — fork
+// packages/core/src/tool.ts:122-127), an sid mismatch (section 3), an unknown-
+// window / no-total read (rung 0, no gate math — the stop line is defined in
+// pct/REM), a fill that moved below 1% of the window since this session's last
+// append (section 8), and an already-fired rung (section 6).
+async function onToolAfter(event: { sessionID?: unknown; tool?: unknown; status?: unknown; result?: unknown }): Promise<void> {
   try {
-    const api = sessionApi;
-    const fn = api?.synthetic;
-    if (typeof fn !== "function") return;
-    const p = fn.call(api, { sessionID: sid, text, delivery: "queue" });
-    if (p && typeof (p as Promise<unknown>).catch === "function") {
-      (p as Promise<unknown>).catch((e) => {
-        appendLog(
-          buildLine(
-            "nudge",
-            {
-              session: sid,
-              rung: String(rung),
-              reason: "delivery-rejected",
-              preview: cap(String((e as { message?: unknown } | undefined)?.message ?? e), 120),
-            },
-            {},
-          ),
-        );
-      });
-    }
-  } catch (e) {
-    appendLog(
-      buildLine(
-        "nudge",
-        {
-          session: sid,
-          rung: String(rung),
-          reason: "delivery-threw",
-          preview: cap(String((e as { message?: unknown } | undefined)?.message ?? e), 120),
-        },
-        {},
-      ),
-    );
-  }
-}
-
-// The ladder, run on EVERY tool.execute.after (agent-independent — the v1 firing
-// point; the `status` completed|error branch is NOT gated — an acting session
-// accrues context either way). NEVER throws; SILENT on EVERY non-fire: a
-// missing session id, an unknown-window/no-total/db-error read (rung 0 —
-// no gauge line rides this channel), below the first rung, an already-fired
-// rung (no log line — the v1 log-growth discipline). The read targets the
-// event's OWN sessionID (the per-session blind-spot-free mechanic; the after
-// event carries sessionID — fork promise/tool.ts:47-63).
-async function onToolAfter(event: { sessionID?: unknown }): Promise<void> {
-  try {
+    if (str(event.tool) === GAUGE_TOOL) return; // section 9: ctx_gauge answers in-band
     const sid = str(event.sessionID);
-    if (!sid) return;
+    if (!sid) return; // session gating: no event id -> silent skip (no read)
+    if (event.status !== "completed") return; // an error call has no result to append into
     const g = await readGauge(undefined, sid);
-    const rung = computeRung(g);
-    if (rung < 1) return;
-    let fired = nudgeFired.get(sid);
-    if (fired?.has(rung)) return;
-    if (!fired) {
-      fired = new Set<number>();
-      nudgeFired.set(sid, fired);
+    // Wire-defensive field view of the plain-JS gauge result union (the v1 field
+    // semantics unchanged: kind, sid, ctx, window, error).
+    const gr = g as { ok?: unknown; kind?: unknown; sid?: unknown; ctx?: unknown; window?: unknown; error?: unknown };
+    if (gr.kind === "db-error") {
+      // ONE gauge-failure evidence line (the v1 section 4 vocabulary, reason
+      // unchanged — the read failed even after busy_timeout + one retry); no
+      // append: an honest failure is not a signal.
+      const errRaw = typeof gr.error === "string" ? gr.error.trim() : "";
+      appendLog(buildLine("gauge", { reason: "db-error", session: sid, preview: errRaw === "" ? undefined : cap(errRaw, 120) }, {}));
+      return;
     }
-    fired.add(rung);
-    const readout = formatGauge(g);
-    appendLog(buildLine("nudge", { session: sid, rung: String(rung), readout }, {}));
-    deliverNudge(sid, rung, nudgeText(rung, readout));
+    if (gr.sid !== sid) return; // the v2.5 match-only gate (#32): silent, normal
+    // An OK read only: the no-total shape carries a resolved `window` but NO
+    // `ctx` (gauge.mjs:995), so a no-signal read must never append and never
+    // feed the gate math — the same discipline computeRung applies.
+    if (gr.kind !== "ok" || gr.ok !== true) return;
+    const w = typeof gr.window === "number" && Number.isFinite(gr.window) ? gr.window : 0;
+    const ctx = typeof gr.ctx === "number" && Number.isFinite(gr.ctx) ? gr.ctx : 0;
+    if (w <= 0) return; // no resolved window -> nothing to state and nothing to gate
+    const entry = readStore()[sid] ?? { fired: [] };
+    const rung = computeRung(g);
+    if (rung >= 1 && !entry.fired.includes(rung)) {
+      const text = nudgeText(rung, formatGauge(g));
+      if (!appendLine(event.result, text)) return; // nothing appendable -> NOT marked fired
+      writeSessionEntry(sid, { ctx, fired: [...entry.fired, rung] });
+      appendLog(buildLine("ctx-append", { session: sid, rung: String(rung), line: text }, {}));
+      return;
+    }
+    // (8) the economy gate: append only once the fill has moved >= 1% of the
+    // window since this session's last append; a session's FIRST append is
+    // unconditional (no stored ctx yet).
+    if (entry.ctx !== undefined && Math.abs(ctx - entry.ctx) < w / 100) return;
+    const text = "ctx: " + formatGauge(g).replace(/^SESSION=\S+\s/, "");
+    if (!appendLine(event.result, text)) return;
+    writeSessionEntry(sid, { ctx, fired: entry.fired });
+    appendLog(buildLine("ctx-append", { session: sid, gauge: "line", line: text }, {}));
   } catch {
     // never throw out of the hook
   }
@@ -490,19 +478,16 @@ async function onToolBefore(event: { tool?: unknown; sessionID?: unknown; id?: u
 
 // The v2 plugin module (the loader decodes the DEFAULT export only — no
 // named exports; the loader contract recorded in the intercept plugin's
-// header). The hook callback params are INFERRED (the fork's `SessionContext`
-// + `ToolHooks` shapes) — hence the handler generics bind to the REAL wire
-// shapes; each handler keeps its own wire-defensive guards regardless.
+// header). The hook callback params are INFERRED from the fork's `ToolHooks`
+// shapes — hence the handler generics bind to the REAL wire shapes; each handler
+// keeps its own wire-defensive guards regardless.
 const plugin: Plugin.Plugin = {
   id: "context_family",
   async setup(ctx) {
     dir = ctx.location.directory;
-    sessionApi = ctx.session; // the synthetic-delivery carrier (the §(6) channel)
-    const regContext = await ctx.session.hook("context", (event) => onContext(event));
     const regBefore = await ctx.tool.hook("execute.before", (event) => onToolBefore(event));
     const regAfter = await ctx.tool.hook("execute.after", (event) => onToolAfter(event));
     return () => {
-      void regContext.dispose();
       void regBefore.dispose();
       void regAfter.dispose();
     };

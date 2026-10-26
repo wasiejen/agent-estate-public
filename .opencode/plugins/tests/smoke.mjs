@@ -500,6 +500,77 @@ chk("setup: registers the execute.before hook + returns a cleanup", typeof ctx._
   chk("P-SEG kind=seg fuzzy-resolved line (scope=read, d=1, gap=inf, orig + whole resolved target)", seg !== undefined && seg[5].includes("scope=read") && seg[5].includes("d=1") && seg[5].includes("gap=inf") && seg[5].includes("orig=fx/segfix/segmiss/keep-1.txt") && seg[5].includes("-> keep-1.txt"), seg ? seg[5] : "no line");
 }
 
+// ------------------------------------------------------------------ #162-build P-RED pins (leg 4, 2026-10-26)
+//
+// The redirect pure-resolver cases (v1 S28/S29 shape) pinned THROUGH the hook
+// — deterministic input→output assertions on `resolveRedirect` (no production
+// export added). Fired on the `write` tool (M1: write is EXCLUDED from the
+// fuzzy channel → the redirect sees the ORIGINAL arg). The bash-`command`
+// redirect leg is NOT pinned (retired by design — v2 excludes bash at
+// `plugins/intercept_observer.ts:33,822`). Scoped-checked after the invariants.
+{
+  const SCRATCHPAD = "home/AppData/Local/Temp/opencode"; // the plugin SCRATCHPAD_ROOT constant
+  // (vi) POSIX temp-root prefix mapping: /tmp/<rest> → the scratchpad root.
+  // The original out-of-sandbox note is suppressed (recomputed on the
+  // EFFECTIVE args — the target lands under the allowed scratchpad root).
+  const bR1 = readLog().length;
+  const inR1 = { path: "/tmp/pin-a/b.txt", content: "x" };
+  await ctx.fire("write", inR1);
+  chk("P-RED (vi) /tmp span: input.path mutated to the scratchpad root", inR1.path === `${SCRATCHPAD}/pin-a/b.txt`, `got ${inR1.path}`);
+  const lR1 = readLog().slice(bR1);
+  const rd1 = lR1.find((f) => f[5].includes("kind=redirect"));
+  chk("P-RED (vi) kind=redirect line (WHOLE evidence under the length cap: orig + value exact) + note suppressed", rd1 !== undefined && rd1[7] === "pair-resolved" && rd1[5] === `kind=redirect tool=write arg=path orig=/tmp/pin-a/b.txt value=${SCRATCHPAD}/pin-a/b.txt` && !rd1[5].includes("pair=") && lR1.every((f) => f[7] !== "out-of-sandbox"), rd1 ? rd1[5] : JSON.stringify(lR1.map((f) => f[7])));
+  // (vi) bare /tmp → the scratchpad root itself.
+  const inR2 = { path: "/tmp", content: "x" };
+  await ctx.fire("write", inR2);
+  chk("P-RED (vi) bare /tmp: input.path mutated to the scratchpad root", inR2.path === SCRATCHPAD, `got ${inR2.path}`);
+  // (vi) /var/tmp/<rest> → the scratchpad root (the second temp prefix).
+  const bR3 = readLog().length;
+  const inR3 = { path: "/var/tmp/pin-c.txt", content: "x" };
+  await ctx.fire("write", inR3);
+  chk("P-RED (vi) /var/tmp span: input.path mutated under the scratchpad root", inR3.path === `${SCRATCHPAD}/pin-c.txt`, `got ${inR3.path}`);
+  const lR3 = readLog().slice(bR3);
+  chk("P-RED (vi) /var/tmp kind=redirect line present", lR3.some((f) => f[5].includes("kind=redirect")), JSON.stringify(lR3.map((f) => f[5])));
+  // (ii) sibling 1:1 map: a direct sibling of the allowed ws root → ws/<base>.
+  const bR4 = readLog().length;
+  const sib = `${SCRATCH}/ws-mirror`;
+  const inR4 = { path: sib, content: "x" };
+  await ctx.fire("write", inR4);
+  // The config-root string is slash-normalized → the target is the slash form
+  // (path.join's win32 separator would NOT appear in a resolver output).
+  chk("P-RED (ii) ws-root sibling: input.path mutated 1:1 under the ws root", inR4.path === `${SCRATCH}/ws/ws-mirror`, `got ${inR4.path}`);
+  const lR4 = readLog().slice(bR4);
+  chk("P-RED (ii) sibling kind=redirect line present", lR4.some((f) => f[5].includes("kind=redirect")), JSON.stringify(lR4.map((f) => f[5])));
+  // (i) exact allowed-root: the resolver returns the root itself -> the
+  // `target === raw` no-op (fail-closed) — field untouched, no line.
+  const bR5 = readLog().length;
+  const inR5 = { path: ROOTA, content: "x" };
+  await ctx.fire("write", inR5);
+  const lR5 = readLog().slice(bR5);
+  chk("P-RED (i) exact allowed-root: untouched (target===raw no-op) + no kind=redirect line", inR5.path === ROOTA && lR5.every((f) => !f[5].includes("kind=redirect")), `got ${inR5.path}`);
+  // (iii) nested under an allowed root: no 1:1 case matches -> untouched.
+  // (#142 pins the NOTE side; this pins the resolver output side.)
+  const bR6 = readLog().length;
+  const nestedR = `${ROOTA}/nestedx/y.txt`;
+  const inR6 = { path: nestedR, content: "x" };
+  await ctx.fire("write", inR6);
+  const lR6 = readLog().slice(bR6);
+  chk("P-RED (iii) nested under an allowed root: untouched + no kind=redirect line", inR6.path === nestedR && lR6.every((f) => !f[5].includes("kind=redirect")), `got ${inR6.path}`);
+  // (iv) non-matching path (0 allowed-root hits): fail-closed untouched, no
+  // line, no hard-stop (the containing directory exists → the permission gate).
+  const bR7 = readLog().length;
+  const miss = "C:/Windows/System32/drivers/etc/hosts";
+  const inR7 = { path: miss, content: "x" };
+  let threwR7 = null;
+  try {
+    await ctx.fire("write", inR7);
+  } catch (e) {
+    threwR7 = e;
+  }
+  const lR7 = readLog().slice(bR7);
+  chk("P-RED (iv) non-matching path: fail-closed untouched + no kind=redirect line + no throw", inR7.path === miss && threwR7 === null && lR7.every((f) => !f[5].includes("kind=redirect")), `got ${inR7.path} threw=${threwR7 ? threwR7.message.slice(0, 40) : "none"}`);
+}
+
 await cleanup();
 console.log(failures === 0 ? "\nSMOKE: ALL PASS" : `\nSMOKE: ${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

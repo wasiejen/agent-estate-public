@@ -33,7 +33,7 @@ plus the area files. Read those on need-to-know.
   Docs: AGENTS.md `# Compaction Guidelines` +
   `maintainer/draft/archive/compaction_guide/full_guide.md`.
 - auto_resume internals: units, scope, the spawn/restart path. Docs: TODO
-  #75/#85/#90/#91 + `knowledge/opencode-plugins/auto-resume-*`.
+  #75/#85/#90/#91 + `agent/knowledge/opencode-plugins/auto-resume-*`.
 - The single backend slot: NEVER launch raw inference-server requests.
   Route all model traffic through opencode sessions (`agent/knowledge/knowledge_tools.md`).
 

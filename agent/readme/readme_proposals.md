@@ -16,6 +16,8 @@ Read this file when you propose, revise, or land a design change.
 7. **`proposals/implemented/`** — move it here after the change lands. The
    planner adds a verdict note: what shipped, commit, deviations.
 8. **`proposals/rejected/`** — move rejections here.
+9. **`proposals/superseded/`** — move a proposal here when a newer proposal or
+   a ruling replaces it. Name the replacing file in a one-line note.
 
 ## What a proposal contains
 - **Problem** — the pain, with evidence. Measure where possible.
@@ -39,5 +41,6 @@ out 2026-09-12; see its README for usage.
 - `feedback/` — his notes on agent behavior. Read them as input in the next
   session.
 - NEVER edit his text.
-- `proposals/files/` — the maintainer's draft test set; READ-ONLY unless a
-  task explicitly says otherwise.
+- `maintainer/draft/` is the maintainer's drafting scratch — READ-ONLY unless a
+  task explicitly says otherwise. (`proposals/` has NO draft-scratch folder;
+  the old `proposals/files/` name is dead — measured absent 2026-10-26.)

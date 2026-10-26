@@ -26,7 +26,11 @@ import { pathToFileURL } from "node:url";
 
 const SCRATCH = "home/AppData/Local/Temp/opencode/ctx-trim-smoke-v2";
 const WS = path.join(SCRATCH, "ws"); // ctx.location.directory (store + log root)
-const CLONE_ROOT = "repo-root-v2";
+// The repo root this suite lives in (`.opencode/plugins/tests` -> up 3). Resolved
+// from the file so the suite runs in whatever checkout owns the tests dir — the
+// old absolute archived-clone path no longer exists on this machine (TODO #156,
+// 2026-10-26).
+const CLONE_ROOT = path.join(import.meta.dirname, "..", "..", "..");
 const PLUGIN = path.join(CLONE_ROOT, ".opencode", "plugins", "context_trim_v2.ts");
 const CF_PLUGIN = path.join(CLONE_ROOT, ".opencode", "plugins", "context_family.ts");
 const GAUGE = path.join(CLONE_ROOT, ".opencode", "plugin", "scripts", "gauge.mjs");

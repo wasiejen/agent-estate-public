@@ -8,7 +8,7 @@
 //
 // Run:  bun run smoke.mjs   (from this directory)
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, chmodSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, chmodSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite"; // v2unit1: the session-DB fixture
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -569,6 +569,42 @@ chk("setup: registers the execute.before hook + returns a cleanup", typeof ctx._
   }
   const lR7 = readLog().slice(bR7);
   chk("P-RED (iv) non-matching path: fail-closed untouched + no kind=redirect line + no throw", inR7.path === miss && threwR7 === null && lR7.every((f) => !f[5].includes("kind=redirect")), `got ${inR7.path} threw=${threwR7 ? threwR7.message.slice(0, 40) : "none"}`);
+}
+
+// ------------------------------------------------------------------ #162-build P-MIRROR pin (leg 5, 2026-10-26)
+//
+// The handover-file mirror guarantee (v1 S3 leg): run the observer's
+// MUTATING legs — fuzzy-resolved read (char + seg + dedup forms), the
+// write-scope edit fuzzy, and an R8 redirect — against the sandbox fixture.
+// The protocol files `handover_task.md` / `handover_task_to_planner.md` are
+// never a write target: no mutated path carries either name AND no new file
+// of either name appears under the sandbox scratch (the mutation only
+// mutates ARGS — the tool never runs).
+{
+  const MIRROR_NAMES = ["handover_task.md", "handover_task_to_planner.md"];
+  const mirrorFiles = (d) => readdirSync(d, { recursive: true }).map((r) => path.basename(String(r))).filter((n) => MIRROR_NAMES.includes(n));
+  chk("P-MIRROR pre: the sandbox holds NO handover-named file (baseline absent)", mirrorFiles(SCRATCH).length === 0, JSON.stringify(mirrorFiles(SCRATCH)));
+  const mutated = [];
+  const iM1 = { path: "fx/file-f4.txt" };
+  await ctx.fire("read", iM1);
+  mutated.push(iM1.path);
+  const iM2 = { path: "fx/dd/dd/x.txt" };
+  await ctx.fire("read", iM2);
+  mutated.push(iM2.path);
+  const iM3 = { path: "fx/segfix/segmiss/keep-1.txt" };
+  await ctx.fire("read", iM3);
+  mutated.push(iM3.path);
+  const iM4 = { path: "fx/edit-targe.txt", oldString: "hello", newString: "hello3" };
+  await ctx.fire("edit", iM4);
+  mutated.push(iM4.path);
+  const iM5 = { path: `${SCRATCH}/roots/root-mirror-x`, content: "x" };
+  await ctx.fire("write", iM5);
+  mutated.push(iM5.path);
+  // every leg must have mutated (the legs run on existing/mappable fixtures)
+  const untouched = [iM1.path === "fx/file-f4.txt", iM2.path === "fx/dd/dd/x.txt", iM3.path === "fx/segfix/segmiss/keep-1.txt", iM4.path === "fx/edit-targe.txt", iM5.path === `${SCRATCH}/roots/root-mirror-x`];
+  chk("P-MIRROR: all five mutating legs ran (every typed path was mutated)", untouched.every((u) => !u), JSON.stringify(untouched));
+  chk("P-MIRROR: NO mutated target path carries a handover file name", mutated.every((p) => !MIRROR_NAMES.includes(path.basename(String(p).replace(/\\/g, "/")))), JSON.stringify(mutated));
+  chk("P-MIRROR post: no handover-named file appeared in the sandbox", mirrorFiles(SCRATCH).length === 0, JSON.stringify(mirrorFiles(SCRATCH)));
 }
 
 await cleanup();

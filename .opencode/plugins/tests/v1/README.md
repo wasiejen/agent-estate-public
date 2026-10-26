@@ -6,10 +6,12 @@ Relocated 2026-10-26 (#150 unit B) from the deleted v1 estate
 Purpose: one smoke file per tested tool, same stem as the tool (behavior
 suffix where two anchors exist). Run each from the repo root with plain
 `node` (v24, type-stripping): `node .opencode/plugins/tests/v1/<file>.smoke.mjs`
-— exit 0 iff all checks pass. Use `node`, NOT `bun` (TODO #160: the bun
-teardown EBUSY flake hits this suite). Shared boilerplate (repo-root
-resolution, type-stripped import, sandbox setup, assert/fail-count) lives in
-`_smoke_base.mjs` — do not copy-paste it into new smokes.
+— exit 0 iff all checks pass. `bun run` works since the #160 soft teardown
+(bun holds `node:sqlite` locks until process exit — fixture dirs are left
+unlocked and removed by the next run's `freshSandbox` pre-clean). Shared
+boilerplate (repo-root resolution, type-stripped import, sandbox setup,
+assert/fail-count) lives in `_smoke_base.mjs` — do not copy-paste it into new
+smokes.
 
 What goes here: behavior smokes for the tools in `.opencode/tools/`, and the
 gauge core (`.opencode/plugins/scripts/gauge.mjs`). Runtime fixture files are

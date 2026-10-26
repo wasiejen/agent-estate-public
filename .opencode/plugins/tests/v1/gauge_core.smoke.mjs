@@ -19,7 +19,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite"; // v2unit1: the fixture-DB read pins
-import { loadRepo, freshSandbox, rmTear } from "./_smoke_base.mjs"; // #144: rmTear = retry-on-EBUSY teardown
+import { loadRepo, freshSandbox, rmTear, rmTearSoft } from "./_smoke_base.mjs"; // #144: rmTear = retry-on-EBUSY teardown; #160: rmTearSoft for the sqlite-locked fixture dirs (bun holds the lock until process exit)
 
 const m = await loadRepo(".opencode/plugins/scripts/gauge.mjs");
 const cases = [
@@ -202,7 +202,7 @@ rmTear(tmpC, { recursive: true, force: true }); // #144 retry-on-EBUSY
     JSON.stringify(rP3),
   );
   m.setConfigFileForTest(path.join(dP, "absent.jsonc")); // the following units expect a MISSING config
-  rmTear(dP, { recursive: true, force: true }); // #144 retry-on-EBUSY
+  rmTearSoft(dP, { recursive: true, force: true }); // #160: readGauge handles lock the fixture DBs under bun until exit
 }
 
 // ---- item 3 (2026-09-24): the "N compactions left" budget suffix — the 3
@@ -465,7 +465,7 @@ rmTear(tmpB, { recursive: true, force: true }); // #144 retry-on-EBUSY
     JSON.stringify(r14),
   );
   m.setBackends([...m.DEFAULT_BACKENDS]);
-  rmTear(d, { recursive: true, force: true });
+  rmTearSoft(d, { recursive: true, force: true }); // #160: readGauge/spawn handles keep the fixture DBs locked under bun until exit
 }
 
 // ---- #165 (2026-10-26): the MESSAGE-LEVEL MODEL fallback for a NULL session
@@ -545,7 +545,7 @@ rmTear(tmpB, { recursive: true, force: true }); // #144 retry-on-EBUSY
     JSON.stringify(rc),
   );
   m.setConfigFileForTest(path.join(d, "absent.jsonc")); // the following units expect a MISSING config
-  rmTear(d, { recursive: true, force: true });
+  rmTearSoft(d, { recursive: true, force: true }); // #160: readGauge handles lock the fixture DBs under bun until exit
 }
 
 console.log(fail === 0 ? "GAUGE_CORE_SMOKE: ALL PASS" : `GAUGE_CORE_SMOKE: ${fail} FAILURES`);

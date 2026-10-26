@@ -39,6 +39,23 @@ export const rmTear = (target, opts) => {
   }
 };
 
+// #160 (2026-10-26): bun 1.4.3 holds `node:sqlite` file locks until PROCESS
+// EXIT — a suite whose read path opened a fixture DB (the gauge read path)
+// can NEVER delete that fixture dir in-process, no matter how long rmTear
+// retries (measured: gauge_core/context_trim crashed under bun at their
+// teardown). Suites use rmTearSoft for their OWN teardowns: the #144 retry
+// still runs first (node deletes normally), the busy codes are then SWALLOWED,
+// and a leftover dir is removed by the next run's freshSandbox pre-clean
+// (a fresh process holds no locks). freshSandbox stays STRICT: a locked stale
+// dir at suite START would silently mask the fresh-fixture guarantee.
+export const rmTearSoft = (target, opts) => {
+  try {
+    rmTear(target, opts);
+  } catch (e) {
+    if (!TEAR_CODES.has(e?.code)) throw e;
+  }
+};
+
 // A fresh, cleaned sandbox subdir under the scratchpad (idempotent re-runs).
 export const freshSandbox = (name) => {
   const dir = path.join(SCRATCHPAD, name);

@@ -31,10 +31,10 @@
 // byte-identical through the core reportWindow (no opts).
 // Run: node .opencode/plugins/tests/v1/context_trim.smoke.mjs (plain node, exit 0 iff green).
 import { DatabaseSync } from "node:sqlite";
-// #144: the retry-on-EBUSY teardown helper (rmTear) replaces the bare node:fs rmSync import.
+// #144/#160: the retry-then-soft teardown helpers live in _smoke_base.mjs (rmTear / rmTearSoft).
 import path from "node:path";
 import { existsSync } from "node:fs";
-import { freshSandbox, loadRepo, makeChecker, rmTear } from "./_smoke_base.mjs";
+import { freshSandbox, loadRepo, makeChecker, rmTearSoft } from "./_smoke_base.mjs";
 
 const { chk, finish } = makeChecker("CONTEXT_TRIM_SMOKE");
 const SANDBOX = freshSandbox("context_trim");
@@ -815,5 +815,5 @@ gauge.setDbPath(FX); // steer the tool surface at the fixture (restored after)
 }
 gauge.setDbPath(dbU1); // restore the original db path
 
-rmTear(SANDBOX, { recursive: true, force: true }); // #144 retry-on-EBUSY
+rmTearSoft(SANDBOX, { recursive: true, force: true }); // #160: bun keeps fixture.db locked until process exit — the verdict must print anyway (the next run's freshSandbox pre-clean removes the dir)
 finish();

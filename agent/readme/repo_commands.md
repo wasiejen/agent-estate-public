@@ -91,7 +91,9 @@ repo facts:
 - Context gauge (self-gauge): prefer the `ctx_gauge` tool when your toolset
   has it — same readout, in band, no shell-out. The command below is the
   fallback; the tool is registered host-side and takes effect at the
-  maintainer's next process restart. Run
+  maintainer's next process restart. On every 5th round the tool line gains
+  ` ROUND=<n> MAINT=1` (#171) — run the maintenance pass as the first unit
+  then; other rounds add nothing. The peek fallback: run
   `node .opencode/plugins/scripts/peek.mjs` from the repo root; the read is
   read-only and prints `SESSION=… CTX=n (p%) REM=m`. An unknown window
   yields `CTX=n` only; a session with no finished step yields

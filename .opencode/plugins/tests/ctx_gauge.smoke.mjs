@@ -86,6 +86,18 @@ const gaugeMod = await import(pathToFileURL(path.join(CLONE_ROOT, ".opencode", "
 gaugeMod.setDbPath(FX_DB); // the plugin's readGauge(undefined, sid) reads THIS file
 gaugeMod.setBudgetFileForTest(FX_BUDGET);
 
+// #171 MAINT steer (2026-10-26): the loop root points at a SCRATCH fixture so
+// the byte-exact readouts below NEVER depend on the live counter. Round 38
+// (not %5) → `maintSuffix()` returns "" → the plain byte-exact lines. Section F
+// rewrites the fixture to test the %5 and legacy legs.
+const FX_LOOP = path.join(SCRATCH, "loop");
+{
+  const folder = path.join(FX_LOOP, "autorun-smoke-v2");
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(path.join(folder, "counter.json"), JSON.stringify({ looprun: "autorun-smoke-v2", n: 1, round: 38 }), "utf8");
+  gaugeMod.setLoopRootForTest(FX_LOOP);
+}
+
 // ------------------------------------------------------------------ mock ctx + plugin load
 
 const TOOLS = [];
@@ -197,6 +209,28 @@ const call = async (args) => (await TOOL.execute(args, {})).output;
   const outAfter = await call({ sessionID: "ses_gauge_1" });
   chk("(E) the DB steer restores cleanly (the readout lands again)",
     outAfter === "SESSION=ses_gauge_1 CTX=57000 (47%) REM=63000 | 5 compactions left", outAfter);
+}
+
+// ------------------------------------------------------------------ F the #171 MAINT token (ctx_gauge only, %5 rounds)
+
+{
+  const folder = path.join(FX_LOOP, "autorun-smoke-v2");
+  const base = "SESSION=ses_gauge_1 CTX=57000 (47%) REM=63000 | 5 compactions left";
+  const out38 = await call({ sessionID: "ses_gauge_1" });
+  chk("(F) round 38 (not %5) -> NO ROUND/MAINT token, the line byte-identical to the base form",
+    out38 === base, out38);
+  writeFileSync(path.join(folder, "counter.json"), JSON.stringify({ looprun: "autorun-smoke-v2", n: 1, round: 40 }), "utf8");
+  const out40 = await call({ sessionID: "ses_gauge_1" });
+  chk("(F) round 40 (%5) -> ` ROUND=40 MAINT=1` appended after the budget suffix",
+    out40 === `${base} ROUND=40 MAINT=1`, out40);
+  writeFileSync(path.join(folder, "counter.json"), JSON.stringify({ looprun: "autorun-smoke-v2", n: 1 }), "utf8");
+  const outLegacy = await call({ sessionID: "ses_gauge_1" });
+  chk("(F) legacy counter WITHOUT a `round` key -> fail-closed, NO token",
+    outLegacy === base, outLegacy);
+  writeFileSync(path.join(folder, "counter.json"), JSON.stringify({ looprun: "autorun-smoke-v2", n: 1, round: 38 }), "utf8");
+  const outDbErr = await call({ sessionID: "ses_gauge_nx" });
+  chk("(F) the notAvailable form still carries no token at round 38",
+    !outDbErr.includes("MAINT"), outDbErr);
 }
 
 // ------------------------------------------------------------------ Z cleanup

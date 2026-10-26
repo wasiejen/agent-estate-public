@@ -257,6 +257,25 @@ export function loopIterationSuffix() {
   }
 }
 
+// #171 maintenance-clock leg (maintainer ruling 2026-10-26): the MAINT token on
+// the ctx_gauge readout ONLY. Every 5th round → ` ROUND=<r> MAINT=1`; all other
+// rounds → `""` (ZERO extra context burden on the other four rounds). Same
+// fail-closed rules as loopIterationSuffix: no folder / no counter / non-finite
+// `round` (legacy counters) → `""`. NEVER throws.
+export function maintSuffix() {
+  try {
+    const folder = currentLoopFolder(loopRoot);
+    if (folder === null) return "";
+    const data = readLoopCounter(loopRoot, folder);
+    if (data === null) return "";
+    const r = data["round"];
+    if (typeof r !== "number" || !Number.isFinite(r) || r % 5 !== 0) return "";
+    return ` ROUND=${r} MAINT=1`;
+  } catch {
+    return "";
+  }
+}
+
 // #115 (2026-09-28): the window is CONFIG-FIRST — the root opencode.jsonc's
 // `provider.<pid>.models.<mid>.limit.context` (a finite number > 0) beats
 // the name-marker parse (resolveWindow below — parseWindow is the

@@ -29,11 +29,12 @@
 // import is a value import of plain `.mjs` — the context_family.ts pattern).
 // NEVER throws.
 import type { Plugin } from "@opencode/plugin";
-import { formatGauge, readGauge } from "./scripts/gauge.mjs";
+import { formatGauge, maintSuffix, readGauge } from "./scripts/gauge.mjs";
 
 const TOOL_DESCRIPTION =
   `Reads the context usage of the current (or a named) session, read-only.
 Returns the \`SESSION=… CTX=… (…%) REM=…\` readout (window unknown → no pct/REM; no total / unreadable db → CTX=notAvailable with the error appended). The readout line ends with the distinct \` | N compactions left\` budget suffix when the budget store resolves (file absent / unparseable → no suffix; when the cap resolves via the silent built-in fallback — model unlisted/empty + no finite \`model_budget.default\` key — the suffix appends the marker \` (unlisted)\` after \`left\`, #132). Fire this for context-budget decisions instead of the peek.mjs shell-out.
+On every 5th maintenance round the line gains the token \` ROUND=<n> MAINT=1\` (#171 maintenance clock) — on all other rounds NOTHING is added (zero context burden); when it appears, the FIRST unit of the session is the maintenance pass.
 The readout LAGS true usage by ≈1 tool call (~5k tokens — the in-flight step's output, not yet in the DB; the gauge reads the last FINISHED step's in+out+cr, #103) — treat it as a LOWER bound and plan with margin (the same lag applies to the injected ctx: nudge lines).`;
 
 // The input schema — a plain JSON schema (the promise surface accepts
@@ -66,6 +67,7 @@ async function execute(args: unknown, _toolContext: unknown): Promise<{ output: 
   // unchanged: `kind`, `error`).
   const gr = r as { kind?: unknown; error?: unknown };
   if (gr.kind === "db-error") out += ` — ${String(gr.error ?? "unknown error")}`; // the in-band mirror of peek.mjs's stderr note
+  else out += maintSuffix(); // #171: maintenance token on %5 rounds only ("" otherwise)
   return { output: out };
 }
 

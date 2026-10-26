@@ -802,7 +802,8 @@ function runFuzzyWrite(event: ToolBeforeEvent): Observation[] {
 }
 
 // R8 TYPED-PATH REDIRECT (v1 #97, v2 field names): the 1:1 allowed-root
-// redirect over the typed `path` fields of read/write/edit. FAIL-CLOSED:
+// redirect over the TYPED path fields named by the table below (native
+// read/write/edit + the custom tools per #179). FAIL-CLOSED:
 // no 1:1 mapping -> no mutation (the permission gate + the note behave
 // exactly as today). On a redirect the out-of-sandbox NOTE is recomputed on
 // the EFFECTIVE args (the redirected field no longer fires it). Never
@@ -811,6 +812,18 @@ const REDIRECT_PATH_FIELDS: Record<string, string[]> = {
   read: ["path"],
   write: ["path"],
   edit: ["path"],
+  // #179 (2026-10-26): the custom tools' typed path fields — the fork fires
+  // execute.before for Code-Mode inner calls too (fork tool.ts L241-245), so
+  // naming the fields makes anomaly + sandbox verdicts fire for them.
+  // block_transfer carries `srcFile`/`dstFile` (`targetMarker` is an
+  // insertion point INSIDE dstFile — not a separate path; `refs`/`regions`
+  // items are line refs; `text` is free text — #138). The other custom
+  // tools under .opencode/tools/ carry NO filesystem-path arg (measured over
+  // their schemas 2026-10-26: submit targets are hardcoded, loop_log derives
+  // its path from the loop root, state_snapshot/context_trim/ctx_gauge take
+  // none). `execute` stays OUT by design: its `code` is free text — a
+  // path-looking substring must never log (#138).
+  block_transfer: ["srcFile", "dstFile"],
 };
 
 // #142 + #138 (2026-10-22, v1 parity): the observation PATH-channel scan text

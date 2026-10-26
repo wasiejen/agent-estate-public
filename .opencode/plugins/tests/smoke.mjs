@@ -607,6 +607,62 @@ chk("setup: registers the execute.before hook + returns a cleanup", typeof ctx._
   chk("P-MIRROR post: no handover-named file appeared in the sandbox", mirrorFiles(SCRATCH).length === 0, JSON.stringify(mirrorFiles(SCRATCH)));
 }
 
+// ------------------------------------------------------------------ #179 pins (2026-10-26, spec 179)
+//
+// Custom-tool path fields: `REDIRECT_PATH_FIELDS` names `block_transfer`
+// (typed fields `srcFile`/`dstFile` — `targetMarker` is an insertion point
+// INSIDE dstFile, not a separate path) so the redirect + sandbox/anomaly
+// channels observe Code-Mode-dispatched custom-tool calls (the fork fires
+// execute.before for inner calls — fork tool.ts L241-245). Pin (a) is
+// DISCRIMINATING: it FAILS on the unchanged table (the gate names only
+// read/write/edit -> pathText "" -> the "nothing to log" return). Scoped-
+// checked after the whole-log invariants (the INV journal counts stay
+// C8/C11/C15/C16 + C6/C7/C14 — block_transfer fires NO journal line).
+// The tool never runs: the hook observes (and may mutate) ARGS only.
+{
+  const SCRATCHPAD = "home/AppData/Local/Temp/opencode"; // the plugin SCRATCHPAD_ROOT constant
+  // (a) discriminating: a WRITE with a dstFile OUT of every allowed root AND
+  // outside the scratchpad -> EXACTLY ONE out-of-sandbox verdict line (the
+  // tool field is block_transfer; the whole path lands in the evidence).
+  // Fail-closed redirect: the span's parent matches no allowed-root parent ->
+  // 0 hits -> no mutation, no kind=redirect line. No hard-stop (4b stays
+  // native write/edit-only — the planner ruling).
+  const bA = readLog().length;
+  const out = "C:/ProgramData/bt-spec179-target.txt";
+  const inA = { mode: "WRITE", dstFile: out, startMarker: "## TODO", endMarker: "## Notes", text: "x" };
+  let threwA = null;
+  try {
+    await ctx.fire("block_transfer", inA);
+  } catch (e) {
+    threwA = e;
+  }
+  const lA = readLog().slice(bA);
+  const oosA = lA.find((f) => f[7] === "out-of-sandbox");
+  chk("#179 (a) block_transfer out-of-sandbox dstFile: EXACTLY ONE line (out-of-sandbox, tool=block_transfer, whole-path evidence, no redirect line, no throw)",
+    threwA === null && lA.length === 1 && oosA !== undefined && oosA.length === 8 && oosA[3] === "block_transfer" && oosA[5].includes(`path=${out}`) && oosA[5].includes("root=") && !lA.some((f) => f[5].includes("kind=redirect")),
+    lA.length ? JSON.stringify(lA.map((f) => f[7])) : "no line");
+  chk("#179 (a) dstFile untouched (fail-closed redirect — 0 allowed-root hits)", inA.dstFile === out, `got ${inA.dstFile}`);
+  // (b) in-sandbox dstFile (directly under the scratchpad root — a sibling
+  // parent would 1:1-map onto the scratchpad via case (ii)) -> NO line.
+  const bB = readLog().length;
+  await ctx.fire("block_transfer", { mode: "WRITE", dstFile: `${SCRATCHPAD}/bt-spec179-ins.txt`, startMarker: "## TODO", endMarker: "## Notes", text: "x" });
+  const lB = readLog().slice(bB);
+  chk("#179 (b) block_transfer in-scratchpad dstFile: zero lines (no noise)", lB.length === 0, JSON.stringify(lB.map((f) => f[7])));
+  // (c) #138 discipline KEPT: the `execute` meta-tool stays UNOBSERVED — a
+  // path-looking substring inside its free-text `code` is never a path
+  // candidate (zero lines even for a genuine out-of-sandbox path inside it).
+  const bC = readLog().length;
+  await ctx.fire("execute", { code: 'tools.block_transfer({ mode: "MAP", bufferName: "b1", dstFile: "C:/Windows/System32/cmd.exe" })' });
+  const lC = readLog().slice(bC);
+  chk("#179 (c) execute code carrying an out-of-sandbox path: zero lines (free text is never a path candidate)", lC.length === 0, JSON.stringify(lC.map((f) => f[7])));
+  // (d) a block_transfer call carrying ONLY markers/line numbers (+ a buffer
+  // name) — no string path fields -> pathText "" -> zero lines.
+  const bD = readLog().length;
+  await ctx.fire("block_transfer", { mode: "REPLACE", bufferName: "b1", startMarker: "## TODO", endMarker: "## Notes" });
+  const lD = readLog().slice(bD);
+  chk("#179 (d) block_transfer markers-only call: zero lines (no typed path fields present)", lD.length === 0, JSON.stringify(lD.map((f) => f[7])));
+}
+
 await cleanup();
 console.log(failures === 0 ? "\nSMOKE: ALL PASS" : `\nSMOKE: ${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

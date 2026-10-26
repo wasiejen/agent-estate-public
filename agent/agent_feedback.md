@@ -977,3 +977,6 @@ Worker launch prompts must state the loop-log START duty explicitly — worker-3
 ### 2026-10-26_13-29 worker_FlashNext ses_e87db25a2ffeKuKI1E8H6WHCSy
 The `edit` tool JOINED two comment lines when oldString ended with a trailing `\n` and newString did not (`.opencode/plugins/tests/state_snapshot.smoke.mjs:9` became `READY-// MADE`) — never end oldString with a line break unless newString also ends with one, and re-read the seam after any comment-block edit.
 
+### 2026-10-26_13-38 planner_FlashNext ses_e87e9256affe21B9Bh22jfubV2
+execute/code-mode: text args containing backticks (even escaped) fail the parser with 'Unexpected token' — two lost calls (plan32, NAP + spec pastes); the proven-safe form is catalog-tool text WITHOUT any backtick chars.
+

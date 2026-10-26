@@ -679,6 +679,21 @@ const sqlMarkerV2ForSession = (sid) => {
   );
 };
 
+// #165 (2026-10-26): the MODEL fallback for a NULL session row — the v2 PAIR
+// only. Every auto_resume spawn-created session has `session_v2.model` NULL
+// (measured live 2026-10-26), while its latest `session_message` row carries
+// the model as `data.$.model` = the `{"id":…,"providerID":…}` JSON string
+// (`json_extract` serializes that object back to text; `parseModelRef` parses
+// it — #152 — so the downstream needs NO parser change). NO `type` filter: a
+// `compaction` row carries the model the same way, and the fallback wants the
+// latest row that HAS one. The v1 `session`↔`message` leg never instantiates
+// this (its read stays byte-identical).
+const sqlModelFallbackV2 = (sid) =>
+  "SELECT json_extract(data, '$.model') AS model FROM session_message " +
+  `WHERE session_id = ${sqlSidLiteral(sid)} ` +
+  "AND json_extract(data, '$.model') IS NOT NULL AND json_extract(data, '$.model') <> '' " +
+  "ORDER BY time_created DESC LIMIT 1";
+
 // ---------------------------------------------------------------------------
 // The backends — each returns the SAME raw shape:
 //   { sid: string|undefined, model: string|null, total: number|null, output: number|null }
@@ -761,9 +776,33 @@ function readApiDb(openFn, target) {
         // propagates.
         if (!/no such table/i.test(String(e?.message ?? e))) throw e;
       }
+      const sid = typeof newest?.id === "string" && newest.id !== "" ? newest.id : undefined;
+      let model =
+        step != null && typeof step.model === "string"
+          ? step.model
+          : typeof newest?.model === "string"
+            ? newest.model
+            : null;
+      if (massV2 && (model == null || model === "")) {
+        // #165 (2026-10-26): the MESSAGE-LEVEL model fallback — v2 pair only
+        // (the v1 winner never reaches this leg). The session row has no model
+        // (NULL for every spawn-created session), so ONE extra read of the
+        // PAIRED message table takes the latest `$.model`. A missing paired
+        // message table degrades to the null-model outcome (the same unit-2
+        // rule as the mass leg); any other error propagates.
+        const fallbackSid = sid ?? target;
+        if (fallbackSid != null) {
+          try {
+            const row = db.prepare(sqlModelFallbackV2(fallbackSid)).get();
+            if (typeof row?.model === "string" && row.model !== "") model = row.model;
+          } catch (e) {
+            if (!/no such table/i.test(String(e?.message ?? e))) throw e;
+          }
+        }
+      }
       return {
-        sid: typeof newest?.id === "string" && newest.id !== "" ? newest.id : undefined,
-        model: step != null && typeof step.model === "string" ? step.model : (typeof newest?.model === "string" ? newest.model : null),
+        sid,
+        model,
         total: step?.total == null ? null : Number(step.total),
         output: step?.output == null ? null : Number(step.output),
       };

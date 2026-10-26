@@ -9,9 +9,10 @@
 // window-head), the `session.context` HOOK filter (drops EXACTLY the pre-
 // boundary entries, appends NOTHING, id-less entries kept), the STALE-boundary
 // fail-open with the ONE `boundary-stale` line (deduped), and the COMPOSITION
-// pin with the REAL context_family plugin's APPEND-ONLY injection (both orders
-// on the SAME draft array — fork hooks.ts:92-96 passes one event object to every
-// handler).
+// block with the REAL context_family plugin on the CURRENT channel (#157 re-pin,
+// 2026-10-26): context_family registers EXACTLY `execute.before` + `execute.after`
+// and APPENDS its gauge line to the tool result (#153), so the trim draft filter
+// and the append compose across TWO channels, never on one draft array.
 //
 // Fixtures + logs live in the scratchpad home/AppData/Local/Temp/
 // opencode/ctx-trim-smoke-v2 (recreated every run) — the LIVE DB is NEVER
@@ -124,13 +125,15 @@ function compactedRows() {
 }
 
 // The mock ctx: the session RPC is switchable (rows / not-found / failing), every
-// call is RECORDED, and BOTH plugins' `context` handlers are kept in a LIST so
-// the composition leg can fire them in either ORDER on ONE draft.
+// call is RECORDED, the trim plugin's `context` draft handler is kept in a LIST,
+// and the TOOL hooks (name -> handler) are kept per ctx so the composition leg can
+// fire context_family's `execute.after` append on the same mock workspace (#157).
 const RPC = { mode: "rows", rows: null, calls: [] }; // mode: rows | absent | fail ; rows: null = the base window
 const TOOLS = []; // the editor.add captures
-const CONTEXT_HANDLERS = []; // BOTH plugins' 'context' handlers, in registration order
+const CONTEXT_HANDLERS = []; // the trim plugin's 'context' draft handlers, in registration order
 
 function makeCtx(directory) {
+  const TOOL_HOOKS = {}; // tool hook name -> handler (execute.before / execute.after)
   return {
     location: { directory },
     session: {
@@ -159,8 +162,12 @@ function makeCtx(directory) {
         cb(editor);
         return { dispose: async () => {} };
       },
-      hook: async () => ({ dispose: async () => {} }),
+      hook: async (name, cb) => {
+        TOOL_HOOKS[name] = cb;
+        return { dispose: async () => delete TOOL_HOOKS[name] };
+      },
     },
+    _hooks: TOOL_HOOKS, // the composition leg fires these directly
   };
 }
 
@@ -335,34 +342,85 @@ function draft(sessionID = SID) {
   await trim({ mode: "tail", session: SID, clear: true });
 }
 
-// ------------------------------------------------------------------ C1 the composition pin (the REAL context_family plugin)
+// ------------------------------------------------------------------ C1 the composition block (the REAL context_family plugin, the #153 APPEND channel)
+// Re-pinned for #157 (2026-10-26): context_family contributes NO draft handler —
+// it registers EXACTLY `execute.before` + `execute.after` and appends its gauge
+// line to the TOOL RESULT. `context_trim_v2` keeps the draft filter. The legs
+// therefore compose across TWO channels; the old "both orders on one draft array"
+// pair is repurposed into the registration-shape pin (C1) + the channel-isolation
+// pins (C2/C3).
 
 {
   const cf = (await import(pathToFileURL(CF_PLUGIN).href)).default;
-  const cfCtx = makeCtx(WS); // a fresh mock ctx: its own hooks list, the SAME shared gauge core
+  const cfCtx = makeCtx(WS); // its own hook map; the SAME shared gauge core (FX_DB), the same WS log/store root
   const cfCleanup = await cf.setup(cfCtx);
-  chk("C1 the context_family plugin registers its own 'context' handler (a SECOND handler on the same hook)", CONTEXT_HANDLERS.length === 2 && typeof CONTEXT_HANDLERS[1] === "function", `handlers=${CONTEXT_HANDLERS.length}`);
-  const [trimHandler, cfHandler] = CONTEXT_HANDLERS; // registration order: this plugin, then context_family
+  const G1 = "ctx: CTX=57000 (47%) REM=63000 | 6 compactions left"; // SID fixture: pct 47 < 50 -> NO rung, the gauge-line lane
+  const cfLog = () => (existsSync(CF_LOG) ? readFileSync(CF_LOG, "utf8").split("\n").filter((l) => l !== "").map((l) => JSON.parse(l)) : []);
+  const afterEvent = (result, tool = "bash") => ({ tool, sessionID: SID, agent: "worker-1", messageID: "msg-c1", id: "call-c1", input: { command: "ls" }, status: "completed", result });
+  const trimFilter = CONTEXT_HANDLERS[0]; // this plugin's draft leg
+  const onAfter = cfCtx._hooks["execute.after"]; // context_family's append leg
+  chk("C1 the composition registration shape (repurposed from the old two-handlers-on-one-draft pin): context_family registers EXACTLY execute.before + execute.after and NO 'context' draft handler — the trim plugin stays the only draft handler", Object.keys(cfCtx._hooks).sort().join(",") === "execute.after,execute.before" && typeof onAfter === "function" && typeof cfCtx._hooks["execute.before"] === "function" && CONTEXT_HANDLERS.length === 1, JSON.stringify({ cf: Object.keys(cfCtx._hooks).sort(), draftHandlers: CONTEXT_HANDLERS.length }));
+  // C2 ONE after-event appends EXACTLY one line: the original output survives as a
+  // byte prefix and gains ONE text line (the cache-safe append-only tail).
+  const ev1 = afterEvent({ output: "the tool output" });
+  const cf0 = cfLog().length;
+  await onAfter(ev1);
+  chk("C2 exactly ONE appended line per after-event (no doubling): result.output = the original bytes + the ctx line", ev1.result.output === `the tool output\n${G1}` && String(ev1.result.output).split("\n").length === 2, JSON.stringify(ev1.result.output));
+  const d1 = cfLog().slice(cf0);
+  chk("C2 ONE ctx-append evidence line per event in context_family's OWN log (kind ctx-append, the session, gauge=line, the appended text)", d1.length === 1 && d1[0].kind === "ctx-append" && d1[0].session === SID && d1[0].gauge === "line" && d1[0].line === G1, JSON.stringify(d1[0] ?? null));
+  // The ctxmsg pin repurposed (#153): the draft-injection kinds are GONE — the CF
+  // log carries ctx-append lines ONLY, and the two plugins' logs stay separate.
+  chk("C2 the retired kinds are absent: context_family's log holds ctx-append lines ONLY (no ctxmsg, no nudge), and this plugin's log holds none of them", cfLog().every((l) => l.kind === "ctx-append") && !readFileSync(CF_LOG, "utf8").includes('"kind":"ctxmsg"') && !readFileSync(CF_LOG, "utf8").includes('"kind":"nudge"') && !readFileSync(LOG, "utf8").includes("ctx-append"), JSON.stringify({ cf: cfLog().map((l) => l.kind), trimKinds: [...new Set(readLog().map((l) => l.kind))].sort() }));
+  // C3 (DoD 2b) the two channels never meet: the draft filter fired ON the
+  // after-event object (a tool result, not a draft) leaves the appended bytes
+  // INTACT and logs at most its own honest read failure — it cannot mutate a result.
+  const trim0 = readLog().length;
+  const cf1 = cfLog().length;
+  await trimFilter(ev1); // no boundary stored yet -> the draft leg is SILENT (H2 semantics)
+  chk("C3 the trim filter never touches a tool result: the appended ctx line survives byte-exact", ev1.result.output === `the tool output\n${G1}`, JSON.stringify(ev1.result.output));
+  chk("C3 with NO boundary the draft leg fired ON a tool-result event is SILENT: zero new lines in EITHER log (no mutation path exists)", readLog().length === trim0 && cfLog().length === cf1, JSON.stringify({ trimDelta: readLog().length - trim0, cfDelta: cfLog().length - cf1 }));
+  // C4 the economy gate: a second event on an UNMOVED fill appends nothing -> at
+  // most one appended line per moved fill (DoD 2a).
+  const ev2 = afterEvent({ output: "second call" });
+  const cf2 = cfLog().length;
+  await onAfter(ev2);
+  chk("C4 the economy gate: the second event on the same fill appends NOTHING and logs NOTHING", ev2.result.output === "second call" && cfLog().length === cf2, JSON.stringify({ out: ev2.result.output, delta: cfLog().length - cf2 }));
+  // C5 (DoD 2c) the append SURVIVES a trim boundary: the boundary is SET, the draft
+  // filter drops the pre-boundary entries, the already-appended result stays INTACT,
+  // and a fill that moved >= 1% of the window still appends — the append leg never
+  // reads the boundary store.
   await trim({ mode: "tail", session: SID, target: "msg_u4" });
-  // Order A: the injection FIRST, then the filter (the fork's registration order).
-  const dA = draft();
-  await cfHandler(dA);
-  await trimHandler(dA);
-  // Order B: the filter FIRST, then the injection.
-  const dB = draft();
-  await trimHandler(dB);
-  await cfHandler(dB);
-  const textA = dA.messages[0]?.content?.[0]?.text ?? "";
-  const injectedA = dA.messages[dA.messages.length - 1]?.content?.[0]?.text ?? "";
-  const injectedB = dB.messages[dB.messages.length - 1]?.content?.[0]?.text ?? "";
-  chk("C2 the ctx: injection SURVIVES the filter (id-less entry kept; order A: injection at index 0 of the pre-existing system entry untouched, the injection is the LAST entry)", dA.messages.length === 9 && dA.messages[0]?.role === "system" && /^ctx: SESSION=/.test(injectedA), JSON.stringify({ len: dA.messages.length, tail: injectedA.slice(0, 40) }));
-  chk("C2 both handler ORDERS compose: the pre-boundary entries are dropped in both, and the injection is the TAIL entry in both", dB.messages.length === 9 && dA.messages.length === 9 && dB.messages[dB.messages.length - 1]?.role === "user" && ["msg_c0", "msg_u1", "msg_a2", "msg_a3"].every((id) => dA.messages.every((m) => m.id !== id) && dB.messages.every((m) => m.id !== id)), JSON.stringify({ a: dA.messages.map((m) => m.id ?? "(none)"), b: dB.messages.map((m) => m.id ?? "(none)") }));
-  chk("C2 the injected text is byte-identical in both orders (the gauge readout is order-independent)", injectedA === injectedB && injectedA === `ctx: SESSION=${SID} CTX=57000 (47%) REM=63000 | 6 compactions left`, JSON.stringify(injectedA));
-  chk("C2 the filter never mutates an entry's CONTENT (the surviving entries byte-compare the pre-fire ones)", JSON.stringify(dB.messages[4]) === JSON.stringify(draft().messages[8]), JSON.stringify(dB.messages[4] ?? null));
-  chk("C2 the context_family plugin logged its own ctxmsg line in ITS OWN log (the two plugins' logs stay separate)", existsSync(CF_LOG) && readFileSync(CF_LOG, "utf8").includes('"kind":"ctxmsg"'), existsSync(CF_LOG) ? "cf log present" : "no cf log");
+  const dD = draft();
+  const trim1 = readLog().length;
+  await trimFilter(dD);
+  chk("C5 with a boundary set the filter drops EXACTLY the four pre-boundary ids, keeps the id-less entries and appends NOTHING to the draft (12 -> 8)", dD.messages.length === 8 && ["msg_c0", "msg_u1", "msg_a2", "msg_a3"].every((id) => dD.messages.every((m) => m.id !== id)) && dD.messages.filter((m) => m.id === undefined).length === 2, JSON.stringify({ len: dD.messages.length, ids: dD.messages.map((m) => m.id ?? "(none)") }));
+  const dtr = readLog().slice(trim1);
+  chk("C5 the filter's own ONE trim line lands in ITS log; context_family's log gains nothing from the draft fire", dtr.length === 1 && dtr[0].kind === "trim" && cfLog().length === cf2, JSON.stringify({ trim: dtr.map((l) => l.kind), cfDelta: cfLog().length - cf2 }));
+  // (DoD 2b, the boundary-set state): the draft leg ON a tool-result event can only
+  // report its honest read failure — it has no path to a tool result at all.
+  const trim2 = readLog().length;
+  const cf3 = cfLog().length;
+  await trimFilter(afterEvent({ output: "a result while a boundary is set" }));
+  const dt2 = readLog().slice(trim2);
+  chk("C5 with a boundary SET, the draft leg ON a tool-result event logs ONLY its honest messages-not-array gauge line in ITS log and appends nothing to context_family's log", dt2.length === 1 && dt2[0].kind === "gauge" && dt2[0].reason === "messages-not-array" && cfLog().length === cf3, JSON.stringify(dt2));
+  const step2 = JSON.stringify({ tokens: { input: 57000, output: 2500, reasoning: 0, cache: { read: 0, write: 0 } }, time: { completed: 456 } }); // the v2 fill = the LAST completed step's tokens (input + cache.read already carry the conversation)
+  {
+    const db = new DatabaseSync(FX_DB);
+    db.exec(`INSERT INTO session_message VALUES(9, '${SID}', 'assistant', '${step2}', 300)`);
+    db.close();
+  }
+  const ev3 = afterEvent({ output: "after the trim" });
+  await onAfter(ev3);
+  chk("C5 the append survives the boundary: the moved fill (59500 of 120K, delta 2500 >= 1%) appends its own line into the tool result", ev3.result.output === "after the trim\nctx: CTX=59500 (49%) REM=60500 | 6 compactions left", JSON.stringify(ev3.result.output));
+  chk("C5 the earlier appended result stays byte-exact across the boundary, the filter and the moved read", ev1.result.output === `the tool output\n${G1}`, JSON.stringify(ev1.result.output));
+  {
+    const db = new DatabaseSync(FX_DB);
+    db.exec("DELETE FROM session_message WHERE id = 9"); // restore the fixture mass for the later legs
+    db.close();
+  }
   await cfCleanup();
   await trim({ mode: "tail", session: SID, clear: true });
-  chk("C3 context_family cleanup removed its handler (this plugin's stays)", CONTEXT_HANDLERS.length === 1, `handlers=${CONTEXT_HANDLERS.length}`);
+  chk("C6 (DoD 2d) context_family's cleanup disposes BOTH hooks it registered; this plugin's draft handler + tool registration stay (the store survives)", Object.keys(cfCtx._hooks).length === 0 && CONTEXT_HANDLERS.length === 1 && typeof cleanup === "function" && existsSync(STORE), JSON.stringify({ cf: Object.keys(cfCtx._hooks), draftHandlers: CONTEXT_HANDLERS.length }));
 }
 
 // ------------------------------------------------------------------ S2 the store test hook + the file's additive invariant

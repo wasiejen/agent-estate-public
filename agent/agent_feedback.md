@@ -992,3 +992,6 @@ sesdata.cjs returns `SESSION: undefined / message count: 0` for a v2 sessionID w
 
 ### 2026-10-26_17-22 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
 watchdog unit-4 woke the session with `cause= compact` after a turn that ended CLEANLY with `action: continue` (no new compaction fired) — the post-compaction protocol re-read was then demanded without a real compaction; cause labeling should distinguish `turn-ended` from `compacted` so the wake does not mandate redundant protocol steps.
+### 2026-10-26_17-25 worker_FlashNext ses_e86fb63acffeYnRYerycVtlBl6
+A repo-wide `grep -rn <docname> .` pulled an archive/sessions compaction dump (~11k tokens) into context and buried the two real hits: a doc-pointer search should scope to the live dirs (`.opencode/ agent/ maintainer/ TODO.md`) or reuse the marker-sweep exclusion list from agent/readme/repo_commands.md §Marker sweep.
+

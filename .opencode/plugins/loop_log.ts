@@ -34,8 +34,9 @@
 // unparseable / wrong-looprun / non-planner line / N <= n -> NO counter write and
 // NEVER a created file; the append stands either way.
 import type { Plugin } from "@opencode/plugin";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { currentLoopFolder, listLoopFolders, loopCounterPath, readLoopCounter } from "./scripts/loop_root.mjs";
 
 // The repo-root carrier — captured at setup from `ctx.location.directory`;
 // the pre-setup default keeps a stray pre-setup call out of a crash (process
@@ -95,6 +96,9 @@ function normalizeStatus(raw: unknown): string | null {
 // maxN > n. Fail-closed on every other leg (non-planner line, absent file —
 // NEVER created, unparseable, wrong looprun, bad n, maxN <= n): no write at
 // all. Best-effort: any read/write failure is swallowed — the append stands.
+// #164 (2026-10-26): the counter READ + the counter FILE PATH come from the
+// ONE read-only helper `./scripts/loop_root.mjs` (absent/unreadable/
+// unparseable/non-object → null → no write; the read NEVER creates the file).
 function bumpCounter(folderName: string, line: string): void {
   try {
     let maxN = 0;
@@ -103,17 +107,15 @@ function bumpCounter(folderName: string, line: string): void {
       if (n > maxN) maxN = n;
     }
     if (maxN === 0) return; // no `planner-<N>` token in the line -> no write
-    const counterPath = path.join(dir, "loop", folderName, "counter.json");
-    if (!existsSync(counterPath)) return; // absent -> no write, NEVER created
-    const data: unknown = JSON.parse(readFileSync(counterPath, "utf-8"));
-    if (typeof data !== "object" || data === null) return; // unparseable shape
+    const data = readLoopCounter(path.join(dir, "loop"), folderName);
+    if (data === null) return; // absent (never created) / unparseable / bad shape
     const rec = data as Record<string, unknown>;
     if (rec["looprun"] !== folderName) return; // wrong-looprun file -> unchanged
     const n = rec["n"];
     if (typeof n !== "number" || !Number.isFinite(n) || maxN <= n) return;
-    writeFileSync(counterPath, JSON.stringify({ looprun: folderName, n: maxN }), "utf-8");
+    writeFileSync(loopCounterPath(path.join(dir, "loop"), folderName), JSON.stringify({ looprun: folderName, n: maxN }), "utf-8");
   } catch {
-    // absent-unreadable / unparseable / unwritable -> fail-closed, append stands
+    // unwritable -> fail-closed, append stands
   }
 }
 
@@ -181,14 +183,12 @@ async function execute(
 
   const loopRoot = path.join(dir, "loop");
 
-  // Step 2 — locate (or create) the current looprun folder.
-  let loopDirs: string[] = [];
-  if (existsSync(loopRoot)) {
-    loopDirs = readdirSync(loopRoot, { withFileTypes: true })
-      .filter((e) => e.isDirectory() && e.name.startsWith("autorun-"))
-      .map((e) => e.name)
-      .sort(); // deterministic base order (the anomaly case re-sorts by mtime)
-  }
+  // Step 2 — locate (or create) the current looprun folder. #164
+  // (2026-10-26): the locate goes through the ONE read-only helper
+  // `./scripts/loop_root.mjs` (absent `loop/` root -> [] — the same
+  // existsSync-guarded empty list as before; several folders -> the
+  // most-recently-modified — the anomaly note stays HERE).
+  const loopDirs: string[] = listLoopFolders(loopRoot); // deterministic base order (the anomaly case re-sorts by mtime)
 
   let folderName: string;
   let anomaly: string | null = null;
@@ -201,10 +201,7 @@ async function execute(
     folderName = loopDirs[0];
   } else {
     // SEVERAL -> the most-recently-MODIFIED (surfaced, not silently resolved).
-    const byMtime = loopDirs
-      .map((name) => ({ name, mtime: statSync(path.join(loopRoot, name)).mtimeMs }))
-      .sort((x, y) => y.mtime - x.mtime);
-    folderName = byMtime[0].name;
+    folderName = currentLoopFolder(loopRoot, loopDirs)!;
     anomaly = `ANOMALY: ${loopDirs.length} autorun-* folders exist in the loop dir; used the most-recently-modified (${folderName}). The protocol invariant is EXACTLY ONE current looprun folder — rollover is planner work.`;
   }
 

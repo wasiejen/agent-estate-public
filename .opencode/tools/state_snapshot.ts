@@ -24,6 +24,7 @@ import { tool } from "@opencode-ai/plugin"
 import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
+import { currentLoopFolder, readLoopCounter } from "../plugins/scripts/loop_root.mjs"
 
 // The ready-made marker sweep (planner prompt §maintainer calls/decisions —
 // verbatim pattern list). `2>/dev/null` keeps missing target files (README.md /
@@ -108,22 +109,16 @@ const todoSection = (root: string): string[] => {
 // present form `loop=<folder> ITER=<n> log=loop/<folder>/loop_log.md`. ZERO
 // folders, an unreadable counter, a non-integer `n`, or a `looprun` field that
 // mismatches the folder name → the empty form `no-looprun`. NEVER throws
-// (fail-closed into the empty form).
+// (fail-closed into the empty form). The folder locate + counter READ go
+// through the ONE read-only helper `../plugins/scripts/loop_root.mjs`
+// (#164, 2026-10-26 — no gauge import; the looprun/n validation stays HERE).
 const loopSection = (root: string): string[] => {
   try {
     const loopRoot = path.join(root, "loop")
-    const dirs = fs
-      .readdirSync(loopRoot, { withFileTypes: true })
-      .filter((e) => e.isDirectory() && e.name.startsWith("autorun-"))
-      .map((e) => e.name)
-      .sort()
-    if (dirs.length === 0) return ["no-looprun"]
-    const folder =
-      dirs.length === 1
-        ? dirs[0]
-        : dirs.map((n) => ({ n, m: fs.statSync(path.join(loopRoot, n)).mtimeMs })).sort((a, b) => b.m - a.m)[0].n
-    const counter = JSON.parse(fs.readFileSync(path.join(loopRoot, folder, "counter.json"), "utf8"))
-    if (counter === null || typeof counter !== "object" || Array.isArray(counter)) return ["no-looprun"]
+    const folder = currentLoopFolder(loopRoot)
+    if (folder === null) return ["no-looprun"]
+    const counter = readLoopCounter(loopRoot, folder)
+    if (counter === null) return ["no-looprun"]
     if (counter.looprun !== folder || typeof counter.n !== "number" || !Number.isInteger(counter.n)) return ["no-looprun"]
     return [`loop=${folder} ITER=${counter.n} log=loop/${folder}/loop_log.md`]
   } catch {

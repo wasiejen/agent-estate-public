@@ -141,11 +141,12 @@
 // =============================================================================
 
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { currentLoopFolder, readLoopCounter } from "./loop_root.mjs";
 
 const execFileAsync = promisify(execFile);
 export const BUSY_TIMEOUT_MS = 2500;
@@ -226,27 +227,20 @@ export function getLoopRoot() {
 }
 
 // Part 2: the ctx-line iteration suffix — `""` or ` ITER=<n> <folder>`.
-// Resolves the CURRENT loop folder (mirrors auto_resume.ts's
-// currentLoopFolder: exactly one `autorun-*` directory → it, several →
-// the most-recently-modified, none / unreadable → `""`), reads the
-// folder's `counter.json` (the machine-side counter auto_resume writes
-// at spawn), present + parseable (an object with a finite numeric `n`)
-// → the suffix. NEVER throws (any failure → `""` — the readout line is
-// byte-identical to the pre-counter form).
+// Resolves the CURRENT loop folder + reads the folder's `counter.json`
+// through the ONE read-only helper `./loop_root.mjs` (#164, 2026-10-26 —
+// the four duplicated folder locators unified; the folder rule stays
+// exactly-one → it, several → newest-mtime, none / unreadable → `""`),
+// present + parseable (an object with a finite numeric `n` — the counter's
+// `looprun` field is NOT checked here) → the suffix. NEVER throws (any
+// failure → `""` — the readout line is byte-identical to the pre-counter
+// form). The `setLoopRootForTest` hook above steers the helper's root.
 export function loopIterationSuffix() {
   try {
-    const folders = readdirSync(loopRoot, { withFileTypes: true })
-      .filter((e) => e.isDirectory() && e.name.startsWith("autorun-"))
-      .map((e) => e.name);
-    if (folders.length === 0) return "";
-    const folder =
-      folders.length === 1
-        ? folders[0]
-        : folders
-            .map((n) => ({ n, m: statSync(join(loopRoot, n)).mtimeMs }))
-            .sort((a, b) => b.m - a.m)[0].n;
-    const data = JSON.parse(readFileSync(join(loopRoot, folder, "counter.json"), "utf-8"));
-    if (typeof data !== "object" || data === null || Array.isArray(data)) return "";
+    const folder = currentLoopFolder(loopRoot);
+    if (folder === null) return "";
+    const data = readLoopCounter(loopRoot, folder);
+    if (data === null) return "";
     const n = data["n"];
     if (typeof n !== "number" || !Number.isFinite(n)) return "";
     return ` ITER=${n} ${folder}`;

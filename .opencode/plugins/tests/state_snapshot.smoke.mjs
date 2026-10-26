@@ -31,7 +31,7 @@
 // final line: `SMOKE: ALL PASS`.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -338,6 +338,70 @@ const ROOT4 = path.join(SCRATCH, "fx4");
       emptyLoop?.length === 1 && emptyLoop[0] === "no-looprun",
     JSON.stringify({ mismatch, missing, badN, emptyLoop }));
   cleanup4();
+}
+
+// ------------------------------------------------------------------ FXH — the #164 loop-root helper (direct fail-close pins, DoD 3)
+// The digest's `## loop` leg resolves the folder + counter through the ONE
+// read-only helper `.opencode/plugins/scripts/loop_root.mjs` — pin its
+// exported surface HERE so the shared fail-closed legs are pinned directly
+// (not only through the readers): absent-root legs, the folder-resolution
+// rules (sole / newest-mtime), and the counter-read fail-closes (absent →
+// null AND never created / unparseable / array / scalar / null → null).
+
+const HROOT = path.join(SCRATCH, "helper-root");
+{
+  const helper = await import(pathToFileURL(path.join(CLONE_ROOT, ".opencode", "plugins", "scripts", "loop_root.mjs")).href);
+  chk("(30) helper: ABSENT loop root → listLoopFolders [] + currentLoopFolder null (no throw)",
+    helper.listLoopFolders(path.join(HROOT, "nope")).length === 0 && helper.currentLoopFolder(path.join(HROOT, "nope")) === null);
+  const loopH = path.join(HROOT, "loop");
+  w(HROOT, "loop/autorun-B/seed.txt", "b\n");
+  w(HROOT, "loop/autorun-A/seed.txt", "a\n");
+  w(HROOT, "loop/not-an-autorun/seed.txt", "x\n");
+  w(HROOT, "loop/plain.txt", "file, not a folder\n");
+  const listed = helper.listLoopFolders(loopH);
+  chk("(31) helper listLoopFolders: only `autorun-*` DIRECTORIES, sorted",
+    listed.join(",") === "autorun-A,autorun-B", JSON.stringify(listed));
+  {
+    // mtime-steered both ways: both folders OLD, then autorun-B newer → the
+    // newest-mtime leg is deterministic (no wall-clock ordering assumptions).
+    const old = new Date(Date.now() - 120000);
+    utimesSync(path.join(loopH, "autorun-A"), old, old);
+    utimesSync(path.join(loopH, "autorun-B"), old, old);
+    const newer = new Date(Date.now() + 60000);
+    utimesSync(path.join(loopH, "autorun-B"), newer, newer);
+    chk("(32) helper currentLoopFolder: SEVERAL → the MOST-RECENTLY-MODIFIED (utimes-steered → autorun-B)",
+      helper.currentLoopFolder(loopH) === "autorun-B", helper.currentLoopFolder(loopH));
+    utimesSync(path.join(loopH, "autorun-A"), newer, newer);
+    chk("(33) helper currentLoopFolder: mtime flip → autorun-A (the rule, not an ordering accident)",
+      helper.currentLoopFolder(loopH) === "autorun-A", helper.currentLoopFolder(loopH));
+  }
+  {
+    // sole-folder case on its own root
+    const solo = path.join(HROOT, "solo");
+    w(solo, "loop/autorun-S/seed.txt", "s\n");
+    chk("(34) helper currentLoopFolder: exactly ONE folder → it (absent counter is irrelevant)",
+      helper.currentLoopFolder(path.join(solo, "loop")) === "autorun-S", helper.currentLoopFolder(path.join(solo, "loop")));
+  }
+  chk("(35) helper loopCounterPath form + VALID counter read (object with looprun/n)",
+    helper.loopCounterPath(loopH, "autorun-A") === path.join(loopH, "autorun-A", "counter.json") &&
+      (() => {
+        w(HROOT, "loop/autorun-A/counter.json", '{"looprun":"autorun-A","n":7}');
+        const c = helper.readLoopCounter(loopH, "autorun-A");
+        return c !== null && c.looprun === "autorun-A" && c.n === 7;
+      })());
+  chk("(36) helper readLoopCounter fail-closes → null: absent (NEVER created) / unparseable / array / scalar / null",
+    helper.readLoopCounter(loopH, "autorun-B") === null &&
+      !existsSync(path.join(loopH, "autorun-B", "counter.json")) &&
+      (() => {
+        w(HROOT, "loop/autorun-A/counter.json", "{not json");
+        if (helper.readLoopCounter(loopH, "autorun-A") !== null) return false;
+        w(HROOT, "loop/autorun-A/counter.json", "[1,2]");
+        if (helper.readLoopCounter(loopH, "autorun-A") !== null) return false;
+        w(HROOT, "loop/autorun-A/counter.json", "5");
+        if (helper.readLoopCounter(loopH, "autorun-A") !== null) return false;
+        w(HROOT, "loop/autorun-A/counter.json", "null");
+        return helper.readLoopCounter(loopH, "autorun-A") === null;
+      })());
 }
 
 // ------------------------------------------------------------------ Z cleanup

@@ -1010,3 +1010,6 @@ Retention forensics mislead me twice: dump rows are DB-serialized JSON (metadata
 ### 2026-10-26_18-50 worker_FlashNext ses_e86b16ea6ffetIvPl1jH1Jk3w4
 read output wraps long comment lines differently than the file bytes, so reproducing wrapped text as an edit oldString mismatched twice; verify byte boundaries (sed -n 'X,Yp' f | cat -A) before anchoring edits on wrapped comment blocks
 
+### 2026-10-26_20-42 worker_FlashNext ses_e865199e1ffeNIugYDiy5dQ1Bg
+Specs 177-U4/U5/U6 copy-pasted the extraction example naming agent/readme/repo_opencode.md while each unit targets a different file — the example misleads; spec templates should regenerate the example path from the target file.
+

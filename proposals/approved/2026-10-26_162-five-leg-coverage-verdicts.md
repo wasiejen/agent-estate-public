@@ -38,6 +38,7 @@ override each part independently. Full evidence: `TODO.md` #162 +
   fixture → assert the `kind=seg` log line. Cost: one check + fixture, no
   production change.
 
+
 ### Part 4 — redirect pure-resolver case-(i..vi) detail pins + POSIX `/tmp` + bash-`command` legs (S28/S29) — RECOMMEND: REBUILD the RESOLVER pins only, RETIRE the bash leg
 
 - The resolver cases are pure-function inputs/outputs → cheap fixture pins in
@@ -64,3 +65,5 @@ override each part independently. Full evidence: `TODO.md` #162 +
 
 AWAITING APPROVAL — recommendations only; nothing built until ruled.
 Priority: parts 3/5 first (smallest), part 4-resolver with them.
+
+--comment: i just follow your recommendations on all 5.

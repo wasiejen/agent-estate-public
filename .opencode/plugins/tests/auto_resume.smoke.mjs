@@ -212,6 +212,11 @@ chk("S3 the counter written: loop/autorun-T/counter.json n=8 (logMax 7 + 1 beat 
     const d = JSON.parse(readFileSync(path.join(LOOPROOT, "counter.json"), "utf8"));
     return d.looprun === "autorun-T" && d.n === 8;
   })());
+chk("S3 #171 the ROUND key on the FIRST spawn (absent counter -> base 0 -> round 1)",
+  (() => {
+    const d = JSON.parse(readFileSync(path.join(LOOPROOT, "counter.json"), "utf8"));
+    return d.round === 1;
+  })());
 chk("S3 the trigger consumed by rename (even on success): the .consumed file exists, the trigger is gone",
   existsSync(`${TRIGGER}.consumed`) && !existsSync(TRIGGER));
 
@@ -252,6 +257,27 @@ chk("S3 the queued-prompt REJECTION lane -> `spawn-fail= prompt: mock queue reje
   has("spawn-fail= prompt: mock queue rejection"));
 chk("S3 a FAILED trigger never re-fires: the trigger file is GONE after every leg (the single `.consumed` tombstone name is overwritten — v1 semantics)",
   !existsSync(TRIGGER) && existsSync(`${TRIGGER}.consumed`));
+
+// ------------------------------------------------------------------ S3r #171 the ROUND spawn leg (2026-10-26)
+// round_final = max(existing round ?? 0, existing n ?? 0) + 1 — the migration
+// seed (legacy {looprun,n} file) and the round-keyed increment.
+
+{
+  writeFileSync(path.join(LOOPROOT, "counter.json"), JSON.stringify({ looprun: "autorun-T", n: 36 }), "utf8");
+  writeFileSync(TRIGGER, "round migration\n", "utf8");
+  await mod.runTick();
+  await sleep(15);
+  const d = JSON.parse(readFileSync(path.join(LOOPROOT, "counter.json"), "utf8"));
+  chk("S3r #171 migration: legacy {looprun,n:36} (NO round) -> next spawn round=37 (n=37 too)",
+    d.n === 37 && d.round === 37, JSON.stringify(d));
+  writeFileSync(path.join(LOOPROOT, "counter.json"), JSON.stringify({ looprun: "autorun-T", n: 36, round: 37 }), "utf8");
+  writeFileSync(TRIGGER, "round increment\n", "utf8");
+  await mod.runTick();
+  await sleep(15);
+  const d2 = JSON.parse(readFileSync(path.join(LOOPROOT, "counter.json"), "utf8"));
+  chk("S3r #171 increment: {n:36,round:37} -> next spawn round=38 (max(round,n)+1)",
+    d2.n === 37 && d2.round === 38, JSON.stringify(d2));
+}
 
 // ------------------------------------------------------------------ S4 UNIT 4: the routing legs
 

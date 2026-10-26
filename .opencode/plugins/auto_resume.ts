@@ -558,20 +558,31 @@ function currentLoopFolder(): string | null {
 // Loop iteration counter (Part 1, v1 rule verbatim): `loop/<folder>/counter
 // .json` = `{looprun, n}` — the MACHINE source of truth, written AT SPAWN.
 // n_final = max(counter candidate, loop_log.md `planner-<N>` max + 1).
+// #171 (2026-10-26): the file gains the ROUND key — `round_final =
+// max(existing round ?? 0, existing n ?? 0) + 1` (the maintenance clock:
+// spawns + verified compactions). Migration: a legacy `{looprun, n: 36}`
+// file seeds round 37 at the next spawn; absent / unparseable / wrong-
+// looprun → base 0 → round 1. `n` semantics are UNCHANGED (#161 pins stay).
 function spawnCounterFor(): { folder: string; n: number } | null {
   try {
     const folder = currentLoopFolder();
     if (!folder) return null;
     const counterPath = join(projectDir, "loop", folder, "counter.json");
     let candidate = 1;
+    let roundBase = 0; // #171: max(existing round ?? 0, existing n ?? 0)
     try {
       const data: unknown = JSON.parse(readFileSync(counterPath, "utf8"));
       if (typeof data === "object" && data !== null && (data as Record<string, unknown>)["looprun"] === folder) {
         const n = (data as Record<string, unknown>)["n"];
-        if (typeof n === "number" && Number.isFinite(n)) candidate = n + 1;
+        if (typeof n === "number" && Number.isFinite(n)) {
+          candidate = n + 1;
+          if (n > roundBase) roundBase = n;
+        }
+        const round = (data as Record<string, unknown>)["round"];
+        if (typeof round === "number" && Number.isFinite(round) && round > roundBase) roundBase = round;
       }
     } catch {
-      // absent / unparseable / wrong looprun -> candidate 1
+      // absent / unparseable / wrong looprun -> candidate 1, round base 0
     }
     let logMax = 0;
     try {
@@ -584,8 +595,9 @@ function spawnCounterFor(): { folder: string; n: number } | null {
       // missing / unreadable loop_log.md -> 0
     }
     const nFinal = Math.max(candidate, logMax + 1);
+    const roundFinal = roundBase + 1;
     try {
-      writeFileSync(counterPath, JSON.stringify({ looprun: folder, n: nFinal }), "utf8");
+      writeFileSync(counterPath, JSON.stringify({ looprun: folder, n: nFinal, round: roundFinal }), "utf8");
     } catch {
       // best effort — a write failure must not break the spawn
     }

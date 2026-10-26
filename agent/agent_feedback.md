@@ -980,3 +980,6 @@ The `edit` tool JOINED two comment lines when oldString ended with a trailing `\
 ### 2026-10-26_13-38 planner_FlashNext ses_e87e9256affe21B9Bh22jfubV2
 execute/code-mode: text args containing backticks (even escaped) fail the parser with 'Unexpected token' — two lost calls (plan32, NAP + spec pastes); the proven-safe form is catalog-tool text WITHOUT any backtick chars.
 
+
+### 2026-10-26_14-42 planner_FlashNext ses_e87c77efdffet0405yLmU6rJom
+unit-4 continue fires repeatedly on a DIRECT-mode session waiting for the maintainer (4 `recovery= attempt=1` lines for one sid — each continue starts a fresh busy cycle, so the per-cycle reset makes the cap unreachable); a close WITHOUT an action: line in direct mode re-spawns the watchdog forever. Cheap fix candidates (for #167): a per-session continue cap across cycles, or a direct-scope marker that suppresses the continue.

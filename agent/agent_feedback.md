@@ -971,3 +971,6 @@ Code Mode `execute` has no `Bun` (ReferenceError: Unknown identifier 'Bun') even
 ### 2026-10-26_12-57 worker_FlashNext ses_e88003e05ffePmE5eqUVJ8cx43
 Friction (worker-32, #150-B): the shell tool decodes `\\b` inside commands into a backspace, so `new RegExp("\\b"+id+"\\b")` in `node -e`/heredoc scripts silently matches NOTHING (hit twice while mapping probe identifiers) — write regex-bearing scripts with the write tool (exact bytes), never heredoc/-e.
 
+### 2026-10-26_13-00 planner_FlashNext ses_e8823b771ffeI9RwOWqgZwqBrM
+Worker launch prompts must state the loop-log START duty explicitly — worker-32 skipped its -->START line (compensated with an --INFO-- at close); the spec/launch text names only the DONE line, so the start leg is invisible to the worker.
+

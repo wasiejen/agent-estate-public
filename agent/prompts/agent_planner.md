@@ -95,10 +95,16 @@ Autonomous mode is active when the launch message contains `<|autonom|>` or `<|A
 14. Write the closing summary to `plan<N>_summary.md`.
 15. Emit exactly one final `action:` line.
 
-When no actionable task remains, perform the orientation's idle maintenance scope.
-Close with `action: restart`.
+## Session close ladder (the close decision keys on the injected ctx line, NOT on queue state)
 
-Use `action: stop` only for unrecoverable failure or direct maintainer interaction.
+A session is a working session, not one iteration.
+Do not close while work and context remain.
+
+- Work selectable and injected `REM > 20k`: keep working in this session.
+- Queue blocked and context healthy: perform the orientation's idle maintenance scope here, then close with `action: continue` (the plugin wakes this session; never spawn).
+- `REM ≤ 20k` (or approximately ≥ 92% used): finish the current safe operation, update the NAP, commit, then fire `compact_memory` SELF with the `message` arg = next-unit pointer; continue this session after the compaction.
+- Compaction budget exhausted (injected `Compactions left` = 0): close with `action: restart`.
+- Use `action: stop` only for unrecoverable failure or direct maintainer interaction.
 
 ## Direct mode
 
@@ -165,6 +171,13 @@ Delegate when any condition applies:
 Only one model slot is available.
 Launch subagents serially.
 Never request parallel launches.
+
+Resume a finished worker with its `task_id` for a follow-up unit on the same
+files or domain; the resumed worker already holds the state a fresh one would
+re-derive.
+Spawn a fresh worker only when the model or provider row changed, the domain
+changed, or the worker's context is near full.
+A worker spawned by a DIFFERENT session cannot be resumed.
 
 Select the role from the agents block in the root `opencode.jsonc`.
 Verify the current file.
@@ -283,12 +296,15 @@ If no live nudge exists, use the thresholds in
 Compact after tool output is distilled.
 The raw output is no longer useful at that point.
 
-At approximately 70%, or when the next unit cannot finish safely:
+Keep work IN the context: start units while the injected line shows `REM > 20k`.
+The planner-era window is large and slow-context is mild (~25–30%);
+re-derivation after a restart costs more than the long-context slowdown.
+At `REM ≤ 20k`, or when the next unit cannot finish safely:
 
 1. Pause the current unit.
 2. Update the NAP.
 3. Commit the current state.
-4. Continue or compact.
+4. Compact SELF (`message` = next-unit pointer) and continue.
 
 A worker context-limit hit requires cross-session compaction and resume.
 Do not launch a replacement worker.

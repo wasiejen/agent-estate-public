@@ -13,7 +13,9 @@
 // Discovery guard (v2 plugin roots are ["plugin","plugins"], fork source-directory.ts:7):
 // any `.ts` NEWLY present under `.opencode/plugin/` after the merge is moved to
 // `.opencode/plugin-unported-v1/` (structure preserved) with a WARNING line -- a merge must
-// not re-add v1 plugins into the v2 discovery path.
+// not re-add v1 plugins into the v2 discovery path. The v1 estate itself is RETIRED
+// (#150 unit B, 2026-10-26): MAIN no longer ships `.opencode/plugin/` nor
+// `.opencode/plugin-unported-v1/`; the guard stays as the resurrection defense.
 // Usage: node port_sync.cjs [--dry-run|--apply] [--main <path>] [--clone <path>] [--no-gate]
 //   env PORT_SYNC_MAIN / PORT_SYNC_CLONE / TSGO_EXE override the inline host defaults.
 // Reads: no write outside the clone tree; MAIN's tree is fetch-source only. Plain node, no deps.
@@ -28,17 +30,19 @@ const MAIN_BRANCH = "main", CLONE_BRANCH = "migration";
 const TSGO = process.env.TSGO_EXE || "home/Repos/opencode/node_modules/.bin/tsgo.exe";
 
 const TAKE_MAIN = [
-  ".opencode/tools/", ".opencode/plugin/tests/", ".opencode/plugin/probes/", ".opencode/plugin/scripts/",
+  ".opencode/tools/", ".opencode/plugins/probes/", ".opencode/plugins/tests/v1/", ".opencode/plugins/scripts/",
   "agent/handover/", "loop/", "TODO.md",
   "agent/knowledge/", "agent/memory/", "agent/readme/", "agent/scripts/",
 ];
 const CONFIG_PATH = "opencode.jsonc";
-// Rule (A) (maintainer ruling 2026-10-23): the probe ALSO lands from MAIN, then the
-// post-merge patch repoints its v1 plugin imports into `.opencode/plugin-unported-v1/`
-// (the TODO #141 repoint), so gate and estate stay ONE generation and MAIN-side probe
-// drift stops accumulating. Sub-dirs that legitimately live under `.opencode/plugin/`
-// (probes/tests/tools/scripts) are NOT repointed.
-const PROBE_FILE = ".opencode/plugin/probes/handover_probe.mjs";
+// Rule (A) (maintainer ruling 2026-10-23; repointed #150 unit B, 2026-10-26): the probe,
+// the v1 smokes, and the shared cores ALSO land from MAIN, so gate and estate stay ONE
+// generation and MAIN-side probe drift stops accumulating. The post-merge patch repoints
+// every stray v1 plugin import the probe still carries (`".opencode", "plugin", "<rel>.ts"`
+// path.join segments whose rel is NOT under a keep-dir) into `.opencode/plugin-unported-v1/`
+// (the TODO #141 repoint) -- defense-in-depth after the estate retirement: a re-added stray
+// module is parked inert, never discovered (plugin roots are only ["plugin","plugins"]).
+const PROBE_FILE = ".opencode/plugins/probes/handover_probe.mjs";
 const KEEP_UNDER_PLUGIN = ["probes/", "tests/", "tools/", "scripts/", "deactivated/"];
 const PLUGIN_DIR = ".opencode/plugin/", UNPORTED_DIR = ".opencode/plugin-unported-v1/";
 
@@ -162,16 +166,16 @@ function runGate(cloneDir) {
     console.log("gate " + name + ": " + (ok === null ? "SKIP" : ok ? "PASS" : "FAIL") + (note ? " | " + note : ""));
     if (ok === false) fail++;
   };
-  const probe = path.join(cloneDir, ".opencode/plugin/probes/handover_probe.mjs");
+  const probe = path.join(cloneDir, ".opencode/plugins/probes/handover_probe.mjs");
   if (fs.existsSync(probe)) {
-    const r = run("node", [".opencode/plugin/probes/handover_probe.mjs"], cloneDir);
+    const r = run("node", [".opencode/plugins/probes/handover_probe.mjs"], cloneDir);
     const outAll = (r.stdout || "") + "\n" + (r.stderr || "");
     const failed = (r.stdout || "").split("\n").filter(l => /^FAIL/.test(l)).slice(0, 3);
     step("probe", r.status === 0 && /PROBE handover: (\d+)\/\1 PASS/.test(outAll), (failed.length ? "failing checks: " + failed.join(" || ") + " || " : "") + tailLine(outAll));
   } else step("probe", null, "missing");
   const bunExe = resolveBun();
   for (const [dirLabel, tag, args, needMarker] of [
-    [".opencode/plugin/tests", "v1", (f) => ["node", [".opencode/plugin/tests/" + f], cloneDir], false],
+    [".opencode/plugins/tests/v1", "v1", (f) => ["node", [".opencode/plugins/tests/v1/" + f], cloneDir], false],
     [".opencode/plugins/tests", "v2", (f) => ["bun", ["run", f], path.join(cloneDir, ".opencode/plugins/tests")], true],
   ]) {
     const dir = path.join(cloneDir, dirLabel);

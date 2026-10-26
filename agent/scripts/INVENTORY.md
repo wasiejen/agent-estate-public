@@ -91,7 +91,6 @@ Not promoted (dedup/superseded): `findbin.ps1` (PowerShell twin of binwin.cjs),
 | fix_label.mjs | 489 | (no header comment) |
 | gauge_check.mjs | 1286 | // Exact replica of retired peek.py window/pct math (lines 26-28 of peek.py): |
 | gauge_scratch.mjs | 2939 | // scratch: node:sqlite behavior verification |
-| handover-check.js | 16903 | // .opencode/plugin/handover.ts |
 | inspect_epoch.py | 885 | (no header comment) |
 | inspect_msg.py | 614 | (no header comment) |
 | inspect_parts.py | 554 | (no header comment) |

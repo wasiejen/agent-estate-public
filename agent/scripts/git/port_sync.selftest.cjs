@@ -31,16 +31,17 @@ const PS = require("./port_sync.cjs");
 
 // ---------- A. rule layer (pure) ----------
 for (const p of [".opencode/tools/block_transfer.ts",
-  ".opencode/plugin/tests/ok.smoke.mjs", "agent/handover/handover_task_to_planner.md",
+  ".opencode/plugins/tests/v1/ok.smoke.mjs", "agent/handover/handover_task_to_planner.md",
   "loop/autorun-x/loop_log.md", "TODO.md", "agent/knowledge/x/y.md", "agent/memory/r/m.md",
   "agent/readme/repo_overview.md", "agent/scripts/git/port_sync.cjs",
-  ".opencode/plugin/scripts/gauge.mjs"]) ck("take-main: " + p, PS.isTakeMain(p));
-ck("probes take MAIN (Rule A: patch repoints its v1 refs)", PS.isTakeMain(".opencode/plugin/probes/handover_probe.mjs"));
-ck("gauge core takes MAIN (unified core: MAIN adopts the clone's table-aware one)", PS.isTakeMain(".opencode/plugin/scripts/gauge.mjs"));
-for (const p of ["TODO.md.bak", "agent/handovers/x.md", ".opencode/plugin/x.ts", ".opencode/plugins/tests/a.smoke.mjs", "maintainer/priority.md"]) ck("not-take-main: " + p, !PS.isTakeMain(p));
+  ".opencode/plugins/scripts/gauge.mjs"]) ck("take-main: " + p, PS.isTakeMain(p));
+ck("probes take MAIN (Rule A: patch repoints stray v1 refs)", PS.isTakeMain(".opencode/plugins/probes/handover_probe.mjs"));
+ck("gauge core takes MAIN (unified core: MAIN adopts the clone's table-aware one)", PS.isTakeMain(".opencode/plugins/scripts/gauge.mjs"));
+for (const p of ["TODO.md.bak", "agent/handovers/x.md", ".opencode/plugin/x.ts", ".opencode/plugins/tests/a.smoke.mjs", "maintainer/priority.md",
+  ".opencode/plugin/probes/handover_probe.mjs", ".opencode/plugin/tests/ok.smoke.mjs", ".opencode/plugin/scripts/gauge.mjs"]) ck("not-take-main: " + p, !PS.isTakeMain(p));
 ck("classify config", PS.classify("opencode.jsonc") === "config");
-ck("classify probe = take-main (Rule A)", PS.classify(".opencode/plugin/probes/handover_probe.mjs") === "take-main");
-ck("classify gauge core = take-main", PS.classify(".opencode/plugin/scripts/gauge.mjs") === "take-main");
+ck("classify probe = take-main (Rule A)", PS.classify(".opencode/plugins/probes/handover_probe.mjs") === "take-main");
+ck("classify gauge core = take-main", PS.classify(".opencode/plugins/scripts/gauge.mjs") === "take-main");
 ck("patch repoints v1 plugin refs (incl. non-keep subdir rel)", (() => {
   const s = 'const A = path.join(R, ".opencode", "plugin", "ctx_watchdog.ts");\nconst B = path.join(R, ".opencode", "plugin", "legacy", "old_module.ts");\n';
   const p = PS.patchProbeImports(s);
@@ -92,10 +93,10 @@ function buildPair() {
   wf(SRC, "agent/handover/handover_task_to_planner.md", "base handover\n");
   wf(SRC, "opencode.jsonc", '{"host":"base"}\n');
   wf(SRC, "README.md", "line1\nline2\nline3\n");
-  wf(SRC, ".opencode/plugin/probes/handover_probe.mjs", 'console.log("PROBE handover: 1/1 PASS");\n');
+  wf(SRC, ".opencode/plugins/probes/handover_probe.mjs", 'console.log("PROBE handover: 1/1 PASS");\n');
   wf(SRC, ".opencode/plugin/base_both.ts", "base plugin file in BOTH trees\n");
-  wf(SRC, ".opencode/plugin/tests/ok.smoke.mjs", 'console.log("SMOKE: ALL PASS");\n');
-  wf(SRC, ".opencode/plugin/scripts/gauge.mjs", "base gauge core\n");
+  wf(SRC, ".opencode/plugins/tests/v1/ok.smoke.mjs", 'console.log("SMOKE: ALL PASS");\n');
+  wf(SRC, ".opencode/plugins/scripts/gauge.mjs", "base gauge core\n");
   commit(SRC, "base");
   git(["clone", "-q", "-b", "main", SRC, DST], SCRATCH);   // clone BEFORE the MAIN-side commit -> real divergence
   git(["branch", "-m", "main", "migration"], DST);
@@ -105,17 +106,17 @@ function buildPair() {
   wf(DST, "README.md", "line1\nline2\nline3 clone\n");
   wf(DST, ".opencode/plugins/tests/a.smoke.mjs", 'console.log("SMOKE: ALL PASS");\n');
   wf(DST, ".opencode/plugin-unported-v1/keepme.ts", "unported\n");
-  wf(DST, ".opencode/plugin/probes/handover_probe.mjs", 'console.log("PROBE handover: 1/1 PASS"); // clone-side tweak\n');
-  wf(DST, ".opencode/plugin/scripts/gauge.mjs", "clone gauge core (table-aware)\n");
+  wf(DST, ".opencode/plugins/probes/handover_probe.mjs", 'console.log("PROBE handover: 1/1 PASS"); // clone-side tweak\n');
+  wf(DST, ".opencode/plugins/scripts/gauge.mjs", "clone gauge core (table-aware)\n");
   commit(DST, "clone side");
   wf(SRC, ".opencode/tools/block_transfer.ts", "main tool new\n");
   wf(SRC, "agent/handover/handover_task_to_planner.md", "main handover\n");
   wf(SRC, "opencode.jsonc", '{"host":"main","v1":true}\n');
   wf(SRC, "README.md", "line1 main\nline2\nline3\n");
   wf(SRC, ".opencode/plugin/x.ts", "export const stray = 1;\n");
-  wf(SRC, ".opencode/plugin/probes/handover_probe.mjs", 'const P = [".opencode", "plugin", "ctx_watchdog.ts"];\nconsole.log("FAIL [s99] surfacing pin");\nconsole.log("PROBE handover: 2/2 PASS");\n');
-  wf(SRC, ".opencode/plugin/tests/fail.smoke.mjs", "process.exit(1);\n");
-  wf(SRC, ".opencode/plugin/scripts/gauge.mjs", "main gauge core (unified)\n");
+  wf(SRC, ".opencode/plugins/probes/handover_probe.mjs", 'const P = [".opencode", "plugin", "ctx_watchdog.ts"];\nconsole.log("FAIL [s99] surfacing pin");\nconsole.log("PROBE handover: 2/2 PASS");\n');
+  wf(SRC, ".opencode/plugins/tests/v1/fail.smoke.mjs", "process.exit(1);\n");
+  wf(SRC, ".opencode/plugins/scripts/gauge.mjs", "main gauge core (unified)\n");
   commit(SRC, "main side");
   return { cfg: '{"host":"clone","v2":true}\n', cloneTip: head(DST), mainTip: head(SRC) };
 }
@@ -128,13 +129,14 @@ const DRY = ["--main", SRC, "--clone", DST];
 // ---------- B. dry run: zero mutation ----------
 let r = runScript(DRY); dbg("B dry", r);
 ck("dry exit 0", r.code === 0);
-for (const p of [".opencode/tools/block_transfer.ts", "agent/handover/handover_task_to_planner.md", "opencode.jsonc", ".opencode/plugin/scripts/gauge.mjs"]) ck("dry conflict line: " + p, r.out.includes("conflict: " + p));
+for (const p of [".opencode/tools/block_transfer.ts", "agent/handover/handover_task_to_planner.md", "opencode.jsonc", ".opencode/plugins/scripts/gauge.mjs"]) ck("dry conflict line: " + p, r.out.includes("conflict: " + p));
 ck("dry README auto-merges (not in conflict set)", !r.out.includes("conflict: README.md"));
 ck("dry plan take-main", r.out.includes("plan: .opencode/tools/block_transfer.ts -> take MAIN (--theirs)"));
-ck("dry plan gauge core take-main", r.out.includes("plan: .opencode/plugin/scripts/gauge.mjs -> take MAIN (--theirs)"));
+ck("dry plan gauge core take-main", r.out.includes("plan: .opencode/plugins/scripts/gauge.mjs -> take MAIN (--theirs)"));
 ck("dry plan config line", r.out.includes("keep branch-local (host-owned config)"));
 ck("dry prints the probe patch preview", r.out.includes("would: patch probe imports: 1 site(s) -> .opencode/plugin-unported-v1/ [ctx_watchdog.ts]"));
-ck("dry prints probe take-main plan", r.out.includes("plan: .opencode/plugin/probes/handover_probe.mjs -> take MAIN (--theirs)"));
+ck("dry prints probe take-main plan", r.out.includes("plan: .opencode/plugins/probes/handover_probe.mjs -> take MAIN (--theirs)"));
+ck("dry plan names NO retired estate gate dir", !r.out.includes(".opencode/plugin/probes") && !r.out.includes(".opencode/plugin/tests") && !r.out.includes(".opencode/plugin/scripts"));
 ck("dry guard plan line", r.out.includes("plan: .opencode/plugin/x.ts -> discovery guard: move -> " + PS.guardTarget(".opencode/plugin/x.ts")));
 ck("dry guard skips plugin .ts already in the clone", !r.out.includes("plan: .opencode/plugin/base_both.ts"));
 ck("dry prints commands", r.out.includes("would: git -C " + DST + " merge --no-commit FETCH_HEAD") && r.out.includes("--theirs"));
@@ -151,7 +153,7 @@ ck("apply staged not committed", r.out.includes("merge staged, not committed"));
 ck("apply config line", r.out.includes("config: kept branch-local (host-owned)"));
 ck("apply no commit made", head(DST) === CLONE_TIP && fs.existsSync(path.join(DST, ".git", "MERGE_HEAD")));
 ck("apply took MAIN for tools file", rf(DST, ".opencode/tools/block_transfer.ts") === "main tool new\n");
-ck("apply landed the MAIN gauge-core bytes in the clone copy", rf(DST, ".opencode/plugin/scripts/gauge.mjs") === "main gauge core (unified)\n");
+ck("apply landed the MAIN gauge-core bytes in the clone copy", rf(DST, ".opencode/plugins/scripts/gauge.mjs") === "main gauge core (unified)\n");
 ck("apply took MAIN for handover file", rf(DST, "agent/handover/handover_task_to_planner.md") === "main handover\n");
 ck("apply opencode.jsonc byte-identical (never touched)", rf(DST, "opencode.jsonc") === CLONE_CFG);
 ck("apply opencode.jsonc has no conflict markers", !String(rf(DST, "opencode.jsonc")).includes("<<<<<<<"));
@@ -166,7 +168,7 @@ ck("apply staged state present", dirty(DST) !== "" && dirty(DST).includes(".open
 ck("apply main tree untouched", dirty(SRC) === "" && head(SRC) === MAIN_TIP);
 ck("apply main-tree guard line", r.out.includes("main-tree: unchanged (fetch-source only)"));
 ck("apply patch line printed", r.out.includes("patch: probe imports repointed") || r.out.includes("patch: probe imports: already branch-repointed"));
-ck("apply patched probe in the tree", (() => { const s = rf(DST, ".opencode/plugin/probes/handover_probe.mjs"); return s !== null && s.includes('".opencode", "plugin-unported-v1", "ctx_watchdog.ts"') && !s.includes('".opencode", "plugin", "ctx_watchdog.ts"'); })());
+ck("apply patched probe in the tree", (() => { const s = rf(DST, ".opencode/plugins/probes/handover_probe.mjs"); return s !== null && s.includes('".opencode", "plugin-unported-v1", "ctx_watchdog.ts"') && !s.includes('".opencode", "plugin", "ctx_watchdog.ts"'); })());
 git(["merge", "--abort"], DST); // clear the staged merge before the FAIL scenario
 ck("C cleanup abort restored the clone (clean + HEAD back)", dirty(DST) === "" && head(DST) === CLONE_TIP && rf(DST, ".opencode/tools/block_transfer.ts") === "clone tool v2\n");
 
@@ -185,7 +187,7 @@ ck("abort state line", r.out.includes("state: merge aborted, nothing applied"));
 ck("abort: scratch clone status clean", dirty(DST) === "");
 ck("abort: HEAD unchanged", head(DST) === CLONE_TIP);
 ck("abort: tools file back to clone side", rf(DST, ".opencode/tools/block_transfer.ts") === "clone tool v2\n");
-ck("abort: gauge core back to the clone bytes", rf(DST, ".opencode/plugin/scripts/gauge.mjs") === "clone gauge core (table-aware)\n");
+ck("abort: gauge core back to the clone bytes", rf(DST, ".opencode/plugins/scripts/gauge.mjs") === "clone gauge core (table-aware)\n");
 ck("abort: handover file back to clone side", rf(DST, "agent/handover/handover_task_to_planner.md") === "clone handover\n");
 ck("abort: opencode.jsonc == clone original", rf(DST, "opencode.jsonc") === CLONE_CFG);
 ck("abort: stray plugin file gone", rf(DST, ".opencode/plugin/x.ts") === null && rf(DST, ".opencode/plugin-unported-v1/x.ts") === null);

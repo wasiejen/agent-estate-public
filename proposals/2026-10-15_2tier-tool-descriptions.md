@@ -170,3 +170,45 @@ enough" — B and C ride the same commit wave and are pure removal.
 ## Status
 
 Awaiting maintainer approval.
+
+## Re-baseline 2026-10-27 (post-2.2.0, post global `execute: deny`) — planner review notes
+
+Gating status, so nobody re-pitches the timing: this was **not approved on
+purpose** — the maintainer held it until the v2 migration finished, so a
+tool-usage change could not interfere with the tools needed for the migration.
+Nothing below touches that decision; it only re-bases the numbers.
+
+Numbers that moved since 2026-10-15, all measured from `session_message`:
+- First-request (fresh session) prompt tokens: worker with `execute` allowed
+  **12,617** (2026-10-26, GyroM); worker with `execute` denied **19,215**
+  (2026-10-27, IQ3S). The global deny therefore ADDED roughly +6.6k tokens of
+  fixed prompt (confounded by destill + `AGENTS.md` growth between the two
+  dates), because the 8 custom tools and the 8 `opencode_*` host tools are now
+  injected natively instead of living behind the Code Mode catalog.
+- The saving is paid **per re-prefill, not per session**: planner-36 logged 5
+  requests with `cache.read=0` (full re-prefill) in one day. ~3.5k tokens saved
+  times the bust count is the real value.
+- Description prose re-measured in `.opencode/tools/` (template literals):
+  block_transfer 9,951; context_trim 4,299; submit 2,161; loop_log 1,553;
+  state_snapshot 943; ctx_gauge 679; dev_get_tool_context_contents 0;
+  session_info 0 — total 19,586. Unit A's block_transfer estimate still holds
+  (7,896 + ~1,800 arg text ≈ today's 9,951).
+- Remove from the inventory: `session_info` no longer exists (probe `a0d86bc`
+  measured it absent from the schema).
+
+Adds:
+1. **Unit C gains new targets** the 2026-10-15 text could not know about: the
+   `opencode_*` host tools are now native per agent
+   (`opencode_worktree_create|list|remove`, `opencode_session_move|rename`,
+   `opencode_models`, the MCP resource readers). Workers need none of them, and
+   dropping them is the same config-only trick.
+2. **New coupling:** with `execute` denied, the Code Mode `search` discovery path
+   is gone. Tier 1 is now the ONLY discovery contract, so the new-hire gate must
+   run BEFORE a trim lands, not after — and it should use the dedicated `newhire`
+   agent (see the idle-unit menu in `agent/orientation.md`).
+3. **Ruling 3 needs a decision:** the compact_memory + context_trim consolidation
+   never landed (12 days, still two tools), while the pair now costs ~2k tokens
+   of always-injected prose. Either schedule the consolidation or tier the pair.
+4. Unit A step 6 names `agent/scripts/measure_tool_descs.mjs`; that script was
+   never created. Today's numbers came from a scratchpad script — land it with
+   Unit A so the before/after is reproducible (and reusable by TODO #183).

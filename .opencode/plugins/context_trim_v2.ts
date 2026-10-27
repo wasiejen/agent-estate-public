@@ -42,21 +42,27 @@
 // context` → the CURRENT model window (the session_message rows after the last
 // completed compaction, ASC BY seq; the ready report source of the spec's verified
 // facts). Rows are read defensively (`unknown`-typed) — the decoded `Session
-// Message.Info` union (`id`, `type`, `time`, `tokens`, `content`…). Token mass
-// per row = `data.tokens{input,output,reasoning,cache.read,cache.write}` (the
-// fork's own `TokenUsage.total()` sum) gated on the fork's completed-assistant
-// discriminator (`$.time.completed IS NOT NULL` + `$.tokens` present — gauge
-// unit-2 finding); rows without it carry the `bytes4=` estimate (utf8 bytes/4 over
-// the row's text fields). The header also rides the SHARED gauge core (v2-paired
+// Message.Info` union (`id`, `type`, `time`, `tokens`, `content`…). U8 (#192,
+// 2026-10-27): the ROW MASS is the row's OWN weight — utf8 bytes/4 over the row's
+// own parts (`text`, content-item `text`/`reasoning`, tool `state.input` JSON,
+// tool `state.content`/`output`). The provider figure on a completed-assistant
+// row is NOT a weight — `data.tokens{input,output,…}` sums to the REQUEST size at
+// that step (input + cache.read = the whole cached conversation), 75x+ the row's
+// own bytes (planner-measured) — so it prints relabeled as `req-at=<tokens>` and
+// feeds NOTHING but the last-request projection authority. Every sum
+// (`window-est=`, `retained=`/`dropped=`, `active-est=`, `rows_dropped_est=`,
+// `drop_est=`, `biggest:`) is an OWN-mass sum; `biggest:` therefore ranks by
+// weight, not by recency. The header also rides the SHARED gauge core (v2-paired
 // since units 1+2): `readGauge(undefined, sessionID)` + `formatGauge` — no new
 // SQL is added for the session/model/ctx figure (the gauge core is the ONLY DB
 // reader used; a db-error read prints ONE honest `gauge: db-error …` line and
 // never fails the report). Readout forms mirror v1's CUT-DOWN default: (1) the
-// window header, (2) NUMBERED rows `row: N <type> id=<id> <mass-label>=<mass> [tool=…
-// target=…]` + the `last: N` flag (the ids print inline — the mark lane needs them; anchors
-// are v2 message ids), (3) the RECOMMENDATION block, (4) the `biggest:` biggest-
-// droppable list (top-5 heaviest finished turns, no error), (5) with `target`:
-// the dry-run (remove/keep counts + token masses + the tail verdict, NO write).
+// window header, (2) NUMBERED rows `row: N <type> id=<id> own=<n> [req-at=<t>]
+// [tool=… target=…]` + the `last: N` flag (the ids print inline — the mark lane
+// needs them; anchors are v2 message ids), (3) the RECOMMENDATION block, (4) the
+// `biggest:` biggest-droppable list (top-5 heaviest finished turns by OWN mass,
+// no error), (5) with `target`: the dry-run (remove/keep counts + own-mass sums
+// + the tail verdict, NO write).
 //
 // (3) TAIL — a persistent per-session BOUNDARY STORE:
 // `.opencode/temp/context_trim_v2.json` (`{sessions: {<sid>: {boundary, keep,
@@ -129,10 +135,13 @@
 // it coincides); the CURRENT boundary rides the header line instead; (e) the
 // `no-completed-compaction` rejection is GONE — the store lever has no compaction
 // dependency (a compaction-less window is still a window); (f) `clear` is a NEW
-// arg (v1's un-set was the host rewriting its own field); (g) mass categories:
-// v1's bytes4 fallback covered part rows; v2 has no part table, so the estimate
-// covers the row's text fields (`text`, content-item `text`, shell output, comp
-// action summary+recent); (h) the `marker` mode of the v1 tool (the U3 quartet)
+// arg (v1's un-set was the host rewriting its own field); (g) mass model (U8):
+// v1's bytes4 fallback covered part rows; v2 has no part table, so OWN weight =
+// bytes/4 over the row's own fields (`text`, content-item `text`/`reasoning`,
+// tool `state.input` JSON, tool `state.content`/output, comp summary+recent);
+// the provider `TokenUsage.total()` on completed-assistant rows is the REQUEST
+// size at that step — printed as `req-at=`, never summed as row weight (U8);
+// (h) the `marker` mode of the v1 tool (the U3 quartet)
 // lives in the compact_memory plugin (4a) — NOT duplicated here.
 //
 // STILL PENDING (unchanged): LIVE v2-host activation waits for the maintainer's
@@ -166,15 +175,18 @@
 // `mode:'apply'` unions it into the `active` set the hook actually drops. Store
 // per session: `{ boundary, keep, set_at, staged?, active? }` — a legacy `marks`
 // key READ-SEEDS `active` (a pre-U7 store keeps working; the key is replaced on
-// the next write). `apply` first PROJECTS the resulting request: the last
-// completed request's prompt tokens (gauge `ctx − output` = input + cache.read,
-// the spec's verified facts — never hard-coded) MINUS the mass of the NEWLY
-// active rows (provider tokens on completed-assistant rows, else bytes/4; the
-// bytes/4 count labels the mixed sum `mixed=<c>`). When the projection exceeds
+// the next write). `apply` first PROJECTS the resulting request (U8 #192): the
+// last completed request's prompt tokens (gauge `ctx − output` = input + cache.read
+// — the provider figures stay the authority HERE, never hard-coded) MINUS
+// `drop_est` = the OWN-mass sum of the newly active rows — POSITIVE by
+// construction (own weights ≪ the request size), and the live measured
+// step-to-step gauge drop agrees with it within ±35% (the U8 gate);
+// `mixed=<c>` counts the staged rows WITHOUT a provider `req-at` counterpart.
+// When the projection exceeds
 // EIGHTY percent of the gauge-core window value the apply is REFUSED
 // (`apply= rejected: over-bound <projected> <bound>`) unless `force:true`; an
 // empty staged set is refused (`apply= rejected: nothing-staged`). Success:
-// `apply= staged->active n=<k> projected=<p> bound=<b> ok mixed=<c>`. `mark
+// `apply= staged->active n=<k> drop_est=<d> projected=<p> bound=<b> ok mixed=<c>`. `mark
 // clear:true` empties BOTH sets (the tail `clear` keeps BOTH — symmetry kept).
 // The report header names `staged=`/`active=`/`active-est=` (replacing the (8)
 // marks fields) and gains a `projection:` line for the staged set — the result
@@ -380,20 +392,23 @@ function tokenSum(t: Record<string, unknown> | undefined): number {
   return sum;
 }
 
-// Provider-true mass ONLY for the fork's completed-assistant shape (tokens
-// present + time.completed present); everything else is the bytes4 ESTIMATE.
-function massOf(r: Record<string, unknown>): { kind: "tokens" | "bytes4"; mass: number } {
-  if (r["type"] === "assistant") {
-    const time = asRecord(r["time"]);
-    const sum = tokenSum(asRecord(r["tokens"]));
-    if (sum >= 0 && time != null && time["completed"] != null) return { kind: "tokens", mass: sum };
-  }
-  return { kind: "bytes4", mass: Math.floor(textBytesOf(r) / 4) };
+// The REQUEST size at that step — the provider `TokenUsage.total()` on the
+// fork's completed-assistant shape (tokens present + time.completed present).
+// U8 (#192): this is NOT a row weight (input + cache.read = the whole cached
+// conversation — planner-measured 75x+ overstatement); it prints relabeled as
+// `req-at=` and feeds only the last-request projection authority (via the gauge).
+function providerTotalOf(r: Record<string, unknown>): number {
+  if (r["type"] !== "assistant") return -1;
+  const time = asRecord(r["time"]);
+  const sum = tokenSum(asRecord(r["tokens"]));
+  return sum >= 0 && time != null && time["completed"] != null ? sum : -1;
 }
 
-// The row's text fields: `text` (user/synthetic/system/skill), content-item `text`
-// (assistant text/reasoning), shell `output.output`, compaction `summary`+`recent`.
-function textBytesOf(r: Record<string, unknown>): number {
+// U8: the row's OWN weight = utf8 bytes/4 over the row's OWN parts — `text`
+// (user/synthetic/system/skill), content-item `text`/`reasoning` (assistant),
+// tool `state.input` (JSON bytes = the call payload) and tool `state.content`/
+// `output` (the output text), shell `output.output`, compaction `summary`+`recent`.
+function ownBytesOf(r: Record<string, unknown>): number {
   let bytes = 0;
   const own = r["text"];
   if (typeof own === "string") bytes += Buffer.byteLength(own, "utf8");
@@ -413,8 +428,27 @@ function textBytesOf(r: Record<string, unknown>): number {
     const it = asRecord(item);
     if (it == null) continue;
     if (typeof it["text"] === "string") bytes += Buffer.byteLength(it["text"], "utf8");
+    if (it["type"] === "tool") {
+      const state = asRecord(it["state"]);
+      if (state == null) continue;
+      const input = state["input"];
+      if (input != null) {
+        const s = JSON.stringify(input);
+        if (s != null) bytes += Buffer.byteLength(s, "utf8");
+      }
+      const outp = state["output"];
+      if (typeof outp === "string") bytes += Buffer.byteLength(outp, "utf8");
+      for (const part of asArray(state["content"])) {
+        const p = asRecord(part);
+        if (p != null && typeof p["text"] === "string") bytes += Buffer.byteLength(p["text"], "utf8");
+      }
+    }
   }
   return bytes;
+}
+
+function ownMassOf(r: Record<string, unknown>): number {
+  return Math.floor(ownBytesOf(r) / 4);
 }
 
 // Per-tool-part target (v1 spec §8 surface: read → filePath (+offset/limit);
@@ -466,7 +500,7 @@ function esc(s: string): string {
 }
 
 // The read / thought / shell mass split of a row SET (an ESTIMATE — the per-
- // category bytes floored to /4; the category totals need not sum to massOf).
+ // category bytes floored to /4; the category totals need not sum to ownMassOf).
 // Categories (v2 shapes): read = the tool-content bytes of the `read`/`webfetch`
 // items; thought = the text/reasoning item texts + the user/system/skill texts;
 // shell = the tool-content bytes of `bash` items.
@@ -502,9 +536,10 @@ function splitOf(rows: Array<Record<string, unknown>>): { read: number; thought:
   return { read: Math.floor(read / 4), thought: Math.floor(thought / 4), shell: Math.floor(shell / 4) };
 }
 
+// U8: every sum is an OWN-mass sum (see ownMassOf).
 function massSum(rows: Array<Record<string, unknown>>): number {
   let s = 0;
-  for (const r of rows) s += massOf(r).mass;
+  for (const r of rows) s += ownMassOf(r);
   return s;
 }
 
@@ -512,24 +547,24 @@ function idOf(r: Record<string, unknown>): string {
   return typeof r["id"] === "string" ? r["id"] : "";
 }
 
-// The (8)/(9) mark-set estimated dropped mass: the massOf-sum of window rows at
-// index >= 1 whose id is in the set (ids outside the window / at the head
-// contribute 0 — the hook ignores them the same way).
+// The (8)/(9)/(U8) mark-set estimated dropped mass: the OWN-mass sum of window
+// rows at index >= 1 whose id is in the set (ids outside the window / at the
+// head contribute 0 — the hook ignores them the same way).
 function markEstimate(rows: Array<Record<string, unknown>>, marks: string[]): number {
   return idsMass(rows, marks).mass;
 }
 
-// (9) the mass AND the bytes/4 (estimate) part count of an id-set against the
-// window rows — the apply projection source (`mixed=` labels the estimate).
+// (9)/(U8) the OWN-mass sum AND the `mixed=` count of an id-set against the
+// window rows — the apply projection source; `mixed=` counts the rows WITHOUT a
+// provider `req-at` counterpart (no completed-assistant figure to cross-check).
 function idsMass(rows: Array<Record<string, unknown>>, ids: string[]): { mass: number; mixed: number } {
   let mass = 0;
   let mixed = 0;
   for (const id of ids) {
     const i = rows.findIndex((r) => idOf(r) === id);
     if (i < 1) continue;
-    const m = massOf(rows[i]);
-    mass += m.mass;
-    if (m.kind === "bytes4") mixed++;
+    mass += ownMassOf(rows[i]);
+    if (providerTotalOf(rows[i]) < 0) mixed++;
   }
   return { mass, mixed };
 }
@@ -649,10 +684,11 @@ async function reportWindow(sid: string, target?: string): Promise<string> {
   }
 
   // (2b) the numbered rows (the CUT-DOWN form — ids stay internal; anchors come
-  // via the option lines).
+  // via the option lines). U8: `own=` is the row's OWN weight; `req-at=` is the
+  // REQUEST size at that step (completed-assistant provider total) — never a weight.
   rows.forEach((r, i) => {
-    const m = massOf(r);
-    lines.push(`row: ${i + 1} ${String(r["type"] ?? "?")} id=${idOf(r)} ${m.kind}=${m.mass}${toolTargets(r)}`);
+    const reqAt = providerTotalOf(r);
+    lines.push(`row: ${i + 1} ${String(r["type"] ?? "?")} id=${idOf(r)} own=${ownMassOf(r)}` + (reqAt >= 0 ? ` req-at=${reqAt}` : "") + toolTargets(r));
   });
   lines.push(`last: ${rows.length}`);
 
@@ -683,7 +719,9 @@ async function reportWindow(sid: string, target?: string): Promise<string> {
   }
 
   // (4) the biggest-droppable list: the top-5 heaviest FINISHED turns (no
-  // error) strictly after the head (the head is never droppable).
+  // error) strictly after the head (the head is never droppable) — U8: ranked
+  // by OWN mass (weight), NOT by the cumulative req-at figure, so recency
+  // cannot dominate the ranking.
   const turns: { row: number; mass: number }[] = [];
   rows.forEach((r, i) => {
     if (i === 0) return;
@@ -691,7 +729,9 @@ async function reportWindow(sid: string, target?: string): Promise<string> {
     const time = asRecord(r["time"]);
     if (time == null || time["completed"] == null) return;
     if (r["error"] != null) return;
-    turns.push({ row: i + 1, mass: massOf(r).mass });
+    const own = ownMassOf(r);
+    if (own === 0) return; // U8: a weight-zero row (no parts of its own) is not a biggest candidate
+    turns.push({ row: i + 1, mass: own });
   });
   turns.sort((a, b) => b.mass - a.mass || a.row - b.row);
   const big = turns.slice(0, 5);
@@ -846,10 +886,12 @@ const BOUND_FRAC = 0.8; // the hard apply bound: eighty percent of the gauge-cor
 
 // Moves `staged` into `active` (union, staged emptied) ONLY after the projected
 // request size passes the bound; a rejection writes NOTHING (fail-closed, like
-// every other guard). Projection: last completed request prompt (gauge ctx −
-// output = input + cache.read) minus the mass of the NEWLY active rows; the
-// bytes/4 part of that sum is counted and labeled `mixed=`. An over-bound apply
-// rides `force:true` deliberately (the bound is a guard rail, not a wall).
+// every other guard). U8 projection: last completed request prompt (gauge ctx −
+// output = input + cache.read — provider authority HERE) minus `drop_est` = the
+// OWN-mass sum of the newly active rows (POSITIVE — own weights, not the
+// cumulative req-at figures); `mixed=` counts staged rows without a provider
+// counterpart. An over-bound apply rides `force:true` deliberately (the bound is
+// a guard rail, not a wall).
 async function applySet(sid: string, force: boolean): Promise<string> {
   const entry = readStore().sessions[sid];
   const staged = entry?.staged ?? [];
@@ -866,8 +908,8 @@ async function applySet(sid: string, force: boolean): Promise<string> {
   const gWin = typeof gr.window === "number" && Number.isFinite(gr.window) ? gr.window : undefined;
   if (gCtx == null || gWin == null) return `apply= error: gauge-unavailable (the projection needs the gauge core's ctx + window)`;
   const lastReq = gOut != null ? gCtx - gOut : gCtx;
-  const { mass, mixed } = idsMass(read.rows, staged);
-  const projected = lastReq - mass;
+  const { mass: dropEst, mixed } = idsMass(read.rows, staged);
+  const projected = lastReq - dropEst;
   const bound = Math.floor(gWin * BOUND_FRAC);
   if (projected > bound && !force) return `apply= rejected: over-bound ${projected} ${bound}`;
   const active = [...(entry?.active ?? [])];
@@ -875,8 +917,8 @@ async function applySet(sid: string, force: boolean): Promise<string> {
   if (!writeSessionEntry(sid, { boundary: entry?.boundary ?? "", keep: entry?.keep ?? 0, setAt: new Date().toISOString(), staged: [], active }))
     return `apply= error: store-write-failed (the boundary file could not be written)`;
   marksStaleLogged.delete(sid);
-  appendLog(buildLine("apply", { session: sid, n: String(staged.length), projected: String(projected), bound: String(bound), mixed: String(mixed), forced: force ? "true" : undefined }, {}));
-  return `apply= staged->active n=${staged.length} projected=${projected} bound=${bound} ok mixed=${mixed}`;
+  appendLog(buildLine("apply", { session: sid, n: String(staged.length), dropEst: String(dropEst), projected: String(projected), bound: String(bound), mixed: String(mixed), forced: force ? "true" : undefined }, {}));
+  return `apply= staged->active n=${staged.length} drop_est=${dropEst} projected=${projected} bound=${bound} ok mixed=${mixed}`;
 }
 
 // ------------------------------------------------------------------ the context draft hook
@@ -968,55 +1010,57 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
 // ------------------------------------------------------------------ the tool surface
 
 const TOOL_DESCRIPTION =
-  "Reports and trims a session's model context on the v2 session store (NO DB write). `mode:'report'` — READ-ONLY window map: the window = the session_message rows from the LAST completed compaction row onward (the v2 model window); the header names the head row, the row count, the stored BOUNDARY (inside/stale/absent), the retained count and the STAGED/ACTIVE drop-set counts (active dropped-mass est); then a `window_rows != request` line (the request also carries system prompt + retained slice); then a `projection:` line (last-req, staged-est, projected, bound, ok|over — the staged set's apply outcome, inspectable before applying); then NUMBERED rows (id + type + mass — provider tokens for completed assistant rows, else bytes/4 — plus tool-target detail: read filePath (+offset/limit), bash command, webfetch url), the `last: N` flag, the low/medium/high trim-RANGE options (anchors with keep counts, read/thought/shell splits and a hint), the `biggest:` top-5 heaviest finished turns, and with `target` a dry-run (remove/keep counts + masses + the tail verdict — no write). `mode:'tail'` — WRITE to the boundary store `.opencode/temp/context_trim_v2.json`: set the boundary (the new first-kept message id) by `target` or by `keepMessages` (a MESSAGE COUNT, mutually exclusive with target), or REMOVE it with `clear`. `mode:'mark'` — WRITE the per-message STAGED drop list in the same store: `ids` add window ids, `unmark` remove, `clear` empties BOTH staged and active (the boundary stays). `mode:'apply'` — union staged into the ACTIVE set the hook drops, after projecting the resulting request (last request's prompt − newly-active mass) against 80% of the window: refuses `apply= rejected: nothing-staged` or `over-bound <projected> <bound>` unless `force:true`; success `apply= staged->active n=<k> projected=<p> bound=<b> ok mixed=<bytes4-count>`. The `session.context` draft hook drops the request's pre-boundary AND active entries at assembly time — history untouched, reversible (a stale boundary logs ONE boundary-stale line and keeps the window; stale active ids are ignored with ONE marks-stale line). Fail-closed validation (a rejection writes NOTHING): the session exists, the target/mark id is a window row (`mark-not-found`/`target-not-found`), never the window head (`mark-at-window-head`/`target-at-window-head`), and the drop-list union + inside boundary leave >= 6 retained rows (`mark-floor`/`retained-tail-below-floor`). Rejections are plain lines — `report= rejected: <cause>` / `tail-set= rejected: <cause>` / `mark-set= rejected: <cause>` / `apply= rejected: <cause>` / `error: <usage>` (a valid fail-closed outcome — do not retry); read failures print `context-read-failed`. Returns `tail-set= <old> -> <new> keep=<count>` (or `-> none` after a clear) and `mark-set= +<n> -<m> total=<staged-size> rows_dropped_est=<tokens>`. `session` may be omitted (the tool context resolves it).";
+  "Reports and trims a session's model context on the v2 session store (NO DB write). `mode:'report'` — READ-ONLY window map (the rows after the LAST completed compaction): the header names the head row, row count, BOUNDARY (inside/stale/absent), retained, STAGED/ACTIVE drop-set counts (active-est = own-mass sum); then the `window_rows != request` line (request-est = gauge CTX; window-est = own-mass sum) and a `projection:` line (last-req, staged-est, projected, bound, ok|over — inspectable before applying); then NUMBERED rows — `own=` the row's OWN weight (bytes/4 of its text, reasoning, tool input JSON, tool output) and, on completed-assistant rows, `req-at=` the REQUEST size at that step (NOT row weight) — plus tool targets (read filePath, bash command, webfetch url), the `last: N` flag, low/medium/high trim-RANGE options (anchor, keep counts, own-mass retained/dropped, read/thought/shell split, hint), `biggest:` the top-5 finished turns by OWN weight, and `target` for a dry-run (counts + masses + verdict, no write); a `gauge:` line rides the shared gauge core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: set the boundary (first KEPT message id) by `target` or `keepMessages` (a MESSAGE COUNT; mutually exclusive), REMOVE with `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add window ids, `unmark` remove, `clear` empties staged AND active (the boundary stays); the drop NEVER applies until `apply`. `mode:'apply'` — union staged into ACTIVE after projecting last-req (input + cache.read) minus drop_est (positive own-mass sum; `mixed=` counts rows with no provider req-at) against 80% of the window: refuses `apply= rejected: nothing-staged` / `over-bound <projected> <bound>` unless `force:true`. The `session.context` hook drops pre-boundary AND active entries at assembly time — history untouched, reversible; a stale boundary/ids log ONE deduped line each. Fail-closed (a rejection writes NOTHING): lines `report= rejected:` / `tail-set= rejected:` / `mark-set= rejected:` / `apply= rejected:` / `error: <usage>`; guards: id not a window row (`*-not-found`), never the window head (`*-at-window-head`), drop-union + inside boundary keep >= 6 rows (`mark-floor`/`retained-tail-below-floor`), keep form (`keep-invalid`/`keep-exceeds-history`/`keep-at-window-head`); read failures print `context-read-failed`. Returns `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<staged size> rows_dropped_est=<own tokens>`, `apply= staged->active n=<k> drop_est=<own tokens> projected=<p> bound=<b> ok mixed=<c>`. `session` may be omitted (the tool context resolves it).";
 
 const TOOL_INPUT = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    mode: {
-      type: "string",
-      enum: ["report", "tail", "mark", "apply"],
-      description:
-        "The mode: 'report' (read-only window map — header + numbered rows + `last: N` + trim-RANGE options + biggest list + optional dry-run) or 'tail' (the boundary-store write — target form, keepMessages form, or clear) or 'mark' (the STAGED drop-list write — ids, unmark, or clear) or 'apply' (move staged into the ACTIVE set the hook drops, projection-bound).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": [
+        "report",
+        "tail",
+        "mark",
+        "apply"
+      ],
+      "description": "One of: 'report' (read-only window map), 'tail' (boundary write — target, keepMessages, or clear), 'mark' (STAGED drop-list write — ids, unmark, or clear), 'apply' (union staged into ACTIVE behind the 80% projection bound)."
     },
-    session: {
-      type: "string",
-      description: "The session id (e.g. ses_…). Omit = the CALLING session (resolved from the tool context).",
+    "session": {
+      "type": "string",
+      "description": "The session id (e.g. ses_…). Omit = the CALLING session (resolved from the tool context)."
     },
-    target: {
-      type: "string",
-      description:
-        "report: the message id a boundary write would point at (dry-run, no write). tail (<messageID> form): the new BOUNDARY id — the first KEPT message; strictly after the window head, retaining >= 6 rows. Omit with keepMessages or clear.",
+    "target": {
+      "type": "string",
+      "description": "report: the message id a boundary write would point at (dry-run, no write). tail: the new BOUNDARY id — the first KEPT message, strictly after the window head, retaining >= 6 rows. Omit with keepMessages or clear."
     },
-    keepMessages: {
-      type: "number",
-      description:
-        "tail (keep-COUNT form): N = the retained-tail MESSAGE count — the boundary moves to leave exactly N rows (a COUNT, not a token budget). Mutually exclusive with target. Rejected: keep-invalid, keep-exceeds-history, retained-tail-below-floor (floor 6), keep-at-window-head.",
+    "keepMessages": {
+      "type": "number",
+      "description": "tail: N = the retained-tail MESSAGE COUNT (exactly N rows kept; a count, not a token budget). Mutually exclusive with target. Rejected: keep-invalid, keep-exceeds-history, retained-tail-below-floor (floor 6), keep-at-window-head."
     },
-    ids: {
-      type: "array",
-      items: { type: "string" },
-      description:
-        "mark (add form): window ids to ADD to the STAGED drop list (de-duplicated; effective only after `apply`). Rejected: mark-not-found, mark-at-window-head, mark-floor (the drop-list union + inside boundary leave < 6 retained rows).",
+    "ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "mark: window ids to ADD to the STAGED drop list (de-duplicated; effective only after `apply`). Rejected: mark-not-found, mark-at-window-head, mark-floor (drop-union + inside boundary keep < 6 rows)."
     },
-    unmark: {
-      type: "array",
-      items: { type: "string" },
-      description:
-        "mark (remove form): staged ids to REMOVE (stale stored ids un-mark too).",
+    "unmark": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "mark: staged ids to REMOVE (stale stored ids un-mark too)."
     },
-    clear: {
-      type: "boolean",
-      description:
-        "tail (clear form): remove the stored boundary (stored staged/active sets stay). mark (clear form): empty BOTH the staged and active sets (a stored boundary stays). Mutually exclusive with the other args of the mode.",
+    "clear": {
+      "type": "boolean",
+      "description": "tail: remove the stored boundary (stored staged/active sets stay). mark: empty BOTH staged and active (a stored boundary stays). Mutually exclusive with the mode's other args."
     },
-    force: {
-      type: "boolean",
-      description:
-        "apply (mode 'apply' only): accept a projection over the 80% bound deliberately. Without it an over-bound apply is refused (`apply= rejected: over-bound <projected> <bound>`).",
-    },
-  },
+    "force": {
+      "type": "boolean",
+      "description": "apply (mode 'apply' only): accept a projection over the 80% bound deliberately; without it an over-bound apply is refused."
+    }
+  }
 };
 
 async function execute(args: unknown, toolContext: { sessionID?: unknown }): Promise<{ output: string }> {

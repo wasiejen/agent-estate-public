@@ -33,7 +33,6 @@
   "permission": {
     // as basis for sandboxing, so the base paths that are possible to correct to are known
     "external_directory": {
-      //"home/Projects/OpenCodeProjects/Free-Snap-Tap/Free-Snap-Tap": "allow",
       "home/AppData/Local/Temp/opencode": "allow",
       "home/.local/share/opencode/log": "allow",
       "home/AppData/Roaming/npm": "allow",
@@ -47,7 +46,8 @@
       "home/Repos/Free-Snap-Tap/**": "allow",
       "home/Repos/opencode": "allow",
       "home/Repos/opencode/**": "allow"
-    }
+    },
+    "execute": "deny"
   },
   "references": {
     "scratchpad": {

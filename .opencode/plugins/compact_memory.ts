@@ -21,7 +21,8 @@
 //
 // (2) TOOL REGISTRATION — `ctx.tool.transform((editor) => editor.add(…))`,
 // name `compact_memory`, input = a plain JSON schema
-// ({ sessionID?, emergency?, message?, mode?, summary?, boundary? }); `execute`
+// ({ sessionID?, emergency?, message?, mode?, summary?, keepMessages?,
+// boundary? }); `execute`
 // is a plain Promise (the promise-surface contract). SELF (no `sessionID`)
 // = the CALLING session, resolved from the ToolContext's `sessionID` (schema
 // tool.ts:14-19 — no SDK self-trick); CROSS (explicit id != the caller) =
@@ -69,11 +70,27 @@
 // protocol STEP 0 covers the relay-bypassing channels. NO `session.prompt`
 // call for the continuation, EVER. Write failure → evidence, NEVER fails the
 // tool (kind "queue" kept: `file-written` / `file-fail`).
-// (c) KEEP KEYS: the budget file's `keepMessages`/`keepTokens` DO NOT apply
-// to a v2 dispatch (no keep fields on the compact body) — read for AUDITABILITY
-// only, ONE `keep-not-applied` evidence line when either key is present;
-// retention = config `compaction.keep.tokens` (the ONLY v2 control); the
-// plugin NEVER writes config values (maintainer domain). (d) THE PRE-COMPACTION
+// (c) KEEP KEYS (#184 unit 1, 2026-10-27, REWRITTEN): the tool now takes a real
+// `keepMessages` (integer 1..40) and it applies on the MARKER path ONLY. The
+// plugin reads the CURRENT window rows (`sessionApi.context` — the SAME lane
+// context_trim_v2.ts reads), renders the LAST N as verbatim text (oldest first,
+// tool calls reduced to `tool: <name> <one-line target>`), and COMPOSES that
+// `## Retained tail` section INTO the marker summary the draft hook supplies —
+// retention rides the DURABLE compaction row (the core writes `text:
+// supplied.summary`), never the request. The `context` draft hook DROPS entries
+// only (it cannot re-add old rows — measured), so authoring time is the ONLY
+// place retention can be produced. The AUTO path cannot thread keep (the v2
+// compact body carries no keep fields): `keepMessages` WITHOUT `mode:'marker'`
+// is REJECTED with ONE line + the `keep-requires-marker` audit line — NO silent
+// ignore anywhere; out-of-bounds or non-integer N is rejected the same way, and
+// a failed window read rejects the dispatch (a keep-requested compaction that
+// silently keeps nothing is the exact failure #184 removes). The budget file's
+// keep keys stay AUDIT-ONLY (`keep-not-applied`), and on the applied path the
+// applied line REPLACES it: `kind:"keep" state:"applied" keepMessages=<N>
+// tailChars=<n>`. The COMPACT line's `keep=<m> tok=<budget>` pair is UNCHANGED
+// (it reports the budget-file CONFIG, not the applied tail — the v1 COMPACT
+// byte-form stays pinned). The plugin NEVER writes config values (maintainer
+// domain). (d) THE PRE-COMPACTION
 // DUMP leg (#152) IS IMPLEMENTED on the v2 TWIN script (`agent/scripts/db/
 // dump_session_v2.mjs` — the `session_v2`+`session_message` twin of the v1
 // dump tool, this unit): BEFORE the dispatch, BOTH artifacts (the lossless md
@@ -517,10 +534,131 @@ export function preCompactionDump(rootDir: string, sessionID: string, count: num
     : { ok, files };
 }
 
+// ------------------------------------------------------------------ (1e) the #184 retained-tail leg (marker mode)
+//
+// The retention the agent chooses. The CURRENT window rows come from
+// `sessionApi.context` — the SAME lane context_trim_v2.ts reads (ASC by seq,
+// the window head first). The LAST `keepMessages` RENDERABLE rows are kept, in
+// window order (oldest first), and rendered as verbatim text; the section is
+// COMPOSED into the marker summary the draft hook supplies, so the retention
+// lands in the DURABLE compaction row. Selection rules: a `compaction` row is
+// NOT a transcript entry (it carries an earlier summary — the agent-written
+// marker summary is the carrier for that state), and a row with nothing
+// renderable is skipped, so N counts ENTRIES, not raw rows. Rendering:
+// user/synthetic/system/skill `text` verbatim; assistant `text` items verbatim;
+// tool items reduce to ONE `tool: <name> <one-line target>` line (the
+// context_trim target rule — read filePath [+offset/+limit], bash command
+// one-lined, webfetch url, anything else name-only); assistant `reasoning`
+// items are DROPPED (the largest mass, the least resumable). NEVER throws.
+//
+// The bounds the schema states AND the tool enforces (the host MAY not
+// validate the schema before `execute`).
+const KEEP_MIN = 1;
+const KEEP_MAX = 40;
+const TAIL_HEADING = "## Retained tail";
+
+function asRecord(v: unknown): Record<string, unknown> | undefined {
+  return v != null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
+}
+
+function asArray(v: unknown): unknown[] {
+  return Array.isArray(v) ? v : [];
+}
+
+function rowType(r: Record<string, unknown>): string {
+  return typeof r["type"] === "string" ? (r["type"] as string) : "?";
+}
+
+// A tool item → `tool: <name> <one-line target>` (the context_trim target rule,
+// re-implemented here — context_trim_v2.ts is read-only for this unit).
+function toolLine(item: Record<string, unknown>): string {
+  const name = typeof item["name"] === "string" && item["name"] !== "" ? (item["name"] as string) : "?";
+  const state = asRecord(item["state"]);
+  const input = state != null ? asRecord(state["input"]) : undefined;
+  let target = "";
+  if (input != null) {
+    if (name === "read" && typeof input["filePath"] === "string") {
+      target = input["filePath"] as string;
+      const off = input["offset"];
+      const lim = input["limit"];
+      if (typeof off === "number" && Number.isFinite(off)) target += ` offset=${String(off)}`;
+      if (typeof lim === "number" && Number.isFinite(lim)) target += ` limit=${String(lim)}`;
+    } else if (name === "bash" && typeof input["command"] === "string") {
+      target = (input["command"] as string).replace(/\s+/g, " ").trim();
+    } else if (name === "webfetch" && typeof input["url"] === "string") {
+      target = input["url"] as string;
+    }
+  }
+  return target !== "" ? `tool: ${name} ${target}` : `tool: ${name}`;
+}
+
+// One row's entry text ("" when the row carries nothing renderable — the caller
+// skips it and N still counts the RENDERED entries).
+function entryText(r: Record<string, unknown>): string {
+  const own = r["text"];
+  if (typeof own === "string" && own.trim() !== "") return own.trim();
+  const parts: string[] = [];
+  for (const item of asArray(r["content"])) {
+    const it = asRecord(item);
+    if (it == null) continue;
+    if (it["type"] === "text" && typeof it["text"] === "string" && (it["text"] as string).trim() !== "") parts.push((it["text"] as string).trim());
+    else if (it["type"] === "tool") parts.push(toolLine(it));
+  }
+  return parts.join("\n");
+}
+
+type TailRead = { ok: true; count: number; text: string; chars: number } | { ok: false; reason: string; preview: string };
+
+// The window read + the tail render for one compaction. The outcome is ok with
+// the delimited section text, or names ONE reason (context-unavailable /
+// context-read-failed / tail-empty) — the caller REFUSES the dispatch on any of
+// them (no silent no-retention).
+async function readTail(sid: string, keep: number): Promise<TailRead> {
+  const api = sessionApi;
+  const context = api?.context;
+  if (typeof context !== "function") return { ok: false, reason: "context-unavailable", preview: "session.context is unavailable on this host" };
+  try {
+    const out = await (context as (i: { sessionID: string }) => Promise<unknown>)({ sessionID: sid });
+    if (!Array.isArray(out)) return { ok: false, reason: "context-read-failed", preview: "context output is not an array" };
+    const rows: Array<{ type: string; text: string }> = [];
+    for (const item of out) {
+      const r = asRecord(item);
+      if (r == null) continue;
+      const type = rowType(r);
+      if (type === "compaction") continue;
+      const text = entryText(r);
+      if (text === "") continue;
+      rows.push({ type, text });
+    }
+    if (rows.length === 0) return { ok: false, reason: "tail-empty", preview: "the current window carries no renderable transcript rows" };
+    const picked = rows.slice(-keep); // the LAST N, window order preserved
+    const n = picked.length;
+    const lines: string[] = [
+      TAIL_HEADING,
+      "",
+      `The last ${n} transcript entries before this compaction — verbatim, oldest first; tool calls reduced to one line each.`,
+      "",
+    ];
+    picked.forEach((r, i) => {
+      lines.push(`[${i + 1}/${n} ${r.type}]`, r.text, "");
+    });
+    lines.push(`[end of retained tail — ${n} entries]`);
+    const text = lines.join("\n");
+    return { ok: true, count: n, text, chars: text.length };
+  } catch (e) {
+    return { ok: false, reason: "context-read-failed", preview: cap(String((e as { message?: unknown } | undefined)?.message ?? e ?? ""), 120) };
+  }
+}
+
+// The composed marker message: the agent's summary, then the tail section.
+function composeMarkerMessage(summary: string, tailText: string): string {
+  return `${summary}\n\n${tailText}\n`;
+}
+
 // ------------------------------------------------------------------ (2) the tool surface
 
 const TOOL_DESCRIPTION =
-  "Compacts a session to free context space. Two paths: SELF (sessionID omitted) — the CALLING session is compacted and continues from committed files via the post-compaction protocol; CROSS (explicit sessionID) — a fire-and-forget dispatch: it returns immediately and is NEVER awaited (an await would deadlock the single llama-swap model slot); success is verified ASYNCHRONOUSLY — the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success (the session.compaction.ended event), and a failed dispatch burns NO budget. The budget is per TARGET session, per model — the cap comes from the compact_budget.json model_budget map (bare model id -> cap; unlisted models get the configured default; CPU models denied — cap 0). The total budget per session is the cap + ONE emergency compaction: once the normal cap is drained, the `emergency` argument may consume the 1 (count -> cap+1 = fully exhausted). A CROSS caller (explicit sessionID != the calling session) gets an effective cap of cap + 1 (the caller-scoped override, ruling 2026-09-30) — the spendable TOTAL stays THE SAME AS SELF (cap + the one emergency): a cross at count == cap dispatches via the override slot (the COMPACT line gains the ` ovr` token), and a cross at count == cap + 1 stays REFUSED. MARKER mode (args mode:'marker' + summary): the agent writes the summary itself (compaction style, the current model) and the plugin supplies it at the v2 `compaction` draft hook (event.result — the core skips the summarizer model request and writes the durable compaction message). DEVIATIONS vs v1: the `boundary` argument is IGNORED (v2 computes the retained `recent` from the config compaction.keep.tokens; ONE boundary-ignored evidence line); the budget file's keepMessages/keepTokens are NOT applied (the compact body has no keep fields — ONE keep-not-applied line); the `message` continuation is WRITTEN to `.opencode/temp/compact_message_<sid>` AT verified success (plain UTF-8, overwritten per compaction; consumed ONCE at the resume — the auto_resume restart relay tombstones it to `.consumed`, protocol STEP 0 covers the other channels; NO native queue call); the pre-compaction dump lands in archive/sessions/compaction_dumps/ (BOTH the md and json artifacts) BEFORE the dispatch — a dump failure adds a WARNING to the response, it NEVER blocks the compaction. Use it at the stop line / near-limit triage (self) or before a task_id resume of a session that died at its limit (cross); do NOT use it as a restart substitute.";
+  "Compacts a session to free context space. Two paths: SELF (sessionID omitted) — the CALLING session is compacted and continues from committed files via the post-compaction protocol; CROSS (explicit sessionID) — a fire-and-forget dispatch: it returns immediately and is NEVER awaited (an await would deadlock the single llama-swap model slot); success is verified ASYNCHRONOUSLY — the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success (the session.compaction.ended event), and a failed dispatch burns NO budget. The budget is per TARGET session, per model — the cap comes from the compact_budget.json model_budget map (bare model id -> cap; unlisted models get the configured default; CPU models denied — cap 0). The total budget per session is the cap + ONE emergency compaction: once the normal cap is drained, the `emergency` argument may consume the 1 (count -> cap+1 = fully exhausted). A CROSS caller (explicit sessionID != the calling session) gets an effective cap of cap + 1 (the caller-scoped override, ruling 2026-09-30) — the spendable TOTAL stays THE SAME AS SELF (cap + the one emergency): a cross at count == cap dispatches via the override slot (the COMPACT line gains the ` ovr` token), and a cross at count == cap + 1 stays REFUSED. MARKER mode (args mode:'marker' + summary): the agent writes the summary itself (compaction style, the current model) and the plugin supplies it at the v2 `compaction` draft hook (event.result — the core skips the summarizer model request and writes the durable compaction message). DEVIATIONS vs v1: the `boundary` argument is IGNORED (v2 computes the retained `recent` from the config compaction.keep.tokens; ONE boundary-ignored evidence line); `keepMessages` (#184) works on the MARKER path ONLY — the plugin appends the session's LAST N transcript entries verbatim (oldest first) as a `## Retained tail` section INSIDE your summary, so the retention lands in the durable compaction row (the request-assembly hook drops entries, it can never re-add them); it is REJECTED with AUTO mode (`keep-requires-marker`), outside 1..40, or when the window read fails — never silently ignored; the budget file's keepMessages/keepTokens stay audit-only (ONE keep-not-applied line, and it is REPLACED by kind:\"keep\" state:\"applied\" keepMessages=<N> tailChars=<n> on the applied path); the `message` continuation is WRITTEN to `.opencode/temp/compact_message_<sid>` AT verified success (plain UTF-8, overwritten per compaction; consumed ONCE at the resume — the auto_resume restart relay tombstones it to `.consumed`, protocol STEP 0 covers the other channels; NO native queue call); the pre-compaction dump lands in archive/sessions/compaction_dumps/ (BOTH the md and json artifacts) BEFORE the dispatch — a dump failure adds a WARNING to the response, it NEVER blocks the compaction. Use it at the stop line / near-limit triage (self) or before a task_id resume of a session that died at its limit (cross); do NOT use it as a restart substitute.";
 
 // The input schema — a plain JSON schema (the promise surface accepts
 // Tool.ValueSchema = a JsonSchema literal; InputValue resolves to `unknown`,
@@ -549,6 +687,12 @@ const TOOL_INPUT = {
     summary: {
       type: "string",
       description: "marker mode REQUIRED: the summary text the agent wrote itself (compaction style, the current model).",
+    },
+    keepMessages: {
+      type: "integer",
+      minimum: 1,
+      maximum: 40,
+      description: "marker mode ONLY: N = how many of the session's LAST transcript entries survive inside the compaction message. The plugin appends them verbatim (oldest first) to your summary as a `## Retained tail` section — tool calls render as `tool: <name> <one-line target>`, assistant reasoning is dropped. A `compaction` row and unrenderable rows do not count toward N. REJECTED (nothing dispatched): with AUTO mode (`keep-requires-marker` — the AUTO path cannot thread keep), outside 1..40 (the schema integer bound, enforced here too), or when the window read fails / has no renderable row. Example: { mode:'marker', summary:'<your summary>', keepMessages:8 }.",
     },
     boundary: {
       type: "string",
@@ -594,6 +738,31 @@ async function execute(args: unknown, toolContext: { sessionID?: unknown }): Pro
     appendLog(buildLine("marker", { session: sessionID, state: "boundary-ignored" }, {}));
   }
 
+  // (1e) #184 — the `keepMessages` argument. MARKER path ONLY: the AUTO path has
+  // nowhere to thread retention (the v2 compact body carries no keep fields), so
+  // the combination is REFUSED, never ignored. The bounds are enforced HERE too —
+  // the host MAY validate the schema, MAY not. A digit-string passes (the same
+  // poka-yoke the context_trim keep form allows).
+  const keepArg = a.keepMessages;
+  const wantsKeep = keepArg != null && keepArg !== "";
+  let keepN = 0;
+  if (wantsKeep) {
+    if (!isMarker) {
+      appendLog(buildLine("keep", { session: sessionID, reason: "keep-requires-marker", keepMessages: String(keepArg) }, {}));
+      return {
+        output:
+          `keepMessages= rejected: keep-requires-marker (the AUTO path cannot thread keep — retention composes into the marker summary). ` +
+          `Pass mode:'marker' with the summary text, e.g. { mode:'marker', summary:'…', keepMessages:${String(keepArg)} }. Nothing dispatched.`,
+      };
+    }
+    const n = typeof keepArg === "number" ? keepArg : Number(String(keepArg));
+    if (!Number.isInteger(n) || n < KEEP_MIN || n > KEEP_MAX) {
+      appendLog(buildLine("keep", { session: sessionID, reason: "keep-invalid", keepMessages: String(keepArg) }, {}));
+      return { output: `keepMessages= rejected: keep-invalid ${String(keepArg)} (an integer ${KEEP_MIN}..${KEEP_MAX}). Nothing dispatched.` };
+    }
+    keepN = n;
+  }
+
   // The model CLASS (the cap resolver + the COMPACT line's model field only —
   // v2 supplies no summarizer pair; the host picks the summarizer). Fail-
   // open: an unresolved id falls to the budget-file default cap.
@@ -619,6 +788,34 @@ async function execute(args: unknown, toolContext: { sessionID?: unknown }): Pro
   }
   const cfg = readCompactionConfig(root());
 
+  // (1e) THE TAIL COMPOSITION (#184) — read the window BEFORE the dispatch (the
+  // pre-compaction rows are the ones to retain) and fold the section into the
+  // marker summary the draft hook will supply, so the retention rides the
+  // DURABLE compaction row. A failed read or an unrenderable window REFUSES the
+  // dispatch: a requested retention that silently keeps nothing is exactly the
+  // failure #184 removes. Zero side effects on that path — the gate writes
+  // nothing, and the pending record + the dump land only past here.
+  let composedSummary = markerSummary;
+  let keepApplied = false;
+  let tailCount = 0;
+  let tailChars = 0;
+  if (keepN > 0) {
+    const tail = await readTail(sessionID, keepN);
+    if (!tail.ok) {
+      appendLog(buildLine("keep", { session: sessionID, reason: tail.reason, keepMessages: String(keepN), preview: tail.preview }, {}));
+      return {
+        output:
+          `keepMessages= rejected: ${tail.reason} for ${sessionID} (${tail.preview}). ` +
+          `Nothing dispatched — a requested retention must not silently keep nothing.`,
+      };
+    }
+    composedSummary = composeMarkerMessage(markerSummary, tail.text);
+    keepApplied = true;
+    tailCount = tail.count;
+    tailChars = tail.chars;
+    appendLog(buildLine("keep", { session: sessionID, state: "applied", keepMessages: String(keepN), tailChars: String(tail.chars) }, {}));
+  }
+
   // The pending record — written BEFORE the dispatch (the compaction hook
   // and the verify leg read it); the continuation text is remembered, NOT yet
   // written (DEVIATION (b): the #158 message FILE lands at verified success).
@@ -626,14 +823,16 @@ async function execute(args: unknown, toolContext: { sessionID?: unknown }): Pro
     model,
     isEmergency: gate.isEmergency,
     isOverride: gate.isOverride,
-    markerSummary,
+    markerSummary: composedSummary,
     fired: false,
     queueText: typeof a.message === "string" ? a.message : "",
     keepMessages: cfg.keepMessages,
     keepTokens: cfg.keepTokens,
   });
   const keepAudit = hasKeepKeys(root());
-  if (keepAudit) {
+  // #184: the `state:"applied"` line (logged at the composition above) REPLACES
+  // this audit line on the applied path — one keep line per dispatch.
+  if (keepAudit && !keepApplied) {
     appendLog(buildLine("keep", { session: sessionID, reason: "keep-not-applied", keepMessages: String(cfg.keepMessages), keepTokens: cfg.keepTokens != null ? String(cfg.keepTokens) : undefined }, {}));
   }
   // (1d) THE PRE-COMPACTION DUMP (#152 semantics, the v1 hook contract): BOTH
@@ -693,14 +892,17 @@ async function execute(args: unknown, toolContext: { sessionID?: unknown }): Pro
   );
 
   const responseParts: string[] = [];
-  if (isMarker) responseParts.push(`marker= queued — the compaction draft hook supplies the summary (the core skips the summarizer model request; the \`boundary\` argument is IGNORED in v2 — retention rides the config compaction.keep.tokens)`);
+  if (isMarker) responseParts.push(keepApplied
+    ? "marker= queued — the compaction draft hook supplies the agent summary PLUS the composed `## Retained tail` section (the core skips the summarizer model request; the retention rides the DURABLE compaction row)"
+    : "marker= queued — the compaction draft hook supplies the summary (the core skips the summarizer model request; the `boundary` argument is IGNORED in v2 — retention rides the config compaction.keep.tokens)");
   else responseParts.push("Compaction dispatched");
   responseParts.push(` for ${sessionID} (model: ${model !== "" ? model : "unresolved"})`);
   if (gate.isEmergency) responseParts.push(" — the emergency slot is consumed (count → cap+1)");
   if (gate.isOverride) responseParts.push(" — the caller-scoped cross override slot is consumed (the COMPACT line gains the ` ovr` token)");
   responseParts.push(`; the budget increment + the COMPACT line in .opencode/temp/ctx.log land ONLY on verified success (the session.compaction.ended event) — a failed compaction burns NO budget. Used ${gate.count}/${gate.cap} (model class ${gate.label}).`);
   if (typeof a.message === "string" && a.message !== "") responseParts.push(" The continuation message lands in `.opencode/temp/compact_message_<sid>` at verified success (#158 file channel — no native queue; consumed once at the resume).");
-  if (keepAudit) responseParts.push(" keepMessages/keepTokens are NOT applied in v2 (the compact body has no keep fields).");
+  if (keepAudit && !keepApplied) responseParts.push(" keepMessages/keepTokens are NOT applied in v2 (the compact body has no keep fields).");
+  if (keepApplied) responseParts.push(` Retained tail (#184): the last ${tailCount} window entries (${tailChars} chars) composed into the compaction message under \`## Retained tail\` — audit line kind:"keep" state:"applied" in .opencode/temp/compact_v2.log.`);
   if (dumpWarning !== "") responseParts.push(dumpWarning);
   if (modelNote !== "") responseParts.push(`\n${modelNote}`);
   return { output: responseParts.join("") };

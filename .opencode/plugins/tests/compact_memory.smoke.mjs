@@ -150,6 +150,11 @@ const MODELS = {
 const COMPACT = { calls: [], mode: "ok" }; // ok | slow | reject
 const PROMPT = { calls: [], mode: "ok" }; // ok | reject | throw
 const GET = { calls: [] };
+// #184 unit 1: the mock `session.context` (the SAME window-row lane
+// context_trim_v2.ts reads — ASC by seq). CTX_ROWS steers the rows per session
+// (the literal "throw" injects a read failure); an unlisted session reads [].
+const CTX = { calls: [] };
+const CTX_ROWS = {};
 const TOOLS = [];
 const HOOKS = {};
 const STREAM = { events: [], waiters: [] };
@@ -172,6 +177,13 @@ function makeCtx(directory) {
         GET.calls.push(input);
         const id = MODELS[input.sessionID];
         return Promise.resolve(id != null ? { id: input.sessionID, model: { id, providerID: "llama-swap" } } : undefined);
+      },
+      context: (input) => {
+        CTX.calls.push(input);
+        const rows = CTX_ROWS[input.sessionID];
+        if (rows === "throw") return Promise.reject(new Error("mock context read failure"));
+        if (rows == null) return Promise.resolve([]);
+        return Promise.resolve(rows.map((r) => ({ ...r })));
       },
       compact: (input) => {
         COMPACT.calls.push(input);
@@ -223,10 +235,13 @@ const cleanup = await plugin.setup(ctx);
 chk("S1 setup registers the tool transform + the 'compaction' draft hook and returns a cleanup",
   TOOLS.length === 1 && TOOLS[0].name === "compact_memory" && typeof HOOKS["compaction"] === "function" && typeof cleanup === "function",
   `tools=${TOOLS.length} hook=${typeof HOOKS["compaction"]} cleanup=${typeof cleanup}`);
-chk("S1 the tool surface: plain JSON-schema input (no keep keys), string output, promise execute",
+chk("S1 the tool surface: plain JSON-schema input (the #184 keepMessages arg GAINED — the exact key list, by LABEL), string output, promise execute",
   TOOLS[0].input?.type === "object" &&
-  Object.keys(TOOLS[0].input.properties).join(",") === "sessionID,emergency,message,mode,summary,boundary" &&
+  Object.keys(TOOLS[0].input.properties).join(",") === "sessionID,emergency,message,mode,summary,keepMessages,boundary" &&
   TOOLS[0].input.properties.mode.enum.join(",") === "auto,marker" &&
+  TOOLS[0].input.properties.keepMessages?.type === "integer" &&
+  TOOLS[0].input.properties.keepMessages?.minimum === 1 &&
+  TOOLS[0].input.properties.keepMessages?.maximum === 40 &&
   TOOLS[0].output?.type === "string" &&
   typeof TOOLS[0].execute === "function",
   JSON.stringify(TOOLS[0].input?.properties ? Object.keys(TOOLS[0].input.properties) : null));
@@ -790,6 +805,143 @@ chk("D4c under the bun host the chain picks bun:sqlite FIRST (spec order) and th
     chk("S-R171 (f) non-integer round: byte-unchanged (fail-closed, no increment)",
       readFileSync(RC, "utf8") === bad, readFileSync(RC, "utf8"));
   }
+}
+
+// ------------------------------------------------------------------ S-K184 the #184 unit-1 keepMessages retained tail (marker mode)
+//
+// The DoD 1-3 contract of TODO #184 unit 1: the marker compaction MESSAGE = the
+// agent summary THEN a delimited `## Retained tail` section carrying the LAST N
+// RENDERED window rows (oldest first; tool items reduce to one `tool:` line;
+// assistant reasoning and `compaction` rows are not entries); the AUTO-mode
+// combination, the out-of-bounds forms, and a failed window read all REFUSE with
+// ZERO side effects (never a silent ignore); the `state:"applied"` audit line
+// REPLACES the `keep-not-applied` line on the applied path. The rows ride the
+// mock `session.context` — the SAME lane context_trim_v2.ts reads. This section
+// runs AFTER the 4a INV block ON PURPOSE: that block's dispatch-leg counts (9)
+// keep their number.
+{
+  MODELS.ses_keep = LISTED;
+  MODELS.ses_keep_all = LISTED;
+  MODELS.ses_keep_str = LISTED;
+  MODELS.ses_keep_empty = LISTED;
+  MODELS.ses_keep_throw = LISTED;
+  MODELS.ses_keep_auto = LISTED;
+  MODELS.ses_keep_bad = LISTED;
+  const ROWS = [
+    { id: "m_c", type: "compaction", status: "completed", summary: "DROPPED-PREVIOUS-SUMMARY", recent: "" },
+    { id: "m_u1", type: "user", text: "UNIQUE-USER-ONE" },
+    {
+      id: "m_a1",
+      type: "assistant",
+      time: { created: 1, completed: 2 },
+      content: [
+        { type: "reasoning", text: "DROPPED-REASONING-TEXT" },
+        { type: "text", text: "UNIQUE-ASSISTANT-ONE" },
+        { type: "tool", name: "read", state: { status: "completed", input: { filePath: "C:/x/y.ts", offset: 10, limit: 40 } } },
+        { type: "tool", name: "bash", state: { status: "completed", input: { command: "git status\n\t--short" } } },
+      ],
+    },
+    { id: "m_u2", type: "user", text: "UNIQUE-USER-TWO" },
+    { id: "m_a2", type: "assistant", content: [{ type: "text", text: "UNIQUE-ASSISTANT-TWO" }] },
+  ]; // ASC by seq — the compaction row is the window HEAD
+  CTX_ROWS.ses_keep = ROWS;
+  CTX_ROWS.ses_keep_all = ROWS;
+  CTX_ROWS.ses_keep_str = ROWS;
+  CTX_ROWS.ses_keep_empty = [];
+  CTX_ROWS.ses_keep_throw = "throw";
+  const drafted = async (sid) => {
+    const draft = { sessionID: sid, result: undefined };
+    await HOOKS["compaction"](draft);
+    return typeof draft.result?.summary === "string" ? draft.result.summary : "";
+  };
+  const keepLines = (sid) => readLog().filter((l) => l.session === sid && l.kind === "keep");
+  const dispatched = (sid) => COMPACT.calls.some((c) => c.sessionID === sid);
+
+  // (a) the applied path — N=3 over the 4 renderable rows, oldest first.
+  const rA = await call({ mode: "marker", summary: "AGENT-SUMMARY-TEXT", keepMessages: 3 }, { sessionID: "ses_keep" });
+  await sleep(5);
+  const msgA = await drafted("ses_keep");
+  pushEvent({ type: "session.compaction.ended", data: { sessionID: "ses_keep" } });
+  await sleep(20);
+  const klA = keepLines("ses_keep");
+  const mkA = readLog().find((l) => l.session === "ses_keep" && l.kind === "marker" && l.state === "result-supplied");
+  const orderA = ["[1/3 assistant]", "[2/3 user]", "[3/3 assistant]", "[end of retained tail — 3 entries]"].map((t) => msgA.indexOf(t));
+  chk("S-K184 (a) the compaction message = the summary THEN a delimited `## Retained tail` section: the LAST 3 entries, oldest first, inside the delimiters",
+    msgA.startsWith("AGENT-SUMMARY-TEXT") &&
+      msgA.indexOf("## Retained tail") > msgA.indexOf("AGENT-SUMMARY-TEXT") &&
+      orderA.every((i) => i > 0) && orderA[0] < orderA[1] && orderA[1] < orderA[2] && orderA[2] < orderA[3] &&
+      msgA.includes("UNIQUE-ASSISTANT-ONE") && msgA.includes("UNIQUE-USER-TWO") && msgA.includes("UNIQUE-ASSISTANT-TWO") &&
+      !msgA.includes("UNIQUE-USER-ONE"),
+    JSON.stringify({ orderA, msg: msgA.slice(0, 300) }));
+  chk("S-K184 (a) rendering: tool items reduce to one `tool:` line each (read filePath+offset+limit; the bash command one-lined); reasoning and the compaction row are NOT entries",
+    msgA.includes("tool: read C:/x/y.ts offset=10 limit=40") &&
+      msgA.includes("tool: bash git status --short") &&
+      !msgA.includes("DROPPED-REASONING-TEXT") && !msgA.includes("DROPPED-PREVIOUS-SUMMARY"),
+    JSON.stringify(msgA.slice(0, 400)));
+  chk("S-K184 (a) the applied audit line REPLACES the keep-not-applied line (exactly ONE keep line: state applied, keepMessages 3, tailChars > 0) and the SUPPLIED summary carries the tail",
+    klA.length === 1 && klA[0].state === "applied" && klA[0].keepMessages === "3" && Number(klA[0].tailChars) > 0 &&
+      Number(mkA?.summaryChars ?? 0) > "AGENT-SUMMARY-TEXT".length,
+    JSON.stringify({ klA, summaryChars: mkA?.summaryChars }));
+  chk("S-K184 (a) the response states the composition (entries + chars + the audit lane) and NO longer claims the keep keys are unapplied; the verify leg still burns ONE",
+    rA.output.includes("Retained tail (#184): the last 3 window entries") && rA.output.includes("`## Retained tail`") &&
+      !rA.output.includes("keepMessages/keepTokens are NOT applied") && count("ses_keep") === 1,
+    JSON.stringify(rA.output));
+
+  // (b) N above the window's renderable rows → every entry lands, no padding.
+  await call({ mode: "marker", summary: "S-B", keepMessages: 10 }, { sessionID: "ses_keep_all" });
+  await sleep(5);
+  const msgB = await drafted("ses_keep_all");
+  chk("S-K184 (b) keepMessages above the window rows keeps ALL renderable entries (4), still oldest first",
+    msgB.includes("[end of retained tail — 4 entries]") &&
+      msgB.indexOf("UNIQUE-USER-ONE") > 0 && msgB.indexOf("UNIQUE-USER-ONE") < msgB.indexOf("UNIQUE-ASSISTANT-ONE"),
+    JSON.stringify(msgB.slice(0, 200)));
+
+  // (c) the digit-string form still composes (the schema stays integer-typed).
+  await call({ mode: "marker", summary: "S-C", keepMessages: "3" }, { sessionID: "ses_keep_str" });
+  await sleep(5);
+  const msgC = await drafted("ses_keep_str");
+  chk("S-K184 (c) the digit-string form applies (keepMessages:'3' composes the same 3-entry tail + the applied audit line)",
+    msgC.includes("[end of retained tail — 3 entries]") && keepLines("ses_keep_str").some((l) => l.state === "applied" && l.keepMessages === "3"),
+    JSON.stringify(keepLines("ses_keep_str")));
+
+  // (d) the read lanes: an unrenderable window and a failing read REFUSE.
+  const rD1 = await call({ mode: "marker", summary: "S-D", keepMessages: 4 }, { sessionID: "ses_keep_empty" });
+  const rD2 = await call({ mode: "marker", summary: "S-D", keepMessages: 4 }, { sessionID: "ses_keep_throw" });
+  chk("S-K184 (d) tail-empty and context-read-failed REFUSE the dispatch: no compact call, no burn, ONE keep line naming the reason (+ the read failure's preview)",
+    rD1.output.includes("rejected: tail-empty") && !dispatched("ses_keep_empty") && count("ses_keep_empty") === 0 &&
+      readLog().some((l) => l.session === "ses_keep_empty" && l.kind === "keep" && l.reason === "tail-empty") &&
+      rD2.output.includes("rejected: context-read-failed") && !dispatched("ses_keep_throw") && count("ses_keep_throw") === 0 &&
+      readLog().some((l) => l.session === "ses_keep_throw" && l.kind === "keep" && l.reason === "context-read-failed" && (l.preview ?? "").includes("mock context read failure")),
+    JSON.stringify([rD1.output.slice(0, 120), rD2.output.slice(0, 120)]));
+
+  // (e) the bounds: fail-closed, ZERO side effects.
+  const badOuts = [];
+  for (const bad of [0, 41, 2.5, -3, "abc"]) {
+    const rr = await call({ mode: "marker", summary: "S-E", keepMessages: bad }, { sessionID: "ses_keep_bad" });
+    badOuts.push(rr.output);
+  }
+  chk("S-K184 (e) the bounds reject (0 / 41 / 2.5 / -3 / 'abc'): every line names keep-invalid + the 1..40 range, NOTHING dispatched, no burn, 5 keep-invalid lines",
+    badOuts.every((o) => o.startsWith("keepMessages= rejected: keep-invalid") && o.includes("integer 1..40")) &&
+      !dispatched("ses_keep_bad") && count("ses_keep_bad") === 0 &&
+      readLog().filter((l) => l.session === "ses_keep_bad" && l.kind === "keep" && l.reason === "keep-invalid").length === 5,
+    JSON.stringify(badOuts.map((o) => o.slice(0, 64))));
+
+  // (f) AUTO mode + keepMessages: REFUSED (the AUTO path cannot thread keep).
+  const rF = await call({ keepMessages: 4 }, { sessionID: "ses_keep_auto" });
+  chk("S-K184 (f) keepMessages WITHOUT mode:'marker' is REJECTED with ONE line naming the cause + the keep-requires-marker audit line — never a silent ignore",
+    rF.output.startsWith("keepMessages= rejected: keep-requires-marker") && rF.output.includes("mode:'marker'") &&
+      !dispatched("ses_keep_auto") && count("ses_keep_auto") === 0 &&
+      readLog().some((l) => l.session === "ses_keep_auto" && l.kind === "keep" && l.reason === "keep-requires-marker"),
+    JSON.stringify(rF.output.slice(0, 200)));
+  chk("S-K184 (f) the rejection wrote NO dump, NO dispatch, NO verify line for that session (fail-closed: zero side effects before the gate)",
+    !readLog().some((l) => l.session === "ses_keep_auto" && l.kind === "dump") &&
+      !readLog().some((l) => l.session === "ses_keep_auto" && (l.kind === "dispatch" || l.kind === "verify")),
+    JSON.stringify(readLog().filter((l) => l.session === "ses_keep_auto").map((l) => l.kind + ":" + (l.reason ?? l.state ?? ""))));
+
+  // (g) the read addresses the TARGET session (the CROSS dispatch rides it).
+  chk("S-K184 (g) the tail read addresses the TARGET session id (session.context called per compaction target)",
+    CTX.calls.some((c) => c.sessionID === "ses_keep") && CTX.calls.some((c) => c.sessionID === "ses_keep_empty"),
+    JSON.stringify(CTX.calls.map((c) => c.sessionID)));
 }
 
 const logLenBefore = readLog().length;

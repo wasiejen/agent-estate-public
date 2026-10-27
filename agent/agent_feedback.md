@@ -1019,3 +1019,6 @@ PAID (system-prompt) files carry no edit-time warning: editing `agent/memory/pla
 ### 2026-10-27_15-05 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
 The shell tool cannot interrupt a paged git command: `git log --all --oneline -S 'looprunner'` looked like a hang with no working cancel (Ctrl-C, Ctrl-X, Ctrl-Q, Esc all inert), and the pickaxe results were unusable because the path-as-of-commit rule was not obvious. History search became usable only with `--no-pager` plus a `--stat` step, and the maintainer ultimately needed a GUI to find his block.
 
+### 2026-10-27_15-28 worker_FlashNext ses_e8242f766ffeDuKblgUqnoflBH
+The #186 probe recipe's `keepMessages = rows − 12` collides with the retained-tail floor 6 (fresh session: 5−12 = −7 → `keep-invalid`), and one `ctx_gauge` after a boundary write reads flat (gauge lags one finished step) — state `max(6, rows − 12)` and a two-gauge read in future probe recipes.
+

@@ -1052,3 +1052,6 @@ The live-acceptance step 'report and pick 3 heavy marked candidates' was not exe
 ### 2026-10-28_00-14 worker_FlashNext ses_e8174a794ffe1Noetk8NJeDKVl
 context_trim report option lines print `hint=<anchor row's FULL assistant text>` verbatim — on a reasoning-heavy session one report call cost ~10k tokens of context (measured 2026-10-28, ses_e8174a794ffe1Noetk8NJeDKV1 U8 acceptance); cap the hint to ~120 chars.
 
+### 2026-10-28_00-38 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+I guessed a DB query helper path twice (`.opencode/scripts/sqlite3_exec.mjs` does not exist) while trying to read request rows — the real helper set lives under `agent/scripts/db`; a one-line pointer to it in `agent/readme/repo_commands.md` would stop the guessing.
+

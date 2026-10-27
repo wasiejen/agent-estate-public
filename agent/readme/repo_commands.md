@@ -109,3 +109,7 @@ repo facts:
   decisions. A first-ever gauge in a FRESH session can return
   `CTX=notAvailable` — no finished step yet; the next call reads fine.
 - Durable maintainer TODOs: `TODO.md`.
+- Session DB forensics (v2 store): `node agent/scripts/db/dump_session_v2.mjs <sid> --lite`
+  reads `session_message` (the live v2 shape). `sesinspect.cjs` and `sesdata.cjs` still read the
+  frozen v1 `message` table — do not use them for v2 state. Per-step request sizes come from
+  `context_trim mode:'report'` (`req-at=` per row), not from an invented DB query path.

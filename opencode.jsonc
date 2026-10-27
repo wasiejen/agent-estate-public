@@ -101,7 +101,7 @@
       },
       "models": {
         "gyro-gyro-m": {
-          "name": "Qwen3.8-Flash-Next GyroM",
+          "name": "Qwen3.8-Flash-Next GyroM | Speed 86 | 35GB RAM | 262K | VisionCPU",
           "tool_call": true,
           "limit": {
             "context": 262144,
@@ -131,7 +131,7 @@
         },
 
         "Qwen3.8-NEXT-GyroM": {
-          "name": "Qwen3.8-Flash-Next GyroM",
+          "name": "Qwen3.8-Flash-Next GyroM | Speed 86 | 35GB RAM | 262K | VisionCPU",
           "tool_call": true,
           "limit": {
             "context": 262144,
@@ -139,6 +139,18 @@
             "output": 20480
           }
         },
+        "Qwen3.8-NEXT-IQ3S": {
+          "name": "Qwen3.8-Flash-Next IQ3S | Speed 76 | 51GB RAM | 262K | VisionCPU",
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "input": 258048,
+            "output": 20480
+          }
+        },
+
+
+
         // -------------------
         // ik_llama.cpp backend with hadamard kv and optional trellis weights
         // -------------------
@@ -380,7 +392,7 @@
     "planner_FlashNext": {
       "description": "plans tasks and delegates to sub-agents: very high intelligence, speedrating 60, 262k context, high precision, highest general knowledge",
       "mode": "all",
-      "model": "llama-swap/Qwen3.8-NEXT-GyroM",
+      "model": "llama-swap/Qwen3.8-NEXT-IQ3S",
       "prompt": "{file:./agent/prompts/agent_planner.md}\n{file:agent/memory/planner/destilled_mem.md}",
       // "prompt": "{file:./prompts/base.txt}\n{file:./prompts/rules.txt}\n{file:./prompts/examples.txt}"
       "temperature": 1.0,
@@ -399,7 +411,7 @@
     "worker_FlashNext": {
       "description": "very high intelligence, speedrating 60, 262k context, high precision, highest general knowledge: best for very complex coding and code review work",
       "mode": "all",
-      "model": "llama-swap/Qwen3.8-NEXT-GyroM",
+      "model": "llama-swap/Qwen3.8-NEXT-IQ3S",
       "prompt": "{file:./agent/prompts/agent_worker.md}",
       "temperature": 1.0,
       "permission": {
@@ -421,7 +433,7 @@
     "explorer_FlashNext": {
       "description": "very high intelligence, speedrating 60, 262k context, high precision, highest general knowledge: for research and exploration of needed information",
       "mode": "all",
-      "model": "llama-swap/Qwen3.8-NEXT-GyroM",
+      "model": "llama-swap/Qwen3.8-NEXT-IQ3S",
       "prompt": "{file:./agent/prompts/agent_worker.md}\n{file:./agent/prompts/agent_explorer.md}",
       "temperature": 1.0,
       "permission": {

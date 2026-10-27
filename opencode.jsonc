@@ -131,7 +131,7 @@
         // },
 
         "Qwen3.8-NEXT-GyroM": {
-          "name": "LS/Qwen3.8-Flash-Next GyroM | Speed 86 | 35GB RAM | 262K | VisionCPU",
+          "name": "LS/Qwen3.8-Flash-Next GyroM | Gen 80-110 | Pre 2400 | 35GB RAM | 262K | VisionCPU",
           "tool_call": true,
           "limit": {
             "context": 262144,
@@ -140,7 +140,7 @@
           }
         },
         "Qwen3.8-NEXT-IQ3S": {
-          "name": "LS/Qwen3.8-Flash-Next IQ3S | Speed 76 | 51GB RAM | 262K | VisionCPU",
+          "name": "LS/Qwen3.8-Flash-Next IQ3S | Gen 70-90 | Pre 2250 | 51GB RAM | 262K | VisionCPU",
           "tool_call": true,
           "limit": {
             "context": 262144,
@@ -263,25 +263,6 @@
     //   "model": "llama-swap/Qwen3.8-27B-Compaction",
     //   "temperature": 0.1
     // },
-    // "planner_Q3S": {
-    //   "description": "plans tasks and delegates to sub-agents: very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge",
-    //   "mode": "all",
-    //   "model": "llama-swap/Qwen3.8-27B-Q3S-170K",
-    //   "prompt": "{file:./agent/prompts/agent_planner.md}\n{file:agent/memory/planner/destilled_mem.md}",
-    //   // "prompt": "{file:./prompts/base.txt}\n{file:./prompts/rules.txt}\n{file:./prompts/examples.txt}"
-    //   "temperature": 1.0,
-    //   "permission": {
-    //     "task": "allow",
-    //     "edit": {
-    //       "*": "allow",
-    //       ".git/**": "deny",
-    //       ".github/**": "deny"
-    //     },
-    //     "bash": "allow",
-    //     "webfetch": "allow"
-    //   },
-    //   "color": "accent"
-    // },
     // "worker_Q3S": {
     //   "description": "very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge: best for very complex coding and code review work",
     //   "mode": "all",
@@ -296,47 +277,6 @@
     //       "AGENTS.md": "deny",
     //       "agent/prompts/**": "deny",
     //       "agent/prompts/agent_planner.md": "deny",
-    //       ".git/**": "deny",
-    //       ".github/**": "deny"
-    //     },
-    //     "bash": "allow",
-    //     "webfetch": "allow"
-    //   },
-    //   "color": "accent"
-    // },
-    // "explorer_Q3S": {
-    //   "description": "very high intelligence, speedrating 60, 170k context, high precision, highest general knowledge: best for very complex coding and code review work",
-    //   "mode": "all",
-    //   "model": "llama-swap/Qwen3.8-27B-Q3S-170K",
-    //   "prompt": "{file:./agent/prompts/agent_explorer.md}",
-    //   "temperature": 1.0,
-    //   "permission": {
-    //     "task": "allow",
-    //     "edit": {
-    //       "*": "allow",
-    //       "home/AppData/Local/Temp/opencode" : "allow",
-    //       "AGENTS.md": "deny",
-    //       "agent/prompts/**": "deny",
-    //       "agent/prompts/agent_planner.md": "deny",
-    //       ".git/**": "deny",
-    //       ".github/**": "deny"
-    //     },
-    //     "bash": "allow",
-    //     "webfetch": "allow"
-    //   },
-    //   "color": "accent"
-    // },
-    // "planner_Q3S_slow": {
-    //   "description": "plans tasks and delegates to sub-agents: very high intelligence, speedrating 45, 245k context, high precision, highest general knowledge",
-    //   "mode": "all",
-    //   "model": "llama-swap/Qwen3.8-27B-Q3S-230K-slow-HQKV",
-    //   "prompt": "{file:./agent/prompts/agent_planner.md}\n{file:agent/memory/planner/destilled_mem.md}",
-    //   // "prompt": "{file:./prompts/base.txt}\n{file:./prompts/rules.txt}\n{file:./prompts/examples.txt}"
-    //   "temperature": 1.0,
-    //   "permission": {
-    //     "task": "allow",
-    //     "edit": {
-    //       "*": "allow",
     //       ".git/**": "deny",
     //       ".github/**": "deny"
     //     },
@@ -367,29 +307,7 @@
     //   },
     //   "color": "accent"
     // },
-    // "explorer_Q3S_slow": {
-    //   "description": "very high intelligence, speedrating 45, 245k context, high precision, highest general knowledge: for research and exploration of needed information",
-    //   "mode": "all",
-    //   "model": "llama-swap/Qwen3.8-27B-Q3S-230K-slow-HQKV",
-    //   "prompt": "{file:./agent/prompts/agent_worker.md}\n{file:./agent/prompts/agent_explorer.md}",
-    //   "temperature": 1.0,
-    //   "permission": {
-    //     "task": "allow",
-    //     "edit": {
-    //       "*": "allow",
-    //       "home/AppData/Local/Temp/opencode" : "allow",
-    //       "AGENTS.md": "deny",
-    //       "agent/prompts/**": "deny",
-    //       "agent/prompts/agent_planner.md": "deny",
-    //       ".git/**": "deny",
-    //       ".github/**": "deny"
-    //     },
-    //     "bash": "allow",
-    //     "webfetch": "allow"
-    //   },
-    //   "color": "accent"
-    // },
-    "planner_FlashNext": {
+    "planner": {
       "description": "plans tasks, delegates to sub-agents and acts as contact point for maintainer and design discussions",
       "mode": "all",
       "model": "llama-swap/Qwen3.8-NEXT-IQ3S",
@@ -408,7 +326,7 @@
       },
       "color": "accent"
     },
-    "worker_FlashNext": {
+    "worker": {
       "description": "best for very complex coding and code review work",
       "mode": "all",
       "model": "llama-swap/Qwen3.8-NEXT-IQ3S",
@@ -430,11 +348,56 @@
       },
       "color": "accent"
     },
-    "explorer_FlashNext": {
+    "explorer": {
       "description": "for research and exploration of needed information",
       "mode": "all",
       "model": "llama-swap/Qwen3.8-NEXT-IQ3S",
       "prompt": "{file:./agent/prompts/agent_worker.md}\n{file:./agent/prompts/agent_explorer.md}",
+      "temperature": 1.0,
+      "permission": {
+        "task": "allow",
+        "edit": {
+          "*": "allow",
+          "home/AppData/Local/Temp/opencode" : "allow",
+          "AGENTS.md": "deny",
+          "agent/prompts/**": "deny",
+          "agent/prompts/agent_planner.md": "deny",
+          ".git/**": "deny",
+          ".github/**": "deny"
+        },
+        "bash": "allow",
+        "webfetch": "allow"
+      },
+      "color": "accent"
+    },
+    "agent": {
+      "description": "no additional system prompt - plain AGENTS.md - same permissions as worker",
+      "mode": "all",
+      "model": "llama-swap/Qwen3.8-NEXT-IQ3S",
+      "prompt": "",
+      "temperature": 1.0,
+      "permission": {
+        "task": "allow",
+        "edit": {
+          "*": "allow",
+          "home/AppData/Local/Temp/opencode" : "allow",
+          "AGENTS.md": "deny",
+          "agent/prompts/**": "deny",
+          "agent/prompts/agent_planner.md": "deny",
+          ".git/**": "deny",
+          ".github/**": "deny"
+        },
+        "bash": "allow",
+        "webfetch": "allow"
+      },
+      "color": "accent"
+    },
+    "new_hire": {
+      "hidden": "true",
+      "description": "no system prompt - no AGENTS.md - same permissions as worker",
+      "mode": "all",
+      "model": "llama-swap/Qwen3.8-NEXT-IQ3S",
+      "prompt": "",
       "temperature": 1.0,
       "permission": {
         "task": "allow",

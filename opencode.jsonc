@@ -413,7 +413,12 @@
         "bash": "allow",
         "webfetch": "allow"
       },
-      "color": "accent"
+      "color": "accent",
+      "options": {
+        "load_project_docs": false,
+        "load_agents_md": false,
+        "load_workspace_tree": false
+      }
     },
   }
 }

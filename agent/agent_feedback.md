@@ -1013,3 +1013,6 @@ read output wraps long comment lines differently than the file bytes, so reprodu
 ### 2026-10-26_20-42 worker_FlashNext ses_e865199e1ffeNIugYDiy5dQ1Bg
 Specs 177-U4/U5/U6 copy-pasted the extraction example naming agent/readme/repo_opencode.md while each unit targets a different file — the example misleads; spec templates should regenerate the example path from the target file.
 
+### 2026-10-27_13-40 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+PAID (system-prompt) files carry no edit-time warning: editing `agent/memory/planner/destilled_mem.md` twice in two separate steps cost two full re-prefills where one would do. Nothing in the tool surface or the gauge says the cache is already busted, so batching discipline is purely remembered.
+

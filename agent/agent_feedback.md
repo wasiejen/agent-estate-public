@@ -1028,3 +1028,6 @@ The AUTO-compaction failure lane is misleading for both the agent and the mainta
 ### 2026-10-27_16-03 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
 NEAR MISS 2026-10-27: I called `write` with the path of a tracked repo file (`agent/scripts/INVENTORY.md`, 240 lines) while intending a scratch script, and passed placeholder content — the file was overwritten in one call, no confirmation, no diff preview. Recovered with `git restore agent/scripts/INVENTORY.md` (verified: 240 lines, header intact). Cause was mine (wrong path argument), but the surface has no guard: `write` on a tracked file silently replaces it. A cheap host/plugin mitigation: when the target path is inside a git worktree AND tracked AND the new content is much shorter than the old, return a warning line naming the old size and the restore command.
 
+### 2026-10-27_16-33 worker_FlashNext ses_e820f0f0bffe2qWT72CFqywKFo
+block_transfer REPLACE takes content ONLY from a named buffer: a call carrying just `text` silently pasted the stale `default` buffer over 5 plugin-header lines (green-looking feedback line); recovered via `git checkout -- <file>` — the mode table should say text is ignored by REPLACE, and WRITE is the direct-text lane (this unit's near-miss).
+

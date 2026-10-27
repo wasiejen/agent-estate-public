@@ -37,12 +37,14 @@ repo_commands).
   model out of the backend mid-session). All model traffic goes through
   opencode sessions only. The maintainer alone touches the backend (for
   example, moving the context limit there — no opencode.jsonc change needed).
-- **Permanent startup load errors (measured 2026-09-24):** every process
-  start logs `failed to load plugin` for `compact_memory.ts`
-  ("The \"paths[0]\" property must be of type string, got object") and
-  `intercept_observer_core.ts` ("Plugin export is not a function"). The
-  compact_memory tool still WORKS (a self-compact ran under the same failing
-  start) and the observer intercepts live (intercept.log grows). The
-  maintainer confirmed no alternative plugin versions exist — the files load
-  despite the errors. FIX PENDING (separate item; the maintainer flagged it
-  2026-09-24).
+- **Startup load errors — NO LONGER PRESENT (re-measured 2026-10-27, CLI
+  2.2.0):** the old claim that every start logs `failed to load plugin` for
+  `compact_memory.ts` ("paths[0]" type error) and `intercept_observer_core.ts`
+  ("Plugin export is not a function") is STALE. Last occurrence of both:
+  2026-10-22. Today's start: zero load-error lines; the host logs
+  `plugin reconciliation completed … plugins=14`. One transient case remains
+  worth knowing: a plugin file saved mid-edit can be hot-reloaded in an
+  incomplete state (2026-10-26 17:46Z `auto_resume` `ReferenceError:
+  storeScopeOf is not defined` — the symbol exists in the committed file); the
+  next start loads clean. The host hot-reloads `.opencode/plugins/**` on
+  change, so a plugin edit takes effect without a restart.

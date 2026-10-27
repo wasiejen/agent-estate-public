@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 opencode.exe
+
+# compaction dumps are recovery evidence on disk, not repo content (#183 archive-retention ruling 2026-10-27)
+archive/sessions/compaction_dumps/

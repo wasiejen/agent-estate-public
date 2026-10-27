@@ -1037,3 +1037,6 @@ TERMINOLOGY (mine, cost the maintainer his thread): I used the single word "stri
 ### 2026-10-27_18-16 worker_FlashNext ses_e81a9dbccffeYTLRKT4Pmt0Ou4
 session.context HTTP probe unusable: curl localhost:4096 refused (rc=7) and the live server port is not discoverable from any committed/knowledge location — netstat gave 15+ candidate ports. Need a documented port-discovery path for endpoint probes.
 
+### 2026-10-27_19-00 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+the U5 canary killed the worker session because the injected entry kept a `tool` role — the failure text (`OpenAI Chat tool messages only support tool-result content for now`) reads like a resume/host bug and cost me a wrong diagnosis before I found the canary log; specs for injection probes should name the required entry shape up front.
+

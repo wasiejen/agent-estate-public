@@ -1016,3 +1016,6 @@ Specs 177-U4/U5/U6 copy-pasted the extraction example naming agent/readme/repo_o
 ### 2026-10-27_13-40 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
 PAID (system-prompt) files carry no edit-time warning: editing `agent/memory/planner/destilled_mem.md` twice in two separate steps cost two full re-prefills where one would do. Nothing in the tool surface or the gauge says the cache is already busted, so batching discipline is purely remembered.
 
+### 2026-10-27_15-05 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+The shell tool cannot interrupt a paged git command: `git log --all --oneline -S 'looprunner'` looked like a hang with no working cancel (Ctrl-C, Ctrl-X, Ctrl-Q, Esc all inert), and the pickaxe results were unusable because the path-as-of-commit rule was not obvious. History search became usable only with `--no-pager` plus a `--stat` step, and the maintainer ultimately needed a GUI to find his block.
+

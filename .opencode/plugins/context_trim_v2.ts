@@ -110,8 +110,8 @@
 // preview), `tail` (the store write: session + state set|cleared + boundary +
 // keep), `report` (ONE line per tool report call: session + rows + state), `mark`
 // (the drop-list write: session + added/removed/total + est), `marks-stale`
-// (session + the ignored-mark count, (8)). Best-
-// effort; NEVER throws out of a hook or the tool.
+// (session + the ignored-mark count, (8)), `apply` (the staged->active move +
+// projection, (9)). Best-effort; NEVER throws out of a hook or the tool.
 //
 // DEVIATIONS vs v1 (header REQUIRED): (a) NO DB write — the tail lane is the
 // boundary store + the draft hook filter (there is no `tail_start_id` in v2);
@@ -159,6 +159,31 @@
 // also carries system prompt + retained slice; request-est=<gauge CTX>
 // window-est=<window rows mass>`. `keepID` is NOT a lever (U4, 8046528) — the
 // host's automatic tail sits before the compaction row, out of this filter.
+//
+// (9) U7 STAGED MARKING + APPLY (TODO #190 U7, 2026-10-27, ACT-shape no-fork) —
+// the (8) mark set becomes `staged`: `mark`/`unmark` keep editing the STAGED list
+// (continuous and cheap — the hook NEVER drops a staged id), and ONE explicit
+// `mode:'apply'` unions it into the `active` set the hook actually drops. Store
+// per session: `{ boundary, keep, set_at, staged?, active? }` — a legacy `marks`
+// key READ-SEEDS `active` (a pre-U7 store keeps working; the key is replaced on
+// the next write). `apply` first PROJECTS the resulting request: the last
+// completed request's prompt tokens (gauge `ctx − output` = input + cache.read,
+// the spec's verified facts — never hard-coded) MINUS the mass of the NEWLY
+// active rows (provider tokens on completed-assistant rows, else bytes/4; the
+// bytes/4 count labels the mixed sum `mixed=<c>`). When the projection exceeds
+// EIGHTY percent of the gauge-core window value the apply is REFUSED
+// (`apply= rejected: over-bound <projected> <bound>`) unless `force:true`; an
+// empty staged set is refused (`apply= rejected: nothing-staged`). Success:
+// `apply= staged->active n=<k> projected=<p> bound=<b> ok mixed=<c>`. `mark
+// clear:true` empties BOTH sets (the tail `clear` keeps BOTH — symmetry kept).
+// The report header names `staged=`/`active=`/`active-est=` (replacing the (8)
+// marks fields) and gains a `projection:` line for the staged set — the result
+// is inspectable BEFORE applying. The mark guards stay fail-closed; the floor
+// computes over the UNION (boundary inside-drop ∪ active ∪ staged). Hook: ONLY
+// `active` ids drop; a staged-only entry (no boundary, no active) stays SILENT
+// (no service call, no line). Line shapes keep their names: `mark-set= total=`
+// is the STAGED size, est is over staged; the trim line's `marks=` carries the
+// ACTIVE size.
 
 import type { Plugin } from "@opencode/plugin";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -248,9 +273,19 @@ function storeFile(): string {
 
 // Fail-open read: missing / unreadable / malformed / non-object root → an EMPTY
 // store view (never a throw, never a silent zero-of-sessions confusion). The
-// (8) shape: { boundary, keep, set_at, marks? } — boundary may be ABSENT/""
-// (a marks-only entry), marks is a de-duplicated array of message ids.
-type StoreEntry = { boundary: string; keep: number; setAt: string; marks: string[] };
+// (9) shape: { boundary, keep, set_at, staged?, active? } — boundary may be
+// ABSENT/"" (a marks-only entry); staged/active are de-duplicated arrays of
+// message ids; a legacy (8) `marks` key READ-SEEDS `active` (never re-written
+// until the next store write).
+type StoreEntry = { boundary: string; keep: number; setAt: string; staged: string[]; active: string[] };
+
+function readIds(v: unknown): string[] {
+  const out: string[] = [];
+  for (const m of Array.isArray(v) ? v : []) {
+    if (typeof m === "string" && m !== "" && !out.includes(m)) out.push(m);
+  }
+  return out;
+}
 
 function readStore(): { sessions: Record<string, StoreEntry> } {
   let data: unknown;
@@ -265,21 +300,20 @@ function readStore(): { sessions: Record<string, StoreEntry> } {
   const out: Record<string, StoreEntry> = {};
   for (const [sid, entry] of Object.entries(sessions)) {
     if (entry == null || typeof entry !== "object" || Array.isArray(entry)) continue;
-    const boundaryRaw = (entry as Record<string, unknown>)["boundary"];
+    const rec = entry as Record<string, unknown>;
+    const boundaryRaw = rec["boundary"];
     const boundary = typeof boundaryRaw === "string" ? boundaryRaw : "";
-    const marksRaw = (entry as Record<string, unknown>)["marks"];
-    const marks: string[] = [];
-    for (const m of Array.isArray(marksRaw) ? marksRaw : []) {
-      if (typeof m === "string" && m !== "" && !marks.includes(m)) marks.push(m);
-    }
-    if (boundary === "" && marks.length === 0) continue; // an entry with NEITHER lever is noise
-    const keep = (entry as Record<string, unknown>)["keep"];
-    const setAt = (entry as Record<string, unknown>)["set_at"];
+    const active = readIds(rec["active"] ?? rec["marks"]); // (9) legacy seed
+    const staged = readIds(rec["staged"]);
+    if (boundary === "" && staged.length === 0 && active.length === 0) continue; // an entry with NO lever is noise
+    const keep = rec["keep"];
+    const setAt = rec["set_at"];
     out[sid] = {
       boundary,
       keep: typeof keep === "number" && Number.isFinite(keep) ? keep : 0,
       setAt: typeof setAt === "string" ? setAt : "",
-      marks,
+      staged,
+      active,
     };
   }
   return { sessions: out };
@@ -301,10 +335,12 @@ function writeSessionEntry(sid: string, entry: StoreEntry | null): boolean {
     let sessions = raw["sessions"];
     if (sessions == null || typeof sessions !== "object" || Array.isArray(sessions)) sessions = {};
     const s = sessions as Record<string, unknown>;
-    if (entry == null || (entry.boundary === "" && entry.marks.length === 0)) delete s[sid];
+    if (entry == null || (entry.boundary === "" && entry.staged.length === 0 && entry.active.length === 0)) delete s[sid];
     else {
       const rec: Record<string, unknown> = { boundary: entry.boundary, keep: entry.keep, set_at: entry.setAt };
-      if (entry.marks.length > 0) rec["marks"] = entry.marks;
+      // (9) the write REPLACES a legacy `marks` key with `staged`/`active`
+      if (entry.staged.length > 0) rec["staged"] = entry.staged;
+      if (entry.active.length > 0) rec["active"] = entry.active;
       s[sid] = rec;
     }
     raw["sessions"] = s;
@@ -476,16 +512,26 @@ function idOf(r: Record<string, unknown>): string {
   return typeof r["id"] === "string" ? r["id"] : "";
 }
 
-// The (8) mark-set estimated dropped mass: the massOf-sum of window rows at
-// index >= 1 whose id is marked (marks outside the window / at the head
+// The (8)/(9) mark-set estimated dropped mass: the massOf-sum of window rows at
+// index >= 1 whose id is in the set (ids outside the window / at the head
 // contribute 0 — the hook ignores them the same way).
 function markEstimate(rows: Array<Record<string, unknown>>, marks: string[]): number {
-  let s = 0;
-  for (const m of marks) {
-    const i = rows.findIndex((r) => idOf(r) === m);
-    if (i >= 1) s += massOf(rows[i]).mass;
+  return idsMass(rows, marks).mass;
+}
+
+// (9) the mass AND the bytes/4 (estimate) part count of an id-set against the
+// window rows — the apply projection source (`mixed=` labels the estimate).
+function idsMass(rows: Array<Record<string, unknown>>, ids: string[]): { mass: number; mixed: number } {
+  let mass = 0;
+  let mixed = 0;
+  for (const id of ids) {
+    const i = rows.findIndex((r) => idOf(r) === id);
+    if (i < 1) continue;
+    const m = massOf(rows[i]);
+    mass += m.mass;
+    if (m.kind === "bytes4") mixed++;
   }
-  return s;
+  return { mass, mixed };
 }
 
 // ------------------------------------------------------------------ the window read
@@ -550,8 +596,8 @@ async function reportWindow(sid: string, target?: string): Promise<string> {
   const aMin = 1;
   const store = readStore();
   const entry = store.sessions[sid];
-  const marks = entry?.marks ?? [];
-  const marksEst = markEstimate(rows, marks);
+  const staged = entry?.staged ?? [];
+  const active = entry?.active ?? [];
   const storedIndex = entry != null && entry.boundary !== "" ? rows.findIndex((r) => idOf(r) === entry.boundary) : -1;
   // inside = the boundary is a legal window boundary; stale = it is stored but
   // NOT legal in the CURRENT window (buried by a new compaction row, at the
@@ -563,20 +609,38 @@ async function reportWindow(sid: string, target?: string): Promise<string> {
   // SQL). A db-error read is ONE honest line; the report survives. Read BEFORE
   // the header block: the #189 line names its CTX as the request estimate.
   const g = await readGauge(undefined, sid);
-  const gr = g as { kind?: unknown; error?: unknown; ctx?: unknown };
+  const gr = g as { kind?: unknown; error?: unknown; ctx?: unknown; window?: unknown; output?: unknown };
+  // (9) the projection quantities — the LAST completed request's PROMPT tokens
+  // (gauge ctx − output = input + cache.read, the spec's verified facts) and the
+  // eighty-percent bound off the gauge-core window value. Any gauge leg missing
+  // prints `unavailable` honestly (never a guessed number).
+  const gCtx = typeof gr.ctx === "number" && Number.isFinite(gr.ctx) ? gr.ctx : undefined;
+  const gOut = typeof gr.output === "number" && Number.isFinite(gr.output) ? gr.output : undefined;
+  const gWin = typeof gr.window === "number" && Number.isFinite(gr.window) ? gr.window : undefined;
+  const lastReq = gCtx != null ? (gOut != null ? gCtx - gOut : gCtx) : undefined;
+  const stagedEst = markEstimate(rows, staged);
+  const bound = gWin != null ? Math.floor(gWin * 0.8) : undefined;
+  const projected = lastReq != null ? lastReq - stagedEst : undefined;
 
   const lines: string[] = [`session ${sid}`];
   const head = rows[0] != null ? idOf(rows[0]) : "none";
   const headType = rows[0] != null ? String(rows[0]["type"] ?? "?") : "empty";
   lines.push(
     `header: head=${head} head-type=${headType} rows=${rows.length} boundary=${entry != null && entry.boundary !== "" ? entry.boundary : "none"}` +
-      ` boundary-state=${state} retained=${retained} marks=${marks.length} marks-est=${marksEst}`,
+      ` boundary-state=${state} retained=${retained} staged=${staged.length} active=${active.length} active-est=${markEstimate(rows, active)}`,
   );
   // (#189, bundled into (8)): the store window is NOT the model request — name
   // both quantities separately so the window map can never be read as one.
   lines.push(
     "window_rows != request; request also carries system prompt + retained slice" +
-      ` request-est=${typeof gr.ctx === "number" ? String(gr.ctx) : "unavailable"} window-est=${massSum(rows)}`,
+      ` request-est=${gCtx != null ? String(gCtx) : "unavailable"} window-est=${massSum(rows)}`,
+  );
+  // (9) the projection line — the staged set inspectable BEFORE applying.
+  lines.push(
+    "projection: last-req=" + (lastReq != null ? String(lastReq) : "unavailable") +
+      ` staged-est=${stagedEst} projected=` + (projected != null ? String(projected) : "unavailable") +
+      " bound=" + (bound != null ? String(bound) : "unavailable") +
+      (projected != null && bound != null ? (projected > bound ? " over" : " ok") : ""),
   );
   if (gr.kind === "db-error") {
     lines.push(`gauge: db-error ${cap(String(gr.error ?? "").replace(/\r?\n+/g, " | "), 120)}`);
@@ -649,7 +713,7 @@ async function reportWindow(sid: string, target?: string): Promise<string> {
       lines.push(`dry-run: target=${target} verdict=${verdict}`);
     }
   }
-  appendLog(buildLine("report", { session: sid, state, rows: String(rows.length), marks: String(marks.length), target: target != null ? target : undefined }, {}));
+  appendLog(buildLine("report", { session: sid, state, rows: String(rows.length), staged: String(staged.length), active: String(active.length), target: target != null ? target : undefined }, {}));
   return lines.join("\n");
 }
 
@@ -670,15 +734,15 @@ function tailVerdict(rows: Array<Record<string, unknown>>, targetID: string): st
 async function tailSet(sid: string, form: { target?: string; keep?: number; clear?: boolean }): Promise<string> {
   if (form.clear === true) {
     const before = readStore().sessions[sid];
-    // (8) mirror symmetry: tail `clear` removes the BOUNDARY and leaves a stored
-    // mark set ALONE (mark `clear` is the mirror) — the entry is deleted only
-    // when nothing is left.
-    const keepMarks = before != null && before.marks.length > 0;
-    const okWrite = keepMarks
-      ? writeSessionEntry(sid, { boundary: "", keep: 0, setAt: before.setAt, marks: before.marks })
+    // (9) mirror symmetry: tail `clear` removes the BOUNDARY and leaves the
+    // STAGED + ACTIVE sets ALONE (mark `clear` is the mirror — empties both
+    // sets, keeps the boundary) — the entry is deleted only when nothing is left.
+    const keepSets = before != null && (before.staged.length > 0 || before.active.length > 0);
+    const okWrite = keepSets
+      ? writeSessionEntry(sid, { boundary: "", keep: 0, setAt: before.setAt, staged: before.staged, active: before.active })
       : writeSessionEntry(sid, null);
     if (!okWrite) return `tail-set= error: store-write-failed (the boundary file could not be written)`;
-    appendLog(buildLine("tail", { session: sid, state: "cleared", from: before != null && before.boundary !== "" ? before.boundary : undefined, marks: keepMarks ? String(before.marks.length) : undefined }, {}));
+    appendLog(buildLine("tail", { session: sid, state: "cleared", from: before != null && before.boundary !== "" ? before.boundary : undefined, marks: keepSets ? String(before.staged.length + before.active.length) : undefined }, {}));
     staleLogged.delete(sid);
     return `tail-set= ${before != null && before.boundary !== "" ? before.boundary : "none"} -> none`;
   }
@@ -707,7 +771,7 @@ async function tailSet(sid: string, form: { target?: string; keep?: number; clea
   }
   if (targetID === "") return `tail-set= rejected: target-not-found`;
   const before = readStore().sessions[sid];
-  if (!writeSessionEntry(sid, { boundary: targetID, keep: retained, setAt: new Date().toISOString(), marks: before?.marks ?? [] })) {
+  if (!writeSessionEntry(sid, { boundary: targetID, keep: retained, setAt: new Date().toISOString(), staged: before?.staged ?? [], active: before?.active ?? [] })) {
     return `tail-set= error: store-write-failed (the boundary file could not be written)`;
   }
   staleLogged.delete(sid);
@@ -715,17 +779,20 @@ async function tailSet(sid: string, form: { target?: string; keep?: number; clea
   return `tail-set= ${before != null && before.boundary !== "" ? before.boundary : "none"} -> ${targetID} keep=${retained}`;
 }
 
-// ------------------------------------------------------------------ markSet (the (8) drop-list store write)
+// ------------------------------------------------------------------ markSet (the (8)/(9) staged drop-list store write)
 
 async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; clear?: boolean }): Promise<string> {
   if (form.clear === true) {
     const before = readStore().sessions[sid];
-    if (before != null && before.marks.length > 0) {
-      if (!writeSessionEntry(sid, { boundary: before.boundary, keep: before.keep, setAt: new Date().toISOString(), marks: [] }))
+    // (9) mark `clear` empties BOTH sets (staged AND active) and keeps a stored
+    // boundary (the tail `clear` is the mirror — it keeps both sets).
+    const removed = before != null ? before.staged.length + before.active.length : 0;
+    if (before != null && removed > 0) {
+      if (!writeSessionEntry(sid, { boundary: before.boundary, keep: before.keep, setAt: new Date().toISOString(), staged: [], active: [] }))
         return `mark-set= error: store-write-failed (the boundary file could not be written)`;
       marksStaleLogged.delete(sid);
-      appendLog(buildLine("mark", { session: sid, added: "0", removed: String(before.marks.length), total: "0", est: "0" }, {}));
-      return `mark-set= +0 -${before.marks.length} total=0 rows_dropped_est=0`;
+      appendLog(buildLine("mark", { session: sid, added: "0", removed: String(removed), total: "0", est: "0" }, {}));
+      return `mark-set= +0 -${removed} total=0 rows_dropped_est=0`;
     }
     return `mark-set= +0 -0 total=0 rows_dropped_est=0`; // idempotent — nothing stored
   }
@@ -736,40 +803,80 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
   }
   const rows = read.rows;
   const entry = readStore().sessions[sid];
-  const current = entry?.marks ?? [];
+  const current = entry?.staged ?? [];
+  const active = entry?.active ?? [];
   const dropUnmark = new Set(form.unmark ?? []);
   const kept = current.filter((m) => !dropUnmark.has(m)); // un-marking needs NO window (stale ids un-mark too)
   const removed = current.length - kept.length;
   const newIds: string[] = [];
   for (const id of form.ids ?? []) {
-    if (current.includes(id) || newIds.includes(id)) continue; // already marked — no-op, not re-validated
+    if (current.includes(id) || newIds.includes(id)) continue; // already staged — no-op, not re-validated
     const i = rows.findIndex((r) => idOf(r) === id);
     if (i < 0) return `mark-set= rejected: mark-not-found`;
     if (i === 0) return `mark-set= rejected: mark-at-window-head`;
     newIds.push(id);
   }
-  const marks = [...kept, ...newIds];
-  // The floor guard: the marks PLUS an inside boundary must leave >= FLOOR retained
-  // rows (the boundary rule drops 0..b-1, a mark drops its row only at idx >= 1;
-  // a stale boundary contributes nothing — the hook would not apply it either).
+  const staged = [...kept, ...newIds];
+  // (9) the floor guard over the UNION: the boundary inside-drop PLUS the ACTIVE
+  // set PLUS the staged result must leave >= FLOOR retained rows (a staged id
+  // becomes a drop at apply — the guard pre-computes the apply outcome).
   const dropIdx = new Set<number>();
   const boundary = entry?.boundary ?? "";
   if (boundary !== "") {
     const bi = rows.findIndex((r) => idOf(r) === boundary);
     if (bi >= 1) for (let k = 0; k < bi; k++) dropIdx.add(k);
   }
-  for (const m of marks) {
+  for (const m of [...active, ...staged]) {
     const i = rows.findIndex((r) => idOf(r) === m);
     if (i >= 1) dropIdx.add(i);
   }
   const retained = rows.length - dropIdx.size;
   if (retained < FLOOR) return `mark-set= rejected: mark-floor ${retained}`;
-  const est = markEstimate(rows, marks);
-  if (!writeSessionEntry(sid, { boundary, keep: entry?.keep ?? 0, setAt: new Date().toISOString(), marks }))
+  const est = markEstimate(rows, staged);
+  if (!writeSessionEntry(sid, { boundary, keep: entry?.keep ?? 0, setAt: new Date().toISOString(), staged, active }))
     return `mark-set= error: store-write-failed (the boundary file could not be written)`;
   marksStaleLogged.delete(sid);
-  appendLog(buildLine("mark", { session: sid, added: String(newIds.length), removed: String(removed), total: String(marks.length), est: String(est) }, {}));
-  return `mark-set= +${newIds.length} -${removed} total=${marks.length} rows_dropped_est=${est}`;
+  appendLog(buildLine("mark", { session: sid, added: String(newIds.length), removed: String(removed), total: String(staged.length), est: String(est) }, {}));
+  return `mark-set= +${newIds.length} -${removed} total=${staged.length} rows_dropped_est=${est}`;
+}
+
+// ------------------------------------------------------------------ applySet (the (9) staged->active move + projection)
+
+const BOUND_FRAC = 0.8; // the hard apply bound: eighty percent of the gauge-core window value
+
+// Moves `staged` into `active` (union, staged emptied) ONLY after the projected
+// request size passes the bound; a rejection writes NOTHING (fail-closed, like
+// every other guard). Projection: last completed request prompt (gauge ctx −
+// output = input + cache.read) minus the mass of the NEWLY active rows; the
+// bytes/4 part of that sum is counted and labeled `mixed=`. An over-bound apply
+// rides `force:true` deliberately (the bound is a guard rail, not a wall).
+async function applySet(sid: string, force: boolean): Promise<string> {
+  const entry = readStore().sessions[sid];
+  const staged = entry?.staged ?? [];
+  if (staged.length === 0) return `apply= rejected: nothing-staged`;
+  const read = await readWindow(sid);
+  if (!read.ok) {
+    if (read.reason === "not-found") return `apply= rejected: session-not-found`;
+    return `apply= error: context-read-failed: ${read.preview}`;
+  }
+  const g = await readGauge(undefined, sid);
+  const gr = g as { ctx?: unknown; window?: unknown; output?: unknown };
+  const gCtx = typeof gr.ctx === "number" && Number.isFinite(gr.ctx) ? gr.ctx : undefined;
+  const gOut = typeof gr.output === "number" && Number.isFinite(gr.output) ? gr.output : undefined;
+  const gWin = typeof gr.window === "number" && Number.isFinite(gr.window) ? gr.window : undefined;
+  if (gCtx == null || gWin == null) return `apply= error: gauge-unavailable (the projection needs the gauge core's ctx + window)`;
+  const lastReq = gOut != null ? gCtx - gOut : gCtx;
+  const { mass, mixed } = idsMass(read.rows, staged);
+  const projected = lastReq - mass;
+  const bound = Math.floor(gWin * BOUND_FRAC);
+  if (projected > bound && !force) return `apply= rejected: over-bound ${projected} ${bound}`;
+  const active = [...(entry?.active ?? [])];
+  for (const id of staged) if (!active.includes(id)) active.push(id);
+  if (!writeSessionEntry(sid, { boundary: entry?.boundary ?? "", keep: entry?.keep ?? 0, setAt: new Date().toISOString(), staged: [], active }))
+    return `apply= error: store-write-failed (the boundary file could not be written)`;
+  marksStaleLogged.delete(sid);
+  appendLog(buildLine("apply", { session: sid, n: String(staged.length), projected: String(projected), bound: String(bound), mixed: String(mixed), forced: force ? "true" : undefined }, {}));
+  return `apply= staged->active n=${staged.length} projected=${projected} bound=${bound} ok mixed=${mixed}`;
 }
 
 // ------------------------------------------------------------------ the context draft hook
@@ -782,8 +889,11 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     const sid = str(event.sessionID);
     if (sid == null) return; // session gating: no request id -> silent skip
     const entry = readStore().sessions[sid];
-    if (entry == null) return; // NO boundary and NO marks -> SILENT, no service call
-    if (entry.boundary === "" && entry.marks.length === 0) return; // (8) degenerate entry — silent
+    if (entry == null) return; // no boundary and no marks -> SILENT, no service call
+    // (9) the hook drops ONLY `active` ids — a staged-only entry (no boundary,
+    // no active) is fully SILENT (no service call, no line): marking is cheap
+    // and continuous; one `apply` makes it effective.
+    if (entry.boundary === "" && entry.active.length === 0) return;
     if (!Array.isArray(event.messages)) {
       appendLog(buildLine("gauge", { session: sid, reason: "messages-not-array" }, {}));
       return;
@@ -804,7 +914,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
         // (5) the boundary is NOT inside the current window (a new completed
         // compaction row landed / the row is gone) -> ONE boundary-stale line
         // (deduped per session+boundary) and the boundary rule drops NOTHING —
-        // the (8) marks rule below still applies (the filters are independent).
+        // (9) the ACTIVE-set rule below still applies (the filters are independent).
         if (staleLogged.get(sid) !== entry.boundary) {
           staleLogged.set(sid, entry.boundary);
           appendLog(buildLine("boundary-stale", { session: sid, boundary: entry.boundary, where: i < 0 ? "not-in-window" : "at-window-head" }, {}));
@@ -820,18 +930,18 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
         }
       }
     }
-    // (8) the mark set: drop the window rows at index >= 1 whose ids are marked
-    // (the HEAD is never droppable by a mark); a mark no longer in the window is
-    // IGNORED, logged once per (session, stale-count) as marks-stale.
+    // (9) the ACTIVE set: drop the window rows at index >= 1 whose ids are
+    // active (the HEAD is never droppable); an active id no longer in the window
+    // is IGNORED, logged once per (session, stale-count) as marks-stale.
     let staleMarks = 0;
-    for (const m of entry.marks) {
+    for (const m of entry.active) {
       const idx = rows.findIndex((r) => idOf(r) === m);
       if (idx < 1) staleMarks++;
       else drop.add(m);
     }
     if (staleMarks > 0 && marksStaleLogged.get(sid) !== String(staleMarks)) {
       marksStaleLogged.set(sid, String(staleMarks));
-      appendLog(buildLine("marks-stale", { session: sid, staleMarks: String(staleMarks), marksTotal: String(entry.marks.length) }, {}));
+      appendLog(buildLine("marks-stale", { session: sid, staleMarks: String(staleMarks), marksTotal: String(entry.active.length) }, {}));
     }
     if (drop.size === 0) return; // stale boundary + all marks stale -> nothing dropped, no trim line
     let dropped = 0;
@@ -845,7 +955,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     appendLog(
       buildLine(
         "trim",
-        { session: sid, boundary: entry.boundary !== "" ? entry.boundary : "none", boundaryIndex: bIdx >= 1 ? String(bIdx) : "none", marks: String(entry.marks.length), droppedRows: String(drop.size), droppedEntries: String(dropped), keptEntries: String(messages.length) },
+        { session: sid, boundary: entry.boundary !== "" ? entry.boundary : "none", boundaryIndex: bIdx >= 1 ? String(bIdx) : "none", marks: String(entry.active.length), droppedRows: String(drop.size), droppedEntries: String(dropped), keptEntries: String(messages.length) },
         {},
       ),
     );
@@ -858,7 +968,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
 // ------------------------------------------------------------------ the tool surface
 
 const TOOL_DESCRIPTION =
-  "Reports and trims a session's model context on the v2 session store (NO DB write). `mode:'report'` — READ-ONLY window map: the window = the session_message rows from the LAST completed compaction row onward (the v2 model window); the header names the head row, the row count, the stored BOUNDARY (inside/stale/absent), the retained count and the MARK set (size + dropped-mass est), then a `window_rows != request` line (the request also carries system prompt + retained slice) separating store rows from the request estimate; then NUMBERED rows (id + type + mass — provider tokens for completed assistant rows, else a bytes/4 estimate — plus tool-target detail: read filePath (+offset/limit), bash command, webfetch url), the `last: N` flag, the low/medium/high trim-RANGE options (message-id anchors with keep counts, the retained/dropped read/thought/shell mass split and a hint), the `biggest:` top-5 heaviest finished turns, and with `target` a dry-run (remove/keep counts + masses + the tail verdict — no write). A `gauge:` line rides the shared v2-paired gauge core. `mode:'tail'` — WRITE to the boundary store `.opencode/temp/context_trim_v2.json`: set the boundary (the new first-kept message id) by `target` or by `keepMessages` (the retained-tail MESSAGE COUNT form, mutually exclusive with target), or REMOVE it with `clear`. `mode:'mark'` — WRITE the per-message DROP LIST in the same store: `ids` add window ids, `unmark` remove, `clear` empties the mark set only (the boundary stays). The `session.context` draft hook drops the request's pre-boundary AND marked entries at assembly time — history untouched, reversible (a stale boundary logs ONE boundary-stale line and keeps the window; stale marks are ignored with ONE marks-stale line). Fail-closed validation (a rejection writes NOTHING): the session exists, the target/mark id is a window row (`mark-not-found`/`target-not-found`), never the window head (`mark-at-window-head`/`target-at-window-head` — the head carries the summary), and marks + inside boundary leave >= 6 retained rows (`mark-floor`/`retained-tail-below-floor`); the keep form adds `keep-invalid`/`keep-exceeds-history`/`keep-at-window-head`. Rejections are plain lines — `report= rejected: <cause>` / `tail-set= rejected: <cause>` / `mark-set= rejected: <cause>` / `error: <usage>` (a valid fail-closed outcome — do not retry); read failures print `context-read-failed`. Returns `tail-set= <old> -> <new> keep=<count>` (or `-> none` after a clear) and `mark-set= +<n> -<m> total=<k> rows_dropped_est=<tokens>`. `session` may be omitted (the tool context resolves it).";
+  "Reports and trims a session's model context on the v2 session store (NO DB write). `mode:'report'` — READ-ONLY window map: the window = the session_message rows from the LAST completed compaction row onward (the v2 model window); the header names the head row, the row count, the stored BOUNDARY (inside/stale/absent), the retained count and the STAGED/ACTIVE drop-set counts (active dropped-mass est); then a `window_rows != request` line (the request also carries system prompt + retained slice); then a `projection:` line (last-req, staged-est, projected, bound, ok|over — the staged set's apply outcome, inspectable before applying); then NUMBERED rows (id + type + mass — provider tokens for completed assistant rows, else bytes/4 — plus tool-target detail: read filePath (+offset/limit), bash command, webfetch url), the `last: N` flag, the low/medium/high trim-RANGE options (anchors with keep counts, read/thought/shell splits and a hint), the `biggest:` top-5 heaviest finished turns, and with `target` a dry-run (remove/keep counts + masses + the tail verdict — no write). `mode:'tail'` — WRITE to the boundary store `.opencode/temp/context_trim_v2.json`: set the boundary (the new first-kept message id) by `target` or by `keepMessages` (a MESSAGE COUNT, mutually exclusive with target), or REMOVE it with `clear`. `mode:'mark'` — WRITE the per-message STAGED drop list in the same store: `ids` add window ids, `unmark` remove, `clear` empties BOTH staged and active (the boundary stays). `mode:'apply'` — union staged into the ACTIVE set the hook drops, after projecting the resulting request (last request's prompt − newly-active mass) against 80% of the window: refuses `apply= rejected: nothing-staged` or `over-bound <projected> <bound>` unless `force:true`; success `apply= staged->active n=<k> projected=<p> bound=<b> ok mixed=<bytes4-count>`. The `session.context` draft hook drops the request's pre-boundary AND active entries at assembly time — history untouched, reversible (a stale boundary logs ONE boundary-stale line and keeps the window; stale active ids are ignored with ONE marks-stale line). Fail-closed validation (a rejection writes NOTHING): the session exists, the target/mark id is a window row (`mark-not-found`/`target-not-found`), never the window head (`mark-at-window-head`/`target-at-window-head`), and the drop-list union + inside boundary leave >= 6 retained rows (`mark-floor`/`retained-tail-below-floor`). Rejections are plain lines — `report= rejected: <cause>` / `tail-set= rejected: <cause>` / `mark-set= rejected: <cause>` / `apply= rejected: <cause>` / `error: <usage>` (a valid fail-closed outcome — do not retry); read failures print `context-read-failed`. Returns `tail-set= <old> -> <new> keep=<count>` (or `-> none` after a clear) and `mark-set= +<n> -<m> total=<staged-size> rows_dropped_est=<tokens>`. `session` may be omitted (the tool context resolves it).";
 
 const TOOL_INPUT = {
   type: "object",
@@ -866,9 +976,9 @@ const TOOL_INPUT = {
   properties: {
     mode: {
       type: "string",
-      enum: ["report", "tail", "mark"],
+      enum: ["report", "tail", "mark", "apply"],
       description:
-        "The mode: 'report' (read-only window map — header + numbered rows + `last: N` + trim-RANGE options + biggest list + optional dry-run) or 'tail' (the boundary-store write — target form, keepMessages form, or clear) or 'mark' (the drop-list write — ids, unmark, or clear).",
+        "The mode: 'report' (read-only window map — header + numbered rows + `last: N` + trim-RANGE options + biggest list + optional dry-run) or 'tail' (the boundary-store write — target form, keepMessages form, or clear) or 'mark' (the STAGED drop-list write — ids, unmark, or clear) or 'apply' (move staged into the ACTIVE set the hook drops, projection-bound).",
     },
     session: {
       type: "string",
@@ -888,18 +998,23 @@ const TOOL_INPUT = {
       type: "array",
       items: { type: "string" },
       description:
-        "mark (add form): window ids to ADD to the drop list (de-duplicated). Rejected: mark-not-found, mark-at-window-head, mark-floor (marks + inside boundary leave < 6 retained rows).",
+        "mark (add form): window ids to ADD to the STAGED drop list (de-duplicated; effective only after `apply`). Rejected: mark-not-found, mark-at-window-head, mark-floor (the drop-list union + inside boundary leave < 6 retained rows).",
     },
     unmark: {
       type: "array",
       items: { type: "string" },
       description:
-        "mark (remove form): ids to REMOVE from the drop list (stale stored ids un-mark too).",
+        "mark (remove form): staged ids to REMOVE (stale stored ids un-mark too).",
     },
     clear: {
       type: "boolean",
       description:
-        "tail (clear form): remove the stored boundary (a stored mark set stays). mark (clear form): empty the mark set only (a stored boundary stays). Mutually exclusive with the other args of the mode.",
+        "tail (clear form): remove the stored boundary (stored staged/active sets stay). mark (clear form): empty BOTH the staged and active sets (a stored boundary stays). Mutually exclusive with the other args of the mode.",
+    },
+    force: {
+      type: "boolean",
+      description:
+        "apply (mode 'apply' only): accept a projection over the 80% bound deliberately. Without it an over-bound apply is refused (`apply= rejected: over-bound <projected> <bound>`).",
     },
   },
 };
@@ -941,12 +1056,17 @@ async function execute(args: unknown, toolContext: { sessionID?: unknown }): Pro
       return { output: "error: mark mode: clear is mutually exclusive with ids/unmark (use one form)" };
     }
     if (!isClear && ids == null && unmark == null) {
-      return { output: "error: mark mode requires ids (window message ids to drop), unmark (ids to restore), or clear (empty the mark set — a stored boundary stays)" };
+      return { output: "error: mark mode requires ids (window message ids to stage for the drop), unmark (ids to restore), or clear (empty BOTH drop sets — a stored boundary stays)" };
     }
     if (isClear) return { output: await markSet(sid, { clear: true }) };
     return { output: await markSet(sid, { ids, unmark }) };
   }
-  return { output: "error: mode must be 'report', 'tail', or 'mark'" };
+  if (mode === "apply") {
+    const bad = Object.keys(a).filter((k) => k !== "mode" && k !== "session" && k !== "force");
+    if (bad.length > 0) return { output: "error: apply mode takes no list args (stage with mark mode first; only `force` is accepted)" };
+    return { output: await applySet(sid, a.force === true) };
+  }
+  return { output: "error: mode must be 'report', 'tail', 'mark', or 'apply'" };
 }
 
 const trimTool = {

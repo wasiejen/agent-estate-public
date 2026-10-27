@@ -73,3 +73,19 @@ Contract pinning lives in `.opencode/plugins/probes/handover_probe.mjs`.
 - Built-ins (`task`, `skill`, `webfetch`, …) are not custom tools.
 - The probe/gauge scripts (`.opencode/plugins/scripts/`, `repo_commands.md`) are not custom tools.
 - Their docs live with them.
+
+## Two tool surfaces (measured 2026-10-27, opencode 2.2.0)
+- The Code Mode catalog exposes these tools as `tools.<x>()` inside `execute`.
+- When an agent's permissions set `execute: "deny"`, the host puts the same
+  tools directly into that agent's NATIVE tool schema (upstream v2.2.0, PR
+  #59315) and `execute` disappears from the schema entirely — measured on the
+  worker agent: `block_transfer`, `ctx_gauge`, `loop_log`, `submit`,
+  `state_snapshot`, `context_trim`, `compact_memory`,
+  `dev_get_tool_context_contents` all present natively; `session_info` absent.
+- Native calls work under that exposure. Measured: the worker's native
+  `loop_log` START returned `verified: readback-match`; native `ctx_gauge`
+  returned the full readout line. The old native-empty-result defect did not
+  recur.
+- Consequence: the "custom tools ONLY via `execute`" rule binds whichever
+  surface you actually have. Check your own tool list before choosing the
+  path; never work around a denied permission.

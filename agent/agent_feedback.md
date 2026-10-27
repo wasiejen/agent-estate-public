@@ -1031,3 +1031,6 @@ NEAR MISS 2026-10-27: I called `write` with the path of a tracked repo file (`ag
 ### 2026-10-27_16-33 worker_FlashNext ses_e820f0f0bffe2qWT72CFqywKFo
 block_transfer REPLACE takes content ONLY from a named buffer: a call carrying just `text` silently pasted the stale `default` buffer over 5 plugin-header lines (green-looking feedback line); recovered via `git checkout -- <file>` — the mode table should say text is ignored by REPLACE, and WRITE is the direct-text lane (this unit's near-miss).
 
+### 2026-10-27_16-37 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+TERMINOLOGY (mine, cost the maintainer his thread): I used the single word "strip" for two unrelated mechanisms — (1) what a compaction removes from a session, and (2) removing AGENTS.md from a test agent's context. He read them as one topic and lost the thread ("what strip? i thought the strip works?"). Rule for maintainer-facing text: never reuse one word across unrelated mechanisms; name each mechanism with its own two-word label, and state the planned action plus the expected result before any parameter detail.
+

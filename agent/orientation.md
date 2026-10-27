@@ -126,3 +126,12 @@ struggle with" is a dedicated agent definition whose prompt is `AGENTS.md` ONLY
 measures how much of our guidance is load-bearing. Both bust the prompt cache
 of every live session once, because the `subagent` tool description lists the
 available agents: land such config additions on a cold turn.
+
+## Delegation rule: serial slot only (maintainer ruling 2026-10-27, `--info`)
+
+Never launch a subagent with `background: true`. This setup is a
+serial single-slot inference pipeline (llama-swap). A background worker plus a
+resuming planner makes the slot ping-pong between the two sessions, which wastes
+prefill and makes progress unauditable. Launch every delegation in the
+foreground, wait for its return, verify, then launch the next one. Parallel
+launches are equally forbidden.

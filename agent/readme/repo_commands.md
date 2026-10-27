@@ -57,6 +57,11 @@ The `bash` tool is **Git-Bash (bash 3.6, MINGW64)**. `opencode.jsonc` pins
   (exit 0, no output). The node-dir trio gauge_core/context_trim/auto_resume
   uses the `rmTearSoft` retry teardown (#160, worker-36). Both node and bun
   runners are deterministic; the old `fs.rmSync` EBUSY re-run tax is gone.
+- Line endings (planner-direct, 2026-10-27): there is NO `check_line_endings.mjs`
+  in this repo — the working check is this CR count, which must print 0:
+  `node -e 'for (const f of process.argv.slice(1)) console.log(f, (require("fs").readFileSync(f,"utf8").match(/\r/g)||[]).length)' <files>`.
+  The tracked docs are LF; a broad `git add -A` can rewrite them to CRLF (measured
+  2026-10-27: 297 `TODO.md` lines flipped). Commit named paths only.
 
 ## Marker sweep
 

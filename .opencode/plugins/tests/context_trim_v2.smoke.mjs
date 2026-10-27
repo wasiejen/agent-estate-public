@@ -29,13 +29,17 @@
 // its text/reasoning/tool-input-JSON/tool-output parts); the cumulative provider
 // figure prints relabeled `req-at=` (the REQUEST size at that step — never row
 // weight) and feeds only the last-request projection authority; `biggest:` ranks
-// by own mass (recency cannot dominate). U8b (live-measured in-session): the hook
-// drops the row's id-carrying entry ONLY — tool OUTPUT rides id-less tool-result
-// projections and SURVIVES the drop — so every DROP sum (`dropped=`, `active-est=`,
-// `rows_dropped_est=`, `drop_est=`, the dry-run remove mass) counts the DROPPABLE
-// part (text/reasoning/tool-input); `retained=`/`window-est=` stay own-mass sums.
-// The apply line states a POSITIVE `drop_est=`. Fixture masses: own =
-// [5,2,111,205,2,0,2,0,2,3], droppable = [5,2,11,5,2,0,2,0,2,3], window-est=332.
+// by own mass (recency cannot dominate). U8b (live-measured) found tool OUTPUTS
+// riding id-less projections — they survived the drop. U9 (#193) FIXES that: the
+// hook now drops the CALL and its OUTPUT entries ATOMICALLY (call-id link via
+// the `tool-result` part's call id, adjacency fallback for an id-less result,
+// unmatched results count `orphan=` and stay) — so every DROP sum (`dropped=`,
+// `active-est=`, `rows_dropped_est=`, `drop_est=`, the dry-run remove mass) is
+// the FULL own weight again. `retained=`/`window-est=` stay own-mass sums. The
+// apply line states a POSITIVE `drop_est=`. Fixture masses: own =
+// [5,2,111,205,2,0,2,0,2,3], window-est=332. U9 also caps the report `hint=`
+// echo (one line, 80 chars — #194) and makes a same-step `mark`+`apply` ride a
+// late store write instead of falsely rejecting.
 // The CTX_TRIM_SMOKE_{PLUGIN,CF,GAUGE} env vars steer the imported trio at scratch
 // copies (the live-file cost rule: a write under .opencode/plugins/** hot-loads
 // and re-prefills every live session); unset = the committed real paths.
@@ -126,8 +130,8 @@ gaugeMod.setLoopRootForTest(path.join(SCRATCH, "no_loop_root"));
 // (req-at=9000); user four -> 2; msg_a5 error row content [] -> own 0
 // (req-at=150); user six -> 2; msg_a7 content [] -> own 0 (req-at=25000); user
 // eight -> 2; msg_a9 text "thinking text" -> 3 (req-at=400). window-est=332.
-// U8b droppable parts (what a drop-set actually removes — outputs excluded):
-// 5, 2, 11, 5, 2, 0, 2, 0, 2, 3 (the read/bash OUTPUTS ride id-less entries).
+// U9: outputs count in the drop sums AGAIN (the pair rule drops them with the
+// call) — the draft() fixture carries the linked + adjacency + orphan results.
 function windowRows() {
   return [
     { id: "msg_c0", type: "compaction", status: "completed", summary: "SUMMARY-TEXT", recent: "RECENT-TEXT", time: { created: 1000, completed: 1001 } },
@@ -215,8 +219,12 @@ const fire = async (draft) => {
 chk("S0b the tool's name is 'context_trim' (the v1 name — a same-name twin is precedent) and the args mirror v1 (+ clear, + mark ids/unmark, + U7 apply mode + force)", TOOL.name === "context_trim" && JSON.stringify(Object.keys(TOOL.input.properties).sort()) === JSON.stringify(["clear", "force", "ids", "keepMessages", "mode", "session", "target", "unmark"]) && JSON.stringify(TOOL.input.properties.mode.enum) === JSON.stringify(["report", "tail", "mark", "apply"]) && TOOL.output.type === "string", JSON.stringify(TOOL.name + "|" + Object.keys(TOOL.input.properties)));
 
 // A draft shaped like the fork's SessionContext (entries carry the projection's
-// optional `id` — to-llm-message.ts sets it per row; system/tool-result/effort
-// projections carry none).
+// optional `id` — to-llm-message.ts sets it per row; system/effort projections
+// carry none; `Message.tool` result entries carry NO entry-level id but their
+// `tool-result` PART carries the call id — the U9 pair rule's link). U9 fixture
+// shape: msg_a2 = call `call_a2` + its LINKED result + an ADJACENCY result (no
+// part id, follows a dropped entry when a2 is marked); msg_a3 = call `call_a3`
+// + linked result; entry 11 = a TRUE orphan result (follows the KEPT msg_u6).
 function draft(sessionID = SID) {
   return {
     sessionID,
@@ -227,12 +235,15 @@ function draft(sessionID = SID) {
       { role: "system", content: [{ type: "text", text: "an id-less system entry" }] },
       { id: "msg_c0", role: "user", content: [{ type: "text", text: "<conversation-checkpoint>" }] },
       { id: "msg_u1", role: "user", content: [{ type: "text", text: "user one" }] },
-      { id: "msg_a2", role: "assistant", content: [{ type: "text", text: "a2 text" }] },
-      { role: "tool", content: [{ type: "tool-result", result: { value: [{ type: "text", text: "orphan result" }] } }] },
-      { id: "msg_a3", role: "assistant", content: [{ type: "text", text: "a3 text" }] },
+      { id: "msg_a2", role: "assistant", content: [{ type: "tool-call", id: "call_a2", name: "read", input: {} }, { type: "text", text: "a2 text" }] },
+      { role: "tool", content: [{ type: "tool-result", id: "call_a2", name: "read", result: { value: [{ type: "text", text: "a2 output" }] } }] },
+      { role: "tool", content: [{ type: "tool-result", name: "read", result: { value: [{ type: "text", text: "a2 adjacent output" }] } }] },
+      { id: "msg_a3", role: "assistant", content: [{ type: "tool-call", id: "call_a3", name: "bash", input: {} }, { type: "text", text: "a3 text" }] },
+      { role: "tool", content: [{ type: "tool-result", id: "call_a3", name: "bash", result: { value: [{ type: "text", text: "a3 output" }] } }] },
       { id: "msg_u4", role: "user", content: [{ type: "text", text: "user four" }] },
       { id: "msg_a5", role: "assistant", content: [{ type: "text", text: "a5 text" }] },
       { id: "msg_u6", role: "user", content: [{ type: "text", text: "user six" }] },
+      { role: "tool", content: [{ type: "tool-result", name: "read", result: { value: [{ type: "text", text: "orphan result" }] } }] },
       { id: "msg_a7", role: "assistant", content: [{ type: "text", text: "a7 text" }] },
       { id: "msg_u8", role: "user", content: [{ type: "text", text: "user eight" }] },
       { id: "msg_a9", role: "assistant", content: [{ type: "text", text: "a9 text" }] },
@@ -257,7 +268,7 @@ function draft(sessionID = SID) {
   chk("R1 row 4 = the bash-target row (own=205, req-at=9000)", lines[8] === "row: 4 assistant id=msg_a3 own=205 req-at=9000 tool=bash target=ls -la", JSON.stringify(lines[8] ?? null));
   chk("R1 the zero-content rows print own=0 + req-at (the provider figure cannot masquerade as weight)", lines[10] === "row: 6 assistant id=msg_a5 own=0 req-at=150" && lines[12] === "row: 8 assistant id=msg_a7 own=0 req-at=25000" && lines[14] === "row: 10 assistant id=msg_a9 own=3 req-at=400", JSON.stringify([lines[10], lines[12], lines[14]]));
   chk("R1 the `last:` flag + (U8) `biggest:` ranks by OWN weight: the NEWEST row (10=3) is the SMALLEST, the old tool rows dominate (the error turn excluded)", lines[15] === "last: 10" && lines[19] === "biggest: 4=205 3=111 10=3", JSON.stringify([lines[15], lines[19]]));
-  chk("R1 the recommendation block = the trim RANGE: retained = OWN-mass sum, dropped = DROPPABLE sum (U8b — the hook removes id-carrying parts only; outputs survive)", lines[16] === "option low: msg=msg_u4 keep=6 retained=14 (read=0 thought=15 shell=0) dropped=18 (read=11 thought=2 shell=5) hint=user four" && lines[17] === "option medium: msg=msg_a2 keep=8 retained=330 (read=11 thought=15 shell=5) dropped=2 (read=0 thought=2 shell=0) hint=C:/a/b.ts offset=5 limit=20" && lines[18] === "option high: msg=msg_u1 keep=9 retained=332 (read=11 thought=17 shell=5) dropped=0 (read=0 thought=0 shell=0) hint=user one", JSON.stringify([lines[16], lines[17], lines[18]]));
+  chk("R1 the recommendation block = the trim RANGE with OWN-mass sums (U9: outputs count again — they drop with their call)", lines[16] === "option low: msg=msg_u4 keep=6 retained=14 (read=0 thought=10 shell=0) dropped=318 (read=100 thought=2 shell=200) hint=user four" && lines[17] === "option medium: msg=msg_a2 keep=8 retained=330 (read=100 thought=10 shell=200) dropped=2 (read=0 thought=2 shell=0) hint=C:/a/b.ts offset=5 limit=20" && lines[18] === "option high: msg=msg_u1 keep=9 retained=332 (read=100 thought=12 shell=200) dropped=0 (read=0 thought=0 shell=0) hint=user one", JSON.stringify([lines[16], lines[17], lines[18]]));
   chk("R1 report mode makes ZERO store writes (the report never writes)", readStore() === null && existsSync(LOG), JSON.stringify(readStore()));
 }
 
@@ -266,9 +277,9 @@ function draft(sessionID = SID) {
 {
   const out = await trim({ mode: "report", session: SID, target: "msg_u4" });
   const lines = out.split("\n");
-  chk("R2 dry-run: a legal boundary's remove/keep counts (remove = DROPPABLE mass, U8b)", lines[20] === "dry-run: target=msg_u4 remove=4 (23 tokens) keep=6 (9 tokens) verdict=ok", JSON.stringify(lines[20] ?? null));
+  chk("R2 dry-run: a legal boundary's remove/keep counts (remove = FULL own mass, U9)", lines[20] === "dry-run: target=msg_u4 remove=4 (323 tokens) keep=6 (9 tokens) verdict=ok", JSON.stringify(lines[20] ?? null));
   const out2 = await trim({ mode: "report", session: SID, target: "msg_u6" });
-  chk("R2 dry-run: a boundary leaving 4 rows is REJECTED (the floor carries; counts still print)", out2.split("\n")[20] === "dry-run: target=msg_u6 remove=6 (25 tokens) keep=4 (7 tokens) verdict=rejected: retained-tail-below-floor 4", out2.split("\n")[20]);
+  chk("R2 dry-run: a boundary leaving 4 rows is REJECTED (the floor carries; counts still print)", out2.split("\n")[20] === "dry-run: target=msg_u6 remove=6 (325 tokens) keep=4 (7 tokens) verdict=rejected: retained-tail-below-floor 4", out2.split("\n")[20]);
 }
 
 // ------------------------------------------------------------------ T1 the tail store: set + clear + rejection lines
@@ -303,22 +314,24 @@ function draft(sessionID = SID) {
   await trim({ mode: "tail", session: SID, target: "msg_u4" }); // boundary: drop msg_c0/u1/a2/a3
   const before = readLog().length;
   const d = draft();
-  const nBefore = d.messages.length; // 12 entries (2 id-less)
+  const nBefore = d.messages.length; // 15 entries (3 id-less: system + 2 result projections + 1 orphan)
   await fire(d);
   const ids = d.messages.map((m) => m.id ?? "(none)");
-  chk("H1 the filter drops EXACTLY the pre-boundary id-carrying entries (4) and NOTHING else", d.messages.length === nBefore - 4 && ids.indexOf("msg_c0") === -1 && ids.indexOf("msg_u1") === -1 && ids.indexOf("msg_a2") === -1 && ids.indexOf("msg_a3") === -1, JSON.stringify(ids));
-  chk("H1 the id-less entries SURVIVE (system/tool-result projections) + the head-to-tail order is preserved", ids.indexOf("(none)") === 0 && d.messages[d.messages.length - 1]?.id === "msg_a9" && d.messages.filter((m) => !("id" in m)).length === 2, JSON.stringify(ids));
+  const texts = d.messages.map((m) => JSON.stringify(m.content)).join("|");
+  chk("H1 (U9 pair rule) the boundary drops the 4 pre-boundary entries AND their outputs atomically (call-id link + adjacency) — 7 entries go", d.messages.length === nBefore - 7 && ids.indexOf("msg_c0") === -1 && ids.indexOf("msg_u1") === -1 && ids.indexOf("msg_a2") === -1 && ids.indexOf("msg_a3") === -1, JSON.stringify(ids));
+  chk("H1 the marked row's OUTPUTS vanish (linked result_a2 + adjacency result + linked result_a3) — no call left without its output", !texts.includes("a2 output") && !texts.includes("a2 adjacent output") && !texts.includes("a3 output"), texts.slice(0, 200));
+  chk("H1 the id-less entries that STAY = the system projection + the TRUE orphan (adjacency anchor msg_u6 is kept) + order preserved", ids.indexOf("(none)") === 0 && d.messages[d.messages.length - 1]?.id === "msg_a9" && d.messages.filter((m) => !("id" in m)).length === 2 && texts.includes("orphan result"), JSON.stringify(ids));
   chk("H1 NO entry is appended (the array only shrinks; length 8)", d.messages.length === 8, `len=${d.messages.length}`);
   const delta = readLog().slice(before);
-  chk("H1 ONE kind:trim evidence line (session/boundary/counts)", delta.length === 1 && delta[0].kind === "trim" && delta[0].session === SID && delta[0].boundary === "msg_u4" && delta[0].droppedRows === "4" && delta[0].droppedEntries === "4" && delta[0].keptEntries === "8", JSON.stringify(delta[0] ?? null));
+  chk("H1 ONE kind:trim line (4 rows, 7 entries = 4 ids + 3 projections, orphan=1)", delta.length === 1 && delta[0].kind === "trim" && delta[0].session === SID && delta[0].boundary === "msg_u4" && delta[0].droppedRows === "4" && delta[0].droppedEntries === "7" && delta[0].droppedProjections === "3" && delta[0].orphan === "1" && delta[0].keptEntries === "8", JSON.stringify(delta[0] ?? null));
   const dBefore = JSON.stringify(draft().messages.slice(1, 3));
-  chk("H1 surviving entries are BYTE-UNCHANGED (no content mutation of kept rows)", JSON.stringify(draft().messages.slice(6, 8)) === JSON.stringify(d.messages.slice(2, 4)), `${dBefore}`);
+  chk("H1 surviving entries are BYTE-UNCHANGED (no content mutation of kept rows)", JSON.stringify(draft().messages.slice(9, 11)) === JSON.stringify(d.messages.slice(2, 4)), `${dBefore}`);
   chk("H1 system/options/tools untouched", JSON.stringify(d.system) === JSON.stringify([{ type: "text", text: "the system part" }]) && JSON.stringify(d.options) === "{}" && JSON.stringify(d.tools) === "{}");
   await trim({ mode: "tail", session: SID, clear: true });
   const nCalls = RPC.calls.length;
   const logBefore = readLog().length;
   await fire(draft());
-  chk("H2 with NO stored boundary the hook is SILENT: NO service call, NO log line, the draft untouched", RPC.calls.length === nCalls && readLog().length === logBefore && draft().messages.length === 12, `calls=${RPC.calls.length - nCalls} lines=${readLog().length - logBefore}`);
+  chk("H2 with NO stored boundary the hook is SILENT: NO service call, NO log line, the draft untouched", RPC.calls.length === nCalls && readLog().length === logBefore && draft().messages.length === 15, `calls=${RPC.calls.length - nCalls} lines=${readLog().length - logBefore}`);
 }
 
 // ------------------------------------------------------------------ H3 the stale boundary (a new compaction row landed)
@@ -356,14 +369,14 @@ function draft(sessionID = SID) {
   const before = readLog().length;
   const d = draft();
   await fire(d);
-  chk("H4 a failing context read keeps the WHOLE window (fail-open)", d.messages.length === 12, `len=${d.messages.length}`);
+  chk("H4 a failing context read keeps the WHOLE window (fail-open)", d.messages.length === 15, `len=${d.messages.length}`);
   const delta = readLog().slice(before);
   chk("H4 ONE kind:gauge line, reason context-read-failed + a capped preview", delta.length === 1 && delta[0].kind === "gauge" && delta[0].session === SID && delta[0].reason === "context-read-failed" && /mock context read failure/.test(String(delta[0].preview)), JSON.stringify(delta[0] ?? null));
   RPC.mode = "not-found";
   const b2 = readLog().length;
   const d2 = draft();
   await fire(d2);
-  chk("H4 the hook's not-found read logs reason session-not-found and keeps the window", d2.messages.length === 12 && readLog().slice(b2).length === 1 && readLog().slice(b2)[0].reason === "session-not-found", JSON.stringify(readLog().slice(b2)[0] ?? null));
+  chk("H4 the hook's not-found read logs reason session-not-found and keeps the window", d2.messages.length === 15 && readLog().slice(b2).length === 1 && readLog().slice(b2)[0].reason === "session-not-found", JSON.stringify(readLog().slice(b2)[0] ?? null));
   const b3 = readLog().length;
   const d3 = draft();
   d3.messages = "not-an-array";
@@ -378,8 +391,9 @@ function draft(sessionID = SID) {
 // until apply); `apply` unions it into ACTIVE behind the 80% projection bound
 // (over-bound refusal + force acceptance + nothing-staged refusal); mark-clear
 // empties BOTH sets, tail-clear keeps BOTH; the report prints the staged/active
-// fields + the `projection:` line (map indexes +1). U8/U8b re-pinned every est:
-// DROPPABLE sums + the POSITIVE `drop_est=` on the apply line.
+// fields + the `projection:` line (map indexes +1). U9 re-pinned every est back
+// to the FULL own sums (the pair rule drops outputs) + the pair/orphan trim-line
+// fields + the same-step `apply` retry.
 
 {
   const m = async (args) => await trim({ mode: "mark", ...args });
@@ -387,27 +401,29 @@ function draft(sessionID = SID) {
   const stagedOf = () => JSON.stringify(readStore()?.sessions?.[SID]?.staged ?? null);
   const activeOf = () => JSON.stringify(readStore()?.sessions?.[SID]?.active ?? null);
   const applyLines = () => readLog().filter((l) => l.kind === "apply");
-  // M1 the staging round-trip + the success line (U8b DROPPABLE masses: msg_u1 drop=2 + msg_a3 drop=5)
-  chk("M1 mark ids -> the +n/-m/total(staged)/DROPPABLE-est line", (await m({ session: SID, ids: ["msg_u1", "msg_a3"] })) === "mark-set= +2 -0 total=2 rows_dropped_est=7");
+  // M1 the staging round-trip + the success line (U9 FULL own masses: msg_u1 2 + msg_a3 205)
+  chk("M1 mark ids -> the +n/-m/total(staged)/OWN-est line (outputs included again)", (await m({ session: SID, ids: ["msg_u1", "msg_a3"] })) === "mark-set= +2 -0 total=2 rows_dropped_est=207");
   chk("M1 staged lands in the store next to the (empty) boundary lane; order-preserved, de-dup; NO active yet", readStore()?.sessions?.[SID]?.boundary === "" && stagedOf() === JSON.stringify(["msg_u1", "msg_a3"]) && readStore()?.sessions?.[SID]?.active === undefined, stagedOf());
   // M2 staged is NOT a drop yet: a staged-only entry is fully SILENT for the hook
   const m2c = RPC.calls.length;
   const m2b = readLog().length;
   const d2 = draft();
   await fire(d2);
-  chk("M2 a staged-only entry is SILENT: the draft keeps all 12 entries, NO service call, NO log line", d2.messages.length === 12 && RPC.calls.length === m2c && readLog().length === m2b, `len=${d2.messages.length} calls=${RPC.calls.length - m2c} lines=${readLog().length - m2b}`);
-  // M2b apply unions staged into active — POSITIVE drop_est (U8b droppable sum): last-req 55000 − 7; mixed = rows WITHOUT req-at (msg_u1 only)
-  chk("M2b apply -> staged->active with POSITIVE drop_est (droppable sum 7, projected positive)", (await ap()) === "apply= staged->active n=2 drop_est=7 projected=54993 bound=96000 ok mixed=1");
+  chk("M2 a staged-only entry is SILENT: the draft keeps all 15 entries, NO service call, NO log line", d2.messages.length === 15 && RPC.calls.length === m2c && readLog().length === m2b, `len=${d2.messages.length} calls=${RPC.calls.length - m2c} lines=${readLog().length - m2b}`);
+  // M2b apply unions staged into active — POSITIVE drop_est (U9 FULL own-mass sum: outputs drop too): last-req 55000 − 207; mixed = rows WITHOUT req-at (msg_u1 only)
+  chk("M2b apply -> staged->active with POSITIVE drop_est (own sum 207 incl outputs, projected positive)", (await ap()) === "apply= staged->active n=2 drop_est=207 projected=54793 bound=96000 ok mixed=1");
   chk("M2b the store after apply: the staged key is gone, active holds both ids", stagedOf() === "null" && activeOf() === JSON.stringify(["msg_u1", "msg_a3"]), stagedOf() + activeOf());
-  chk("M2b exactly ONE kind:apply line with session + drop_est/n/projected/bound/mixed scalars", applyLines().length === 1 && applyLines()[0].session === SID && applyLines()[0].n === "2" && applyLines()[0].dropEst === "7" && applyLines()[0].projected === "54993" && applyLines()[0].bound === "96000" && applyLines()[0].mixed === "1", JSON.stringify(applyLines()[0] ?? null));
-  // M2c the hook now drops the active pair
+  chk("M2b exactly ONE kind:apply line with session + drop_est/n/projected/bound/mixed scalars", applyLines().length === 1 && applyLines()[0].session === SID && applyLines()[0].n === "2" && applyLines()[0].dropEst === "207" && applyLines()[0].projected === "54793" && applyLines()[0].bound === "96000" && applyLines()[0].mixed === "1", JSON.stringify(applyLines()[0] ?? null));
+  // M2c the hook now drops the active pair ATOMICALLY with their outputs
   const mb = readLog().length;
   const dm = draft();
   await fire(dm);
   const idsM = dm.messages.map((x) => x.id ?? "(none)");
-  chk("M2c after apply the hook drops EXACTLY the two active entries and NOTHING else (head + id-less survive, order kept)", dm.messages.length === 10 && !idsM.includes("msg_u1") && !idsM.includes("msg_a3") && idsM.includes("msg_c0") && idsM[0] === "(none)" && idsM[idsM.length - 1] === "msg_a9", JSON.stringify(idsM));
+  const textsM = dm.messages.map((x) => JSON.stringify(x.content)).join("|");
+  chk("M2c after apply the hook drops the two active entries + the LINKED result_a3 (12 kept), order kept", dm.messages.length === 12 && !idsM.includes("msg_u1") && !idsM.includes("msg_a3") && idsM.includes("msg_c0") && idsM[0] === "(none)" && idsM[idsM.length - 1] === "msg_a9", JSON.stringify(idsM));
+  chk("M2c ATOMICITY the other way: the UNMARKED msg_a2 keeps its LINKED output (a2 output stays), a3's output left too", textsM.includes("a2 output") && !textsM.includes("a3 output"), textsM.slice(0, 200));
   const dM = readLog().slice(mb);
-  chk("M2c ONE kind:trim line (boundary none, marks=2 the ACTIVE size, 2 rows/2 entries dropped, 10 kept)", dM.length === 1 && dM[0].kind === "trim" && dM[0].boundary === "none" && dM[0].marks === "2" && dM[0].droppedRows === "2" && dM[0].droppedEntries === "2" && dM[0].keptEntries === "10", JSON.stringify(dM[0] ?? null));
+  chk("M2c ONE kind:trim line (boundary none, marks=2, 2 rows/3 entries = 2 ids + 1 projection, orphan=2, 12 kept)", dM.length === 1 && dM[0].kind === "trim" && dM[0].boundary === "none" && dM[0].marks === "2" && dM[0].droppedRows === "2" && dM[0].droppedEntries === "3" && dM[0].droppedProjections === "1" && dM[0].orphan === "2" && dM[0].keptEntries === "12", JSON.stringify(dM[0] ?? null));
   chk("M2d stage then un-mark a staged id (un-marking needs no window; own est 2)", (await m({ session: SID, ids: ["msg_u4"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=2" && stagedOf() === JSON.stringify(["msg_u4"]) && (await m({ session: SID, unmark: ["msg_u4"] })) === "mark-set= +0 -1 total=0 rows_dropped_est=0" && stagedOf() === "null" && activeOf() === JSON.stringify(["msg_u1", "msg_a3"]));
   // M3-M5c fail-closed guards (a rejection writes NOTHING; the floor is the UNION)
   chk("M3 head mark rejected (the head carries the summary)", (await m({ session: SID, ids: ["msg_c0"] })) === "mark-set= rejected: mark-at-window-head" && stagedOf() === "null" && activeOf() === JSON.stringify(["msg_u1", "msg_a3"]));
@@ -419,20 +435,20 @@ function draft(sessionID = SID) {
   chk("M6 apply with nothing staged is refused", (await ap()) === "apply= rejected: nothing-staged");
   chk("M6 apply takes no list args", (await ap({ ids: ["msg_u1"] })) === "error: apply mode takes no list args (stage with mark mode first; only `force` is accepted)");
   // M7 the boundary + staged/active interplay + the clear symmetry
-  chk("M7a boundary set + a pre-boundary id staged (droppable est 11)", (await trim({ session: SID, mode: "tail", target: "msg_u4" })) === "tail-set= none -> msg_u4 keep=6" && (await m({ session: SID, ids: ["msg_a2"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=11");
+  chk("M7a boundary set + a pre-boundary id staged (own est 111)", (await trim({ session: SID, mode: "tail", target: "msg_u4" })) === "tail-set= none -> msg_u4 keep=6" && (await m({ session: SID, ids: ["msg_a2"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=111");
   chk("M7a a further staged mark at the boundary+staged floor is rejected (the boundary keeps 6)", (await m({ session: SID, ids: ["msg_a9"] })) === "mark-set= rejected: mark-floor 5" && stagedOf() === JSON.stringify(["msg_a2"]));
-  chk("M7b apply unions the pre-boundary staged id (positive drop_est 11, mixed=0 — it has a req-at counterpart)", (await ap()) === "apply= staged->active n=1 drop_est=11 projected=54989 bound=96000 ok mixed=0" && activeOf() === JSON.stringify(["msg_a2"]));
+  chk("M7b apply unions the pre-boundary staged id (positive drop_est 111, mixed=0 — it has a req-at counterpart)", (await ap()) === "apply= staged->active n=1 drop_est=111 projected=54889 bound=96000 ok mixed=0" && activeOf() === JSON.stringify(["msg_a2"]));
   chk("M7c mark clear empties BOTH sets and KEEPS the boundary", (await m({ session: SID, clear: true })) === "mark-set= +0 -1 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID]?.boundary === "msg_u4" && stagedOf() === "null" && activeOf() === "null");
   const dm7 = draft();
   await fire(dm7);
-  chk("M7c the boundary STILL applies after the mark clear (4 pre-boundary entries dropped, 12 -> 8)", dm7.messages.length === 8, `len=${dm7.messages.length}`);
+  chk("M7c the boundary STILL applies after the mark clear (pre-boundary ids + outputs dropped, 15 -> 8)", dm7.messages.length === 8, `len=${dm7.messages.length}`);
   // M8 stale ACTIVE ids: the window moved -> ignored, ONE marks-stale line (deduped per count)
-  chk("M8 stage both + apply (droppable est 13, mixed=1) + tail clear LEAVES the active set (mirror symmetry)", (await m({ session: SID, ids: ["msg_a2", "msg_u1"] })) === "mark-set= +2 -0 total=2 rows_dropped_est=13" && (await ap()) === "apply= staged->active n=2 drop_est=13 projected=54987 bound=96000 ok mixed=1" && (await trim({ session: SID, mode: "tail", clear: true })) === "tail-set= msg_u4 -> none" && activeOf() === JSON.stringify(["msg_a2", "msg_u1"]));
+  chk("M8 stage both + apply (own est 113, mixed=1) + tail clear LEAVES the active set (mirror symmetry)", (await m({ session: SID, ids: ["msg_a2", "msg_u1"] })) === "mark-set= +2 -0 total=2 rows_dropped_est=113" && (await ap()) === "apply= staged->active n=2 drop_est=113 projected=54887 bound=96000 ok mixed=1" && (await trim({ session: SID, mode: "tail", clear: true })) === "tail-set= msg_u4 -> none" && activeOf() === JSON.stringify(["msg_a2", "msg_u1"]));
   RPC.rows = compactedRows();
   const m8b = readLog().length;
   const d8 = draft();
   await fire(d8);
-  chk("M8 a moved window drops NOTHING from stale active ids (fail-open; the draft keeps all 12)", d8.messages.length === 12, `len=${d8.messages.length}`);
+  chk("M8 a moved window drops NOTHING from stale active ids (fail-open; the draft keeps all 15)", d8.messages.length === 15, `len=${d8.messages.length}`);
   const d8l = readLog().slice(m8b);
   chk("M8 exactly ONE kind:marks-stale line (staleMarks=2, marksTotal=2)", d8l.length === 1 && d8l[0].kind === "marks-stale" && d8l[0].session === SID && d8l[0].staleMarks === "2" && d8l[0].marksTotal === "2", JSON.stringify(d8l[0] ?? null));
   await fire(draft());
@@ -440,11 +456,11 @@ function draft(sessionID = SID) {
   RPC.rows = null;
   const d8r = draft();
   await fire(d8r);
-  chk("M8 the active set is LIVE again once the window returns (both dropped)", d8r.messages.length === 10 && d8r.messages.every((x) => x.id !== "msg_a2" && x.id !== "msg_u1"), JSON.stringify(d8r.messages.map((x) => x.id ?? "(none)")));
+  chk("M8 the active set is LIVE again once the window returns (both dropped, their results too — 11 kept)", d8r.messages.length === 11 && d8r.messages.every((x) => x.id !== "msg_a2" && x.id !== "msg_u1"), JSON.stringify(d8r.messages.map((x) => x.id ?? "(none)")));
   // M9 the report prints BOTH sets + the projection line (#189 stays at index 2; the gauge line shifts to 4)
   chk("M9 stage the error-turn row (own mass 0 — no parts)", (await m({ session: SID, ids: ["msg_a5"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=0");
   const rL = (await trim({ mode: "report", session: SID })).split("\n");
-  chk("M9 the report header prints staged=1 active=2 active-est=13 (droppable sums) and the #189 line holds", rL[1].includes("staged=1 active=2 active-est=13") && rL[2].startsWith("window_rows != request"), JSON.stringify([rL[1], rL[2]]));
+  chk("M9 the report header prints staged=1 active=2 active-est=113 (own sums) and the #189 line holds", rL[1].includes("staged=1 active=2 active-est=113") && rL[2].startsWith("window_rows != request"), JSON.stringify([rL[1], rL[2]]));
   chk("M9 the projection line stays POSITIVE: last-req 55000 minus staged-est 0 -> 55000 under the bound", rL[3] === "projection: last-req=55000 staged-est=0 projected=55000 bound=96000 ok", JSON.stringify(rL[3] ?? null));
   chk("M9 the gauge line rides at index 4 (the projection line shifted the map indexes +1)", rL[4].startsWith("gauge: SESSION="), JSON.stringify(rL[4] ?? null));
   // M10 over-bound + force: the fixture DB gains a HUGE LAST step row (CTX 99000 of the 120K window)
@@ -467,6 +483,31 @@ function draft(sessionID = SID) {
   chk("M10 clear leaves the store CLEAN for the C block", (await m({ session: SID, clear: true })) === "mark-set= +0 -1 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
   // M11 the usage + validation lanes
   chk("M11 usage lines (form guards + id-array validation) + the unknown-session rejection", (await m({ session: SID, clear: true, ids: ["msg_u1"] })) === "error: mark mode: clear is mutually exclusive with ids/unmark (use one form)" && (await m({ session: SID })) === "error: mark mode requires ids (window message ids to stage for the drop), unmark (ids to restore), or clear (empty BOTH drop sets — a stored boundary stays)" && (await m({ session: SID, ids: "msg_u1" })) === "error: mark mode: ids and unmark must be arrays of non-empty message id strings" && (await trim({ mode: "mark", session: "ses_absent000", ids: ["msg_x"] })) === "mark-set= rejected: session-not-found");
+}
+
+// ------------------------------------------------------------------ U9 the #194 pins: hint cap + same-step apply truthfulness
+
+{
+  // (a) the hint cap: a variant window whose LOW anchor row carries a long
+  // assistant/user text — the echo must collapse to ONE capped line.
+  const longRows = windowRows().map((r) => (r.id === "msg_u4" ? { ...r, text: "user four " + "x".repeat(200) } : r));
+  RPC.rows = longRows;
+  const hl = (await trim({ mode: "report", session: SID })).split("\n");
+  const optLow = hl.find((l) => l.startsWith("option low")) ?? "";
+  chk("HINT-CAP (#194) a long anchor echoes ONE capped line: 80 chars + the inline cut marker", optLow.includes(`hint=user four ${"x".repeat(69)}…[+130ch]`), JSON.stringify(optLow.slice(optLow.indexOf("hint="), optLow.indexOf("hint=") + 110)));
+  RPC.rows = null;
+  // (b) the same-step race: the staged write lands 80ms AFTER apply's first
+  // read — the ONE bounded re-read (350ms) rides it: apply APPLIES the new set
+  // instead of falsely reporting `nothing-staged` after a successful mark.
+  const activeOfU9 = () => JSON.stringify(readStore()?.sessions?.[SID]?.active ?? null);
+  setTimeout(() => {
+    const base = existsSync(STORE) ? JSON.parse(readFileSync(STORE, "utf8")) : {};
+    base.sessions = { ...(base.sessions ?? {}), [SID]: { boundary: "", keep: 0, set_at: new Date().toISOString(), staged: ["msg_u4"] } };
+    writeFileSync(STORE, JSON.stringify(base), "utf8");
+  }, 80);
+  const out9 = await trim({ mode: "apply", session: SID });
+  chk("APPLY-RETRY (#194) a same-step late mark write rides the retry re-read (n=1 applied, no false nothing-staged)", out9 === "apply= staged->active n=1 drop_est=2 projected=54998 bound=96000 ok mixed=1" && activeOfU9() === JSON.stringify(["msg_u4"]), JSON.stringify({ out: out9, active: activeOfU9() }));
+  chk("APPLY-RETRY leaves the store CLEAN for the C block", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -1 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
 }
 
 // ------------------------------------------------------------------ C1 the composition block (the REAL context_family plugin, the #153 APPEND channel)
@@ -520,7 +561,7 @@ function draft(sessionID = SID) {
   const dD = draft();
   const trim1 = readLog().length;
   await trimFilter(dD);
-  chk("C5 with a boundary set the filter drops EXACTLY the four pre-boundary ids, keeps the id-less entries and appends NOTHING to the draft (12 -> 8)", dD.messages.length === 8 && ["msg_c0", "msg_u1", "msg_a2", "msg_a3"].every((id) => dD.messages.every((m) => m.id !== id)) && dD.messages.filter((m) => m.id === undefined).length === 2, JSON.stringify({ len: dD.messages.length, ids: dD.messages.map((m) => m.id ?? "(none)") }));
+  chk("C5 with a boundary set the filter drops the four pre-boundary ids WITH their output projections (7 go), keeps the system + orphan id-less entries, appends NOTHING (15 -> 8)", dD.messages.length === 8 && ["msg_c0", "msg_u1", "msg_a2", "msg_a3"].every((id) => dD.messages.every((m) => m.id !== id)) && dD.messages.filter((m) => m.id === undefined).length === 2, JSON.stringify({ len: dD.messages.length, ids: dD.messages.map((m) => m.id ?? "(none)") }));
   const dtr = readLog().slice(trim1);
   chk("C5 the filter's own ONE trim line lands in ITS log; context_family's log gains nothing from the draft fire", dtr.length === 1 && dtr[0].kind === "trim" && cfLog().length === cf2, JSON.stringify({ trim: dtr.map((l) => l.kind), cfDelta: cfLog().length - cf2 }));
   // (DoD 2b, the boundary-set state): the draft leg ON a tool-result event can only
@@ -574,14 +615,14 @@ function draft(sessionID = SID) {
   const kinds = new Set(lines.map((l) => l.kind));
   chk("INV every line parses; kinds ⊂ {report, tail, trim, boundary-stale, gauge, mark, marks-stale, apply}", [...kinds].sort().join(",") === "apply,boundary-stale,gauge,mark,marks-stale,report,tail,trim", JSON.stringify([...kinds].sort()));
   chk("INV every line carries ts + kind and stays within the LINE_CAP ladder", lines.every((l) => typeof l.ts === "string" && typeof l.kind === "string" && JSON.stringify(l).length <= 2000 && JSON.stringify(l).length > 0));
-  chk("INV the `trim` lines all name a session + boundary + the three counts", lines.filter((l) => l.kind === "trim").every((l) => typeof l.session === "string" && typeof l.boundary === "string" && typeof l.droppedRows === "string" && typeof l.droppedEntries === "string" && typeof l.keptEntries === "string"));
+  chk("INV the `trim` lines all name a session + boundary + the counts incl droppedProjections/orphan (U9)", lines.filter((l) => l.kind === "trim").every((l) => typeof l.session === "string" && typeof l.boundary === "string" && typeof l.droppedRows === "string" && typeof l.droppedEntries === "string" && typeof l.droppedProjections === "string" && typeof l.orphan === "string" && typeof l.keptEntries === "string"));
   chk("INV the `mark` lines all name session + added/removed/total scalars", lines.filter((l) => l.kind === "mark").every((l) => typeof l.session === "string" && typeof l.added === "string" && typeof l.removed === "string" && typeof l.total === "string"));
   chk("INV the `apply` lines all name session + n/dropEst/projected/bound/mixed scalars (U8)", lines.filter((l) => l.kind === "apply").every((l) => typeof l.session === "string" && typeof l.n === "string" && typeof l.dropEst === "string" && typeof l.projected === "string" && typeof l.bound === "string" && typeof l.mixed === "string"));
-  chk("INV the FOUR applied kind:apply lines (the rejections log nothing — fail-closed)", lines.filter((l) => l.kind === "apply").length === 4, `count=${lines.filter((l) => l.kind === "apply").length}`);
+  chk("INV the FIVE applied kind:apply lines (the rejections log nothing — fail-closed; U9 adds the retry leg)", lines.filter((l) => l.kind === "apply").length === 5, `count=${lines.filter((l) => l.kind === "apply").length}`);
   chk("INV the ONE boundary-stale line for the (session,boundary) state (deduped)", lines.filter((l) => l.kind === "boundary-stale").length === 1, `count=${lines.filter((l) => l.kind === "boundary-stale").length}`);
   chk("INV the ONE marks-stale line for the (session,count) state (deduped)", lines.filter((l) => l.kind === "marks-stale").length === 1, `count=${lines.filter((l) => l.kind === "marks-stale").length}`);
   chk("INV the gauge lines' reasons are only the two honest read failures", lines.filter((l) => l.kind === "gauge").every((l) => l.reason === "context-read-failed" || l.reason === "session-not-found" || l.reason === "messages-not-array"));
-  chk("INV report mode emitted a kind:report line per call (8 calls)", lines.filter((l) => l.kind === "report").length === 8, `count=${lines.filter((l) => l.kind === "report").length}`);
+  chk("INV report mode emitted a kind:report line per call (9 calls incl the U9 hint leg)", lines.filter((l) => l.kind === "report").length === 9, `count=${lines.filter((l) => l.kind === "report").length}`);
 }
 
 // ------------------------------------------------------------------ cleanup

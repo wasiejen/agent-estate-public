@@ -74,18 +74,20 @@ Contract pinning lives in `.opencode/plugins/probes/handover_probe.mjs`.
 - The probe/gauge scripts (`.opencode/plugins/scripts/`, `repo_commands.md`) are not custom tools.
 - Their docs live with them.
 
-## Two tool surfaces (measured 2026-10-27, opencode 2.2.0)
-- The Code Mode catalog exposes these tools as `tools.<x>()` inside `execute`.
-- When an agent's permissions set `execute: "deny"`, the host puts the same
-  tools directly into that agent's NATIVE tool schema (upstream v2.2.0, PR
-  #59315) and `execute` disappears from the schema entirely — measured on the
-  worker agent: `block_transfer`, `ctx_gauge`, `loop_log`, `submit`,
-  `state_snapshot`, `context_trim`, `compact_memory`,
-  `dev_get_tool_context_contents` all present natively; `session_info` absent.
-- Native calls work under that exposure. Measured: the worker's native
-  `loop_log` START returned `verified: readback-match`; native `ctx_gauge`
-  returned the full readout line. The old native-empty-result defect did not
-  recur.
-- Consequence: the "custom tools ONLY via `execute`" rule binds whichever
-  surface you actually have. Check your own tool list before choosing the
-  path; never work around a denied permission.
+## Tool surface: native — `execute` denied globally (ruling 2026-10-27, #182)
+- The maintainer denies `execute` for EVERY agent. One root `permission` line is
+  global: fork proof `packages/core/src/config/plugin/agent.ts:84-91` pushes the
+  root document's permission rules onto every agent in the registry.
+- Effect (upstream v2.2.0 #59315): this tool set lands in each agent's NATIVE
+  tool schema and `execute` vanishes from the schema. Call these tools directly.
+- Measured under the deny (worker probe `a0d86bc`): all 8 custom tools plus all 8
+  `opencode_*` host tools present natively; native `loop_log` START →
+  `verified: readback-match`; native `ctx_gauge` → full readout line. Planner-side
+  native calls ride the first session after the config lands.
+- Check your own tool list before assuming a path. If some agent ever re-enables
+  `execute`, that agent may see these tools ONLY as `tools.<x>()` in the Code Mode
+  catalog. Never work around a denied permission.
+- History (forensics only): before the ruling the tools were catalog-only. Across
+  345 `execute` calls: 281 (81%) wrapped ONE tool call, 64 (19%) composed
+  several, `fetch` appeared 4 times (3 were `file://` boundary probes). See
+  TODO #182.

@@ -1034,3 +1034,6 @@ block_transfer REPLACE takes content ONLY from a named buffer: a call carrying j
 ### 2026-10-27_16-37 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
 TERMINOLOGY (mine, cost the maintainer his thread): I used the single word "strip" for two unrelated mechanisms — (1) what a compaction removes from a session, and (2) removing AGENTS.md from a test agent's context. He read them as one topic and lost the thread ("what strip? i thought the strip works?"). Rule for maintainer-facing text: never reuse one word across unrelated mechanisms; name each mechanism with its own two-word label, and state the planned action plus the expected result before any parameter detail.
 
+### 2026-10-27_18-16 worker_FlashNext ses_e81a9dbccffeYTLRKT4Pmt0Ou4
+session.context HTTP probe unusable: curl localhost:4096 refused (rc=7) and the live server port is not discoverable from any committed/knowledge location — netstat gave 15+ candidate ports. Need a documented port-discovery path for endpoint probes.
+

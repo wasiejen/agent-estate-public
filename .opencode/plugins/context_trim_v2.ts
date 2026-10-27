@@ -49,10 +49,13 @@
 // row is NOT a weight — `data.tokens{input,output,…}` sums to the REQUEST size at
 // that step (input + cache.read = the whole cached conversation), 75x+ the row's
 // own bytes (planner-measured) — so it prints relabeled as `req-at=<tokens>` and
-// feeds NOTHING but the last-request projection authority. Every sum
-// (`window-est=`, `retained=`/`dropped=`, `active-est=`, `rows_dropped_est=`,
-// `drop_est=`, `biggest:`) is an OWN-mass sum; `biggest:` therefore ranks by
-// weight, not by recency. The header also rides the SHARED gauge core (v2-paired
+// feeds NOTHING but the last-request projection authority. `window-est=`,
+// `retained=` and `biggest:` are OWN-mass sums (`biggest:` therefore ranks by
+// weight, not by recency); every DROP sum (`dropped=`, `active-est=`,
+// `rows_dropped_est=`, `drop_est=`, the dry-run remove mass) is the row's
+// DROPPABLE part — the hook removes only the id-carrying assembly entry, so
+// text/reasoning/tool-input bytes drop while tool OUTPUTS ride id-less
+// tool-result projections and survive (U8b, live-measured). The header also rides the SHARED gauge core (v2-paired
 // since units 1+2): `readGauge(undefined, sessionID)` + `formatGauge` — no new
 // SQL is added for the session/model/ctx figure (the gauge core is the ONLY DB
 // reader used; a db-error read prints ONE honest `gauge: db-error …` line and
@@ -175,12 +178,14 @@
 // `mode:'apply'` unions it into the `active` set the hook actually drops. Store
 // per session: `{ boundary, keep, set_at, staged?, active? }` — a legacy `marks`
 // key READ-SEEDS `active` (a pre-U7 store keeps working; the key is replaced on
-// the next write). `apply` first PROJECTS the resulting request (U8 #192): the
+// the next write). `apply` first PROJECTS the resulting request (U8/U8b #192): the
 // last completed request's prompt tokens (gauge `ctx − output` = input + cache.read
 // — the provider figures stay the authority HERE, never hard-coded) MINUS
-// `drop_est` = the OWN-mass sum of the newly active rows — POSITIVE by
-// construction (own weights ≪ the request size), and the live measured
-// step-to-step gauge drop agrees with it within ±35% (the U8 gate);
+// `drop_est` = the DROPPABLE-mass sum of the newly active rows — POSITIVE by
+// construction and LIVE-VERIFIED against the measured step-to-step gauge drop
+// within ±35% (the U8 gate): the hook drops the row's id-carrying entry ONLY,
+// so the sum counts text/reasoning/tool-input bytes — tool OUTPUT rides id-less
+// tool-result projection entries and survives the drop (U8b, live-measured).
 // `mixed=<c>` counts the staged rows WITHOUT a provider `req-at` counterpart.
 // When the projection exceeds
 // EIGHTY percent of the gauge-core window value the apply is REFUSED
@@ -408,47 +413,59 @@ function providerTotalOf(r: Record<string, unknown>): number {
 // (user/synthetic/system/skill), content-item `text`/`reasoning` (assistant),
 // tool `state.input` (JSON bytes = the call payload) and tool `state.content`/
 // `output` (the output text), shell `output.output`, compaction `summary`+`recent`.
-function ownBytesOf(r: Record<string, unknown>): number {
-  let bytes = 0;
+// The byte split (U8b, live-measured in this session): the hook drops EXACTLY
+// the row's id-carrying assembly entry — the TOOL-OUTPUT bytes ride id-less
+// tool-result projection entries and are NEVER dropped. `own=` stays the FULL
+// weight (incl. outputs); every DROP sum (`rows_dropped_est=`, `drop_est=`,
+// `dropped=`, `active-est=`, `staged-est=`) uses the DROPPABLE part only.
+function byteBytesOf(r: Record<string, unknown>): { drop: number; out: number } {
+  let drop = 0;
+  let out = 0;
   const own = r["text"];
-  if (typeof own === "string") bytes += Buffer.byteLength(own, "utf8");
+  if (typeof own === "string") drop += Buffer.byteLength(own, "utf8");
   if (r["type"] === "compaction") {
     for (const k of ["summary", "recent"]) {
       const v = r[k];
-      if (typeof v === "string") bytes += Buffer.byteLength(v, "utf8");
+      if (typeof v === "string") drop += Buffer.byteLength(v, "utf8");
     }
   }
   const ownOut = r["output"];
-  if (typeof ownOut === "string") bytes += Buffer.byteLength(ownOut, "utf8");
+  if (typeof ownOut === "string") out += Buffer.byteLength(ownOut, "utf8");
   else {
     const nested = asRecord(ownOut);
-    if (nested != null && typeof nested["output"] === "string") bytes += Buffer.byteLength(nested["output"] as string, "utf8");
+    if (nested != null && typeof nested["output"] === "string") out += Buffer.byteLength(nested["output"] as string, "utf8");
   }
   for (const item of asArray(r["content"])) {
     const it = asRecord(item);
     if (it == null) continue;
-    if (typeof it["text"] === "string") bytes += Buffer.byteLength(it["text"], "utf8");
+    if (typeof it["text"] === "string") drop += Buffer.byteLength(it["text"], "utf8");
     if (it["type"] === "tool") {
       const state = asRecord(it["state"]);
       if (state == null) continue;
       const input = state["input"];
       if (input != null) {
         const s = JSON.stringify(input);
-        if (s != null) bytes += Buffer.byteLength(s, "utf8");
+        if (s != null) drop += Buffer.byteLength(s, "utf8");
       }
       const outp = state["output"];
-      if (typeof outp === "string") bytes += Buffer.byteLength(outp, "utf8");
+      if (typeof outp === "string") out += Buffer.byteLength(outp, "utf8");
       for (const part of asArray(state["content"])) {
         const p = asRecord(part);
-        if (p != null && typeof p["text"] === "string") bytes += Buffer.byteLength(p["text"], "utf8");
+        if (p != null && typeof p["text"] === "string") out += Buffer.byteLength(p["text"], "utf8");
       }
     }
   }
-  return bytes;
+  return { drop, out };
 }
 
 function ownMassOf(r: Record<string, unknown>): number {
-  return Math.floor(ownBytesOf(r) / 4);
+  const b = byteBytesOf(r);
+  return Math.floor((b.drop + b.out) / 4);
+}
+
+// The row's DROPPABLE weight — the parts the hook's entry-drop actually removes.
+function droppableMassOf(r: Record<string, unknown>): number {
+  return Math.floor(byteBytesOf(r).drop / 4);
 }
 
 // Per-tool-part target (v1 spec §8 surface: read → filePath (+offset/limit);
@@ -499,18 +516,30 @@ function esc(s: string): string {
   return s.replace(/\r?\n/g, "\\n").replace(/\t/g, "\\t");
 }
 
-// The read / thought / shell mass split of a row SET (an ESTIMATE — the per-
- // category bytes floored to /4; the category totals need not sum to ownMassOf).
-// Categories (v2 shapes): read = the tool-content bytes of the `read`/`webfetch`
-// items; thought = the text/reasoning item texts + the user/system/skill texts;
-// shell = the tool-content bytes of `bash` items.
+// The read / thought / shell mass split of a row SET — the DROPPABLE parts
+// (an ESTIMATE: per-category bytes floored to /4; the category totals need not
+// sum to droppableMassOf). U8b: `read`/`shell` count the tool-call INPUT JSON
+// bytes of `read`/`webfetch`/`bash` items (the output bytes ride id-less entries
+// and are never dropped); `thought` = the text/reasoning item texts + the
+// user/system/skill texts + the compaction summary/recent.
 function splitOf(rows: Array<Record<string, unknown>>): { read: number; thought: number; shell: number } {
   let read = 0;
   let thought = 0;
   let shell = 0;
+  const inputBytes = (state: Record<string, unknown> | undefined): number => {
+    if (state == null) return 0;
+    const s = JSON.stringify(state["input"] ?? null);
+    return s === "null" ? 0 : Buffer.byteLength(s, "utf8");
+  };
   for (const r of rows) {
     if (r["type"] !== "assistant") {
       if (typeof r["text"] === "string") thought += Buffer.byteLength(r["text"] as string, "utf8");
+      if (r["type"] === "compaction") {
+        for (const k of ["summary", "recent"]) {
+          const v = r[k];
+          if (typeof v === "string") thought += Buffer.byteLength(v, "utf8");
+        }
+      }
       continue;
     }
     for (const item of asArray(r["content"])) {
@@ -520,26 +549,26 @@ function splitOf(rows: Array<Record<string, unknown>>): { read: number; thought:
         if (typeof it["text"] === "string") thought += Buffer.byteLength(it["text"] as string, "utf8");
       } else if (it["type"] === "tool") {
         const state = asRecord(it["state"]);
-        let contentBytes = 0;
-        if (state != null) {
-          for (const part of asArray(state["content"])) {
-            const p = asRecord(part);
-            if (p != null && typeof p["text"] === "string") contentBytes += Buffer.byteLength(p["text"], "utf8");
-          }
-        }
         const name = typeof it["name"] === "string" ? it["name"] : "";
-        if (name === "read" || name === "webfetch") read += contentBytes;
-        else if (name === "bash") shell += contentBytes;
+        if (name === "read" || name === "webfetch") read += inputBytes(state);
+        else if (name === "bash") shell += inputBytes(state);
       }
     }
   }
   return { read: Math.floor(read / 4), thought: Math.floor(thought / 4), shell: Math.floor(shell / 4) };
 }
 
-// U8: every sum is an OWN-mass sum (see ownMassOf).
+// U8: the OWN-mass sum (window weight) and the DROPPABLE sum (what a drop-set
+// actually removes from the request — see droppableMassOf).
 function massSum(rows: Array<Record<string, unknown>>): number {
   let s = 0;
   for (const r of rows) s += ownMassOf(r);
+  return s;
+}
+
+function dropSum(rows: Array<Record<string, unknown>>): number {
+  let s = 0;
+  for (const r of rows) s += droppableMassOf(r);
   return s;
 }
 
@@ -547,23 +576,24 @@ function idOf(r: Record<string, unknown>): string {
   return typeof r["id"] === "string" ? r["id"] : "";
 }
 
-// The (8)/(9)/(U8) mark-set estimated dropped mass: the OWN-mass sum of window
-// rows at index >= 1 whose id is in the set (ids outside the window / at the
-// head contribute 0 — the hook ignores them the same way).
+// The (8)/(9)/(U8b) mark-set estimated dropped mass: the DROPPABLE-mass sum of
+// window rows at index >= 1 whose id is in the set (ids outside the window / at
+// the head contribute 0 — the hook ignores them the same way).
 function markEstimate(rows: Array<Record<string, unknown>>, marks: string[]): number {
   return idsMass(rows, marks).mass;
 }
 
-// (9)/(U8) the OWN-mass sum AND the `mixed=` count of an id-set against the
-// window rows — the apply projection source; `mixed=` counts the rows WITHOUT a
-// provider `req-at` counterpart (no completed-assistant figure to cross-check).
+// (9)/(U8b) the DROPPABLE-mass sum AND the `mixed=` count of an id-set against
+// the window rows — the apply projection source; `mixed=` counts the rows
+// WITHOUT a provider `req-at` counterpart (no completed-assistant figure to
+// cross-check).
 function idsMass(rows: Array<Record<string, unknown>>, ids: string[]): { mass: number; mixed: number } {
   let mass = 0;
   let mixed = 0;
   for (const id of ids) {
     const i = rows.findIndex((r) => idOf(r) === id);
     if (i < 1) continue;
-    mass += ownMassOf(rows[i]);
+    mass += droppableMassOf(rows[i]);
     if (providerTotalOf(rows[i]) < 0) mixed++;
   }
   return { mass, mixed };
@@ -712,7 +742,7 @@ async function reportWindow(sid: string, target?: string): Promise<string> {
       lines.push(
         `option ${o.label}: msg=${idOf(rows[o.idx])} keep=${rows.length - o.idx}` +
           ` retained=${massSum(keptRows)} (read=${rSplit.read} thought=${rSplit.thought} shell=${rSplit.shell})` +
-          ` dropped=${massSum(droppedRows)} (read=${dSplit.read} thought=${dSplit.thought} shell=${dSplit.shell})` +
+          ` dropped=${dropSum(droppedRows)} (read=${dSplit.read} thought=${dSplit.thought} shell=${dSplit.shell})` +
           ` hint=${hintOf(rows[o.idx])}`,
       );
     }
@@ -745,7 +775,7 @@ async function reportWindow(sid: string, target?: string): Promise<string> {
       const i = rows.findIndex((r) => idOf(r) === target);
       const oldStart = state === "inside" ? storedIndex : 0;
       const removeCount = i > oldStart ? i - oldStart : 0;
-      const removeMass = removeCount > 0 ? massSum(rows.slice(oldStart, i)) : 0;
+      const removeMass = removeCount > 0 ? dropSum(rows.slice(oldStart, i)) : 0;
       const keepCount = rows.length - i;
       const keepMass = massSum(rows.slice(i));
       lines.push(`dry-run: target=${target} remove=${removeCount} (${removeMass} tokens) keep=${keepCount} (${keepMass} tokens) verdict=${verdict}`);
@@ -1010,7 +1040,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
 // ------------------------------------------------------------------ the tool surface
 
 const TOOL_DESCRIPTION =
-  "Reports and trims a session's model context on the v2 session store (NO DB write). `mode:'report'` — READ-ONLY window map (the rows after the LAST completed compaction): the header names the head row, row count, BOUNDARY (inside/stale/absent), retained, STAGED/ACTIVE drop-set counts (active-est = own-mass sum); then the `window_rows != request` line (request-est = gauge CTX; window-est = own-mass sum) and a `projection:` line (last-req, staged-est, projected, bound, ok|over — inspectable before applying); then NUMBERED rows — `own=` the row's OWN weight (bytes/4 of its text, reasoning, tool input JSON, tool output) and, on completed-assistant rows, `req-at=` the REQUEST size at that step (NOT row weight) — plus tool targets (read filePath, bash command, webfetch url), the `last: N` flag, low/medium/high trim-RANGE options (anchor, keep counts, own-mass retained/dropped, read/thought/shell split, hint), `biggest:` the top-5 finished turns by OWN weight, and `target` for a dry-run (counts + masses + verdict, no write); a `gauge:` line rides the shared gauge core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: set the boundary (first KEPT message id) by `target` or `keepMessages` (a MESSAGE COUNT; mutually exclusive), REMOVE with `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add window ids, `unmark` remove, `clear` empties staged AND active (the boundary stays); the drop NEVER applies until `apply`. `mode:'apply'` — union staged into ACTIVE after projecting last-req (input + cache.read) minus drop_est (positive own-mass sum; `mixed=` counts rows with no provider req-at) against 80% of the window: refuses `apply= rejected: nothing-staged` / `over-bound <projected> <bound>` unless `force:true`. The `session.context` hook drops pre-boundary AND active entries at assembly time — history untouched, reversible; a stale boundary/ids log ONE deduped line each. Fail-closed (a rejection writes NOTHING): lines `report= rejected:` / `tail-set= rejected:` / `mark-set= rejected:` / `apply= rejected:` / `error: <usage>`; guards: id not a window row (`*-not-found`), never the window head (`*-at-window-head`), drop-union + inside boundary keep >= 6 rows (`mark-floor`/`retained-tail-below-floor`), keep form (`keep-invalid`/`keep-exceeds-history`/`keep-at-window-head`); read failures print `context-read-failed`. Returns `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<staged size> rows_dropped_est=<own tokens>`, `apply= staged->active n=<k> drop_est=<own tokens> projected=<p> bound=<b> ok mixed=<c>`. `session` may be omitted (the tool context resolves it).";
+  "Reports and trims a session's model context on the v2 session store (NO DB write). `mode:'report'` — READ-ONLY window map (the rows after the LAST completed compaction): the header names the head row, row count, BOUNDARY (inside/stale/absent), retained, STAGED/ACTIVE drop-set counts (active-est = droppable sum); then the `window_rows != request` line (request-est = gauge CTX; window-est = own-mass sum) and a `projection:` line (last-req, staged-est, projected, bound, ok|over — inspectable before applying); then NUMBERED rows — `own=` the row's OWN weight (bytes/4 of its text, reasoning, tool input JSON, tool output) and, on completed-assistant rows, `req-at=` the REQUEST size at that step (NOT row weight) — plus tool targets (read filePath, bash command, webfetch url), the `last: N` flag, low/medium/high trim-RANGE options (anchor, keep counts, own-mass retained, DROPPABLE dropped + read/thought/shell split, hint), `biggest:` the top-5 finished turns by OWN weight, and `target` for a dry-run (counts + masses + verdict, no write); a `gauge:` line rides the shared gauge core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: set the boundary (first KEPT message id) by `target` or `keepMessages` (a MESSAGE COUNT; mutually exclusive), REMOVE with `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add window ids, `unmark` remove, `clear` empties staged AND active (the boundary stays); the drop NEVER applies until `apply`. `mode:'apply'` — union staged into ACTIVE after projecting last-req (input + cache.read) minus drop_est (positive droppable sum; `mixed=` counts rows with no provider req-at) against 80% of the window: refuses `apply= rejected: nothing-staged` / `over-bound <projected> <bound>` unless `force:true`. The `session.context` hook drops pre-boundary AND active ENTRIES by id — history untouched, reversible; tool-result entries carry no id and survive every drop; a stale boundary/ids log ONE deduped line each. Fail-closed (a rejection writes NOTHING): lines `report= rejected:` / `tail-set= rejected:` / `mark-set= rejected:` / `apply= rejected:` / `error: <usage>`; guards: id not a window row (`*-not-found`), never the window head (`*-at-window-head`), drop-union + inside boundary keep >= 6 rows (`mark-floor`/`retained-tail-below-floor`), keep form (`keep-invalid`/`keep-exceeds-history`/`keep-at-window-head`); read failures print `context-read-failed`. Returns `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<staged size> rows_dropped_est=<droppable tokens>`, `apply= staged->active n=<k> drop_est=<droppable tokens> projected=<p> bound=<b> ok mixed=<c>`. `session` may be omitted (the tool context resolves it).";
 
 const TOOL_INPUT = {
   "type": "object",

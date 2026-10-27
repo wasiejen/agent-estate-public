@@ -535,14 +535,6 @@ Before running an unfamiliar command:
 Limit greps and similar commands.
 Use `head -30` or another explicit bound.
 
-Invoke custom tools ONLY via `execute`.
-- `ctx_gauge`
-- `state_snapshot`
-- `loop_log`
-- `submit`
-- `block_transfer`
-- `compact_memory`
-
 ## Safety Limits
 
 Repository-specific safety limits live in `repo_overview.md`.

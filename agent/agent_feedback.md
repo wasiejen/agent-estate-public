@@ -1046,3 +1046,6 @@ the U6 worker burned a full re-prefill on every in-place edit of `.opencode/plug
 ### 2026-10-27_19-36 worker_FlashNext ses_e8174a794ffe1Noetk8NJeDKVl
 The live-acceptance step 'report and pick 3 heavy marked candidates' was not executable as written: the CUT-DOWN report printed row NUMBERS only (ids were internal), so mark ids had no source — U6 had to add id= anchors to the row lines mid-build (kept the spec's ~350-char description budget by trimming legacy wording). Bake the anchor format into future mark-side specs.
 
+### 2026-10-27_21-15 worker_FlashNext ses_e8174a794ffe1Noetk8NJeDKVl
+#190 U7 Part A: the modify probe sat after the hook's `entry == null` early return, so it never fired for a session with no stored boundary — repositioning cost 1 of the 3 allowed live-plugin swaps. Probe specs should pin the probe BEFORE the store-entry guard (I filed this in the handover; future probe units should state the exact hook position).
+

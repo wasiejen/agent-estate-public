@@ -1022,3 +1022,6 @@ The shell tool cannot interrupt a paged git command: `git log --all --oneline -S
 ### 2026-10-27_15-28 worker_FlashNext ses_e8242f766ffeDuKblgUqnoflBH
 The #186 probe recipe's `keepMessages = rows − 12` collides with the retained-tail floor 6 (fresh session: 5−12 = −7 → `keep-invalid`), and one `ctx_gauge` after a boundary write reads flat (gauge lags one finished step) — state `max(6, rows − 12)` and a two-gauge read in future probe recipes.
 
+### 2026-10-27_15-47 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+The AUTO-compaction failure lane is misleading for both the agent and the maintainer: the failed attempt streamed a 6.1k-token summary, wrote an ERROR-ONLY compaction row, and left the aborted text in the GUI — then the successful marker compaction re-displayed that stale text, which read as "the old summary came back". It cost a verification cycle to prove the store held only the marker text. A failed compaction should either not render a summary at all, or the plugin's return/`COMPACT` evidence should name the error-row residue so the role can state it up front.
+

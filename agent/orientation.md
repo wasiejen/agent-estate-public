@@ -73,5 +73,6 @@ allowed), research (ideas/feedback/maintainer-files/archive → per-research
 folder when worthwhile — incl. bounded ONLINE research via the explorer:
 one question per run, findings → TODO/knowledge/proposals), pathfinder
 passes over code (fix small inline, file bigger), bookkeeping-reducing
-tools, prompt improvements, and the pure-script / new-hire test ideas
-above. This file is the standing orientation for those sessions.
+tools, prompt improvements, the contact-surface hygiene pass (#183 — trim agent-facing
+text to currently-actionable information, ranked by cost class), and the pure-script /
+new-hire test ideas above. This file is the standing orientation for those sessions.

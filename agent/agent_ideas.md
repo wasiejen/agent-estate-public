@@ -38,3 +38,9 @@ An aggregate clone-gate runner script (probe + the 12 node smokes + the 2 bun v2
 ### 2026-10-22_20-34 planner_FlashNext ses_e9b246abdffesGhYjB50ymiwqy
 block_transfer mode-guard teaching errors: when a mode receives an argument that belongs to a neighbouring mode (REPLACE with `text`; COPY with `regions`; WRITE with `bufferName`-only content), REJECT with "did you mean <mode>?" rather than the generic missing-buffer/missing-marker error — cheap, agent-facing only, both trees (2026-10-22, direct planner-28).
 
+### 2026-10-27_13-40 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+ctx_gauge could surface PAID-file dirtiness: the gauge line knows nothing about whether a system-prompt component (AGENTS.md, the agent `prompt` pair in opencode.jsonc, role destill) is already modified-but-uncommitted. Appending one token (e.g. ` PAID=2`) would let every role batch prompt edits into one re-prefill instead of paying several. Measured cost of not having it: this session paid two full re-prefills (~100k each) because destilled_mem.md was edited in two separate steps.
+
+### 2026-10-27_13-57 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+Refinement of my 13-40 idea (the `PAID=<n>` form was weak — it tells the agent nothing it can act on, since the bust lands at the next request regardless of when the edit is made). The actionable signal is the cache STATE: `ctx_gauge` could append `CACHE=warm|cold` (from the last completed request's `tokens.cache.read` >0 / =0 in `session_message`) plus the current context size, which converts the decision into a rule: if COLD, land every prompt/tool-description/config edit now at zero marginal cost; if WARM, park the change in a free channel until the next natural cold point. Related cost already researched and proposed: `proposals/2026-10-15_2tier-tool-descriptions.md` (tool definitions ≈48k chars ≈13.5k tokens of the 23,040-token initial prompt — the largest single block, still unranked since 2026-10-15).
+

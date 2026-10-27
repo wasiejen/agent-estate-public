@@ -1049,3 +1049,6 @@ The live-acceptance step 'report and pick 3 heavy marked candidates' was not exe
 ### 2026-10-27_21-15 worker_FlashNext ses_e8174a794ffe1Noetk8NJeDKVl
 #190 U7 Part A: the modify probe sat after the hook's `entry == null` early return, so it never fired for a session with no stored boundary — repositioning cost 1 of the 3 allowed live-plugin swaps. Probe specs should pin the probe BEFORE the store-entry guard (I filed this in the handover; future probe units should state the exact hook position).
 
+### 2026-10-28_00-14 worker_FlashNext ses_e8174a794ffe1Noetk8NJeDKVl
+context_trim report option lines print `hint=<anchor row's FULL assistant text>` verbatim — on a reasoning-heavy session one report call cost ~10k tokens of context (measured 2026-10-28, ses_e8174a794ffe1Noetk8NJeDKV1 U8 acceptance); cap the hint to ~120 chars.
+

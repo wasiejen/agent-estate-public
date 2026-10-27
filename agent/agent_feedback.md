@@ -1040,3 +1040,9 @@ session.context HTTP probe unusable: curl localhost:4096 refused (rc=7) and the 
 ### 2026-10-27_19-00 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
 the U5 canary killed the worker session because the injected entry kept a `tool` role — the failure text (`OpenAI Chat tool messages only support tool-result content for now`) reads like a resume/host bug and cost me a wrong diagnosis before I found the canary log; specs for injection probes should name the required entry shape up front.
 
+### 2026-10-27_19-22 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+the U6 worker burned a full re-prefill on every in-place edit of `.opencode/plugins/context_trim_v2.ts` (hot-loaded plugin = live tool schema = cache bust for every running session); the spec should have named a copy-then-swap workflow up front.
+
+### 2026-10-27_19-36 worker_FlashNext ses_e8174a794ffe1Noetk8NJeDKVl
+The live-acceptance step 'report and pick 3 heavy marked candidates' was not executable as written: the CUT-DOWN report printed row NUMBERS only (ids were internal), so mark ids had no source — U6 had to add id= anchors to the row lines mid-build (kept the spec's ~350-char description budget by trimming legacy wording). Bake the anchor format into future mark-side specs.
+

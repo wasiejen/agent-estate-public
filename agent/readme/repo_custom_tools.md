@@ -84,9 +84,12 @@ Contract pinning lives in `.opencode/plugins/probes/handover_probe.mjs`.
   `opencode_*` host tools present natively; native `loop_log` START →
   `verified: readback-match`; native `ctx_gauge` → full readout line. Planner-side
   native calls ride the first session after the config lands.
-- Check your own tool list before assuming a path. If some agent ever re-enables
-  `execute`, that agent may see these tools ONLY as `tools.<x>()` in the Code Mode
-  catalog. Never work around a denied permission.
+- Never work around a denied permission, and do not document or reach for a tool
+  your schema does not offer (maintainer ruling 2026-10-27: the `execute` mention was
+  DELETED from `AGENTS.md`, not replaced).
+- The observer plugin sees these tools on the NATIVE path too: a native
+  `block_transfer` WRITE with an out-of-sandbox `dstFile` produced one
+  `out-of-sandbox` verdict line in `.opencode/temp/intercept.log` (2026-10-27, #179).
 - History (forensics only): before the ruling the tools were catalog-only. Across
   345 `execute` calls: 281 (81%) wrapped ONE tool call, 64 (19%) composed
   several, `fetch` appeared 4 times (3 were `file://` boundary probes). See

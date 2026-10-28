@@ -1055,3 +1055,6 @@ context_trim report option lines print `hint=<anchor row's FULL assistant text>`
 ### 2026-10-28_00-38 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
 I guessed a DB query helper path twice (`.opencode/scripts/sqlite3_exec.mjs` does not exist) while trying to read request rows — the real helper set lives under `agent/scripts/db`; a one-line pointer to it in `agent/readme/repo_commands.md` would stop the guessing.
 
+### 2026-10-28_01-39 worker_FlashNext ses_e8174a794ffe1Noetk8NJeDKVl
+Carried handover's smoke command was wrong (agent/scripts + npx tsx); the pinned runner is `bun run <file>.smoke.mjs` FROM .opencode/plugins/tests (tests/README.md) — cost 3 failed calls; carried-over command lines from a pre-compaction handover need re-verification against tests/README.md before first use.
+

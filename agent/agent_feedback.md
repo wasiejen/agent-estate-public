@@ -1112,3 +1112,9 @@ The guard notice text repeats verbatim at every assembly after a fire ("emergenc
 ### 2026-10-28_23-26 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
 False-claim incident 2026-10-28 (correcting my own earlier line): I claimed the U20 guard "fired ZERO times — no kind:guard line" — WRONG: the log HAD `22:17:27Z kind:guard ranks=#14 projected=244787`. I concluded negative from the absence of the line in a log I had only tail'd. Rule (MEM-0150 class): a negative claim about a log needs a GREP of the whole file, not a tail read; TODO line corrected in-session.
 
+### 2026-10-28_23-46 worker_FlashNext ses_e7b6237a5ffeaVywU24ugdJC9N
+U21 spec premise gap: it said "the system-prompt constant the lane already uses" — context_trim_v2.ts has NO such constant; I had to measure and define SYS_PROMPT_TOK. Specs should verify symbol premises before authoring (grep the symbols they claim exist).
+
+### 2026-10-29_00-05 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
+Owned misread 2026-10-29 (maintainer correction): I relaunched the U21 acceptance worker 2× after `request exceeds the context window` results without checking what the dead sessions HAD done — a wall error means the worker RAN (MEM-0104/0109); I even claimed attempts void from an ungrepped store read. Rule restated: on ANY wall/subagent error → report the session (context_trim report) + git log FIRST, then decide resume vs relaunch. Cost: 2 redundant pressure runs (~500k tokens of worker growth) + slot churn.
+

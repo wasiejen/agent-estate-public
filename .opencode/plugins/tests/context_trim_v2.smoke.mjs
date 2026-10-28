@@ -70,6 +70,7 @@ const PLUGIN = process.env.CTX_TRIM_SMOKE_PLUGIN ?? path.join(CLONE_ROOT, ".open
 const CF_PLUGIN = process.env.CTX_TRIM_SMOKE_CF ?? path.join(CLONE_ROOT, ".opencode", "plugins", "context_family.ts");
 const GAUGE = process.env.CTX_TRIM_SMOKE_GAUGE ?? path.join(CLONE_ROOT, ".opencode", "plugins", "scripts", "gauge.mjs");
 const SID = "ses_trim001";
+const OTHER = "ses_trim002"; // (U18 F6) a SECOND live session — the cross-session free leg
 const MODEL_ID = "smoke-trim-model-120K"; // name-marker window: 120000
 
 let failures = 0;
@@ -251,13 +252,13 @@ function makeCtx(directory) {
       },
       get: async (input) => {
         RPC.calls.push({ api: "get", input });
-        if (input.sessionID !== SID) return undefined; // an unknown session has no row
+        if (input.sessionID !== SID && input.sessionID !== OTHER) return undefined; // an unknown session has no row (U18: OTHER is a second live session)
         if (RPC.mode === "not-found") return undefined;
         return { id: input.sessionID, model: { id: MODEL_ID, providerID: "llama-swap" } };
       },
       context: async (input) => {
         RPC.calls.push({ api: "context", input });
-        if (input.sessionID !== SID) throw new Error(`Session not found: ${input.sessionID}`);
+        if (input.sessionID !== SID && input.sessionID !== OTHER) throw new Error(`Session not found: ${input.sessionID}`);
         if (RPC.mode === "not-found") throw new Error(`Session not found: ${input.sessionID}`);
         if (RPC.mode === "fail") throw new Error("mock context read failure");
         if (RPC.mode === "absent") return undefined; // not an array -> failed read
@@ -351,8 +352,8 @@ function draftBase(sessionID = SID) {
   chk("R1 (#189+U8) the two-quantity line: window_rows != request + request-est (gauge CTX) + OWN-mass window-est 332", lines[2] === "window_rows != request; request also carries system prompt + retained slice request-est=57000 window-est=332", JSON.stringify(lines[2] ?? null));
   chk("R1 (U7) the projection line: last-req = gauge CTX 57000 − output 2000; bound = 80% of the 120K window", lines[3] === "projection: last-req=55000 staged-est=0 projected=55000 bound=96000 ok", JSON.stringify(lines[3] ?? null));
   chk("R1 the gauge line rides the shared v2-paired core (fixture mass 57000 / 120K + budget suffix)", lines[4] === `gauge: SESSION=${SID} CTX=57000 (47%) REM=63000 | 6 compactions left`, JSON.stringify(lines[4] ?? null));
-  chk("S0b the tool's name is 'context_trim' (the v1 name — a same-name twin is precedent) and the args mirror v1 (+ clear, + mark ids/unmark, + U7 apply mode + force, + U11 showIds, + U14 guard; U17 #203: the `tags` arg is GONE)", TOOL.name === "context_trim" && JSON.stringify(Object.keys(TOOL.input.properties).sort()) === JSON.stringify(["clear", "force", "guard", "ids", "keepMessages", "mode", "session", "showIds", "target", "unmark"]) && JSON.stringify(TOOL.input.properties.mode.enum) === JSON.stringify(["report", "tail", "mark", "apply"]) && TOOL.output.type === "string", JSON.stringify(TOOL.name + "|" + Object.keys(TOOL.input.properties)));
-  chk("U14 the description literal grew by AT MOST 80 chars over the pre-U14 2369 and names the guard (U15: AT MOST +60 over the pre-U15 2430, names the flags)", TOOL.description.length <= 2490 && TOOL.description.includes("`guard` on/off wall guard") && TOOL.description.includes("rows flag s/x/g"), `len=${TOOL.description.length}`);
+  chk("S0b the tool's name is 'context_trim' (the v1 name — a same-name twin is precedent) and the args mirror v1 (+ clear, + mark ids/unmark, + U7 apply mode + force, + U11 showIds, + U14 guard; U17 #203: the `tags` arg is GONE; U18 #209: the mode enum gains `free` and `target` accepts string OR number — the percent form)", TOOL.name === "context_trim" && JSON.stringify(Object.keys(TOOL.input.properties).sort()) === JSON.stringify(["clear", "force", "guard", "ids", "keepMessages", "mode", "session", "showIds", "target", "unmark"]) && JSON.stringify(TOOL.input.properties.mode.enum) === JSON.stringify(["report", "tail", "mark", "apply", "free"]) && JSON.stringify(TOOL.input.properties.target.type) === JSON.stringify(["string", "number"]) && TOOL.output.type === "string", JSON.stringify(TOOL.name + "|" + Object.keys(TOOL.input.properties)));
+  chk("U14 the description literal grew by AT MOST 80 chars over the pre-U14 2369 and names the guard (U15: AT MOST +60 over the pre-U15 2430, names the flags; U18: cap 2499 = pre-U18 2439 + 60, names the free_space clause)", TOOL.description.length <= 2499 && TOOL.description.includes("`guard` on/off wall guard") && TOOL.description.includes("rows flag s/x/g") && TOOL.description.includes("`mode:'free'` — free_space"), `len=${TOOL.description.length}`);
   chk("R1 (U10+U11) row 1 = the compaction head + its ABSOLUTE ordinal #4300 — COMPACT form, NO id= by default (the opaque id costs ~8-10 tokens/row); (U17 #208 R3) a row without the provider figure prints req-at=unavailable", lines[5] === "row: 1 #3 compaction own=5 req-at=unavailable", JSON.stringify(lines[5] ?? null));
   chk("R1 user rows take the own-bytes4 mass + stable ordinals (#4301/#4304/#4308), compact, req-at=unavailable", lines[6] === "row: 2 #4 user own=2 req-at=unavailable" && lines[9] === "row: 5 #7 user own=2 req-at=unavailable" && lines[13] === "row: 9 #11 user own=2 req-at=unavailable", JSON.stringify([lines[6], lines[9], lines[13]]));
   chk("R1 (U8 pin) row 3 asserts OWN mass (111 = input-JSON 45 + output 400 / 4), NOT the provider sum — the cumulative figure rides relabeled req-at=5200; (U10) ordinal #4302, (U11) no id", lines[7] === "row: 3 #5 assistant own=111 req-at=5200 tool=read target=C:/a/b.ts offset=5 limit=20", JSON.stringify(lines[7] ?? null));
@@ -396,7 +397,7 @@ function draftBase(sessionID = SID) {
   chk("T11 mutual-exclusion usage lines", (await t({ session: SID, target: "msg_u4", keepMessages: 6 })) === "error: tail mode: target and keepMessages are mutually exclusive (use one or the other)" && (await t({ session: SID, clear: true, target: "msg_u4" })) === "error: tail mode: clear is mutually exclusive with target/keepMessages (use one form)");
   chk("T12 the unknown session is refused (the existence probe discriminates)", (await t({ session: "ses_absent000", target: "msg_c0" })) === "tail-set= rejected: session-not-found");
   chk("T13 no target/keepMessages/clear -> the usage line", (await t({ session: SID })) === "error: tail mode requires target (the boundary message id), keepMessages (the retained-tail message count), or clear (remove the stored boundary)");
-  chk("T14 bad mode -> the v1 error line (U7: the line names the fourth mode)", (await trim({ mode: "sideways", session: SID })) === "error: mode must be 'report', 'tail', 'mark', or 'apply'");
+  chk("T14 bad mode -> the v1 error line (U7: the line names the fourth mode; U18: the fifth)", (await trim({ mode: "sideways", session: SID })) === "error: mode must be 'report', 'tail', 'mark', 'apply', or 'free'");
   chk("T15 the store is UNTOUCHED by every rejection (only the two sets + clears landed)", JSON.stringify(readStore()?.sessions?.[SID] ?? null) === JSON.stringify(null) && Object.keys(readStore()?.sessions ?? {}).length === 0, JSON.stringify(readStore()));
 }
 
@@ -898,6 +899,117 @@ function draftBase(sessionID = SID) {
   })(), "no sql-read-failed line");
 }
 
+// ------------------------------------------------------------------ U18 (#209) the free-space leg
+// `mode:'free'` + `target` (the PERCENT of the gauge-core window value to
+// free; default 20, band 5..60, anything else `target-invalid`): drops into
+// the session's STICKY `auto` set until the OWN-mass freed estimate reaches
+// the target. Selection is the guard lane's candidate rules verbatim
+// (heaviest-first, AGE tie-break ascending, head never, keep floor never,
+// boundary-retained never, already-dropped never, zero-weight never); the
+// removal rides the UNCHANGED hook `auto` leg (pair rule + notice), the
+// report flags the picks ` g`. Fixture math: window 120000, last-req 55000 ->
+// need(20%) = 24000, the floor-legal pool is 318 (a3=205, a2=111, u1=2) — so
+// the base leg pins the honest SHORTFALL stop; a steered 1000-token window
+// proves the target-met stop AND the age tie-break (two equal 111-mass rows,
+// the older leaves first). A cross-session call lands the picks on the OTHER
+// session's entry.
+{
+  RPC.rows = null; // the base 10-row window; the gauge fixture reads 57000 of 120K
+  const good = gaugeMod;
+  const steer = (r) => pluginMod.setGaugeCoreForTest({ formatGauge: good.formatGauge, getDbPath: good.getDbPath, readGauge: async () => r });
+  const freeLines = (from) => readLog().slice(from).filter((l) => l.kind === "free");
+  const autoOf = (sid = SID) => JSON.stringify(readStore()?.sessions?.[sid]?.auto ?? null);
+  // F1 the fail-closed target validation — rejected BEFORE any read or write
+  {
+    const lB = readLog().length;
+    chk("U18 F1 target-invalid rejects fail-closed: 0, 61, a float, a word, a negative (echo names the raw value)", (await trim({ mode: "free", session: SID, target: 0 })) === "free= rejected: target-invalid 0" && (await trim({ mode: "free", session: SID, target: 61 })) === "free= rejected: target-invalid 61" && (await trim({ mode: "free", session: SID, target: 2.5 })) === "free= rejected: target-invalid 2.5" && (await trim({ mode: "free", session: SID, target: "abc" })) === "free= rejected: target-invalid abc" && (await trim({ mode: "free", session: SID, target: -1 })) === "free= rejected: target-invalid -1");
+    chk("U18 F1 free mode takes ONLY `target` — any other arg rides the usage line", (await trim({ mode: "free", session: SID, ids: ["msg_u1"] })) === "error: free mode takes only `target` (the percent of the window to free; other args are refused)");
+    chk("U18 F1 an unknown session rejects like the other lanes", (await trim({ mode: "free", session: "ses_absent000" })) === "free= rejected: session-not-found");
+    chk("U18 F1 every rejection wrote NOTHING and logged NO kind:free line (fail-closed)", readStore()?.sessions?.[SID] === undefined && freeLines(lB).length === 0, `lines=${freeLines(lB).length}`);
+  }
+  // F2/F3/F5 the base leg: the floor-legal pool cannot reach 20% -> honest
+  // shortfall stop, heaviest-first order, sticky `auto`, ` g` flags, the
+  // UNCHANGED hook removal + notice.
+  {
+    const lB = readLog().length;
+    chk("U18 F5 default target 20%: freed 318 of need 24000, bound-fill 45%, picks 3, short=yes (the echo form is pinned byte-exact)", (await trim({ mode: "free", session: SID })) === "free= freed=318 target=20 bound-fill=45% picks=3 short=yes");
+    chk("U18 F2 selection order: HEAVIEST first (a3=205, a2=111, u1=2) — the pool exhausts at the floor, the head and index 4+ never enter `auto`", autoOf() === JSON.stringify(["msg_a3", "msg_a2", "msg_u1"]) && readStore()?.sessions?.[SID]?.active === undefined && readStore()?.sessions?.[SID]?.boundary === "", autoOf());
+    const fl = freeLines(lB);
+    chk("U18 F3 exactly ONE kind:free line (session/target/freed/picks/short)", fl.length === 1 && fl[0].session === SID && fl[0].target === "20" && fl[0].freed === "318" && fl[0].picks === "3" && fl[0].short === "yes", JSON.stringify(fl[0] ?? null));
+    const r = await trim({ mode: "report", session: SID });
+    chk("U18 F3 the report flags the free picks ` g` (rows 2/3/4) + header auto=3 dropped-in-window=3 + the legend", (r.split("\n").find((l) => l.startsWith("row: 2 ")) === "row: 2 #4 g user own=2 req-at=unavailable" && r.split("\n").find((l) => l.startsWith("row: 3 ")) === "row: 3 #5 g assistant own=111 req-at=5200 tool=read target=C:/a/b.ts offset=5 limit=20" && r.split("\n").find((l) => l.startsWith("row: 4 ")) === "row: 4 #6 g assistant own=205 req-at=9000 tool=bash target=ls -la" && r.split("\n")[1].includes("auto=3 dropped-in-window=3") && r.split("\n").filter((l) => l.startsWith("flags: ")).length === 1), JSON.stringify([r.split("\n").find((l) => l.startsWith("row: 2 ")), r.split("\n")[1]]));
+    const d = draft();
+    await fire(d);
+    const ids = d.messages.map((m) => m.id ?? "(none)");
+    const texts = JSON.stringify(d.messages);
+    const t = readLog().slice(lB).find((l) => l.kind === "trim");
+    chk("U18 F3 the UNCHANGED hook lane removes the free picks WITH their outputs (3 ids + 3 projections, pair rule intact)", !ids.includes("msg_u1") && !ids.includes("msg_a2") && !ids.includes("msg_a3") && ids.includes("msg_c0") && ids.includes("msg_u4") && ids.includes("msg_a9") && !texts.includes("a2 output") && !texts.includes("a2 adjacent output") && !texts.includes("a3 output") && d.messages.filter((m) => !("id" in m)).length === 2, JSON.stringify(d.messages.map((m) => m.id ?? "(none)")));
+    chk("U18 F3 the notice + trim line ride the free picks (autoRows=3, autoMass=318, 6 entries dropped, 10 kept + notice)", d.messages.length === 10 && d.messages[d.messages.length - 1]?.id === "msg_ctx_guard_notice" && d.messages[d.messages.length - 1]?.content[0].text === "emergency trim: dropped #4,#5,#6 = 318 tokens; your marks were empty" && t != null && t.autoRows === "3" && t.autoMass === "318" && t.droppedRows === "3" && t.droppedEntries === "6" && t.keptEntries === "10", JSON.stringify(t ?? null));
+    chk("U18 F3 mark clear empties the free picks too (the third drop set; the entry prunes)", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -3 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
+  }
+  // F2 the never-rules: a stored boundary makes its whole drop region
+  // non-candidate (already dropped) and its retained rows stay.
+  {
+    chk("U18 F2 boundary-retained + already-dropped rows are NEVER re-picked (a boundary at idx 4 leaves zero candidates; picks=0 writes NOTHING)", await (async () => {
+      await trim({ mode: "tail", session: SID, target: "msg_u4" });
+      const out = await trim({ mode: "free", session: SID, target: 5 });
+      const kept = readStore()?.sessions?.[SID]?.boundary === "msg_u4" && readStore()?.sessions?.[SID]?.auto === undefined;
+      const cleared = (await trim({ mode: "tail", session: SID, clear: true })) === "tail-set= msg_u4 -> none";
+      return out === "free= freed=0 target=5 bound-fill=45% picks=0 short=yes" && kept && cleared;
+    })(), "a boundary-region row got picked or the echo form drifted");
+  }
+  // F2/F5 the target-met stop + the AGE tie-break on a steered 1000-token
+  // window: two equal-mass candidates (111 each), the OLDER leaves first, and
+  // the third (50) is never reached.
+  {
+    const tieRows = () => [
+      { id: "tie_c0", type: "compaction", status: "completed", summary: "sum", recent: "rec" },
+      { id: "tie_a1", type: "assistant", content: [{ type: "text", text: "a".repeat(444) }] },
+      { id: "tie_a2", type: "assistant", content: [{ type: "text", text: "b".repeat(444) }] },
+      { id: "tie_a3", type: "assistant", content: [{ type: "text", text: "c".repeat(200) }] },
+      { id: "tie_u4", type: "user", text: "tail four" },
+      { id: "tie_u5", type: "user", text: "tail five" },
+      { id: "tie_u6", type: "user", text: "tail six" },
+      { id: "tie_u7", type: "user", text: "tail seven" },
+      { id: "tie_u8", type: "user", text: "tail eight" },
+      { id: "tie_a9", type: "assistant", content: [{ type: "text", text: "tail nine" }] },
+    ];
+    RPC.rows = tieRows();
+    steer({ ok: true, kind: "ok", sid: SID, modelId: MODEL_ID, total: 900, output: 0, ctx: 900, window: 1000 });
+    chk("U18 F2/F5 target MET stops the loop: need 150 of the 1000-token window picks the two 111-mass rows and stops (tie_a3=50 untouched); the AGE tie-break sends the OLDER row first", (await trim({ mode: "free", session: SID, target: 15 })) === "free= freed=222 target=15 bound-fill=67% picks=2 short=no" && autoOf() === JSON.stringify(["tie_a1", "tie_a2"]), autoOf());
+    chk("U18 cleanup of the tie leg (picks cleared, store clean)", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -2 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
+    RPC.rows = null;
+    pluginMod.setGaugeCoreForTest(good);
+  }
+  // F4 the gauge-window anchor + the honest bound-fill leg
+  {
+    steer({ ok: true, kind: "ok", sid: SID, modelId: MODEL_ID, total: 55000, output: 0, ctx: 55000, window: undefined });
+    chk("U18 F4 no gauge window -> `free= rejected: gauge-window-unavailable` (no math anchor, NOTHING written)", await (async () => {
+      const out = await trim({ mode: "free", session: SID });
+      return out === "free= rejected: gauge-window-unavailable" && readStore()?.sessions?.[SID] === undefined;
+    })(), "the math ran without a window anchor");
+    steer({ ok: true, kind: "ok", sid: SID, modelId: MODEL_ID, total: undefined, output: undefined, ctx: undefined, window: 1000 });
+    chk("U18 F5 the ctx leg missing prints `bound-fill=unavailable` honestly (never a guessed fill); the target-met stop still holds", await (async () => {
+      const out = await trim({ mode: "free", session: SID, target: 20 });
+      const cleared = (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -1 total=0 rows_dropped_est=0";
+      return out === "free= freed=205 target=20 bound-fill=unavailable picks=1 short=no" && cleared && readStore()?.sessions?.[SID] === undefined;
+    })(), JSON.stringify(readStore()?.sessions?.[SID] ?? null));
+    pluginMod.setGaugeCoreForTest(good);
+  }
+  // F6 the cross-session lane: the caller stays untouched, the NAMED session
+  // gets the sticky picks (the store entries are per-sid).
+  {
+    steer({ ok: true, kind: "ok", sid: OTHER, modelId: MODEL_ID, total: 500, output: 0, ctx: 500, window: 1000 });
+    chk("U18 F6 free on a session OTHER than the caller: the picks land on THAT session's entry, the caller gains NOTHING", await (async () => {
+      const out = await trim({ mode: "free", session: OTHER }, SID);
+      const landed = autoOf(OTHER) === JSON.stringify(["msg_a3"]) && readStore()?.sessions?.[SID] === undefined;
+      const cleared = (await trim({ mode: "mark", session: OTHER, clear: true })) === "mark-set= +0 -1 total=0 rows_dropped_est=0";
+      return out === "free= freed=205 target=20 bound-fill=29% picks=1 short=no" && landed && cleared && readStore()?.sessions?.[OTHER] === undefined;
+    })(), JSON.stringify(readStore()?.sessions ?? null));
+    pluginMod.setGaugeCoreForTest(good);
+  }
+}
+
 // ------------------------------------------------------------------ C1 the composition block (the REAL context_family plugin, the #153 APPEND channel)
 // Re-pinned for #157 (2026-10-26): context_family contributes NO draft handler —
 // it registers EXACTLY `execute.before` + `execute.after` and appends its gauge
@@ -1001,16 +1113,17 @@ function draftBase(sessionID = SID) {
 {
   const lines = readLog();
   const kinds = new Set(lines.map((l) => l.kind));
-  chk("INV every line parses; kinds ⊂ {report, tail, trim, boundary-stale, gauge, mark, marks-stale, apply, ordinals (U10 fail-open), guard (U14)}", [...kinds].sort().join(",") === "apply,boundary-stale,gauge,guard,mark,marks-stale,ordinals,report,tail,trim", JSON.stringify([...kinds].sort()));
+  chk("INV every line parses; kinds ⊂ {report, tail, trim, boundary-stale, gauge, mark, marks-stale, apply, ordinals (U10 fail-open), guard (U14), free (U18)}", [...kinds].sort().join(",") === "apply,boundary-stale,free,gauge,guard,mark,marks-stale,ordinals,report,tail,trim", JSON.stringify([...kinds].sort()));
   chk("INV every line carries ts + kind and stays within the LINE_CAP ladder", lines.every((l) => typeof l.ts === "string" && typeof l.kind === "string" && JSON.stringify(l).length <= 2000 && JSON.stringify(l).length > 0));
   chk("INV the `trim` lines all name a session + boundary + the counts incl droppedProjections/orphan (U9; U17: the tagged/untagged counters are GONE with the tag lane)", lines.filter((l) => l.kind === "trim").every((l) => typeof l.session === "string" && typeof l.boundary === "string" && typeof l.droppedRows === "string" && typeof l.droppedEntries === "string" && typeof l.droppedProjections === "string" && typeof l.orphan === "string" && l.tagged === undefined && l.untagged === undefined && typeof l.keptEntries === "string"));
   chk("INV the `mark` lines all name session + added/removed/total scalars (a TOGGLE line carries `guard` instead — the exempt shape; U17: the tags exemption is gone)", lines.filter((l) => l.kind === "mark").every((l) => typeof l.session === "string" && ((typeof l.added === "string" && typeof l.removed === "string" && typeof l.total === "string") || typeof l.guard === "string")));
   chk("INV the `apply` lines all name session + n/dropEst/projected/bound/mixed scalars (U8)", lines.filter((l) => l.kind === "apply").every((l) => typeof l.session === "string" && typeof l.n === "string" && typeof l.dropEst === "string" && typeof l.projected === "string" && typeof l.bound === "string" && typeof l.mixed === "string"));
+  chk("INV the `free` lines (U18) all name session + target/freed/picks/short scalars and there are EXACTLY 5 (the base shortfall, the boundary picks=0 leg, the tie-break leg, the ctx-missing leg, the cross-session leg — every rejection logs nothing)", lines.filter((l) => l.kind === "free").length === 5 && lines.filter((l) => l.kind === "free").every((l) => typeof l.session === "string" && typeof l.target === "string" && typeof l.freed === "string" && typeof l.picks === "string" && (l.short === "yes" || l.short === "no")), `count=${lines.filter((l) => l.kind === "free").length}`);
   chk("INV the applied kind:apply lines (rejections log nothing — fail-closed; U9 retry leg, U10 ordinal legs, U15 V3 leg; U17: the tag-lane applies are gone)", lines.filter((l) => l.kind === "apply").length === 7, `count=${lines.filter((l) => l.kind === "apply").length}`);
   chk("INV the ONE boundary-stale line for the (session,boundary) state (deduped)", lines.filter((l) => l.kind === "boundary-stale").length === 1, `count=${lines.filter((l) => l.kind === "boundary-stale").length}`);
   chk("INV the ONE marks-stale line for the (session,count) state (deduped)", lines.filter((l) => l.kind === "marks-stale").length === 1, `count=${lines.filter((l) => l.kind === "marks-stale").length}`);
   chk("INV the gauge lines' reasons are only the two honest read failures", lines.filter((l) => l.kind === "gauge").every((l) => l.reason === "context-read-failed" || l.reason === "session-not-found" || l.reason === "messages-not-array"));
-  chk("INV report mode emitted a kind:report line per call (28 lines: 9 + the 4 U10 legs + the 2 U11 compact legs + the U12 range leg + the 2 U14 G0 header legs + the 7 U15 flag legs + the U17 R5b + restore legs; the R5a/U17 not-found/sql-fail calls emit none — rejections log nothing)", lines.filter((l) => l.kind === "report").length === 28, `count=${lines.filter((l) => l.kind === "report").length}`);
+  chk("INV report mode emitted a kind:report line per call (29 lines: 9 + the 4 U10 legs + the 2 U11 compact legs + the U12 range leg + the 2 U14 G0 header legs + the 7 U15 flag legs + the U17 R5b + restore legs + the U18 ` g` flag leg; the R5a/U17 not-found/sql-fail calls emit none — rejections log nothing)", lines.filter((l) => l.kind === "report").length === 29, `count=${lines.filter((l) => l.kind === "report").length}`);
 }
 
 // ------------------------------------------------------------------ cleanup

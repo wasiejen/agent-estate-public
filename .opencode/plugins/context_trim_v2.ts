@@ -231,6 +231,32 @@
 // (no service call, no line). Line shapes keep their names: `mark-set= total=`
 // is the STAGED size, est is over staged; the trim line's `marks=` carries the
 // ACTIVE size.
+//
+// (15) U18 (#209, 2026-10-28, maintainer rulings) FREE-SPACE MODE —
+// `mode:'free'` + `target` (an INTEGER percent of the gauge-core window value,
+// DEFAULT 20, valid 5..60 — anything else is a fail-closed
+// `free= rejected: target-invalid <raw>`). It auto-drops rows into the
+// session's `auto` drop set — the SAME sticky set the (13) guard uses, so the
+// hook's removal lane is UNCHANGED (the outputs leave with their calls, the
+// (10) pair rule) and the report flags those rows ` g` — until `target`% of
+// the window is freed. Selection reuses the guard lane's candidate rules
+// verbatim: OWN-mass weight (`ownMassOf`), HEAVIEST-first with AGE (window
+// position ASCENDING) tie-break — the ruling: near the wall the payer pre-fill
+// is the smaller devil, the open question is HOW MUCH to free (the #207
+// re-prefill order stays a later unit) — NEVER the head row, NEVER below the
+// keep floor (>= max(FLOOR, entry.keep) survivors), NEVER a boundary-retained
+// row, NEVER a row another lever already drops. The target math rides the SAME
+// estimator as `markEstimate`: met when `freed_est >= floor(target% of the
+// gauge window value)`. NO gauge window → `free= rejected:
+// gauge-window-unavailable` (the math has no anchor — never a guessed one).
+// Shortfall: echo `short=yes` and STOP at pool exhaustion — NO automatic
+// escalation (the mode-2 emergency ruleset is a LATER unit). Success echo:
+// `free= freed=<tok> target=<pct> bound-fill=<int>% picks=<n> short=<yes|no>`
+// (bound-fill = (last-req − freed_est) over the window; the ctx leg missing
+// prints `bound-fill=unavailable` honestly). Picks persist to `auto` (sticky
+// until `mark clear`), ONE kind:free evidence line names
+// session/target/freed/picks/short, and NOTHING is written when no row is
+// pickable. Cross-session works via `session` — the store entries are per-sid.
 
 import type { Plugin } from "@opencode/plugin";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -1385,6 +1411,87 @@ async function applySet(sid: string, force: boolean): Promise<string> {
   return `apply= staged->active n=${staged.length} drop_est=${dropEst} projected=${projected} bound=${bound} ok mixed=${mixed}`;
 }
 
+// ------------------------------------------------------------------ freeSet (the (15) U18 free-space mode)
+
+// The free-space target: the PERCENT of the gauge-core window value to free.
+// DEFAULT 20; the accepted band 5..60 is validated by the caller (execute) —
+// anything else is refused fail-closed before anything reads or writes.
+const FREE_DEFAULT = 20;
+const FREE_MIN = 5;
+const FREE_MAX = 60;
+
+// ONE atomic free-space op: drop rows into the session's `auto` set (the (13)
+// guard's own sticky set — the hook's removal lane and the report's ` g` flag
+// are UNCHANGED) until `pct`% of the gauge window value is freed. Candidate
+// rules are the guard lane's, verbatim (the same `cand` shape and sort): OWN
+// mass via `ownMassOf`, HEAVIEST-first, AGE (window index ascending)
+// tie-break, the head row never, the keep floor never, a boundary-retained row
+// never, a row another lever already drops never, a zero-weight row never.
+// The freed sum is the SAME OWN-mass estimator as `markEstimate`. A shortfall
+// stops at pool exhaustion and says so — no escalation, no bound check (this
+// lane FREES space, it does not project a request).
+async function freeSet(sid: string, pct: number): Promise<string> {
+  const read = await readWindow(sid);
+  if (!read.ok) {
+    if (read.reason === "not-found") return `free= rejected: session-not-found`;
+    return `free= error: context-read-failed: ${read.preview}`;
+  }
+  const rows = read.rows;
+  const g = await gauge.readGauge(undefined, sid);
+  const gr = g as { ctx?: unknown; output?: unknown; window?: unknown };
+  const gCtx = typeof gr.ctx === "number" && Number.isFinite(gr.ctx) ? gr.ctx : undefined;
+  const gOut = typeof gr.output === "number" && Number.isFinite(gr.output) ? gr.output : undefined;
+  const gWin = typeof gr.window === "number" && Number.isFinite(gr.window) ? gr.window : undefined;
+  // The target percent is a fraction of the window — no window, no anchor.
+  if (gWin == null || gWin <= 0) return `free= rejected: gauge-window-unavailable`;
+  const entry = readStore().sessions[sid];
+  const floorKeep = Math.max(FLOOR, entry?.keep ?? 0);
+  const bIdx = entry != null && entry.boundary !== "" ? rows.findIndex((r) => idOf(r) === entry.boundary) : -1;
+  // the rows a lever ALREADY drops (boundary region + active + auto) — they are
+  // not candidates (no double-pick, no double count); a stale boundary (index
+  // < 1) drops nothing, the same rule as the hook.
+  const dropIdx = new Set<number>();
+  if (bIdx >= 1) for (let k = 0; k < bIdx; k++) dropIdx.add(k);
+  for (const m of [...(entry?.active ?? []), ...(entry?.auto ?? [])]) {
+    const i = rows.findIndex((r) => idOf(r) === m);
+    if (i >= 1) dropIdx.add(i);
+  }
+  const cand: { id: string; idx: number; mass: number }[] = [];
+  rows.forEach((r, i) => {
+    if (i < 1) return; // (1) the head row is NEVER droppable
+    if (bIdx >= 1 && i >= bIdx) return; // (2) boundary-retained rows are explicitly KEPT
+    if (i >= rows.length - floorKeep) return; // (3) the keep floor: the last floorKeep rows survive
+    const id = idOf(r);
+    if (id === "" || dropIdx.has(i)) return; // (4) already dropped by a lever
+    const mass = ownMassOf(r);
+    if (mass > 0) cand.push({ id, idx: i, mass }); // (5) a zero-weight row cannot free anything
+  });
+  cand.sort((a, b) => b.mass - a.mass || a.idx - b.idx); // heaviest first, oldest tie-break
+  const need = Math.floor((gWin * pct) / 100);
+  const picks: string[] = [];
+  let freed = 0;
+  let surviving = rows.length - dropIdx.size;
+  for (const c of cand) {
+    if (freed >= need) break; // the target is met — stop
+    if (surviving <= floorKeep) break; // the floor is reached — stop honest, shortfall and all
+    picks.push(c.id);
+    freed += c.mass;
+    surviving--;
+  }
+  const short = freed < need;
+  if (picks.length > 0) {
+    // sticky like the guard picks: they leave the draft on the NEXT assembly
+    // (the hook's `auto` leg) and stay until `mark clear`.
+    if (!writeSessionEntry(sid, { boundary: entry?.boundary ?? "", keep: entry?.keep ?? 0, setAt: entry?.setAt ?? new Date().toISOString(), staged: entry?.staged ?? [], active: entry?.active ?? [], guard: entry?.guard ?? false, auto: [...(entry?.auto ?? []), ...picks] }))
+      return `free= error: store-write-failed (the boundary file could not be written)`;
+  }
+  const lastReq = gCtx != null ? (gOut != null ? gCtx - gOut : gCtx) : undefined;
+  const projected = lastReq != null ? lastReq - freed : undefined;
+  const boundFill = projected != null ? Math.floor((projected * 100) / gWin) : undefined;
+  appendLog(buildLine("free", { session: sid, target: String(pct), freed: String(freed), picks: String(picks.length), short: short ? "yes" : "no" }, {}));
+  return `free= freed=${freed} target=${pct} bound-fill=${boundFill != null ? `${boundFill}%` : "unavailable"} picks=${picks.length} short=${short ? "yes" : "no"}`;
+}
+
 // ------------------------------------------------------------------ the context draft hook
 
 // U9 PROBE lane (#193, file-gated — DEFAULT OFF): when `.opencode/temp/u9_probe.on`
@@ -1745,7 +1852,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
 // ------------------------------------------------------------------ the tool surface
 
 const TOOL_DESCRIPTION =
-  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = the PER-SESSION RANK (1..N over the session's append order — stable forever; refs take a bare rank, a range `A-B`, or an id). `mode:'report'` — READ-ONLY window map (post-compaction rows): header = head row, count, BOUNDARY state, retained, STAGED/ACTIVE counts (active-est=own sum); rows flag s/x/g, header in-window drop counts; `window_rows != request` line (request-est=CTX; window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: window position + `#N` (rows omit `id=` unless `showIds`), `own=` OWN weight (bytes/4 of own parts), rows add `req-at=` = REQUEST size at that step (NOT weight; a row lacking the provider figure prints `req-at=unavailable`); tool targets; `last: N`; low/med/high trim options (rank anchor, keep, own retained/dropped + read/thought/shell, hint ≤ 80); `biggest:` top-5 turns by OWN weight; `target` = dry-run; `gauge:` line = the shared core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ranks/ranges `A-B`), `unmark` remove (ranges too), `clear` empties all drop sets (boundary stays), `guard` on/off wall guard (at 92% drops heaviest rows + notice); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req minus drop_est; refuses `nothing-staged` / `over-bound` unless `force:true`; same-step mark+apply re-reads the store). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (call-id link, adjacency fallback, unmatched stay — `orphan=`); history untouched; stale refs log ONE deduped line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` rejections or `error: <usage>`; guards: outside the window (`*-not-found`), head (`*-at-window-head`), floor keep >= 6 (`mark-floor`/`retained-tail-below-floor`), range (`mark-range-*`); read failures print `context-read-failed`; unreadable ordinals print `#?`. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>` (+`resolved=<c> ordinals=<a>-<b>` on ranges), `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
+  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = the PER-SESSION RANK (1..N over the append order — stable forever; refs take a bare rank, a range `A-B`, or an id). `mode:'report'` — READ-ONLY window map (post-compaction rows): header = head, count, BOUNDARY state, retained, STAGED/ACTIVE counts (active-est=own sum); rows flag s/x/g, header in-window drop counts; `window_rows != request` (request-est=CTX; window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: window position + `#N` (rows omit `id=` unless `showIds`), `own=` OWN weight (bytes/4 of own parts), rows add `req-at=` = REQUEST size at that step (NOT weight; a missing provider figure prints `req-at=unavailable`); tool targets; `last: N`; low/med/high trim options (rank, keep, own retained/dropped + read/thought/shell, hint ≤ 80); `biggest:` top-5 turns by OWN weight; `target` = dry-run; `gauge:` = the shared core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ranks/ranges `A-B`), `unmark` remove (ranges too), `clear` empties all drop sets (boundary stays), `guard` on/off wall guard (at 92% drops heaviest rows + notice); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req minus drop_est; refuses `nothing-staged` / `over-bound` unless `force:true`; same-step mark+apply re-reads). `mode:'free'` — free_space: drops heaviest+oldest rows into `auto` until `target`% of the window frees (int 5..60, default 20). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (call-id link, adjacency fallback — `orphan=`); history untouched; stale refs log ONE deduped line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` rejections or `error: <usage>`; guards: outside the window (`*-not-found`), head (`*-at-window-head`), floor keep >= 6 (`mark-floor`/`retained-tail-below-floor`), range (`mark-range-*`); read failures print `context-read-failed`; unreadable ordinals print `#?`. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>` (+`resolved=… ordinals=…` on ranges), `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
 
 const TOOL_INPUT = {
   "type": "object",
@@ -1757,17 +1864,18 @@ const TOOL_INPUT = {
         "report",
         "tail",
         "mark",
-        "apply"
+        "apply",
+        "free"
       ],
-      "description": "One of: 'report' (read-only window map), 'tail' (boundary write — target, keepMessages, or clear), 'mark' (STAGED drop-list write — ids/ranges, unmark, or clear), 'apply' (union staged into ACTIVE behind the 80% projection bound)."
+      "description": "One of: 'report' (read-only window map), 'tail' (boundary write — target, keepMessages, or clear), 'mark' (STAGED drop-list write — ids/ranges, unmark, or clear), 'apply' (union staged into ACTIVE behind the 80% projection bound), 'free' (free_space — auto-drops the heaviest+oldest droppable rows into the sticky `auto` set until `target`% of the gauge window is freed; shortfall echoes `short=yes` and stops)."
     },
     "session": {
       "type": "string",
       "description": "The session id (e.g. ses_…). Omit = the CALLING session (resolved from the tool context)."
     },
     "target": {
-      "type": "string",
-      "description": "report: the message id a boundary write would point at (dry-run, no write). tail: the new BOUNDARY id — the first KEPT message, strictly after the window head, retaining >= 6 rows. Omit with keepMessages or clear."
+      "type": ["string", "number"],
+      "description": "report: the message id a boundary write would point at (dry-run, no write). tail: the new BOUNDARY id — the first KEPT message, strictly after the window head, retaining >= 6 rows. Omit with keepMessages or clear. free: the PERCENT of the gauge window to free — an INTEGER 5..60 (default 20 when omitted); anything else is refused `target-invalid`."
     },
     "keepMessages": {
       "type": "number",
@@ -1854,7 +1962,22 @@ async function execute(args: unknown, toolContext: { sessionID?: unknown }): Pro
     if (bad.length > 0) return { output: "error: apply mode takes no list args (stage with mark mode first; only `force` is accepted)" };
     return { output: await applySet(sid, a.force === true) };
   }
-  return { output: "error: mode must be 'report', 'tail', 'mark', or 'apply'" };
+  if (mode === "free") {
+    // (15) U18 — the free-space op takes ONLY the percent; the number-shaped
+    // string form is accepted too (a host that stringifies numbers), anything
+    // else is refused fail-closed BEFORE any read or write.
+    const bad = Object.keys(a).filter((k) => k !== "mode" && k !== "session" && k !== "target");
+    if (bad.length > 0) return { output: "error: free mode takes only `target` (the percent of the window to free; other args are refused)" };
+    const raw = a.target;
+    if (raw == null) return { output: await freeSet(sid, FREE_DEFAULT) };
+    let pct: number | undefined;
+    if (typeof raw === "number") pct = raw;
+    else if (typeof raw === "string" && /^\d+$/.test(raw.trim())) pct = Number(raw.trim());
+    if (pct === undefined || !Number.isInteger(pct) || pct < FREE_MIN || pct > FREE_MAX)
+      return { output: `free= rejected: target-invalid ${cap(String(raw), 40)}` };
+    return { output: await freeSet(sid, pct) };
+  }
+  return { output: "error: mode must be 'report', 'tail', 'mark', 'apply', or 'free'" };
 }
 
 const trimTool = {

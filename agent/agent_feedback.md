@@ -1085,3 +1085,6 @@ A mid-run rm() of an open SQLite fixture DB crashed the context_trim smoke with 
 ### 2026-10-28_19-16 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
 edit-tool hazard: appending a status line with an oldString that ends at the NEXT section header silently deleted that header (`## #204.` lost in TODO.md; restored) — append entries with an oldString anchored INSIDE the previous entry's last line instead. Also: block_transfer anchors are line-START prefixes only — a mid-line targetMarker phrase yields not-found (and an all-digit ref is a line number, never a prefix starting with digits).
 
+### 2026-10-28_20-57 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
+Near-miss 2026-10-28: U18 spec launched without the scratch-copy/one-live-write rule — the worker piecemeal-edited the hot-reloaded plugin file and caused 9 full re-prefills before the maintainer interrupted it. Root cause: the cache-bust host fact was not yet in my context at spec-authoring time. Fix landed in the same session (readme_task_spec bullet + worker prompt section); future plugin/tool specs must carry the rule in the first launch prompt too.
+

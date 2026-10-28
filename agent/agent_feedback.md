@@ -1082,3 +1082,6 @@ A forensics probe that reports ZERO can mean the pattern is wrong, not that the 
 ### 2026-10-28_19-14 worker_FlashNext ses_e7c6531f0ffeKL2O9QSwQSOtGx
 A mid-run rm() of an open SQLite fixture DB crashed the context_trim smoke with Windows EBUSY — swap fixture rows with UPDATE/INSERT/DELETE reopen instead of a rebuild (proven pattern now in context_trim_v2.smoke.mjs U17 block).
 
+### 2026-10-28_19-16 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
+edit-tool hazard: appending a status line with an oldString that ends at the NEXT section header silently deleted that header (`## #204.` lost in TODO.md; restored) — append entries with an oldString anchored INSIDE the previous entry's last line instead. Also: block_transfer anchors are line-START prefixes only — a mid-line targetMarker phrase yields not-found (and an all-digit ref is a line number, never a prefix starting with digits).
+

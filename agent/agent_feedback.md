@@ -1106,3 +1106,9 @@ Spec-design gap found by U19: a survival/pressure spec must FORBID the bounded-o
 ### 2026-10-28_23-00 worker_FlashNext ses_e7b96ab54ffebe8iTZPD7rcBf0
 edit-tool appends failed 3x because I anchored oldString on a wrapped phrase from my own earlier write instead of the file's real final line; the retry pass did not rescue it. Fix = `tail -2` the file and anchor the exact last line — cheap, but it cost 3 calls mid-unit. Second friction: multi-rule awk programs inlined in a shell -c string died with an opaque awk syntax error (turn-length pass); writing the awk to a $TMP/opencode/*.awk file fixed it first try — worth stating as the default for anything beyond a single-rule pass.
 
+### 2026-10-28_23-21 worker_FlashNext ses_e7b71db78ffe545wLL433F5W5q
+The guard notice text repeats verbatim at every assembly after a fire ("emergency trim: dropped #2,#3,#4,#5,#6,#7,#8,#9,#10,#11,#12,#14 = 62179 tokens; your marks were empty" appeared at three consecutive assemblies with an identical drop list), while the spec says ONE notice entry per fire — an agent cannot tell a re-emitted entry from a new fire, and cannot tell which rows are dropped vs merely hidden.
+
+### 2026-10-28_23-26 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
+False-claim incident 2026-10-28 (correcting my own earlier line): I claimed the U20 guard "fired ZERO times — no kind:guard line" — WRONG: the log HAD `22:17:27Z kind:guard ranks=#14 projected=244787`. I concluded negative from the absence of the line in a log I had only tail'd. Rule (MEM-0150 class): a negative claim about a log needs a GREP of the whole file, not a tail read; TODO line corrected in-session.
+

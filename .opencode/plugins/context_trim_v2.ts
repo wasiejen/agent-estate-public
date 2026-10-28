@@ -301,6 +301,18 @@ export function setSysTokForTest(n: number): void {
   sysPromptTok = Number.isFinite(n) && n >= 0 ? n : SYS_PROMPT_TOK;
 }
 
+// (U22 F1, #218) the RENDER-RATIO band. The provider render of a tool-output-heavy
+// session measures ≈ 2x the bytes/4 window estimate (measured 2026-10-29, U21
+// acceptance run 3: `window-est=106,508` against a provider req-at that climbed to
+// 207,132 and died at 267,659; a second session 138,902 store rows vs 252,192
+// provider; band across sessions 1.15-2x). The draft array carries tool ARGS the
+// provider renders far larger than their stored bytes, so bytes/4 alone cannot
+// trigger the wall guard. The guard therefore scales the live assembly estimate by
+// the session's own render ratio, clamped to this band; an unavailable provider
+// figure falls back to the floor.
+const RENDER_RATIO_FLOOR = 2.0;
+const RENDER_RATIO_CAP = 2.5;
+
 // ------------------------------------------------------------------ plugin state
 
 let dir = ""; // ctx.location.directory — the repo root the plugin targets
@@ -722,6 +734,19 @@ function assemblyEstimate(messages: unknown): number | undefined {
   } catch {
     return undefined;
   }
+}
+
+// (U22 F1, #218) the per-session RENDER RATIO the guard scales the assembly
+// estimate by: the last provider CTX figure (the gauge core's prompt tokens of the
+// last FINISHED step) over that step's byte/4 estimate — `massSum(rows)`, the same
+// quantity the report prints as `window-est=`. Clamped into
+// [RENDER_RATIO_FLOOR, RENDER_RATIO_CAP]; a missing provider figure or a zero row
+// mass yields the floor (R = 2.0).
+function renderRatio(rows: Array<Record<string, unknown>>, lastReq: number | undefined): number {
+  if (lastReq == null || lastReq <= 0) return RENDER_RATIO_FLOOR;
+  const est = massSum(rows);
+  if (est <= 0) return RENDER_RATIO_FLOOR;
+  return Math.min(RENDER_RATIO_CAP, Math.max(RENDER_RATIO_FLOOR, lastReq / est));
 }
 
 // (U21 F3, #214 D3) ONE shared selection rule — the wall guard and `free` call
@@ -1648,6 +1673,29 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
         // U9 pair rule below, their tool-output projections too. Everything at/
         // after the boundary stays IN ORDER — in-place, NO append (the
         // composition pin).
+        // (U22 F3, #218) WHY a boundary drop can leave the provider prompt nearly
+        // unchanged while an `auto`-set drop shrinks it — read-only fork finding
+        // (home/Repos/opencode, 2026-10-29), two mechanisms:
+        // (1) the plugin's WINDOW and the request's REPLAY are different row sets.
+        //     `SessionStore.context` reads `SessionHistory.load(db, id, "latest")`
+        //     (`packages/core/src/session/store.ts:179`); the request draft comes from
+        //     `SessionHistory.entriesForRunner(..., provenance(model) ?? "local")`
+        //     (`packages/core/src/session/context.ts:165-170`). Under `"local"` a
+        //     completed compaction carrying a providerContext is NOT a replay boundary
+        //     (`latestCompaction`, `packages/core/src/session/history.ts:41-53`) and its
+        //     checkpoint row is filtered out (`replayable`, `history.ts:23-26`) — the
+        //     request replays rows the plugin's window never sees, and a boundary drop
+        //     can only reach rows INSIDE the window.
+        // (2) the row -> draft mapping is NOT 1:1. `toLLMMessage`
+        //     (`packages/core/src/session/runner/to-llm-message.ts:253-327`) emits
+        //     NOTHING for `idle`/`agent-switched` rows, an id-LESS entry for `system`
+        //     rows (`:291`), and id-less `Message.tool` entries for assistant tool
+        //     OUTPUTS (`:216-232`) — a matched store row can contribute no id-carrying
+        //     draft entry at all, so `droppedRows=` (= `drop.size`, STORE rows matched)
+        //     overstates the request shrink. Plugin-side enforcement: the byte
+        //     measurement below (`droppedBytes=` = bytes/4 actually spliced out of the
+        //     draft array); the row-set mismatch is fork-side and a plugin must not
+        //     drop rows it cannot see or weigh — recorded here and in the #218 entry.
         for (const r of rows.slice(0, i)) {
           const id = idOf(r);
           if (id !== "") drop.add(id);
@@ -1700,7 +1748,12 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     // gauge `last-req` figure (U8) rides ONLY as the fallback when the array is
     // unusable — U20 measured last-req 190,241 against an assembly of 224,000
     // `in=` + 16,384 `cache.read`: ~34k blind, request dead at 284,070 with the
-    // projection still `ok`. Trigger: projection >= GUARD_FRAC (0.92) of the
+    // projection still `ok`. (U22 F1, #218) that byte/4 estimate UNDERCOUNTS the
+    // provider render by ≈ 2x on tool-output-heavy sessions (E1: window-est 106,508
+    // vs provider 207,132 → rejected 267,659), so the projection is
+    // `max(live x R, last-req)` with `R` = the session's clamped render ratio
+    // (`renderRatio`, floor 2.0 / cap 2.5). Trigger/bound math UNCHANGED: 0.92
+    // trigger, drain to the 0.8 fit bound. Trigger: projection >= GUARD_FRAC (0.92) of the
     // window — UNCHANGED. Selection: the SHARED `dropCandidates` rule (U21 F3 —
     // head/user/compaction/newest-assistant never; a tool-output-dominant floor
     // row CAN leave). Drain target (U21 F2): the picks run until the projection
@@ -1725,7 +1778,12 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
           // An unknown OUTPUT prints CTX itself (the apply lane's own rule).
           const lastReq = gCtx != null ? (gOut != null ? gCtx - gOut : gCtx) : undefined;
           const live = assemblyEstimate(messages);
-          const projection = live != null ? live : lastReq;
+          // (U22 F1, #218) the RENDER-CORRECTED projection: max(live x R, last-req),
+          // `R` = `renderRatio(rows, lastReq)`. `last-req` stays a second input, so an
+          // unusable array still projects; the fire needs ONE input AT the trigger —
+          // below it on BOTH inputs the lane stays silent (no over-fire).
+          const ratio = renderRatio(rows, lastReq);
+          const projection = live != null ? Math.max(Math.floor(live * ratio), lastReq ?? live) : lastReq;
           const src = live != null ? "assembly" : "last-req";
           const gBound = Math.floor(gWin * GUARD_FRAC);
           const gFit = Math.floor(gWin * BOUND_FRAC);
@@ -1742,6 +1800,10 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
             let pickedMass = 0;
             let projected = projection;
             const prevAfter = guardAfter.get(sid);
+            // (U22 F1) the drain arithmetic is UNCHANGED: `c.mass` is a bytes/4
+            // own-mass subtracted from the R-scaled figure, so the picks drain
+            // CONSERVATIVELY — they stop later than a unit-matched drain would, and
+            // the real request lands BELOW the fit bound, never above it.
             for (const c of cand) {
               if (projected < gFit) break; // the projection sits UNDER the fit bound — stop
               pickedIds.push(c.id);
@@ -1759,7 +1821,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
                 .sort((a, b) => a - b);
               const rankText = rankNums.length > 0 ? rankNums.slice(0, 12).map((n) => `#${n}`).join(",") + (rankNums.length > 12 ? ` +${rankNums.length - 12} more` : "") : "unavailable";
               const wrote = writeSessionEntry(sid, { boundary: entry.boundary, keep: entry.keep, setAt: entry.setAt, staged: entry.staged, active: entry.active, guard: true, auto: [...entry.auto, ...pickedIds] });
-              appendLog(buildLine("guard", { session: sid, event: "auto", n: String(pickedIds.length), mass: String(pickedMass), ranks: rankText, projected: String(projection), src, fit: String(gFit), after: String(projected), prev: prevAfter != null ? String(prevAfter) : undefined, bound: String(gBound), marks: String(entry.active.length), store: wrote ? undefined : "write-failed" }, {}));
+              appendLog(buildLine("guard", { session: sid, event: "auto", n: String(pickedIds.length), mass: String(pickedMass), ranks: rankText, projected: String(projection), src, r: ratio.toFixed(2), live: live != null ? String(live) : undefined, fit: String(gFit), after: String(projected), prev: prevAfter != null ? String(prevAfter) : undefined, bound: String(gBound), marks: String(entry.active.length), store: wrote ? undefined : "write-failed" }, {}));
             }
           }
         }
@@ -1868,8 +1930,18 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     }
     let dropped = 0;
     let droppedProjections = 0;
+    // (U22 F3, #218) the REQUEST-SHRINK measurement: bytes/4 of the draft entries
+    // ACTUALLY spliced out. `droppedRows=` counts STORE rows matched — a matched row
+    // with no draft entry frees nothing — so effectiveness is measured here, not
+    // inferred from the row count.
+    let droppedBytes = 0;
     for (let k = messages.length - 1; k >= 0; k--) {
       if (!dropFlags[k]) continue;
+      try {
+        droppedBytes += Math.floor(JSON.stringify(messages[k]).length / 4);
+      } catch {
+        // an unserializable entry counts 0 — the measurement never breaks the drop
+      }
       const id = messages[k]?.["id"];
       if (typeof id === "string" && drop.has(id)) dropped++;
       else droppedProjections++;
@@ -1924,7 +1996,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     appendLog(
       buildLine(
         "trim",
-        { session: sid, boundary: entry.boundary !== "" ? entry.boundary : "none", boundaryIndex: bIdx >= 1 ? String(bIdx) : "none", marks: String(entry.active.length), droppedRows: String(drop.size), droppedEntries: String(dropped + droppedProjections), droppedProjections: String(droppedProjections), orphan: String(orphan), autoRows: autoTotal > 0 ? String(autoTotal) : undefined, autoMass: noticeMass > 0 ? String(noticeMass) : undefined, ordinal: seqSpan !== "none" ? "session-rank" : undefined, seq: seqSpan !== "none" ? seqSpan : undefined, keptEntries: String(messages.length) },
+        { session: sid, boundary: entry.boundary !== "" ? entry.boundary : "none", boundaryIndex: bIdx >= 1 ? String(bIdx) : "none", marks: String(entry.active.length), droppedRows: String(drop.size), droppedEntries: String(dropped + droppedProjections), droppedBytes: String(droppedBytes), droppedProjections: String(droppedProjections), orphan: String(orphan), autoRows: autoTotal > 0 ? String(autoTotal) : undefined, autoMass: noticeMass > 0 ? String(noticeMass) : undefined, ordinal: seqSpan !== "none" ? "session-rank" : undefined, seq: seqSpan !== "none" ? seqSpan : undefined, keptEntries: String(messages.length) },
         {},
       ),
     );

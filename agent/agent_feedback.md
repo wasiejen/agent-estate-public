@@ -1100,3 +1100,6 @@ block_transfer COPY into a non-empty buffer: the paste echoed 11 copied rows but
 ### 2026-10-28_22-45 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
 CORRECT- the previous entry (22-45): its claim is FALSE — no stale row rode into any paste (TODO.md landed exactly 42 lines; index exactly 11; verified clean). The real friction was self-inflicted: I asserted COPY line-count spans from assumed sizes (57 vs actual 42, 13 vs 11) and mis-split a scratch file inside one buffer span (KC entries landed in knowledge_tools.md, moved after). Lesson (mine): copy whole-file spans by end-marker or check wc -l before numeric spans; split scratch payloads per destination file.
 
+### 2026-10-28_22-48 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
+Spec-design gap found by U19: a survival/pressure spec must FORBID the bounded-output discipline in the growth phase (DoD: uncapped reads, ≥180k window growth, inconclusive-declaration) — workers correctly follow "bound your outputs", so the window never grows and the tight regime is never entered. One-line DoD rule for #206-class runs.
+

@@ -231,6 +231,14 @@ import { dirname, join } from "node:path";
 // The shared v2-paired gauge core (VALUE import of plain JS — node: builtins
 // only). Used for the report header figure + its readout form only.
 import { formatGauge, getDbPath, readGauge } from "./scripts/gauge.mjs";
+// (U11 smoke hook) The smoke may run this file from a scratch location where its
+// `./scripts/gauge.mjs` resolves to a DIFFERENT module instance than the one it
+// steers — inject the steered core (same functions, shared test state). The
+// ordinal lane keeps the import-bound getDbPath (fixtures steer the same file).
+let gauge = { formatGauge, getDbPath, readGauge };
+export function setGaugeCoreForTest(m: { formatGauge: typeof formatGauge; getDbPath: typeof getDbPath; readGauge: typeof readGauge }): void {
+  gauge = m;
+}
 
 // ------------------------------------------------------------------ constants
 
@@ -797,7 +805,7 @@ function resolveUnmarkRef(ord: Ordinals, ref: string): string {
 
 // ------------------------------------------------------------------ reportWindow (READ-ONLY)
 
-async function reportWindow(sid: string, target?: string): Promise<string> {
+async function reportWindow(sid: string, target?: string, ids = false): Promise<string> {
   const read = await readWindow(sid);
   if (!read.ok) {
     if (read.reason === "not-found") return `session ${sid}\nreport= rejected: session-not-found`;
@@ -826,7 +834,7 @@ async function reportWindow(sid: string, target?: string): Promise<string> {
   // (2) the shared gauge-core figure (the v2-paired session/mass read — no new
   // SQL). A db-error read is ONE honest line; the report survives. Read BEFORE
   // the header block: the #189 line names its CTX as the request estimate.
-  const g = await readGauge(undefined, sid);
+  const g = await gauge.readGauge(undefined, sid);
   const gr = g as { kind?: unknown; error?: unknown; ctx?: unknown; window?: unknown; output?: unknown };
   // (9) the projection quantities — the LAST completed request's PROMPT tokens
   // (gauge ctx − output = input + cache.read, the spec's verified facts) and the
@@ -865,7 +873,7 @@ async function reportWindow(sid: string, target?: string): Promise<string> {
   if (gr.kind === "db-error") {
     lines.push(`gauge: db-error ${cap(String(gr.error ?? "").replace(/\r?\n+/g, " | "), 120)}`);
   } else {
-    lines.push(`gauge: ${formatGauge(g)}`);
+    lines.push(`gauge: ${gauge.formatGauge(g)}`);
   }
 
   // (2b) the numbered rows (the CUT-DOWN form). U8: `own=` is the row's OWN
@@ -877,7 +885,7 @@ async function reportWindow(sid: string, target?: string): Promise<string> {
   // shape); `mark` accepts `#N` or `N`-shaped bare numbers as refs.
   rows.forEach((r, i) => {
     const reqAt = providerTotalOf(r);
-    lines.push(`row: ${i + 1} #${ordinalOf(ord, r)} ${String(r["type"] ?? "?")} id=${idOf(r)} own=${ownMassOf(r)}` + (reqAt >= 0 ? ` req-at=${reqAt}` : "") + toolTargets(r));
+    lines.push(`row: ${i + 1} #${ordinalOf(ord, r)} ${String(r["type"] ?? "?")}` + (ids ? ` id=${idOf(r)}` : "") + ` own=${ownMassOf(r)}` + (reqAt >= 0 ? ` req-at=${reqAt}` : "") + toolTargets(r)); // (U11 #200) id= DROPPED by default — the opaque id cost ~8-10 tokens/row; the row is named by #<seq>; `ids:true` restores
   });
   lines.push(`last: ${rows.length}`);
 
@@ -1132,7 +1140,7 @@ async function applySet(sid: string, force: boolean): Promise<string> {
     if (read.reason === "not-found") return `apply= rejected: session-not-found`;
     return `apply= error: context-read-failed: ${read.preview}`;
   }
-  const g = await readGauge(undefined, sid);
+  const g = await gauge.readGauge(undefined, sid);
   const gr = g as { ctx?: unknown; window?: unknown; output?: unknown };
   const gCtx = typeof gr.ctx === "number" && Number.isFinite(gr.ctx) ? gr.ctx : undefined;
   const gOut = typeof gr.output === "number" && Number.isFinite(gr.output) ? gr.output : undefined;
@@ -1310,36 +1318,46 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
       });
     }
     // (11) U10 (#196) IN-WINDOW NUMBER TAGS — opt-in per session (store flag
-    // `tags`), DEFAULT OFF. Hook-side render ONLY (NO store write): the tag
-    // `[#N] ` goes BEFORE the text of the FIRST text part of each id-carrying
-    // USER/ASSISTANT entry that has one. Entries with NO place for the tag stay
-    // untagged — tool-result projections (their mass rides the owning ordinal
-    // via the #193 call-id link), id-less system entries, reasoning-first
-    // assistant rows with no text part. DETERMINISTIC: the tag is the row's
-    // absolute ordinal (never a position), so the tagged bytes are IDENTICAL
-    // across assemblies — byte-stable history, stable prompt cache after the
-    // ONE-TIME bust the first tagged request causes. RENDER BEFORE THE SPLICE:
-    // dropFlags are indexed against the PRE-splice array — tagging after the
-    // splice would read SHIFTED indices (the unit found this live in smoke).
+    // `tags`), DEFAULT OFF. Hook-side render ONLY (NO store write). U11 (#200)
+    // PLACEMENT PRIORITY: the tag `[#N] ` goes before the FIRST `text` part;
+    // else before the entry's FIRST `reasoning` part (tool-call-only turns are
+    // the majority of a working session — text-only placement left them
+    // untagged); else the entry stays UNTAGGED and is counted (`untagged=` on
+    // the trim line). A tool-call part's `input` bytes are NEVER touched.
+    // Candidates: surviving id-carrying user/assistant entries. Entries with
+    // no place for the tag stay untagged — tool-result projections (their mass
+    // rides the owning ordinal via the #193 call-id link), id-less system
+    // entries, id-carrying entries with neither text nor reasoning.
+    // DETERMINISTIC: the tag is the row's absolute ordinal (never a position),
+    // so the tagged bytes are IDENTICAL across assemblies — byte-stable
+    // history, stable prompt cache after the ONE-TIME bust the first tagged
+    // request causes. RENDER BEFORE THE SPLICE: dropFlags are indexed against
+    // the PRE-splice array — tagging after the splice would read SHIFTED
+    // indices (the U10 unit found this live in smoke).
     let tagged = 0;
+    let untagged = 0;
     if (entry.tags === true) {
       const ord = mergeOrdinals(await readOrdinals(sid), rows);
       messages.forEach((m, k) => {
-        if (dropFlags[k]) return; // a dropped entry is never tagged
+        if (dropFlags[k]) return; // a dropped entry is never tagged or counted
         const id = typeof m["id"] === "string" ? m["id"] : "";
-        if (id === "") return; // id-less projections NEVER tagged
+        if (id === "") return; // id-less projections NEVER tagged or counted
         const role = m["role"];
-        if (role !== "user" && role !== "assistant") return; // only these two carry a place for the tag
-        for (const c of asArray(m["content"])) {
-          const p = asRecord(c);
-          if (p != null && p["type"] === "text" && typeof p["text"] === "string") {
-            const seq = ord.ok === true ? ord.byId.get(id) : undefined;
-            if (seq == null) return; // no ordinal -> no tag (never a guessed number)
-            p["text"] = `[#${seq}] ${p["text"]}`;
-            tagged++;
-            break;
+        if (role !== "user" && role !== "assistant") return; // only these two are candidates
+        const seq = ord.ok === true ? ord.byId.get(id) : undefined;
+        if (seq == null) { untagged++; return; } // no ordinal -> no tag (never a guessed number)
+        const parts = asArray(m["content"]);
+        const lane = (type: string): Record<string, unknown> | undefined => {
+          for (const c of parts) {
+            const p = asRecord(c);
+            if (p != null && p["type"] === type && typeof p["text"] === "string") return p;
           }
-        }
+          return undefined;
+        };
+        const target = lane("text") ?? lane("reasoning");
+        if (target == null) { untagged++; return; } // neither lane -> counted untagged
+        target["text"] = `[#${seq}] ${String(target["text"])}`;
+        tagged++;
       });
     }
     let dropped = 0;
@@ -1351,11 +1369,11 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
       else droppedProjections++;
       messages.splice(k, 1);
     }
-    if (dropped + droppedProjections === 0 && tagged === 0) return; // stale boundary + all marks stale + no tags -> nothing happened, no trim line
+    if (dropped + droppedProjections === 0 && tagged === 0 && untagged === 0) return; // stale boundary + all marks stale + no tag activity -> nothing happened, no trim line
     appendLog(
       buildLine(
         "trim",
-        { session: sid, boundary: entry.boundary !== "" ? entry.boundary : "none", boundaryIndex: bIdx >= 1 ? String(bIdx) : "none", marks: String(entry.active.length), droppedRows: String(drop.size), droppedEntries: String(dropped + droppedProjections), droppedProjections: String(droppedProjections), orphan: String(orphan), tagged: String(tagged), keptEntries: String(messages.length) },
+        { session: sid, boundary: entry.boundary !== "" ? entry.boundary : "none", boundaryIndex: bIdx >= 1 ? String(bIdx) : "none", marks: String(entry.active.length), droppedRows: String(drop.size), droppedEntries: String(dropped + droppedProjections), droppedProjections: String(droppedProjections), orphan: String(orphan), tagged: String(tagged), untagged: String(untagged), keptEntries: String(messages.length) },
         {},
       ),
     );
@@ -1368,7 +1386,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
 // ------------------------------------------------------------------ the tool surface
 
 const TOOL_DESCRIPTION =
-  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = the ABSOLUTE STORE ORDINAL (append position — stable forever; refs take a bare ordinal or an id). `mode:'report'` — READ-ONLY window map (rows after the LAST completed compaction): header = head row, count, BOUNDARY state, retained, STAGED/ACTIVE counts (active-est=own sum); `window_rows != request` line (request-est=gauge CTX; window-est=own sum); `projection:` line (last-req, staged-est, projected, bound, ok|over); rows: window position + `#N`, `own=` the row's OWN weight (bytes/4 of own parts), completed-assistant rows add `req-at=` = REQUEST size at that step (NOT weight); tool targets; `last: N`; low/medium/high trim options (ordinal anchor, keep, own retained/dropped + read/thought/shell, `hint` ≤ 80 chars); `biggest:` top-5 finished turns by OWN weight (ordinal-named); `target` = dry-run; `gauge:` line = the shared core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: boundary (first KEPT row) via `target` or `keepMessages` (message count; exclusive), REMOVE via `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ordinals), `unmark` remove, `clear` empties staged AND active (boundary stays), `tags` on/off = opt-in in-window `[#N] ` hook-side tags (default OFF; result entries untagged); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req minus drop_est; refuses `nothing-staged` / `over-bound <projected> <bound>` unless `force:true`; same-step mark+apply re-reads the store ONCE). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (call-id link, adjacency fallback, unmatched stay — `orphan=`); history untouched, reversible; stale refs log ONE deduped line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` rejections or `error: <usage>`; guards: outside the window (`*-not-found`), head (`*-at-window-head`), floor keep >= 6 (`mark-floor`/`retained-tail-below-floor`), keep form (`keep-*`); read failures print `context-read-failed`; unreadable ordinals print `#?` and reject numbers. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>`, `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
+  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = the ABSOLUTE STORE ORDINAL (append position — stable forever; refs take a bare ordinal or an id). `mode:'report'` — READ-ONLY window map (post-compaction rows): header = head row, count, BOUNDARY state, retained, STAGED/ACTIVE counts (active-est=own sum); `window_rows != request` line (request-est=CTX; window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: window position + `#N` (rows omit `id=` unless `showIds`), `own=` OWN weight (bytes/4 of own parts), assistant rows add `req-at=` = REQUEST size at that step (NOT weight); tool targets; `last: N`; low/med/high trim options (ordinal anchor, keep, own retained/dropped + read/thought/shell, `hint` ≤ 80); `biggest:` top-5 turns by OWN weight (ordinal-named); `target` = dry-run; `gauge:` line = the shared core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ordinals), `unmark` remove, `clear` empties staged AND active (boundary stays), `tags` on/off = opt-in in-window `[#N] ` hook-side tags (default OFF; text→reasoning placement, unplaced counted); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req minus drop_est; refuses `nothing-staged` / `over-bound <projected> <bound>` unless `force:true`; same-step mark+apply re-reads the store). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (call-id link, adjacency fallback, unmatched stay — `orphan=`); history untouched, reversible; stale refs log ONE deduped line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` rejections or `error: <usage>`; guards: outside the window (`*-not-found`), head (`*-at-window-head`), floor keep >= 6 (`mark-floor`/`retained-tail-below-floor`), keep form (`keep-*`); read failures print `context-read-failed`; unreadable ordinals print `#?` and reject numbers. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>`, `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
 
 const TOOL_INPUT = {
   "type": "object",
@@ -1420,7 +1438,11 @@ const TOOL_INPUT = {
     },
     "tags": {
       "type": "boolean",
-      "description": "mark: ON/OFF opt-in in-window `[#N] ` ordinal tags (default OFF; toggle-only valid). Hook-side render into user/assistant text parts; result entries stay untagged."
+      "description": "mark: ON/OFF in-window `[#N] ` tags (default OFF; toggle-only). text→reasoning placement; tool input untouched; unplaced counted."
+    },
+    "showIds": {
+      "type": "boolean",
+      "description": "report: print `id=` on rows (default OFF — `#<seq>` names the row)."
     }
   }
 };
@@ -1435,7 +1457,7 @@ async function execute(args: unknown, toolContext: { sessionID?: unknown }): Pro
   const target = a.target != null && String(a.target).trim() !== "" ? String(a.target).trim() : undefined;
   const keep = a.keepMessages != null ? a.keepMessages : undefined;
   const tagsArg = a.tags === true || a.tags === false ? (a.tags as boolean) : undefined; // (U10) the opt-in tags toggle
-  if (mode === "report") return { output: await reportWindow(sid, target) };
+  if (mode === "report") return { output: await reportWindow(sid, target, a.showIds === true) }; // (U11 #200) `showIds:true` restores id= on rows
   if (mode === "tail") {
     const isClear = a.clear === true;
     if (isClear && (target != null || keep != null)) {

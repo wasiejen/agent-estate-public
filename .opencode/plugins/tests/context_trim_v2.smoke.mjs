@@ -231,6 +231,9 @@ const pluginMod = await import(pathToFileURL(PLUGIN).href);
 const plugin = pluginMod.default;
 // (U10) the ordinal lane reads the separate append-order fixture DB.
 pluginMod.setOrdinalsDbForTest(ORD_DB);
+// (U11) when the scratch plugin resolves its own gauge copy to a different
+// module instance, inject the steered core so the fixture read is shared.
+pluginMod.setGaugeCoreForTest(gaugeMod);
 chk("S0 default export is the loader shape { id: 'context_trim_v2', setup }", plugin && plugin.id === "context_trim_v2" && typeof plugin.setup === "function", JSON.stringify(Object.keys(plugin ?? {})));
 
 const ctx = makeCtx(WS);
@@ -243,7 +246,7 @@ const fire = async (draft) => {
   await CONTEXT_HANDLERS[0](draft);
 };
 
-chk("S0b the tool's name is 'context_trim' (the v1 name — a same-name twin is precedent) and the args mirror v1 (+ clear, + mark ids/unmark, + U7 apply mode + force, + U10 tags)", TOOL.name === "context_trim" && JSON.stringify(Object.keys(TOOL.input.properties).sort()) === JSON.stringify(["clear", "force", "ids", "keepMessages", "mode", "session", "tags", "target", "unmark"]) && JSON.stringify(TOOL.input.properties.mode.enum) === JSON.stringify(["report", "tail", "mark", "apply"]) && TOOL.output.type === "string", JSON.stringify(TOOL.name + "|" + Object.keys(TOOL.input.properties)));
+chk("U11 the S0b pin moved into the R1 block (schema keys incl showIds) — this line kept as the name pin", TOOL.name === "context_trim");
 
 // A draft shaped like the fork's SessionContext (entries carry the projection's
 // optional `id` — to-llm-message.ts sets it per row; system/effort projections
@@ -253,6 +256,9 @@ chk("S0b the tool's name is 'context_trim' (the v1 name — a same-name twin is 
 // part id, follows a dropped entry when a2 is marked); msg_a3 = call `call_a3`
 // + linked result; entry 11 = a TRUE orphan result (follows the KEPT msg_u6).
 function draft(sessionID = SID) {
+  return structuredClone(draftBase(sessionID)); // (U11) deep clone: legs may MUTATE entries (reasoning push, splice inserts) — the base fixture stays pristine
+}
+function draftBase(sessionID = SID) {
   return {
     sessionID,
     agent: "worker-1",
@@ -268,7 +274,7 @@ function draft(sessionID = SID) {
       { id: "msg_a3", role: "assistant", content: [{ type: "tool-call", id: "call_a3", name: "bash", input: {} }, { type: "text", text: "a3 text" }] },
       { role: "tool", content: [{ type: "tool-result", id: "call_a3", name: "bash", result: { value: [{ type: "text", text: "a3 output" }] } }] },
       { id: "msg_u4", role: "user", content: [{ type: "text", text: "user four" }] },
-      { id: "msg_a5", role: "assistant", content: [{ type: "text", text: "a5 text" }] },
+      { id: "msg_a5", role: "assistant", content: [{ type: "tool-call", id: "call_a5", name: "noop", input: {} }] }, // (U11 #200) a TOOL-CALL-ONLY turn: no text, no reasoning -> the unplaceable-tag case (must stay untagged and be COUNTED)
       { id: "msg_u6", role: "user", content: [{ type: "text", text: "user six" }] },
       { role: "tool", content: [{ type: "tool-result", name: "read", result: { value: [{ type: "text", text: "orphan result" }] } }] },
       { id: "msg_a7", role: "assistant", content: [{ type: "text", text: "a7 text" }] },
@@ -289,11 +295,12 @@ function draft(sessionID = SID) {
   chk("R1 (#189+U8) the two-quantity line: window_rows != request + request-est (gauge CTX) + OWN-mass window-est 332", lines[2] === "window_rows != request; request also carries system prompt + retained slice request-est=57000 window-est=332", JSON.stringify(lines[2] ?? null));
   chk("R1 (U7) the projection line: last-req = gauge CTX 57000 − output 2000; bound = 80% of the 120K window", lines[3] === "projection: last-req=55000 staged-est=0 projected=55000 bound=96000 ok", JSON.stringify(lines[3] ?? null));
   chk("R1 the gauge line rides the shared v2-paired core (fixture mass 57000 / 120K + budget suffix)", lines[4] === `gauge: SESSION=${SID} CTX=57000 (47%) REM=63000 | 6 compactions left`, JSON.stringify(lines[4] ?? null));
-  chk("R1 (U10) row 1 = the compaction head + its ABSOLUTE ordinal #4300 (window position 1, store seq 4300 — both print)", lines[5] === "row: 1 #4300 compaction id=msg_c0 own=5", JSON.stringify(lines[5] ?? null));
-  chk("R1 user rows take the own-bytes4 mass + stable ordinals (#4301/#4304/#4308)", lines[6] === "row: 2 #4301 user id=msg_u1 own=2" && lines[9] === "row: 5 #4304 user id=msg_u4 own=2" && lines[13] === "row: 9 #4308 user id=msg_u8 own=2", JSON.stringify([lines[6], lines[9], lines[13]]));
-  chk("R1 (U8 pin) row 3 asserts OWN mass (111 = input-JSON 45 + output 400 / 4), NOT the provider sum — the cumulative figure rides relabeled req-at=5200; (U10) ordinal #4302", lines[7] === "row: 3 #4302 assistant id=msg_a2 own=111 req-at=5200 tool=read target=C:/a/b.ts offset=5 limit=20", JSON.stringify(lines[7] ?? null));
-  chk("R1 row 4 = the bash-target row (own=205, req-at=9000, #4303)", lines[8] === "row: 4 #4303 assistant id=msg_a3 own=205 req-at=9000 tool=bash target=ls -la", JSON.stringify(lines[8] ?? null));
-  chk("R1 the zero-content rows print own=0 + req-at (the provider figure cannot masquerade as weight)", lines[10] === "row: 6 #4305 assistant id=msg_a5 own=0 req-at=150" && lines[12] === "row: 8 #4307 assistant id=msg_a7 own=0 req-at=25000" && lines[14] === "row: 10 #4309 assistant id=msg_a9 own=3 req-at=400", JSON.stringify([lines[10], lines[12], lines[14]]));
+  chk("S0b the tool's name is 'context_trim' (the v1 name — a same-name twin is precedent) and the args mirror v1 (+ clear, + mark ids/unmark, + U7 apply mode + force, + U10 tags, + U11 showIds)", TOOL.name === "context_trim" && JSON.stringify(Object.keys(TOOL.input.properties).sort()) === JSON.stringify(["clear", "force", "ids", "keepMessages", "mode", "session", "showIds", "tags", "target", "unmark"]) && JSON.stringify(TOOL.input.properties.mode.enum) === JSON.stringify(["report", "tail", "mark", "apply"]) && TOOL.output.type === "string", JSON.stringify(TOOL.name + "|" + Object.keys(TOOL.input.properties)));
+  chk("R1 (U10+U11) row 1 = the compaction head + its ABSOLUTE ordinal #4300 — COMPACT form, NO id= by default (the opaque id costs ~8-10 tokens/row)", lines[5] === "row: 1 #4300 compaction own=5", JSON.stringify(lines[5] ?? null));
+  chk("R1 user rows take the own-bytes4 mass + stable ordinals (#4301/#4304/#4308), compact", lines[6] === "row: 2 #4301 user own=2" && lines[9] === "row: 5 #4304 user own=2" && lines[13] === "row: 9 #4308 user own=2", JSON.stringify([lines[6], lines[9], lines[13]]));
+  chk("R1 (U8 pin) row 3 asserts OWN mass (111 = input-JSON 45 + output 400 / 4), NOT the provider sum — the cumulative figure rides relabeled req-at=5200; (U10) ordinal #4302, (U11) no id", lines[7] === "row: 3 #4302 assistant own=111 req-at=5200 tool=read target=C:/a/b.ts offset=5 limit=20", JSON.stringify(lines[7] ?? null));
+  chk("R1 row 4 = the bash-target row (own=205, req-at=9000, #4303, no id)", lines[8] === "row: 4 #4303 assistant own=205 req-at=9000 tool=bash target=ls -la", JSON.stringify(lines[8] ?? null));
+  chk("R1 the zero-content rows print own=0 + req-at (the provider figure cannot masquerade as weight), compact", lines[10] === "row: 6 #4305 assistant own=0 req-at=150" && lines[12] === "row: 8 #4307 assistant own=0 req-at=25000" && lines[14] === "row: 10 #4309 assistant own=3 req-at=400", JSON.stringify([lines[10], lines[12], lines[14]]));
   chk("R1 the `last:` flag + (U8) `biggest:` ranks by OWN weight: the NEWEST row (#4309=3) is the SMALLEST, the old tool rows dominate (the error turn excluded); (U10) entries are ORDINAL-named", lines[15] === "last: 10" && lines[19] === "biggest: #4303=205 #4302=111 #4309=3", JSON.stringify([lines[15], lines[19]]));
   chk("R1 the recommendation block = the trim RANGE with OWN-mass sums (U9: outputs count again — they drop with their call); (U10) anchors name rows by ORDINAL (mark accepts them)", lines[16] === "option low: msg=#4304 keep=6 retained=14 (read=0 thought=10 shell=0) dropped=318 (read=100 thought=2 shell=200) hint=user four" && lines[17] === "option medium: msg=#4302 keep=8 retained=330 (read=100 thought=10 shell=200) dropped=2 (read=0 thought=2 shell=0) hint=C:/a/b.ts offset=5 limit=20" && lines[18] === "option high: msg=#4301 keep=9 retained=332 (read=100 thought=12 shell=200) dropped=0 (read=0 thought=0 shell=0) hint=user one", JSON.stringify([lines[16], lines[17], lines[18]]));
   chk("R1 report mode makes ZERO store writes (the report never writes)", readStore() === null && existsSync(LOG), JSON.stringify(readStore()));
@@ -383,7 +390,7 @@ function draft(sessionID = SID) {
   await fire(draft());
   chk("H3 the stale line is DEDUPED per session+boundary (second fire -> no new line)", readLog().slice(before + 1 + delta.length).filter((l) => l.kind === "boundary-stale").length === 0, JSON.stringify(readLog().slice(before + 1).map((l) => l.kind)));
   const staleReport = await trim({ mode: "report", session: SID }); // RPC.rows is still the post-compaction window
-  chk("H3 the report shows the stale boundary (state=stale, retained = the whole new window; U10: the new head keeps its absolute #4410 — ordinals are NEVER renumbered)", staleReport.split("\n")[1] === "header: head=msg_c1 head-type=compaction rows=3 boundary=msg_u4 boundary-state=stale retained=3 staged=0 active=0 active-est=0 ordinal=store tags=off" && staleReport.split("\n")[5] === "row: 1 #4410 compaction id=msg_c1 own=2", JSON.stringify([staleReport.split("\n")[1], staleReport.split("\n")[5]]));
+  chk("H3 the report shows the stale boundary (state=stale, retained = the whole new window; U10: the new head keeps its absolute #4410 — ordinals are NEVER renumbered)", staleReport.split("\n")[1] === "header: head=msg_c1 head-type=compaction rows=3 boundary=msg_u4 boundary-state=stale retained=3 staged=0 active=0 active-est=0 ordinal=store tags=off" && staleReport.split("\n")[5] === "row: 1 #4410 compaction own=2", JSON.stringify([staleReport.split("\n")[1], staleReport.split("\n")[5]]));
   await trim({ mode: "tail", session: SID, clear: true });
   RPC.rows = null; // back to the base window for the later legs
 }
@@ -543,11 +550,11 @@ function draft(sessionID = SID) {
 {
   const ordLine = (out, n) => out.split("\n").find((l) => l.startsWith(`row: ${n} `)) ?? "(missing)";
   const r0 = await trim({ mode: "report", session: SID });
-  chk("U10a ordinal stability BEFORE a drop: msg_u8 #4308, msg_a9 #4309 (absolute seq — not window position)", ordLine(r0, 9) === "row: 9 #4308 user id=msg_u8 own=2" && ordLine(r0, 10) === "row: 10 #4309 assistant id=msg_a9 own=3 req-at=400", JSON.stringify([ordLine(r0, 9), ordLine(r0, 10)]));
+  chk("U10a ordinal stability BEFORE a drop: msg_u8 #4308, msg_a9 #4309 (absolute seq — not window position)", ordLine(r0, 9) === "row: 9 #4308 user own=2" && ordLine(r0, 10) === "row: 10 #4309 assistant own=3 req-at=400", JSON.stringify([ordLine(r0, 9), ordLine(r0, 10)]));
   // drop a row ABOVE them: stage + apply msg_a2 (#4302, index 2)
   chk("U10a the drop: stage #4302 BY ORDINAL + apply", (await trim({ mode: "mark", session: SID, ids: ["4302"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=111" && (await trim({ mode: "apply", session: SID })) === "apply= staged->active n=1 drop_est=111 projected=54889 bound=96000 ok mixed=0");
   const r1 = await trim({ mode: "report", session: SID });
-  chk("U10a (STABILITY) the SAME ids keep the SAME ordinals after the drop above them — #4308/#4309 UNCHANGED (window position IS NOT the source)", ordLine(r1, 9) === "row: 9 #4308 user id=msg_u8 own=2" && ordLine(r1, 10) === "row: 10 #4309 assistant id=msg_a9 own=3 req-at=400", JSON.stringify([ordLine(r1, 9), ordLine(r1, 10)]));
+  chk("U10a (STABILITY) the SAME ids keep the SAME ordinals after the drop above them — #4308/#4309 UNCHANGED (window position IS NOT the source)", ordLine(r1, 9) === "row: 9 #4308 user own=2" && ordLine(r1, 10) === "row: 10 #4309 assistant own=3 req-at=400", JSON.stringify([ordLine(r1, 9), ordLine(r1, 10)]));
   chk("U10a the ACTIVE set prints the resolved id + the ordinal-stable header (ordinal=store tags=off)", r1.split("\n")[1] === "header: head=msg_c0 head-type=compaction rows=10 boundary=none boundary-state=absent retained=10 staged=0 active=1 active-est=111 ordinal=store tags=off", r1.split("\n")[1]);
   await trim({ mode: "mark", session: SID, clear: true });
   // ordinal resolution: a bare number resolves through the ORDINAL MAP, never
@@ -566,8 +573,13 @@ function draft(sessionID = SID) {
     { id: "msg_a9", seq: 4309, type: "assistant", agent: "worker-1", model: { id: MODEL_ID, providerID: "llama-swap" }, time: { created: 2000, completed: 2001 }, tokens: { input: 300, output: 100, reasoning: 0, cache: { read: 0, write: 0 } }, content: [{ type: "text", text: "thinking text" }] },
   ];
   const r2 = await trim({ mode: "report", session: SID });
-  chk("U10c (STABILITY across a compaction) surviving rows keep #4308/#4309; the NEW head carries its own #4410 (no renumbering)", ordLine(r2, 3) === "row: 3 #4308 user id=msg_u8 own=2" && ordLine(r2, 4) === "row: 4 #4309 assistant id=msg_a9 own=3 req-at=400" && ordLine(r2, 1) === "row: 1 #4410 compaction id=msg_c1 own=2", JSON.stringify([ordLine(r2, 1), ordLine(r2, 3), ordLine(r2, 4)]));
+  chk("U10c (STABILITY across a compaction) surviving rows keep #4308/#4309; the NEW head carries its own #4410 (no renumbering)", ordLine(r2, 3) === "row: 3 #4308 user own=2" && ordLine(r2, 4) === "row: 4 #4309 assistant own=3 req-at=400" && ordLine(r2, 1) === "row: 1 #4410 compaction own=2", JSON.stringify([ordLine(r2, 1), ordLine(r2, 3), ordLine(r2, 4)]));
   RPC.rows = null; // restore the base window BEFORE the tag legs (a stale compacted window would make u4/a5 stale-in-window)
+  // (U11 #200) COMPACT REPORT: no `id=` by default; `showIds:true` restores it.
+  const rc = await trim({ mode: "report", session: SID });
+  chk("U11 compact report: NO row line prints id= by default", rc.split("\n").filter((l) => l.startsWith("row: ")).every((l) => !l.includes("id=")) && rc.includes("id=msg_") === false, JSON.stringify(rc.split("\n")[5]));
+  const rci = await trim({ mode: "report", session: SID, showIds: true });
+  chk("U11 showIds:true restores id= on every row (the flag's name is `showIds`)", rci.split("\n").filter((l) => l.startsWith("row: ")).every((l) => l.includes("id=msg_")) && rci.split("\n")[5] === "row: 1 #4300 compaction id=msg_c0 own=5", JSON.stringify(rci.split("\n")[5]));
   // tags are DEFAULT OFF: the hook renders NOTHING for a session without the flag
   chk("U10d tags OFF by default: the draft is byte-untagged and the hook is SILENT (no store entry)", (() => { const d = draft(); return JSON.stringify(d.messages).includes("[#"); })() === false && readStore()?.sessions?.[SID] === undefined);
   // opt-in + an ACTIVE drop so the hook runs; tags render on the SURVIVING rows
@@ -577,6 +589,10 @@ function draft(sessionID = SID) {
   await fire(dt1);
   const snap1 = JSON.stringify(dt1.messages);
   chk("U10e the TAG renders `[#N] ` before the FIRST text part of id-carrying user/assistant entries", dt1.messages.some((m) => m.id === "msg_u1" && m.content[0].text === "[#4301] user one") && dt1.messages.some((m) => m.id === "msg_a2" && m.content[1].text === "[#4302] a2 text") && dt1.messages.some((m) => m.id === "msg_u4" && m.content[0].text === "[#4304] user four"), JSON.stringify(dt1.messages.filter((m) => JSON.stringify(m).includes("[#")).map((m) => m.id)));
+  // (U11 #200) UNPLACEABLE FIRST: msg_a5 has NEITHER text nor reasoning in the
+  // base draft -> stays untagged AND counted. Must run BEFORE the reasoning-lane
+  // leg (which mutates the fixture entry).
+  chk("U11 msg_a5 (tool-call part only) stays UNTAGGED and the trim line COUNTS it (untagged=1; 8 text-lane tags)", (() => { const l = readLog().slice(-1)[0]; const e = dt1.messages.find((m) => m.id === "msg_a5"); return l.kind === "trim" && Number(l.tagged) === 8 && Number(l.untagged) === 1 && !JSON.stringify(e).includes("[#"); })(), JSON.stringify(readLog().slice(-1)[0] ?? null));
   chk("U10e RESULT entries stay UNTAGGED (id-less tool projections; mass rides the owner's ordinal via the #193 link) + a dropped row leaves untagged", dt1.messages.every((m) => m.role !== "tool" || !JSON.stringify(m).includes("[#")) && !snap1.includes("[#4303]"), JSON.stringify(dt1.messages.filter((m) => m.role === "tool").length));
   const dt2 = draft();
   await fire(dt2);
@@ -588,13 +604,24 @@ function draft(sessionID = SID) {
   await fire(dt3);
   const firstText = (d, id) => { const e = d.messages.find((m) => m.id === id); return e == null ? "(gone)" : (e.content.find((p) => p.type === "text") ?? { text: "(none)" }).text; };
   chk("U10f TAG BYTE-IDENTICAL across the shifted assemblies: msg_u4 [#4304] and msg_a9 [#4309] unchanged after a row ABOVE them dropped; the dropped row is gone", firstText(dt3, "msg_u4") === "[#4304] user four" && firstText(dt3, "msg_a9") === "[#4309] a9 text" && firstText(dt3, "msg_u1") === "(gone)", `u4=${firstText(dt3, "msg_u4")} a9=${firstText(dt3, "msg_a9")}`);
-  chk("U10f the trim line reports tagged= (> 0) with the pair drop intact", (() => { const l = readLog().slice(-1)[0]; return l.kind === "trim" && Number(l.tagged) > 0 && l.droppedRows === "2"; })(), JSON.stringify(readLog().slice(-1)[0] ?? null));
-  // A reasoning-first assistant entry with NO text part has no place for the
-  // tag — it stays untagged (the tag NEVER invents a part or reorders content).
+  chk("U10f the trim line reports tagged= (> 0) + untagged=1 (msg_a5 tool-call-only) with the pair drop intact", (() => { const l = readLog().slice(-1)[0]; return l.kind === "trim" && Number(l.tagged) > 0 && Number(l.untagged) === 1 && l.droppedRows === "2"; })(), JSON.stringify(readLog().slice(-1)[0] ?? null));
+  // (U11 #200) REASONING LANE: a tool-call-only entry WITH a reasoning part
+  // becomes tagged on its reasoning part — the text bytes of other entries and
+  // the tool-call `input` bytes stay untouched.
+  const dN = draft();
+  dN.messages.find((m) => m.id === "msg_a5").content.push({ type: "reasoning", text: "a5 ponders" });
+  await fire(dN);
+  const eN = dN.messages.find((m) => m.id === "msg_a5");
+  chk("U11 REASONING-LANE tag: tool-call-only entry with a reasoning part -> [#4305] on the reasoning text, tool-call input untouched", eN != null && eN.content[1].text === "[#4305] a5 ponders" && eN.content[0].type === "tool-call" && JSON.stringify(eN.content[0].input) === "{}", JSON.stringify(eN ?? null));
+  chk("U11 the reasoning-lane trim line: tagged=8 (7 text survivors + a5 via reasoning), untagged=0 (a5 moved into a lane)", (() => { const l = readLog().slice(-1)[0]; return l.kind === "trim" && Number(l.tagged) === 8 && Number(l.untagged) === 0; })(), JSON.stringify(readLog().slice(-1)[0] ?? null));
+  chk("U11 the reasoning-lane fire still byte-stabilizes the text-lane entries (msg_u4 entry identical to snap1)", JSON.stringify(dN.messages.find((m) => m.id === "msg_u4")) === JSON.stringify(JSON.parse(snap1).find((m) => m.id === "msg_u4")), "u4 bytes differ");
+  // A reasoning-first assistant entry is now TAGGED through the reasoning lane
+  // (the tag NEVER invents a part or reorders content — it rides the existing
+  // reasoning part).
   const dR = draft();
   dR.messages.splice(3, 0, { id: "msg_r1", role: "assistant", content: [{ type: "reasoning", text: "r1 thinks" }] });
   await fire(dR);
-  chk("U10e a reasoning-first entry with no text part stays UNTAGGED", (() => { const e = dR.messages.find((m) => m.id === "msg_r1"); return e != null && !JSON.stringify(e).includes("[#"); })(), JSON.stringify(dR.messages.find((m) => m.id === "msg_r1") ?? null));
+  chk("U11 an entry the ordinal map does not KNOW stays untagged and is counted (never a guessed number)", (() => { const e = dR.messages.find((m) => m.id === "msg_r1"); return e != null && !JSON.stringify(e).includes("[#"); })(), JSON.stringify(dR.messages.find((m) => m.id === "msg_r1") ?? null));
   chk("U10g toggle-OFF then clear: the entry is DELETED (tags are not a keep-lever once OFF)", (await trim({ mode: "mark", session: SID, tags: false })) === "mark-set= tags=off" && (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -2 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
   const lBefore = readLog().length;
   const dt4 = draft();
@@ -604,7 +631,7 @@ function draft(sessionID = SID) {
   pluginMod.setOrdinalsDbForTest(path.join(SCRATCH, "fx_missing.db"));
   RPC.rows = windowRows().map((r) => { const { seq, ...rest } = r; return rest; });
   const r3 = await trim({ mode: "report", session: SID });
-  chk("U10h fail-open: ordinal=unavailable, rows print #? (never a guessed number)", r3.split("\n")[1].includes("ordinal=unavailable tags=off") && ordLine(r3, 2) === "row: 2 #? user id=msg_u1 own=2", JSON.stringify([r3.split("\n")[1], ordLine(r3, 2)]));
+  chk("U10h fail-open: ordinal=unavailable, rows print #? (never a guessed number)", r3.split("\n")[1].includes("ordinal=unavailable tags=off") && ordLine(r3, 2) === "row: 2 #? user own=2", JSON.stringify([r3.split("\n")[1], ordLine(r3, 2)]));
   chk("U10h fail-open: a bare number is REJECTED as not-found; an id string still marks normally", (await trim({ mode: "mark", session: SID, ids: ["4304"] })) === "mark-set= rejected: mark-not-found" && (await trim({ mode: "mark", session: SID, ids: ["msg_u4"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=2" && (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -1 total=0 rows_dropped_est=0");
   chk("U10h the hook fails open with tags on + unreadable ordinals (no tag rendered, the drop still applies)", (await trim({ mode: "mark", session: SID, tags: true })) === "mark-set= tags=on" && (await trim({ mode: "mark", session: SID, ids: ["msg_a3"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=205" && (await trim({ mode: "apply", session: SID })) === "apply= staged->active n=1 drop_est=205 projected=54795 bound=96000 ok mixed=0" && await (async () => { const d = draft(); await fire(d); return JSON.stringify(d.messages).includes("[#") === false && d.messages.every((m) => m.id !== "msg_a3"); })());
   pluginMod.setOrdinalsDbForTest(ORD_DB);
@@ -716,14 +743,14 @@ function draft(sessionID = SID) {
   const kinds = new Set(lines.map((l) => l.kind));
   chk("INV every line parses; kinds ⊂ {report, tail, trim, boundary-stale, gauge, mark, marks-stale, apply, ordinals (U10 fail-open)}", [...kinds].sort().join(",") === "apply,boundary-stale,gauge,mark,marks-stale,ordinals,report,tail,trim", JSON.stringify([...kinds].sort()));
   chk("INV every line carries ts + kind and stays within the LINE_CAP ladder", lines.every((l) => typeof l.ts === "string" && typeof l.kind === "string" && JSON.stringify(l).length <= 2000 && JSON.stringify(l).length > 0));
-  chk("INV the `trim` lines all name a session + boundary + the counts incl droppedProjections/orphan/tagged (U9 + U10)", lines.filter((l) => l.kind === "trim").every((l) => typeof l.session === "string" && typeof l.boundary === "string" && typeof l.droppedRows === "string" && typeof l.droppedEntries === "string" && typeof l.droppedProjections === "string" && typeof l.orphan === "string" && typeof l.tagged === "string" && typeof l.keptEntries === "string"));
+  chk("INV the `trim` lines all name a session + boundary + the counts incl droppedProjections/orphan/tagged/untagged (U9 + U10 + U11)", lines.filter((l) => l.kind === "trim").every((l) => typeof l.session === "string" && typeof l.boundary === "string" && typeof l.droppedRows === "string" && typeof l.droppedEntries === "string" && typeof l.droppedProjections === "string" && typeof l.orphan === "string" && typeof l.tagged === "string" && typeof l.untagged === "string" && typeof l.keptEntries === "string"));
   chk("INV the `mark` lines all name session + added/removed/total scalars (a U10 tags-TOGGLE line carries `tags` instead — the only exempt shape)", lines.filter((l) => l.kind === "mark").every((l) => typeof l.session === "string" && ((typeof l.added === "string" && typeof l.removed === "string" && typeof l.total === "string") || typeof l.tags === "string")));
   chk("INV the `apply` lines all name session + n/dropEst/projected/bound/mixed scalars (U8)", lines.filter((l) => l.kind === "apply").every((l) => typeof l.session === "string" && typeof l.n === "string" && typeof l.dropEst === "string" && typeof l.projected === "string" && typeof l.bound === "string" && typeof l.mixed === "string"));
   chk("INV the EIGHT applied kind:apply lines (the rejections log nothing — fail-closed; U9 adds the retry leg, U10 the four ordinal/tag legs)", lines.filter((l) => l.kind === "apply").length === 9, `count=${lines.filter((l) => l.kind === "apply").length}`);
   chk("INV the ONE boundary-stale line for the (session,boundary) state (deduped)", lines.filter((l) => l.kind === "boundary-stale").length === 1, `count=${lines.filter((l) => l.kind === "boundary-stale").length}`);
   chk("INV the ONE marks-stale line for the (session,count) state (deduped)", lines.filter((l) => l.kind === "marks-stale").length === 1, `count=${lines.filter((l) => l.kind === "marks-stale").length}`);
   chk("INV the gauge lines' reasons are only the two honest read failures", lines.filter((l) => l.kind === "gauge").every((l) => l.reason === "context-read-failed" || l.reason === "session-not-found" || l.reason === "messages-not-array"));
-  chk("INV report mode emitted a kind:report line per call (14 calls: 9 + the 4 U10 legs)", lines.filter((l) => l.kind === "report").length === 14, `count=${lines.filter((l) => l.kind === "report").length}`);
+  chk("INV report mode emitted a kind:report line per call (16 calls: 9 + the 4 U10 legs + the 2 U11 compact legs)", lines.filter((l) => l.kind === "report").length === 16, `count=${lines.filter((l) => l.kind === "report").length}`);
 }
 
 // ------------------------------------------------------------------ cleanup

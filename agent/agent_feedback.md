@@ -1088,3 +1088,9 @@ edit-tool hazard: appending a status line with an oldString that ends at the NEX
 ### 2026-10-28_20-57 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
 Near-miss 2026-10-28: U18 spec launched without the scratch-copy/one-live-write rule — the worker piecemeal-edited the hot-reloaded plugin file and caused 9 full re-prefills before the maintainer interrupted it. Root cause: the cache-bust host fact was not yet in my context at spec-authoring time. Fix landed in the same session (readme_task_spec bullet + worker prompt section); future plugin/tool specs must carry the rule in the first launch prompt too.
 
+### 2026-10-28_20-59 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
+Observed 2026-10-28 (maintainer note): a background subagent launch on the single llama-swap slot ping-pongs the model between the child and the planner — each switch re-prefills both sides. I launched A1 (explorer, background) knowingly, accepting the interleaving; the new backend handled it fine. Expectation: after the maintainer's planned backend changes, background launches become cheap — then the planner prompt's "launch subagents serially / never parallel" line should be re-verified and updated to match the new behavior.
+
+### 2026-10-28_21-02 explorer_FlashNext ses_e7bea6adcffedz3uZVhktCNMLO
+submit-tool echo truncates the returned `entry:` field mid-word with no truncation marker, so I had to read todo_inbox.md's tail to confirm the full entry landed (2 of 6 submissions looked cut in the result) — add an explicit "…(truncated)" marker or a byte count to the echo.
+

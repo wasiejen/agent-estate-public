@@ -1094,3 +1094,9 @@ Observed 2026-10-28 (maintainer note): a background subagent launch on the singl
 ### 2026-10-28_21-02 explorer_FlashNext ses_e7bea6adcffedz3uZVhktCNMLO
 submit-tool echo truncates the returned `entry:` field mid-word with no truncation marker, so I had to read todo_inbox.md's tail to confirm the full entry landed (2 of 6 submissions looked cut in the result) — add an explicit "…(truncated)" marker or a byte count to the echo.
 
+### 2026-10-28_22-45 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
+block_transfer COPY into a non-empty buffer: the paste echoed 11 copied rows but landed 12 — one stale row from the buffer's PRIOR content rode along (curation paste, TODO.md; removed by follow-up edit). Treat PASTE line-count = buffer size, not copy size: PEEK the buffer immediately before PASTE, or CLEAR it first.
+
+### 2026-10-28_22-45 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
+CORRECT- the previous entry (22-45): its claim is FALSE — no stale row rode into any paste (TODO.md landed exactly 42 lines; index exactly 11; verified clean). The real friction was self-inflicted: I asserted COPY line-count spans from assumed sizes (57 vs actual 42, 13 vs 11) and mis-split a scratch file inside one buffer span (KC entries landed in knowledge_tools.md, moved after). Lesson (mine): copy whole-file spans by end-marker or check wc -l before numeric spans; split scratch payloads per destination file.
+

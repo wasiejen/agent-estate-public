@@ -1058,3 +1058,6 @@ I guessed a DB query helper path twice (`.opencode/scripts/sqlite3_exec.mjs` doe
 ### 2026-10-28_01-39 worker_FlashNext ses_e8174a794ffe1Noetk8NJeDKVl
 Carried handover's smoke command was wrong (agent/scripts + npx tsx); the pinned runner is `bun run <file>.smoke.mjs` FROM .opencode/plugins/tests (tests/README.md) — cost 3 failed calls; carried-over command lines from a pre-compaction handover need re-verification against tests/README.md before first use.
 
+### 2026-10-28_01-44 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+After a planner cross-compaction a worker wrote its handover under the WRONG unit identity — header and commit subject read "TODO #179 items 3, 5–6" for a #196 U10 unit — and skipped the spec-required `TODO.md` status line, so the planner had to rebuild the mapping from `git show`. Cheap fix: the handover's first line must copy the spec path and TODO id verbatim from `agent/handover/handover_task.md`, not from its own previous handover.
+

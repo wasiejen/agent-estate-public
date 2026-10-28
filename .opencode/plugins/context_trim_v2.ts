@@ -695,7 +695,7 @@ export function setOrdinalsDbForTest(p: string | undefined): void {
 }
 
 type SqliteLike = { prepare: (sql: string) => { all: (...args: unknown[]) => unknown }; close?: () => void };
-type Ordinals = { ok: true; byId: Map<string, number>; bySeq: Map<number, string> } | { ok: false };
+type Ordinals = { ok: true; byId: Map<string, number>; byRank: Map<number, string>; seqById: Map<string, number> } | { ok: false };
 const ordinalsFailLogged = new Map<string, string>(); // `${sid}|${backend}` -> last cause (one line per cause)
 
 async function importModule(name: string): Promise<Record<string, unknown> | undefined> {
@@ -733,16 +733,25 @@ async function readOrdinals(sid: string): Promise<Ordinals> {
           // close is best-effort — a read-only handle releases on GC anyway
         }
       }
+      // (U12 #202) PER-SESSION ORDINAL: the row's RANK 1..N over THIS session's
+      // rows in append (seq) order — compaction rows and trimmed-away rows
+      // occupy their rank too, and rows are append-only, so a rank NEVER
+      // changes and the numbers read 1..N instead of sparse global seqs. The
+      // absolute store `seq` rides `seqById` for the forensic log fields.
       const byId = new Map<string, number>();
-      const bySeq = new Map<number, string>();
+      const byRank = new Map<number, string>();
+      const seqById = new Map<string, number>();
+      let rank = 0;
       for (const item of Array.isArray(raw) ? raw : []) {
+        rank++; // EVERY session row occupies a rank — id-less rows included
         const r = asRecord(item);
         if (r != null && typeof r["id"] === "string" && typeof r["seq"] === "number" && Number.isFinite(r["seq"])) {
-          byId.set(r["id"], r["seq"]);
-          bySeq.set(r["seq"], r["id"]);
+          byId.set(r["id"], rank);
+          byRank.set(rank, r["id"]);
+          seqById.set(r["id"], r["seq"]);
         }
       }
-      return { ok: true, byId, bySeq };
+      return { ok: true, byId, byRank, seqById };
     } catch (e) {
       const cause = cap(String((e as { message?: unknown })?.message ?? e).replace(/\r?\n+/g, " "), 120);
       const key = `${sid}|${backend}`;
@@ -755,52 +764,61 @@ async function readOrdinals(sid: string): Promise<Ordinals> {
   return { ok: false };
 }
 
-// (U10) merge the ordinal source with the `seq` fields the window rows may
-// carry themselves (the live endpoint read carries them — rows win); the DB
-// read supplies the FULL session row order — the compaction row and every row
-// the filter cut back still hold their ordinal.
-function mergeOrdinals(ord: Ordinals, rows: Array<Record<string, unknown>>): Ordinals {
-  if (ord.ok === false) return ord;
-  for (const r of rows) {
-    const id = idOf(r);
-    const seq = r["seq"];
-    if (id !== "" && typeof seq === "number" && Number.isFinite(seq) && !ord.byId.has(id)) {
-      ord.byId.set(id, seq);
-      ord.bySeq.set(seq, id);
-    }
-  }
-  return ord;
-}
+// (U12 #202) the row-carried `seq` merge (U10's mergeOrdinals) is GONE: a
+// per-session RANK cannot be derived from one row's seq — only the full
+// session row order supplies it, so the ordinal DB read is the sole rank
+// authority. An id the read does not know prints `#?` (never a guessed
+// number), same honesty rule as before.
 
-// (U10) the row's ordinal as display text — its absolute store seq, `?` when
-// the source is unreadable or the row carries no ordinal.
+// (U10/U12) the row's ordinal as display text — its PER-SESSION RANK (1..N
+// over the session's append order), `?` when the source is unreadable or the
+// row carries no ordinal.
 function ordinalOf(ord: Ordinals, r: Record<string, unknown>): string {
   if (ord.ok === false) return "?";
   const s = ord.byId.get(idOf(r));
   return s == null ? "?" : String(s);
 }
 
-// (U10) WRITE-lane ref resolution: an ALL-DIGIT ref is an absolute store
-// ORDINAL resolved through the ordinal map (NEVER through window position);
-// any other string is a message id used as-is. An ordinal naming a row
-// OUTSIDE the window (or an ordinal that no session row carries, or any number
-// while the source is unreadable) resolves to "" — the CALLER's existing
-// guards then reject it exactly like an unknown id (`*-not-found`), behavior
-// unchanged. Bare numbers are NOT id-shaped (`msg_…`), so ids never collide.
+// (U10/U12) WRITE-lane ref resolution: an ALL-DIGIT ref is the PER-SESSION
+// RANK resolved through the rank map (NEVER through window position); any
+// other string is a message id used as-is. A rank naming a row OUTSIDE the
+// window (or beyond the session's rows, or any number while the source is
+// unreadable) resolves to "" — the CALLER's existing guards then reject it
+// exactly like an unknown id (`*-not-found`). Bare numbers are NOT id-shaped
+// (`msg_…`), so ids never collide.
 function resolveRef(ord: Ordinals, ref: string, rows: Array<Record<string, unknown>>): string {
   if (!/^\d+$/.test(ref)) return ref;
   if (ord.ok === false) return "";
-  const id = ord.bySeq.get(Number(ref));
+  const id = ord.byRank.get(Number(ref));
   if (id == null) return "";
   return rows.some((r) => idOf(r) === id) ? id : "";
 }
 
-// (U10) the un-mark lane resolves bare numbers BEST-EFFORT (the store holds
-// ids): a resolvable ordinal becomes its id; anything else stays verbatim so
-// stale stored ids un-mark too.
+// (U12 #202) the range ref shape `A-B` — inclusive on BOTH ends. One shared
+// parse for the mark and un-mark lanes.
+const RANGE_RE = /^(\d+)-(\d+)$/;
+
+// (U10/U12) the un-mark lane resolves bare numbers and rank RANGES BEST-EFFORT
+// (the store holds ids): a resolvable rank becomes its id; anything else stays
+// verbatim so stale stored ids un-mark too. An un-mark range expands rank by
+// rank; an unresolvable rank contributes its verbatim number — a harmless
+// no-op, un-marking needs no window.
 function resolveUnmarkRef(ord: Ordinals, ref: string): string {
   if (!/^\d+$/.test(ref) || ord.ok === false) return ref;
-  return ord.bySeq.get(Number(ref)) ?? ref;
+  return ord.byRank.get(Number(ref)) ?? ref;
+}
+
+function resolveUnmarkRefs(ord: Ordinals, refs: string[]): string[] {
+  const out: string[] = [];
+  for (const ref of refs) {
+    const m = RANGE_RE.exec(ref);
+    if (m != null && ord.ok !== false) {
+      for (let rk = Number(m[1]); rk <= Number(m[2]) && rk - Number(m[1]) < 10000; rk++) out.push(ord.byRank.get(rk) ?? String(rk));
+      continue;
+    }
+    out.push(resolveUnmarkRef(ord, ref));
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ reportWindow (READ-ONLY)
@@ -814,7 +832,7 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
   const rows = read.rows;
   // (U10) the ordinal source for every ref the report prints and every bare
   // number it accepts — merged row-carried seqs + the full-session DB read.
-  const ord = mergeOrdinals(await readOrdinals(sid), rows);
+  const ord = await readOrdinals(sid);
   const headIsCompaction = isHeadCompaction(rows);
   // The earliest legal boundary index: 0 is the window HEAD (the summary/check-
   // point entry — never a boundary), so the first legal index is 1; an EMPTY
@@ -854,7 +872,7 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
   lines.push(
     `header: head=${head} head-type=${headType} rows=${rows.length} boundary=${entry != null && entry.boundary !== "" ? entry.boundary : "none"}` +
       ` boundary-state=${state} retained=${retained} staged=${staged.length} active=${active.length} active-est=${markEstimate(rows, active)}` +
-      ` ordinal=${ord.ok === true ? "store" : "unavailable"}` +
+      ` ordinal=${ord.ok === true ? "session-rank" : "unavailable"}` +
       ` tags=${entry?.tags === true ? "on" : "off"}`,
   );
   // (#189, bundled into (8)): the store window is NOT the model request — name
@@ -878,11 +896,13 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
 
   // (2b) the numbered rows (the CUT-DOWN form). U8: `own=` is the row's OWN
   // weight; `req-at=` is the REQUEST size at that step (completed-assistant
-  // provider total) — never a weight. U10 (#196): `#N` = the row's ABSOLUTE
-  // STORE ORDINAL (its `seq` in the full-session append order — the number a
-  // row keeps FOREVER: stable across drops, compactions, restarts; `?` when
-  // the ordinal source is unreadable). `N` stays the WINDOW position (the map
-  // shape); `mark` accepts `#N` or `N`-shaped bare numbers as refs.
+  // provider total) — never a weight. U10/U12 (#196/#202): `#N` = the row's
+  // PER-SESSION RANK (its position in the session's append-only row order —
+  // the number a row keeps FOREVER: stable across drops, compactions,
+  // restarts; compaction rows and trimmed-away rows occupy their rank too;
+  // `?` when the ordinal source is unreadable). `N` stays the WINDOW position
+  // (the map shape); `mark` accepts `#N` or `N`-shaped bare numbers AND range
+  // refs `A-B` as refs.
   rows.forEach((r, i) => {
     const reqAt = providerTotalOf(r);
     lines.push(`row: ${i + 1} #${ordinalOf(ord, r)} ${String(r["type"] ?? "?")}` + (ids ? ` id=${idOf(r)}` : "") + ` own=${ownMassOf(r)}` + (reqAt >= 0 ? ` req-at=${reqAt}` : "") + toolTargets(r)); // (U11 #200) id= DROPPED by default — the opaque id cost ~8-10 tokens/row; the row is named by #<seq>; `ids:true` restores
@@ -996,7 +1016,7 @@ async function tailSet(sid: string, form: { target?: string; keep?: number; clea
   const rows = read.rows;
   // (U10) the target may name a row by bare ORDINAL — resolved through the
   // ordinal map; guards unchanged (an unresolvable number → target-not-found).
-  const ord = mergeOrdinals(await readOrdinals(sid), rows);
+  const ord = await readOrdinals(sid);
   let targetID: string;
   let retained: number;
   if (form.keep != null) {
@@ -1063,26 +1083,72 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
     return `mark-set= error: context-read-failed: ${read.preview}`;
   }
   const rows = read.rows;
-  // (U10) bare-number refs resolve through the ABSOLUTE ordinal map before any
-  // guard — never through window position; the guards themselves are UNCHANGED
-  // (`mark-not-found`, `mark-at-window-head`, `mark-floor`).
-  const ord = mergeOrdinals(await readOrdinals(sid), rows);
+  // (U10/U12) bare-number refs resolve through the PER-SESSION RANK map before
+  // any guard — never through window position; the guards themselves are
+  // UNCHANGED (`mark-not-found`, `mark-at-window-head`, `mark-floor`) but the
+  // head/floor rejections NAME the offending resolved rows (U12).
+  const ord = await readOrdinals(sid);
   const entry = readStore().sessions[sid];
   const current = entry?.staged ?? [];
   const active = entry?.active ?? [];
-  // (U10) an ALL-DIGIT un-mark ref becomes its id through the ordinal map
-  // (best-effort: anything else stays verbatim so stale stored ids un-mark too).
-  const dropUnmark = new Set((form.unmark ?? []).map((u) => resolveUnmarkRef(ord, u)));
+  // (U10/U12) an ALL-DIGIT un-mark ref becomes its id through the rank map and
+  // an un-mark RANGE expands rank by rank (best-effort: anything else stays
+  // verbatim so stale stored ids un-mark too).
+  const dropUnmark = new Set(resolveUnmarkRefs(ord, form.unmark ?? []));
   const kept = current.filter((m) => !dropUnmark.has(m)); // un-marking needs NO window (stale ids un-mark too)
   const removed = current.length - kept.length;
   const newIds: string[] = [];
+  // (U12 #202) RANGE REFS `A-B` (inclusive) mixed with singletons — resolved
+  // against the CURRENT WINDOW through the per-session rank map. A range with
+  // a rank that maps to no window row (a trimmed-away row, a row beyond the
+  // session) rejects FAIL-CLOSED naming the offending ranks — NOTHING is
+  // written. An A>B or A<1 range is an invalid ref, rejected before any
+  // resolution.
+  const singles: string[] = [];
+  let sawRange = false;
+  const resolvedById = new Map<string, number>(); // id -> rank of every ref-resolved IN-WINDOW row (the audit echo)
   for (const ref of form.ids ?? []) {
-    const id = resolveRef(ord, ref, rows); // an id passes through; an ordinal becomes its window id
+    const m = RANGE_RE.exec(ref);
+    if (m == null) {
+      singles.push(ref);
+      continue;
+    }
+    sawRange = true;
+    const a = Number(m[1]);
+    const b = Number(m[2]);
+    if (a < 1 || b < a) return `mark-set= rejected: mark-range-invalid ${cap(ref, 40)}`;
+    if (ord.ok === false) return `mark-set= rejected: mark-range-unresolved ${cap(ref, 40)} ordinal=unavailable`;
+    const missing: number[] = [];
+    const picked: { rank: number; id: string }[] = [];
+    for (let rk = a; rk <= b && rk - a < 10000; rk++) {
+      const id = ord.byRank.get(rk);
+      if (id == null || !rows.some((r) => idOf(r) === id)) {
+        missing.push(rk);
+        continue;
+      }
+      picked.push({ rank: rk, id });
+    }
+    if (missing.length > 0)
+      return `mark-set= rejected: mark-range-unresolved ${missing.slice(0, 10).join(",")}${missing.length > 10 ? ` +${missing.length - 10} more` : ""}`; // fail-closed — the whole batch is refused, NOTHING written
+    for (const { rank, id } of picked) {
+      resolvedById.set(id, rank);
+      if (current.includes(id) || newIds.includes(id)) continue; // already staged — no-op, not re-validated
+      const i = rows.findIndex((r) => idOf(r) === id);
+      if (i === 0) return `mark-set= rejected: mark-at-window-head #${rank} ${id}`; // (U12) names the offending row
+      newIds.push(id);
+    }
+  }
+  for (const ref of singles) {
+    const id = resolveRef(ord, ref, rows); // an id passes through; a bare rank becomes its window id
+    if (id !== "" && ord.ok === true) {
+      const rk = ord.byId.get(id);
+      if (rk != null && rows.some((r) => idOf(r) === id)) resolvedById.set(id, rk); // join the audit echo
+    }
     if (current.includes(id) || newIds.includes(id)) continue; // already staged — no-op, not re-validated
-    if (id === "") return `mark-set= rejected: mark-not-found`; // unknown ordinal / number with an unreadable source
+    if (id === "") return `mark-set= rejected: mark-not-found`; // unknown rank / number with an unreadable source
     const i = rows.findIndex((r) => idOf(r) === id);
-    if (i < 0) return `mark-set= rejected: mark-not-found`; // an ordinal naming an OUT-of-window row lands here too
-    if (i === 0) return `mark-set= rejected: mark-at-window-head`;
+    if (i < 0) return `mark-set= rejected: mark-not-found`; // a rank naming an OUT-of-window row lands here too
+    if (i === 0) return `mark-set= rejected: mark-at-window-head ${ord.ok === true ? `#${ord.byId.get(id) ?? "?"} ` : ""}${id}`; // (U12) names the offending row
     newIds.push(id);
   }
   const staged = [...kept, ...newIds];
@@ -1100,13 +1166,27 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
     if (i >= 1) dropIdx.add(i);
   }
   const retained = rows.length - dropIdx.size;
-  if (retained < FLOOR) return `mark-set= rejected: mark-floor ${retained}`;
+  if (retained < FLOOR)
+    return `mark-set= rejected: mark-floor ${retained} breach=${cap(newIds.length > 0 ? newIds.join(",") : "none", 160)}`; // (U12) names the offending resolved rows
   const est = markEstimate(rows, staged);
   if (!writeSessionEntry(sid, { boundary, keep: entry?.keep ?? 0, setAt: new Date().toISOString(), staged, active, tags: form.tags ?? entry?.tags ?? false }))
     return `mark-set= error: store-write-failed (the boundary file could not be written)`;
   marksStaleLogged.delete(sid);
   appendLog(buildLine("mark", { session: sid, added: String(newIds.length), removed: String(removed), total: String(staged.length), est: String(est) }, {}));
-  return `mark-set= +${newIds.length} -${removed} total=${staged.length} rows_dropped_est=${est}`;
+  // (U12 #202) a call that carried RANGE refs echoes the audit: how many rows
+  // the refs resolved to IN the window and the first/last resolved rank — a
+  // bulk op is auditable without re-reading the store.
+  let echo = "";
+  if (sawRange && resolvedById.size > 0) {
+    let first = Number.POSITIVE_INFINITY;
+    let last = Number.NEGATIVE_INFINITY;
+    for (const rk of resolvedById.values()) {
+      if (rk < first) first = rk;
+      if (rk > last) last = rk;
+    }
+    echo = ` resolved=${resolvedById.size} ordinals=${first}-${last}`;
+  }
+  return `mark-set= +${newIds.length} -${removed} total=${staged.length} rows_dropped_est=${est}${echo}`;
 }
 
 // ------------------------------------------------------------------ applySet (the (9) staged->active move + projection)
@@ -1327,25 +1407,36 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     // Candidates: surviving id-carrying user/assistant entries. Entries with
     // no place for the tag stay untagged — tool-result projections (their mass
     // rides the owning ordinal via the #193 call-id link), id-less system
-    // entries, id-carrying entries with neither text nor reasoning.
-    // DETERMINISTIC: the tag is the row's absolute ordinal (never a position),
-    // so the tagged bytes are IDENTICAL across assemblies — byte-stable
-    // history, stable prompt cache after the ONE-TIME bust the first tagged
-    // request causes. RENDER BEFORE THE SPLICE: dropFlags are indexed against
-    // the PRE-splice array — tagging after the splice would read SHIFTED
-    // indices (the U10 unit found this live in smoke).
+    // entries, id-carrying entries with neither text nor reasoning. ONE TAG
+    // PER ENTRY, never one per part: a multi-text-part entry carries exactly
+    // one `[#N] `. DETERMINISTIC: the tag is the row's PER-SESSION RANK (never
+    // a window position), so the tagged bytes are IDENTICAL across assemblies
+    // — byte-stable history, stable prompt cache after the ONE-TIME bust the
+    // first tagged request causes. RENDER BEFORE THE SPLICE: dropFlags are
+    // indexed against the PRE-splice array — tagging after the splice would
+    // read SHIFTED indices (the U10 unit found this live in smoke).
     let tagged = 0;
     let untagged = 0;
+    let seqSpan = "none"; // (U12 #202) ABSOLUTE store seq span of the surviving id-carrying entries — forensics: rank -> DB row
     if (entry.tags === true) {
-      const ord = mergeOrdinals(await readOrdinals(sid), rows);
+      const ord = await readOrdinals(sid);
+      let seqMin = Number.POSITIVE_INFINITY;
+      let seqMax = Number.NEGATIVE_INFINITY;
       messages.forEach((m, k) => {
         if (dropFlags[k]) return; // a dropped entry is never tagged or counted
         const id = typeof m["id"] === "string" ? m["id"] : "";
         if (id === "") return; // id-less projections NEVER tagged or counted
+        if (ord.ok === true) {
+          const sq = ord.seqById.get(id);
+          if (sq != null) {
+            if (sq < seqMin) seqMin = sq;
+            if (sq > seqMax) seqMax = sq;
+          }
+        }
         const role = m["role"];
         if (role !== "user" && role !== "assistant") return; // only these two are candidates
-        const seq = ord.ok === true ? ord.byId.get(id) : undefined;
-        if (seq == null) { untagged++; return; } // no ordinal -> no tag (never a guessed number)
+        const rank = ord.ok === true ? ord.byId.get(id) : undefined;
+        if (rank == null) { untagged++; return; } // no ordinal -> no tag (never a guessed number)
         const parts = asArray(m["content"]);
         const lane = (type: string): Record<string, unknown> | undefined => {
           for (const c of parts) {
@@ -1356,9 +1447,10 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
         };
         const target = lane("text") ?? lane("reasoning");
         if (target == null) { untagged++; return; } // neither lane -> counted untagged
-        target["text"] = `[#${seq}] ${String(target["text"])}`;
+        target["text"] = `[#${rank}] ${String(target["text"])}`; // (U12) the tag is the PER-SESSION RANK
         tagged++;
       });
+      if (seqMax >= seqMin) seqSpan = `${seqMin}-${seqMax}`;
     }
     let dropped = 0;
     let droppedProjections = 0;
@@ -1373,7 +1465,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     appendLog(
       buildLine(
         "trim",
-        { session: sid, boundary: entry.boundary !== "" ? entry.boundary : "none", boundaryIndex: bIdx >= 1 ? String(bIdx) : "none", marks: String(entry.active.length), droppedRows: String(drop.size), droppedEntries: String(dropped + droppedProjections), droppedProjections: String(droppedProjections), orphan: String(orphan), tagged: String(tagged), untagged: String(untagged), keptEntries: String(messages.length) },
+        { session: sid, boundary: entry.boundary !== "" ? entry.boundary : "none", boundaryIndex: bIdx >= 1 ? String(bIdx) : "none", marks: String(entry.active.length), droppedRows: String(drop.size), droppedEntries: String(dropped + droppedProjections), droppedProjections: String(droppedProjections), orphan: String(orphan), tagged: String(tagged), untagged: String(untagged), ordinal: seqSpan !== "none" ? "session-rank" : undefined, seq: seqSpan !== "none" ? seqSpan : undefined, keptEntries: String(messages.length) },
         {},
       ),
     );
@@ -1386,7 +1478,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
 // ------------------------------------------------------------------ the tool surface
 
 const TOOL_DESCRIPTION =
-  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = the ABSOLUTE STORE ORDINAL (append position — stable forever; refs take a bare ordinal or an id). `mode:'report'` — READ-ONLY window map (post-compaction rows): header = head row, count, BOUNDARY state, retained, STAGED/ACTIVE counts (active-est=own sum); `window_rows != request` line (request-est=CTX; window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: window position + `#N` (rows omit `id=` unless `showIds`), `own=` OWN weight (bytes/4 of own parts), assistant rows add `req-at=` = REQUEST size at that step (NOT weight); tool targets; `last: N`; low/med/high trim options (ordinal anchor, keep, own retained/dropped + read/thought/shell, `hint` ≤ 80); `biggest:` top-5 turns by OWN weight (ordinal-named); `target` = dry-run; `gauge:` line = the shared core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ordinals), `unmark` remove, `clear` empties staged AND active (boundary stays), `tags` on/off = opt-in in-window `[#N] ` hook-side tags (default OFF; text→reasoning placement, unplaced counted); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req minus drop_est; refuses `nothing-staged` / `over-bound <projected> <bound>` unless `force:true`; same-step mark+apply re-reads the store). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (call-id link, adjacency fallback, unmatched stay — `orphan=`); history untouched, reversible; stale refs log ONE deduped line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` rejections or `error: <usage>`; guards: outside the window (`*-not-found`), head (`*-at-window-head`), floor keep >= 6 (`mark-floor`/`retained-tail-below-floor`), keep form (`keep-*`); read failures print `context-read-failed`; unreadable ordinals print `#?` and reject numbers. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>`, `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
+  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = the PER-SESSION RANK (1..N over the session's append order — stable forever; refs take a bare rank, a range `A-B`, or an id). `mode:'report'` — READ-ONLY window map (post-compaction rows): header = head row, count, BOUNDARY state, retained, STAGED/ACTIVE counts (active-est=own sum); `window_rows != request` line (request-est=CTX; window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: window position + `#N` (rows omit `id=` unless `showIds`), `own=` OWN weight (bytes/4 of own parts), assistant rows add `req-at=` = REQUEST size at that step (NOT weight); tool targets; `last: N`; low/med/high trim options (rank anchor, keep, own retained/dropped + read/thought/shell, hint ≤ 80); `biggest:` top-5 turns by OWN weight; `target` = dry-run; `gauge:` line = the shared core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ranks/ranges `A-B`), `unmark` remove (ranges too), `clear` empties staged AND active (boundary stays), `tags` on/off = in-window `[#N] ` tags (default OFF; text→reasoning, unplaced counted); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req minus drop_est; refuses `nothing-staged` / `over-bound` unless `force:true`; same-step mark+apply re-reads the store). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (call-id link, adjacency fallback, unmatched stay — `orphan=`); history untouched; stale refs log ONE deduped line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` rejections or `error: <usage>`; guards: outside the window (`*-not-found`), head (`*-at-window-head`), floor keep >= 6 (`mark-floor`/`retained-tail-below-floor`), range (`mark-range-*`); read failures print `context-read-failed`; unreadable ordinals print `#?`. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>` (+`resolved=<c> ordinals=<a>-<b>` on ranges), `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
 
 const TOOL_INPUT = {
   "type": "object",
@@ -1400,7 +1492,7 @@ const TOOL_INPUT = {
         "mark",
         "apply"
       ],
-      "description": "One of: 'report' (read-only window map), 'tail' (boundary write — target, keepMessages, or clear), 'mark' (STAGED drop-list write — ids, unmark, or clear), 'apply' (union staged into ACTIVE behind the 80% projection bound)."
+      "description": "One of: 'report' (read-only window map), 'tail' (boundary write — target, keepMessages, or clear), 'mark' (STAGED drop-list write — ids/ranges, unmark, or clear), 'apply' (union staged into ACTIVE behind the 80% projection bound)."
     },
     "session": {
       "type": "string",
@@ -1419,14 +1511,14 @@ const TOOL_INPUT = {
       "items": {
         "type": "string"
       },
-      "description": "mark: window ids to ADD to the STAGED drop list (de-duplicated; effective only after `apply`). Rejected: mark-not-found, mark-at-window-head, mark-floor (drop-union + inside boundary keep < 6 rows)."
+      "description": "mark: ids ADD to the STAGED drop list — ids, bare ranks, or ranges `A-B` (inclusive; a rejected range names its offending rows). Rejected: mark-not-found, mark-at-window-head, mark-range-unresolved, mark-floor."
     },
     "unmark": {
       "type": "array",
       "items": {
         "type": "string"
       },
-      "description": "mark: staged ids to REMOVE (stale stored ids un-mark too)."
+      "description": "mark: staged ids or ranges `A-B` to REMOVE (stale stored ids un-mark too)."
     },
     "clear": {
       "type": "boolean",

@@ -296,7 +296,7 @@ function draftBase(sessionID = SID) {
   chk("R1 (U7) the projection line: last-req = gauge CTX 57000 − output 2000; bound = 80% of the 120K window", lines[3] === "projection: last-req=55000 staged-est=0 projected=55000 bound=96000 ok", JSON.stringify(lines[3] ?? null));
   chk("R1 the gauge line rides the shared v2-paired core (fixture mass 57000 / 120K + budget suffix)", lines[4] === `gauge: SESSION=${SID} CTX=57000 (47%) REM=63000 | 6 compactions left`, JSON.stringify(lines[4] ?? null));
   chk("S0b the tool's name is 'context_trim' (the v1 name — a same-name twin is precedent) and the args mirror v1 (+ clear, + mark ids/unmark, + U7 apply mode + force, + U10 tags, + U11 showIds, + U14 guard)", TOOL.name === "context_trim" && JSON.stringify(Object.keys(TOOL.input.properties).sort()) === JSON.stringify(["clear", "force", "guard", "ids", "keepMessages", "mode", "session", "showIds", "tags", "target", "unmark"]) && JSON.stringify(TOOL.input.properties.mode.enum) === JSON.stringify(["report", "tail", "mark", "apply"]) && TOOL.output.type === "string", JSON.stringify(TOOL.name + "|" + Object.keys(TOOL.input.properties)));
-  chk("U14 the description literal grew by AT MOST 80 chars over the pre-U14 2369 and names the guard", TOOL.description.length <= 2449 && TOOL.description.includes("`guard` on/off wall guard"), `len=${TOOL.description.length}`);
+  chk("U14 the description literal grew by AT MOST 80 chars over the pre-U14 2369 and names the guard (U15: AT MOST +60 over the pre-U15 2430, names the flags)", TOOL.description.length <= 2490 && TOOL.description.includes("`guard` on/off wall guard") && TOOL.description.includes("rows flag s/x/g"), `len=${TOOL.description.length}`);
   chk("R1 (U10+U11) row 1 = the compaction head + its ABSOLUTE ordinal #4300 — COMPACT form, NO id= by default (the opaque id costs ~8-10 tokens/row)", lines[5] === "row: 1 #3 compaction own=5", JSON.stringify(lines[5] ?? null));
   chk("R1 user rows take the own-bytes4 mass + stable ordinals (#4301/#4304/#4308), compact", lines[6] === "row: 2 #4 user own=2" && lines[9] === "row: 5 #7 user own=2" && lines[13] === "row: 9 #11 user own=2", JSON.stringify([lines[6], lines[9], lines[13]]));
   chk("R1 (U8 pin) row 3 asserts OWN mass (111 = input-JSON 45 + output 400 / 4), NOT the provider sum — the cumulative figure rides relabeled req-at=5200; (U10) ordinal #4302, (U11) no id", lines[7] === "row: 3 #5 assistant own=111 req-at=5200 tool=read target=C:/a/b.ts offset=5 limit=20", JSON.stringify(lines[7] ?? null));
@@ -557,7 +557,7 @@ function draftBase(sessionID = SID) {
   chk("U10a the drop: stage #4302 BY ORDINAL + apply", (await trim({ mode: "mark", session: SID, ids: ["5"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=111" && (await trim({ mode: "apply", session: SID })) === "apply= staged->active n=1 drop_est=111 projected=54889 bound=96000 ok mixed=0");
   const r1 = await trim({ mode: "report", session: SID });
   chk("U10a (STABILITY) the SAME ids keep the SAME ordinals after the drop above them — #4308/#4309 UNCHANGED (window position IS NOT the source)", ordLine(r1, 9) === "row: 9 #11 user own=2" && ordLine(r1, 10) === "row: 10 #12 assistant own=3 req-at=400", JSON.stringify([ordLine(r1, 9), ordLine(r1, 10)]));
-  chk("U10a the ACTIVE set prints the resolved id + the ordinal-stable header (ordinal=session-rank tags=off)", r1.split("\n")[1] === "header: head=msg_c0 head-type=compaction rows=10 boundary=none boundary-state=absent retained=10 staged=0 active=1 active-est=111 ordinal=session-rank tags=off guard=off auto=0", r1.split("\n")[1]);
+  chk("U10a the ACTIVE set prints the resolved id + the ordinal-stable header (ordinal=session-rank tags=off; U15: + in-window counts)", r1.split("\n")[1] === "header: head=msg_c0 head-type=compaction rows=10 boundary=none boundary-state=absent retained=10 staged=0 active=1 active-est=111 ordinal=session-rank tags=off guard=off auto=0 dropped-in-window=1 staged-in-window=0", r1.split("\n")[1]);
   await trim({ mode: "mark", session: SID, clear: true });
   // ordinal resolution: a bare number resolves through the ORDINAL MAP, never
   // through window position — it stages the SAME id as the id string does.
@@ -788,6 +788,64 @@ function draftBase(sessionID = SID) {
   fxRestore(); // the gauge fixture returns to the 57000-of-120K mass for the C block
 }
 
+// ------------------------------------------------------------------ U15 (#204) the report drop-indicator leg
+// Per-row state flags RIGHT AFTER the rank (` x` active, ` g` guard-auto,
+// ` s` staged-only; precedence x > g > s), header ` dropped-in-window=`/
+// ` staged-in-window=` counted over WINDOW rows (stale ids never inflate),
+// ONE legend line iff any row is flagged, and a CLEAN report BYTE-IDENTICAL
+// to the pre-U15 form (the U10/U14 pinned literals + the V7 roundtrip).
+{
+  RPC.rows = null; // the base 10-row window; gauge fixture restored (57000/120K)
+  const rowLine = (out, n) => out.split("\n").find((l) => l.startsWith(`row: ${n} `)) ?? "(missing)";
+  const headerOf = (out) => out.split("\n")[1];
+  const legends = (out) => out.split("\n").filter((l) => l.startsWith("flags: "));
+  // V1 the clean window: NO flag token, NO legend, NO in-window counts anywhere
+  const rClean = await trim({ mode: "report", session: SID });
+  chk("U15 V1 clean report: header byte-clean, no flags: line, no dropped-in-window, kept rows unprefixed", headerOf(rClean) === "header: head=msg_c0 head-type=compaction rows=10 boundary=none boundary-state=absent retained=10 staged=0 active=0 active-est=0 ordinal=session-rank tags=off guard=off auto=0" && legends(rClean).length === 0 && !rClean.includes("dropped-in-window") && !rClean.includes("staged-in-window") && rowLine(rClean, 2) === "row: 2 #4 user own=2" && !rClean.includes(" x ") && !rClean.includes(" g ") && !rClean.includes(" s "), JSON.stringify([headerOf(rClean), rowLine(rClean, 2)]));
+  // V2 staged-only -> ` s`; the row STAYS in the request (nothing applied)
+  {
+    const mk = await trim({ mode: "mark", session: SID, ids: ["4"] });
+    const r2 = await trim({ mode: "report", session: SID });
+    chk("U15 V2 stage #4 (msg_u1): the row flags ` s` after the rank + staged-in-window=1 + the legend appears exactly once", mk === "mark-set= +1 -0 total=1 rows_dropped_est=2" && rowLine(r2, 2) === "row: 2 #4 s user own=2" && headerOf(r2).endsWith(" dropped-in-window=0 staged-in-window=1") && legends(r2).join("|") === "flags: s=staged x=dropped g=guard-auto", JSON.stringify([rowLine(r2, 2), headerOf(r2)]));
+  }
+  // V3 applied -> ` x`; staged drains, the drop count rides
+  {
+    chk("U15 V3 apply", (await trim({ mode: "apply", session: SID })) === "apply= staged->active n=1 drop_est=2 projected=54998 bound=96000 ok mixed=1");
+    const r3 = await trim({ mode: "report", session: SID });
+    chk("U15 V3 applied row flags ` x` (not ` s`) + dropped-in-window=1 staged-in-window=0", rowLine(r3, 2) === "row: 2 #4 x user own=2" && headerOf(r3).endsWith(" dropped-in-window=1 staged-in-window=0") && legends(r3).length === 1, JSON.stringify([rowLine(r3, 2), headerOf(r3)]));
+  }
+  // V4 precedence: staged AGAIN while already active -> ` x` wins; the staged
+  // raw count rides (staged=1) but staged-in-window counts staged-ONLY rows = 0
+  {
+    const mk4 = await trim({ mode: "mark", session: SID, ids: ["4"] });
+    const r4 = await trim({ mode: "report", session: SID });
+    chk("U15 V4 re-stage an ACTIVE row: ` x` beats ` s`; staged=1 raw (total counts the STAGED set), staged-in-window=0", mk4 === "mark-set= +1 -0 total=1 rows_dropped_est=2" && rowLine(r4, 2) === "row: 2 #4 x user own=2" && headerOf(r4).includes("staged=1 active=1") && headerOf(r4).endsWith(" dropped-in-window=1 staged-in-window=0"), JSON.stringify([mk4, rowLine(r4, 2), headerOf(r4)]));
+  }
+  // V5 ` g` via the guard's auto set (store-injected — the guard lane is
+  // U14-pinned; the REPORT only reads entry.auto)
+  {
+    await trim({ mode: "mark", session: SID, clear: true }); // empties staged+active+auto, the guard flag survives OFF? (no flag yet) -> entry pruned
+    const base = JSON.parse(readFileSync(STORE, "utf8"));
+    base.sessions[SID] = { boundary: "", keep: 0, set_at: "2026-01-01T00:00:00Z", guard: true, auto: ["msg_a3"] };
+    writeFileSync(STORE, JSON.stringify(base), "utf8");
+    const r5 = await trim({ mode: "report", session: SID });
+    chk("U15 V5 guard-auto row flags ` g` + header auto=1 + dropped-in-window=1 + legend", rowLine(r5, 4) === "row: 4 #6 g assistant own=205 req-at=9000 tool=bash target=ls -la" && headerOf(r5).endsWith("guard=on auto=1 dropped-in-window=1 staged-in-window=0") && legends(r5).length === 1, JSON.stringify([rowLine(r5, 4), headerOf(r5)]));
+  }
+  // V6 stale ids: raw sizes are 2+2, the WINDOW counts are 2 (u1 ` x`, a3 ` g`)
+  {
+    const base = JSON.parse(readFileSync(STORE, "utf8"));
+    base.sessions[SID] = { boundary: "", keep: 0, set_at: "2026-01-01T00:00:00Z", guard: true, staged: ["msg_dead0"], active: ["msg_u1", "msg_dead1"], auto: ["msg_a3", "msg_dead2"] };
+    writeFileSync(STORE, JSON.stringify(base), "utf8");
+    const r6 = await trim({ mode: "report", session: SID });
+    chk("U15 V6 stale ids do NOT inflate: active=2 auto=2 staged=1 raw, dropped-in-window=2 staged-in-window=0; rows 2/4 flag x/g", headerOf(r6).includes("staged=1 active=2") && headerOf(r6).includes("auto=2 dropped-in-window=2 staged-in-window=0") && rowLine(r6, 2) === "row: 2 #4 x user own=2" && rowLine(r6, 4) === "row: 4 #6 g assistant own=205 req-at=9000 tool=bash target=ls -la" && legends(r6).length === 1, JSON.stringify([headerOf(r6), rowLine(r6, 2), rowLine(r6, 4)]));
+  }
+  // V7 roundtrip: OFF + clear -> the report is BYTE-IDENTICAL to V1's clean map
+  {
+    chk("U15 V7 cleanup", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -5 total=0 rows_dropped_est=0" && (await trim({ mode: "mark", session: SID, guard: false })) === "mark-set= guard=off" && readStore()?.sessions?.[SID] === undefined);
+    chk("U15 V7 the cleaned report is BYTE-IDENTICAL to the clean V1 report", (await trim({ mode: "report", session: SID })) === rClean, "roundtrip");
+  }
+}
+
 // ------------------------------------------------------------------ C1 the composition block (the REAL context_family plugin, the #153 APPEND channel)
 // Re-pinned for #157 (2026-10-26): context_family contributes NO draft handler —
 // it registers EXACTLY `execute.before` + `execute.after` and appends its gauge
@@ -896,11 +954,11 @@ function draftBase(sessionID = SID) {
   chk("INV the `trim` lines all name a session + boundary + the counts incl droppedProjections/orphan/tagged/untagged (U9 + U10 + U11)", lines.filter((l) => l.kind === "trim").every((l) => typeof l.session === "string" && typeof l.boundary === "string" && typeof l.droppedRows === "string" && typeof l.droppedEntries === "string" && typeof l.droppedProjections === "string" && typeof l.orphan === "string" && typeof l.tagged === "string" && typeof l.untagged === "string" && typeof l.keptEntries === "string"));
   chk("INV the `mark` lines all name session + added/removed/total scalars (a TOGGLE line carries `tags` or `guard` instead — the exempt shapes)", lines.filter((l) => l.kind === "mark").every((l) => typeof l.session === "string" && ((typeof l.added === "string" && typeof l.removed === "string" && typeof l.total === "string") || typeof l.tags === "string" || typeof l.guard === "string")));
   chk("INV the `apply` lines all name session + n/dropEst/projected/bound/mixed scalars (U8)", lines.filter((l) => l.kind === "apply").every((l) => typeof l.session === "string" && typeof l.n === "string" && typeof l.dropEst === "string" && typeof l.projected === "string" && typeof l.bound === "string" && typeof l.mixed === "string"));
-  chk("INV the EIGHT applied kind:apply lines (the rejections log nothing — fail-closed; U9 adds the retry leg, U10 the four ordinal/tag legs)", lines.filter((l) => l.kind === "apply").length === 9, `count=${lines.filter((l) => l.kind === "apply").length}`);
+  chk("INV the applied kind:apply lines (the rejections log nothing — fail-closed; U9 adds the retry leg, U10 the four ordinal/tag legs, U15 the V3 leg)", lines.filter((l) => l.kind === "apply").length === 10, `count=${lines.filter((l) => l.kind === "apply").length}`);
   chk("INV the ONE boundary-stale line for the (session,boundary) state (deduped)", lines.filter((l) => l.kind === "boundary-stale").length === 1, `count=${lines.filter((l) => l.kind === "boundary-stale").length}`);
   chk("INV the ONE marks-stale line for the (session,count) state (deduped)", lines.filter((l) => l.kind === "marks-stale").length === 1, `count=${lines.filter((l) => l.kind === "marks-stale").length}`);
   chk("INV the gauge lines' reasons are only the two honest read failures", lines.filter((l) => l.kind === "gauge").every((l) => l.reason === "context-read-failed" || l.reason === "session-not-found" || l.reason === "messages-not-array"));
-  chk("INV report mode emitted a kind:report line per call (19 calls: 9 + the 4 U10 legs + the 2 U11 compact legs + the U12 range leg + the 2 U14 G0 header legs)", lines.filter((l) => l.kind === "report").length === 19, `count=${lines.filter((l) => l.kind === "report").length}`);
+  chk("INV report mode emitted a kind:report line per call (26 calls: 9 + the 4 U10 legs + the 2 U11 compact legs + the U12 range leg + the 2 U14 G0 header legs + the 7 U15 flag legs)", lines.filter((l) => l.kind === "report").length === 26, `count=${lines.filter((l) => l.kind === "report").length}`);
 }
 
 // ------------------------------------------------------------------ cleanup

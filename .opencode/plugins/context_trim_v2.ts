@@ -855,6 +855,23 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
   const entry = store.sessions[sid];
   const staged = entry?.staged ?? [];
   const active = entry?.active ?? [];
+  // (U15 #204) the per-row drop mask for the REPORT — flags come from the STORE
+  // ids matched against WINDOW rows: a stale stored id matches no row, so it
+  // neither flags a kept row nor inflates the in-window counts. Precedence
+  // ` x` (active) over ` g` (guard-auto) over ` s` (staged-only); a kept row
+  // carries NO flag token (byte-identity). The flag names SET MEMBERSHIP per
+  // the spec — the boundary/pair interplay stays the hook's business.
+  const activeSet = new Set(active);
+  const autoSet = new Set(entry?.auto ?? []);
+  const stagedSet = new Set(staged);
+  let droppedIn = 0;
+  let stagedIn = 0;
+  for (const r of rows) {
+    const mid = idOf(r);
+    if (mid === "") continue;
+    if (activeSet.has(mid) || autoSet.has(mid)) droppedIn++;
+    else if (stagedSet.has(mid)) stagedIn++;
+  }
   const storedIndex = entry != null && entry.boundary !== "" ? rows.findIndex((r) => idOf(r) === entry.boundary) : -1;
   // inside = the boundary is a legal window boundary; stale = it is stored but
   // NOT legal in the CURRENT window (buried by a new compaction row, at the
@@ -887,7 +904,11 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
       ` boundary-state=${state} retained=${retained} staged=${staged.length} active=${active.length} active-est=${markEstimate(rows, active)}` +
       ` ordinal=${ord.ok === true ? "session-rank" : "unavailable"}` +
       ` tags=${entry?.tags === true ? "on" : "off"}` +
-      ` guard=${entry?.guard === true ? "on" : "off"} auto=${entry?.auto.length ?? 0}`,
+      ` guard=${entry?.guard === true ? "on" : "off"} auto=${entry?.auto.length ?? 0}` +
+      // (U15) the in-window counts ride the header ONLY when at least one row
+      // is flagged — a clean report stays BYTE-IDENTICAL to the pre-U15 form.
+      // Raw set sizes above; these count WINDOW rows (stale ids never inflate).
+      (droppedIn + stagedIn > 0 ? ` dropped-in-window=${droppedIn} staged-in-window=${stagedIn}` : ""),
   );
   // (#189, bundled into (8)): the store window is NOT the model request — name
   // both quantities separately so the window map can never be read as one.
@@ -917,9 +938,17 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
   // `?` when the ordinal source is unreadable). `N` stays the WINDOW position
   // (the map shape); `mark` accepts `#N` or `N`-shaped bare numbers AND range
   // refs `A-B` as refs.
+  // (U15 #204) the legend — printed ONLY when at least one row carries a flag
+  // (a clean report gains nothing, keeping it byte-identical).
+  if (droppedIn + stagedIn > 0) lines.push("flags: s=staged x=dropped g=guard-auto");
   rows.forEach((r, i) => {
     const reqAt = providerTotalOf(r);
-    lines.push(`row: ${i + 1} #${ordinalOf(ord, r)} ${String(r["type"] ?? "?")}` + (ids ? ` id=${idOf(r)}` : "") + ` own=${ownMassOf(r)}` + (reqAt >= 0 ? ` req-at=${reqAt}` : "") + toolTargets(r)); // (U11 #200) id= DROPPED by default — the opaque id cost ~8-10 tokens/row; the row is named by #<seq>; `ids:true` restores
+    // (U15) the per-row state flag RIGHT AFTER the rank: ` x` active (leaves
+    // the next request), ` g` guard-auto, ` s` staged-only — a row BOTH
+    // staged and active takes ` x`; a kept row prints NOTHING extra.
+    const mid = idOf(r);
+    const flag = mid !== "" && activeSet.has(mid) ? " x" : mid !== "" && autoSet.has(mid) ? " g" : mid !== "" && stagedSet.has(mid) ? " s" : "";
+    lines.push(`row: ${i + 1} #${ordinalOf(ord, r)}${flag} ${String(r["type"] ?? "?")}` + (ids ? ` id=${idOf(r)}` : "") + ` own=${ownMassOf(r)}` + (reqAt >= 0 ? ` req-at=${reqAt}` : "") + toolTargets(r)); // (U11 #200) id= DROPPED by default — the opaque id cost ~8-10 tokens/row; the row is named by #<seq>; `ids:true` restores
   });
   lines.push(`last: ${rows.length}`);
 
@@ -1660,7 +1689,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
 // ------------------------------------------------------------------ the tool surface
 
 const TOOL_DESCRIPTION =
-  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = the PER-SESSION RANK (1..N over the session's append order — stable forever; refs take a bare rank, a range `A-B`, or an id). `mode:'report'` — READ-ONLY window map (post-compaction rows): header = head row, count, BOUNDARY state, retained, STAGED/ACTIVE counts (active-est=own sum); `window_rows != request` line (request-est=CTX; window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: window position + `#N` (rows omit `id=` unless `showIds`), `own=` OWN weight (bytes/4 of own parts), assistant rows add `req-at=` = REQUEST size at that step (NOT weight); tool targets; `last: N`; low/med/high trim options (rank anchor, keep, own retained/dropped + read/thought/shell, hint ≤ 80); `biggest:` top-5 turns by OWN weight; `target` = dry-run; `gauge:` line = the shared core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ranks/ranges `A-B`), `unmark` remove (ranges too), `clear` empties all drop sets (boundary stays), `tags` on/off = in-window `[#N] ` tags (default OFF; text→reasoning, unplaced counted), `guard` on/off wall guard (at 92% drops heaviest rows + notice); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req minus drop_est; refuses `nothing-staged` / `over-bound` unless `force:true`; same-step mark+apply re-reads the store). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (call-id link, adjacency fallback, unmatched stay — `orphan=`); history untouched; stale refs log ONE deduped line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` rejections or `error: <usage>`; guards: outside the window (`*-not-found`), head (`*-at-window-head`), floor keep >= 6 (`mark-floor`/`retained-tail-below-floor`), range (`mark-range-*`); read failures print `context-read-failed`; unreadable ordinals print `#?`. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>` (+`resolved=<c> ordinals=<a>-<b>` on ranges), `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
+  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = the PER-SESSION RANK (1..N over the session's append order — stable forever; refs take a bare rank, a range `A-B`, or an id). `mode:'report'` — READ-ONLY window map (post-compaction rows): header = head row, count, BOUNDARY state, retained, STAGED/ACTIVE counts (active-est=own sum); rows flag s/x/g, header in-window drop counts; `window_rows != request` line (request-est=CTX; window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: window position + `#N` (rows omit `id=` unless `showIds`), `own=` OWN weight (bytes/4 of own parts), assistant rows add `req-at=` = REQUEST size at that step (NOT weight); tool targets; `last: N`; low/med/high trim options (rank anchor, keep, own retained/dropped + read/thought/shell, hint ≤ 80); `biggest:` top-5 turns by OWN weight; `target` = dry-run; `gauge:` line = the shared core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ranks/ranges `A-B`), `unmark` remove (ranges too), `clear` empties all drop sets (boundary stays), `tags` on/off = in-window `[#N] ` tags (default OFF; text→reasoning, unplaced counted), `guard` on/off wall guard (at 92% drops heaviest rows + notice); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req minus drop_est; refuses `nothing-staged` / `over-bound` unless `force:true`; same-step mark+apply re-reads the store). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (call-id link, adjacency fallback, unmatched stay — `orphan=`); history untouched; stale refs log ONE deduped line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` rejections or `error: <usage>`; guards: outside the window (`*-not-found`), head (`*-at-window-head`), floor keep >= 6 (`mark-floor`/`retained-tail-below-floor`), range (`mark-range-*`); read failures print `context-read-failed`; unreadable ordinals print `#?`. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>` (+`resolved=<c> ordinals=<a>-<b>` on ranges), `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
 
 const TOOL_INPUT = {
   "type": "object",

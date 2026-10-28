@@ -1076,3 +1076,6 @@ Dev-lane smoke copy under `.opencode/temp/<unit>_work/` cannot run standalone: t
 ### 2026-10-28_15-21 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
 A subagent result slot returned ONLY the context-limit rejection text for a unit that had actually completed and committed (`07b31ee8`/`df99a68c`, smoke green) — the session continued past the rejection after the queued compaction landed. The planner had to rebuild the true state from `git log` + the plugin log before deciding resume vs relaunch. Cheap fix: the planner rule "a limit-error result is not a failure verdict — verify files first" should sit in the role prompt, not only in memory.
 
+### 2026-10-28_16-17 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+A forensics probe that reports ZERO can mean the pattern is wrong, not that the data is clean — I closed TODO #203 as fix-confirmed off a char-code regex that omitted the hash, so nothing could ever match, and a false PASS survived a host restart and one verification cycle. Cheap fix: every absence-claim probe must first be run on a KNOWN-POLLUTED control band and must FIND the positive; state that control output before the verdict.
+

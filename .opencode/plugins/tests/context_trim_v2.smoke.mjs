@@ -611,6 +611,21 @@ function draftBase(sessionID = SID) {
   // base draft -> stays untagged AND counted. Must run BEFORE the reasoning-lane
   // leg (which mutates the fixture entry).
   chk("U11 msg_a5 (tool-call part only) stays UNTAGGED and the trim line COUNTS it (untagged=1; 8 text-lane tags)", (() => { const l = readLog().slice(-1)[0]; const e = dt1.messages.find((m) => m.id === "msg_a5"); return l.kind === "trim" && Number(l.tagged) === 8 && Number(l.untagged) === 1 && !JSON.stringify(e).includes("[#"); })(), JSON.stringify(readLog().slice(-1)[0] ?? null));
+  // (U13 #203) COPY-ON-WRITE: the host can hand draft entries whose content-part
+  // objects are SHARED with the persisted message objects — the write-through
+  // bug reached the store and COMPOUNDED tags every turn. The tag must render
+  // on a CLONE; the SOURCE entry/part stays byte-identical across assemblies.
+  const srcEntry = draftBase().messages[2]; // msg_u1 — a SOURCE object owned by no copy
+  const srcBefore = JSON.stringify(srcEntry);
+  const dS = draft();
+  dS.messages[dS.messages.findIndex((x) => x.id === "msg_u1")] = srcEntry; // the draft slot SHARES the source object
+  await fire(dS);
+  const slotS = dS.messages.find((x) => x.id === "msg_u1");
+  chk("U13 tag renders on a CLONE: the slot carries [#4], the SHARED source entry is byte-identical AFTER the hook (no write-through)", slotS !== srcEntry && slotS.content[0].text === "[#4] user one" && JSON.stringify(srcEntry) === srcBefore && srcEntry.content[0].text === "user one", JSON.stringify({ slot: slotS.content[0].text, src: srcEntry.content[0].text }));
+  const dS2 = draft();
+  dS2.messages[dS2.messages.findIndex((x) => x.id === "msg_u1")] = srcEntry; // the next assembly re-reads the SAME source — must not compound
+  await fire(dS2);
+  chk("U13 second assembly on the SAME source: source STILL verbatim, slot carries exactly ONE tag (no compounding)", srcEntry.content[0].text === "user one" && dS2.messages.find((x) => x.id === "msg_u1").content[0].text === "[#4] user one", JSON.stringify(srcEntry.content[0]));
   chk("U10e RESULT entries stay UNTAGGED (id-less tool projections; mass rides the owner's ordinal via the #193 link) + a dropped row leaves untagged", dt1.messages.every((m) => m.role !== "tool" || !JSON.stringify(m).includes("[#")) && !snap1.includes("[#6]"), JSON.stringify(dt1.messages.filter((m) => m.role === "tool").length));
   const dt2 = draft();
   await fire(dt2);

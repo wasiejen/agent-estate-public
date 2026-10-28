@@ -1447,7 +1447,16 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
         };
         const target = lane("text") ?? lane("reasoning");
         if (target == null) { untagged++; return; } // neither lane -> counted untagged
-        target["text"] = `[#${rank}] ${String(target["text"])}`; // (U12) the tag is the PER-SESSION RANK
+        // (U13 #203) COPY-ON-WRITE: the host can hand draft entries whose
+        // content-part objects are SHARED with the live persisted message
+        // objects — writing the tag in place reached the store and COMPOUNDED
+        // every turn (read-only DB proof, TODO #203: a reasoning part starting
+        // `[#10887] [#10887] [#10897] …`). Clone the PART and the ENTRY,
+        // prepend on the clone, and REPLACE the draft slot. The source objects
+        // are NEVER mutated; other parts are shared but only ever read. The
+        // drop lane is untouched (its `splice` only moves array slots).
+        const partCopy = { ...target, text: `[#${rank}] ${String(target["text"])}` }; // (U12) the tag is the PER-SESSION RANK
+        messages[k] = { ...m, content: asArray(m["content"]).map((c) => (c === target ? partCopy : c)) };
         tagged++;
       });
       if (seqMax >= seqMin) seqSpan = `${seqMin}-${seqMax}`;

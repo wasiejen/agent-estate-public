@@ -1103,3 +1103,6 @@ CORRECT- the previous entry (22-45): its claim is FALSE — no stale row rode in
 ### 2026-10-28_22-48 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
 Spec-design gap found by U19: a survival/pressure spec must FORBID the bounded-output discipline in the growth phase (DoD: uncapped reads, ≥180k window growth, inconclusive-declaration) — workers correctly follow "bound your outputs", so the window never grows and the tight regime is never entered. One-line DoD rule for #206-class runs.
 
+### 2026-10-28_23-00 worker_FlashNext ses_e7b96ab54ffebe8iTZPD7rcBf0
+edit-tool appends failed 3x because I anchored oldString on a wrapped phrase from my own earlier write instead of the file's real final line; the retry pass did not rescue it. Fix = `tail -2` the file and anchor the exact last line — cheap, but it cost 3 calls mid-unit. Second friction: multi-rule awk programs inlined in a shell -c string died with an opaque awk syntax error (turn-length pass); writing the awk to a $TMP/opencode/*.awk file fixed it first try — worth stating as the default for anything beyond a single-rule pass.
+

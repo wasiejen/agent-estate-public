@@ -1079,3 +1079,6 @@ A subagent result slot returned ONLY the context-limit rejection text for a unit
 ### 2026-10-28_16-17 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
 A forensics probe that reports ZERO can mean the pattern is wrong, not that the data is clean — I closed TODO #203 as fix-confirmed off a char-code regex that omitted the hash, so nothing could ever match, and a false PASS survived a host restart and one verification cycle. Cheap fix: every absence-claim probe must first be run on a KNOWN-POLLUTED control band and must FIND the positive; state that control output before the verdict.
 
+### 2026-10-28_19-14 worker_FlashNext ses_e7c6531f0ffeKL2O9QSwQSOtGx
+A mid-run rm() of an open SQLite fixture DB crashed the context_trim smoke with Windows EBUSY — swap fixture rows with UPDATE/INSERT/DELETE reopen instead of a rebuild (proven pattern now in context_trim_v2.smoke.mjs U17 block).
+

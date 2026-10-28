@@ -37,12 +37,18 @@
 // shapes: `report= rejected: <cause>` / `tail-set= rejected: <cause>` /
 // `error: <usage>`.
 //
-// (2) REPORT — READ-ONLY, NO write anywhere. The window rows come from the v2
-// session service: `sessionApi.context({sessionID})` = GET `/api/session/:id/
-// context` → the CURRENT model window (the session_message rows after the last
-// completed compaction, ASC BY seq; the ready report source of the spec's verified
-// facts). Rows are read defensively (`unknown`-typed) — the decoded `Session
-// Message.Info` union (`id`, `type`, `time`, `tokens`, `content`…). U8 (#192,
+// (2) REPORT — READ-ONLY, NO write anywhere. (U17 #208, 2026-10-28, maintainer
+// ruling) The window rows come from the READ-ONLY SQL lane — the SAME
+// node:sqlite → bun:sqlite backend chain as the ordinal lane: `session_message`
+// rows after the LAST completed compaction (`seq >=` that row's `seq`, its `data`
+// JSON carrying `status: 'completed'`; COALESCE 0 with no compaction), ASC BY
+// seq, the compaction row itself the HEAD. The row's `data` JSON is the message
+// info — live-verified 2026-10-28 it carries NO `id` (`tokens`/`time` live
+// INSIDE), so the row's `id`/`type` COLUMNS merge into the parsed object. Rows
+// are read defensively (`unknown`-typed) — the decoded `Session Message.Info`
+// union (`type`, `time`, `tokens`, `content`…). The service self-call is GONE
+// from the report (ZERO RPC calls); `readWindow` stays for the hook + write
+// lanes. U8 (#192,
 // 2026-10-27): the ROW MASS is the row's OWN weight — utf8 bytes/4 over the row's
 // own parts (`text`, content-item `text`/`reasoning`, tool `state.input` JSON,
 // tool `state.content`/`output`). The provider figure on a completed-assistant
@@ -146,10 +152,12 @@
 //
 // DEVIATIONS vs v1 (header REQUIRED): (a) NO DB write — the tail lane is the
 // boundary store + the draft hook filter (there is no `tail_start_id` in v2);
-// (b) the report's ROW source is the v2 session service (`session.context`),
-// NOT the tool's own SQL/backend chain — the gauge core stays the only DB read
-// (the header figure), so the spawn-sqlite3 lane and the v1 table pair are NOT
-// re-implemented (the clone's gauge core already covers v1-only DBs);
+// (b) (U17 #208, 2026-10-28) the report's ROW source is the READ-ONLY SQL lane
+// on the ordinal lane's backend chain (rows after the last completed compaction,
+// NO DB write ever) — the service `session.context` self-call is NOT the report
+// source anymore; the gauge core stays the request-size figure (the header
+// line); the v1 spawn-sqlite3 lane is effectively re-implemented as this
+// read-only lane (the clone's gauge core still covers v1-only DBs);
 // (c) the FULL (id+time-per-row) report form and `recommendationOneLiner` (the
 // U4 nudge one-liner, a v1 auto_resume channel — auto_resume is skipped in v2,
 // order 2) are NOT ported — the CUT-DOWN form is the only form, the anchors
@@ -649,6 +657,8 @@ function idsMass(rows: Array<Record<string, unknown>>, ids: string[]): { mass: n
 // ASC BY seq, the head row included). Outcomes: ok (rows), not-found (no such
 // session — a `session.get` probe discriminates), failed (any other service
 // error — the capped preview rides the caller's evidence line). NEVER throws.
+// (U17 #208) the REPORT no longer reads through this lane — `readReportRows`
+// is the report's source; this lane stays for the hook and the write modes.
 type WindowRead = { ok: true; rows: Array<Record<string, unknown>> } | { ok: false; reason: "not-found" | "failed"; preview: string };
 
 async function readWindow(sid: string): Promise<WindowRead> {
@@ -719,21 +729,30 @@ async function importModule(name: string): Promise<Record<string, unknown> | und
 
 const ORDINALS_SQL = "SELECT id, seq FROM session_message WHERE session_id = ? ORDER BY seq ASC";
 
+// Shared READ-ONLY open on the proven backend chain (U17 #208: the ordinal lane
+// and the report row lane share it). `undefined` = this backend is unavailable
+// (import failed or no usable constructor); an OPEN failure (a missing DB file)
+// throws INTO the caller's try/catch. NEVER a write handle.
+async function openReadonlySqlite(backend: string, p: string): Promise<SqliteLike | undefined> {
+  const mod = await importModule(backend);
+  const Ctor =
+    backend === "node:sqlite"
+      ? (typeof mod?.DatabaseSync === "function" ? (mod.DatabaseSync as new (p: string, o: Record<string, unknown>) => SqliteLike) : undefined)
+      : (mod?.Database ?? (typeof mod?.default === "function" ? (mod.default as unknown as new (p: string, o: Record<string, unknown>) => SqliteLike) : undefined)) as
+          | (new (p: string, o: Record<string, unknown>) => SqliteLike)
+          | undefined;
+  if (typeof Ctor !== "function") return undefined;
+  return new Ctor(p, backend === "node:sqlite" ? { readOnly: true } : { readonly: true });
+}
+
 // Full-session id->seq / seq->id maps. NEVER throws: every backend failure
 // falls through to the next; all dead → `{ ok: false }` (fail-open `#?`).
 async function readOrdinals(sid: string): Promise<Ordinals> {
   const p = ordinalsOverridePath ?? getDbPath();
   for (const backend of ["node:sqlite", "bun:sqlite"]) {
     try {
-      const mod = await importModule(backend);
-      const Ctor =
-        backend === "node:sqlite"
-          ? (typeof mod?.DatabaseSync === "function" ? (mod.DatabaseSync as new (p: string, o: Record<string, unknown>) => SqliteLike) : undefined)
-          : (mod?.Database ?? (typeof mod?.default === "function" ? (mod.default as unknown as new (p: string, o: Record<string, unknown>) => SqliteLike) : undefined)) as
-              | (new (p: string, o: Record<string, unknown>) => SqliteLike)
-              | undefined;
-      if (typeof Ctor !== "function") continue;
-      const db = new Ctor(p, backend === "node:sqlite" ? { readOnly: true } : { readonly: true });
+      const db = await openReadonlySqlite(backend, p);
+      if (db == null) continue;
       let raw: unknown;
       try {
         raw = db.prepare(ORDINALS_SQL).all(sid);
@@ -832,13 +851,89 @@ function resolveUnmarkRefs(ord: Ordinals, refs: string[]): string[] {
   return out;
 }
 
+// ------------------------------------------------------------------ U17 (#208) — the report's SQL row source
+
+// Test hook: point the REPORT row read at a fixture DB (undefined = fall back to
+// the ordinal override, then the gauge-core path — the live DB). Production
+// never calls it.
+let reportOverridePath: string | undefined;
+export function setReportDbForTest(p: string | undefined): void {
+  reportOverridePath = p;
+}
+
+// THE REPORT WINDOW as the store sees it: rows AFTER the LAST completed
+// compaction row — `seq >=` the MAX seq over `type = 'compaction'` rows whose
+// `data` JSON carries `status: 'completed'` (COALESCE 0 = no compaction row →
+// the whole session), ASC BY seq, the compaction row itself the window head.
+// The row `data` column is the message info: live-verified 2026-10-28 it
+// carries NO `id` (`tokens`/`time` live INSIDE it), so the `id`/`type` COLUMNS
+// merge into the parsed object. READ-ONLY, NO DB WRITE EVER.
+const REPORT_SQL =
+  "SELECT id, type, data FROM session_message WHERE session_id = ? AND seq >= COALESCE((SELECT MAX(seq) FROM session_message WHERE session_id = ? AND type = 'compaction' AND json_extract(data, '$.status') = 'completed'), 0) ORDER BY seq ASC";
+const REPORT_COUNT_SQL = "SELECT COUNT(*) AS n FROM session_message WHERE session_id = ?";
+
+// (U17 #208) THE REPORT ROW SOURCE — the read-only SQL lane on the SAME backend
+// chain and path resolution as the ordinal lane. Outcomes mirror the old
+// service read: ok (rows), not-found (ZERO rows for the session — the COUNT
+// discriminates), failed (every backend dead / an unreadable DB — the capped
+// preview rides the caller's `error: sql-read-failed:` line). NEVER throws.
+async function readReportRows(sid: string): Promise<WindowRead> {
+  const p = reportOverridePath ?? ordinalsOverridePath ?? getDbPath();
+  let lastPreview = "no sqlite backend available";
+  for (const backend of ["node:sqlite", "bun:sqlite"]) {
+    try {
+      const db = await openReadonlySqlite(backend, p);
+      if (db == null) continue;
+      let countRaw: unknown;
+      let raw: unknown;
+      try {
+        countRaw = db.prepare(REPORT_COUNT_SQL).all(sid);
+        raw = db.prepare(REPORT_SQL).all(sid, sid);
+      } finally {
+        try {
+          db.close?.();
+        } catch {
+          // close is best-effort — a read-only handle releases on GC anyway
+        }
+      }
+      const firstRow = asRecord(Array.isArray(countRaw) ? countRaw[0] : undefined);
+      if (firstRow != null && typeof firstRow["n"] === "number" && firstRow["n"] === 0) {
+        return { ok: false, reason: "not-found", preview: `no session_message rows for ${sid}` };
+      }
+      const rows: Array<Record<string, unknown>> = [];
+      for (const item of Array.isArray(raw) ? raw : []) {
+        const r = asRecord(item);
+        if (r == null) continue;
+        let info: Record<string, unknown> = {};
+        if (typeof r["data"] === "string" && r["data"] !== "") {
+          try {
+            const parsed = asRecord(JSON.parse(r["data"]));
+            if (parsed != null) info = parsed;
+          } catch {
+            // a malformed data row stays an EMPTY info object: the rank, the
+            // id and the type still print, the mass reads 0 — never a guess
+          }
+        }
+        if (typeof info["type"] !== "string" && typeof r["type"] === "string") info["type"] = r["type"];
+        rows.push({ ...info, id: typeof r["id"] === "string" ? r["id"] : "" });
+      }
+      return { ok: true, rows };
+    } catch (e) {
+      lastPreview = cap(String((e as { message?: unknown })?.message ?? e).replace(/\r?\n+/g, " "), 120);
+    }
+  }
+  return { ok: false, reason: "failed", preview: lastPreview };
+}
+
 // ------------------------------------------------------------------ reportWindow (READ-ONLY)
 
 async function reportWindow(sid: string, target?: string, ids = false): Promise<string> {
-  const read = await readWindow(sid);
+  // (U17 #208) the row source is the read-only SQL lane — the report fires NO
+  // service call; the hook self-call lane (`readWindow`) stays for the writes.
+  const read = await readReportRows(sid);
   if (!read.ok) {
     if (read.reason === "not-found") return `session ${sid}\nreport= rejected: session-not-found`;
-    return `session ${sid}\nerror: context-read-failed: ${read.preview}`;
+    return `session ${sid}\nerror: sql-read-failed: ${read.preview}`;
   }
   const rows = read.rows;
   // (U10) the ordinal source for every ref the report prints and every bare
@@ -928,7 +1023,8 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
 
   // (2b) the numbered rows (the CUT-DOWN form). U8: `own=` is the row's OWN
   // weight; `req-at=` is the REQUEST size at that step (completed-assistant
-  // provider total) — never a weight. U10/U12 (#196/#202): `#N` = the row's
+  // provider total) — never a weight; rows LACKING the provider figure print
+  // `req-at=unavailable` honestly (U17 #208 R3 — never a silent absence). U10/U12 (#196/#202): `#N` = the row's
   // PER-SESSION RANK (its position in the session's append-only row order —
   // the number a row keeps FOREVER: stable across drops, compactions,
   // restarts; compaction rows and trimmed-away rows occupy their rank too;
@@ -945,7 +1041,7 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
     // staged and active takes ` x`; a kept row prints NOTHING extra.
     const mid = idOf(r);
     const flag = mid !== "" && activeSet.has(mid) ? " x" : mid !== "" && autoSet.has(mid) ? " g" : mid !== "" && stagedSet.has(mid) ? " s" : "";
-    lines.push(`row: ${i + 1} #${ordinalOf(ord, r)}${flag} ${String(r["type"] ?? "?")}` + (ids ? ` id=${idOf(r)}` : "") + ` own=${ownMassOf(r)}` + (reqAt >= 0 ? ` req-at=${reqAt}` : "") + toolTargets(r)); // (U11 #200) id= DROPPED by default — the opaque id cost ~8-10 tokens/row; the row is named by #<seq>; `ids:true` restores
+    lines.push(`row: ${i + 1} #${ordinalOf(ord, r)}${flag} ${String(r["type"] ?? "?")}` + (ids ? ` id=${idOf(r)}` : "") + ` own=${ownMassOf(r)}` + (reqAt >= 0 ? ` req-at=${reqAt}` : " req-at=unavailable") + toolTargets(r)); // (U11 #200) id= DROPPED by default — the opaque id cost ~8-10 tokens/row; the row is named by #<seq>; `ids:true` restores
   });
   lines.push(`last: ${rows.length}`);
 
@@ -1649,7 +1745,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
 // ------------------------------------------------------------------ the tool surface
 
 const TOOL_DESCRIPTION =
-  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = the PER-SESSION RANK (1..N over the session's append order — stable forever; refs take a bare rank, a range `A-B`, or an id). `mode:'report'` — READ-ONLY window map (post-compaction rows): header = head row, count, BOUNDARY state, retained, STAGED/ACTIVE counts (active-est=own sum); rows flag s/x/g, header in-window drop counts; `window_rows != request` line (request-est=CTX; window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: window position + `#N` (rows omit `id=` unless `showIds`), `own=` OWN weight (bytes/4 of own parts), assistant rows add `req-at=` = REQUEST size at that step (NOT weight); tool targets; `last: N`; low/med/high trim options (rank anchor, keep, own retained/dropped + read/thought/shell, hint ≤ 80); `biggest:` top-5 turns by OWN weight; `target` = dry-run; `gauge:` line = the shared core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ranks/ranges `A-B`), `unmark` remove (ranges too), `clear` empties all drop sets (boundary stays), `guard` on/off wall guard (at 92% drops heaviest rows + notice); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req minus drop_est; refuses `nothing-staged` / `over-bound` unless `force:true`; same-step mark+apply re-reads the store). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (call-id link, adjacency fallback, unmatched stay — `orphan=`); history untouched; stale refs log ONE deduped line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` rejections or `error: <usage>`; guards: outside the window (`*-not-found`), head (`*-at-window-head`), floor keep >= 6 (`mark-floor`/`retained-tail-below-floor`), range (`mark-range-*`); read failures print `context-read-failed`; unreadable ordinals print `#?`. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>` (+`resolved=<c> ordinals=<a>-<b>` on ranges), `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
+  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = the PER-SESSION RANK (1..N over the session's append order — stable forever; refs take a bare rank, a range `A-B`, or an id). `mode:'report'` — READ-ONLY window map (post-compaction rows): header = head row, count, BOUNDARY state, retained, STAGED/ACTIVE counts (active-est=own sum); rows flag s/x/g, header in-window drop counts; `window_rows != request` line (request-est=CTX; window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: window position + `#N` (rows omit `id=` unless `showIds`), `own=` OWN weight (bytes/4 of own parts), rows add `req-at=` = REQUEST size at that step (NOT weight; a row lacking the provider figure prints `req-at=unavailable`); tool targets; `last: N`; low/med/high trim options (rank anchor, keep, own retained/dropped + read/thought/shell, hint ≤ 80); `biggest:` top-5 turns by OWN weight; `target` = dry-run; `gauge:` line = the shared core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ranks/ranges `A-B`), `unmark` remove (ranges too), `clear` empties all drop sets (boundary stays), `guard` on/off wall guard (at 92% drops heaviest rows + notice); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req minus drop_est; refuses `nothing-staged` / `over-bound` unless `force:true`; same-step mark+apply re-reads the store). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (call-id link, adjacency fallback, unmatched stay — `orphan=`); history untouched; stale refs log ONE deduped line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` rejections or `error: <usage>`; guards: outside the window (`*-not-found`), head (`*-at-window-head`), floor keep >= 6 (`mark-floor`/`retained-tail-below-floor`), range (`mark-range-*`); read failures print `context-read-failed`; unreadable ordinals print `#?`. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>` (+`resolved=<c> ordinals=<a>-<b>` on ranges), `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
 
 const TOOL_INPUT = {
   "type": "object",

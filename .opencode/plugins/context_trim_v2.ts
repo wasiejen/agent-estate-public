@@ -135,14 +135,14 @@
 // unchanged (an ordinal naming an out-of-window row rejects like an unknown
 // id). An unreadable ordinal source prints `#?` rows and rejects numbers
 // (fail-open, never a guessed number); kind `ordinals` logs ONE line per
-// cause. INLINE TAGS are opt-in per session (store flag `tags`, DEFAULT OFF):
-// the hook renders `[#<seq>] ` before the FIRST text part of each id-carrying
-// user/assistant entry, assembly-side ONLY (no store write); entries with no
-// place for a tag stay untagged (tool-result projections — their mass rides
-// the owner's ordinal via the #193 call-id link). The tag is the absolute
-// ordinal → tagged bytes are byte-identical across assemblies (stable cache
-// after the ONE bust the first tagged request pays). `trim` lines gain
-// `tagged=`; the drop sums and the pair rule are UNCHANGED.
+// cause. (U17 #203, 2026-10-28, maintainer ruling) The IN-WINDOW TAG LANE is
+// DELETED (store flag `tags` + hook-side `[#N] ` render): the host re-persists
+// live rows' `data` on its own UPDATE (finalize + later updates), so ANY hook
+// write into existing part bytes lands in the store and COMPOUNDS every turn
+// — remove or append only, never mutate. Legacy store entries whose JSON still
+// carries a `tags` key are IGNORED on read and PRUNED on the next write. The
+// ordinal lane stays; `trim` lines keep the `seq=`/`ordinal=` forensics of the
+// surviving entries' absolute store seqs; the drop sums and pair rule UNCHANGED.
 //
 // DEVIATIONS vs v1 (header REQUIRED): (a) NO DB write — the tail lane is the
 // boundary store + the draft hook filter (there is no `tail_start_id` in v2);
@@ -326,14 +326,14 @@ function storeFile(): string {
 // (9) shape: { boundary, keep, set_at, staged?, active? } — boundary may be
 // ABSENT/"" (a marks-only entry); staged/active are de-duplicated arrays of
 // message ids; a legacy (8) `marks` key READ-SEEDS `active` (never re-written
-// until the next store write). U10 (#196) adds `tags` — the opt-in per-session
-// in-window ordinal tags flag, DEFAULT OFF (written only when ON; a tags-only
-// entry is a real lever, so it survives the empty-sets prune). U14 (#205) adds
+// until the next store write). (U17 #203) the (U10) `tags` flag is GONE — a
+// legacy entry whose JSON still carries a `tags` key IGNORES it on read and
+// PRUNES it on the next write (the entry is rebuilt key by key). U14 (#205) adds
 // `guard` — the opt-in preventive wall-guard flag, DEFAULT OFF (written only
-// when ON, same shape as `tags`) — and `auto`, the guard's OWN drop set,
+// when ON) — and `auto`, the guard's OWN drop set,
 // SEPARATE from the agent's `active` set (sticky: stored ids keep leaving the
 // draft even after the flag goes OFF until `mark clear` empties it).
-type StoreEntry = { boundary: string; keep: number; setAt: string; staged: string[]; active: string[]; tags: boolean; guard: boolean; auto: string[] };
+type StoreEntry = { boundary: string; keep: number; setAt: string; staged: string[]; active: string[]; guard: boolean; auto: string[] };
 
 function readIds(v: unknown): string[] {
   const out: string[] = [];
@@ -361,10 +361,10 @@ function readStore(): { sessions: Record<string, StoreEntry> } {
     const boundary = typeof boundaryRaw === "string" ? boundaryRaw : "";
     const active = readIds(rec["active"] ?? rec["marks"]); // (9) legacy seed
     const staged = readIds(rec["staged"]);
-    const tags = rec["tags"] === true; // (U10) opt-in in-window tags; anything else is OFF
     const guard = rec["guard"] === true; // (U14) opt-in wall guard; anything else is OFF
     const auto = readIds(rec["auto"]); // (U14) the guard's own drop ids (separate from `active`)
-    if (boundary === "" && staged.length === 0 && active.length === 0 && tags !== true && guard !== true && auto.length === 0) continue; // an entry with NO lever is noise
+    // (U17 #203) a legacy `tags` key is IGNORED here — no other lever → noise entry.
+    if (boundary === "" && staged.length === 0 && active.length === 0 && guard !== true && auto.length === 0) continue; // an entry with NO lever is noise
     const keep = rec["keep"];
     const setAt = rec["set_at"];
     out[sid] = {
@@ -373,7 +373,6 @@ function readStore(): { sessions: Record<string, StoreEntry> } {
       setAt: typeof setAt === "string" ? setAt : "",
       staged,
       active,
-      tags,
       guard,
       auto,
     };
@@ -397,13 +396,12 @@ function writeSessionEntry(sid: string, entry: StoreEntry | null): boolean {
     let sessions = raw["sessions"];
     if (sessions == null || typeof sessions !== "object" || Array.isArray(sessions)) sessions = {};
     const s = sessions as Record<string, unknown>;
-    if (entry == null || (entry.boundary === "" && entry.staged.length === 0 && entry.active.length === 0 && entry.auto.length === 0 && entry.tags !== true && entry.guard !== true)) delete s[sid];
+    if (entry == null || (entry.boundary === "" && entry.staged.length === 0 && entry.active.length === 0 && entry.auto.length === 0 && entry.guard !== true)) delete s[sid];
     else {
       const rec: Record<string, unknown> = { boundary: entry.boundary, keep: entry.keep, set_at: entry.setAt };
       // (9) the write REPLACES a legacy `marks` key with `staged`/`active`
       if (entry.staged.length > 0) rec["staged"] = entry.staged;
       if (entry.active.length > 0) rec["active"] = entry.active;
-      if (entry.tags === true) rec["tags"] = true; // (U10) the flag prints ONLY when ON — never a noisy false
       if (entry.guard === true) rec["guard"] = true; // (U14) the wall-guard flag prints ONLY when ON
       if (entry.auto.length > 0) rec["auto"] = entry.auto; // (U14) the guard's drop ids print only when non-empty
       s[sid] = rec;
@@ -903,7 +901,6 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
     `header: head=${head} head-type=${headType} rows=${rows.length} boundary=${entry != null && entry.boundary !== "" ? entry.boundary : "none"}` +
       ` boundary-state=${state} retained=${retained} staged=${staged.length} active=${active.length} active-est=${markEstimate(rows, active)}` +
       ` ordinal=${ord.ok === true ? "session-rank" : "unavailable"}` +
-      ` tags=${entry?.tags === true ? "on" : "off"}` +
       ` guard=${entry?.guard === true ? "on" : "off"} auto=${entry?.auto.length ?? 0}` +
       // (U15) the in-window counts ride the header ONLY when at least one row
       // is flagged — a clean report stays BYTE-IDENTICAL to the pre-U15 form.
@@ -1044,7 +1041,7 @@ async function tailSet(sid: string, form: { target?: string; keep?: number; clea
     // sets, keeps the boundary) — the entry is deleted only when nothing is left.
     const keepSets = before != null && (before.staged.length > 0 || before.active.length > 0 || before.auto.length > 0);
     const okWrite = keepSets
-      ? writeSessionEntry(sid, { boundary: "", keep: 0, setAt: before.setAt, staged: before.staged, active: before.active, tags: before.tags, guard: before.guard, auto: before.auto })
+      ? writeSessionEntry(sid, { boundary: "", keep: 0, setAt: before.setAt, staged: before.staged, active: before.active, guard: before.guard, auto: before.auto })
       : writeSessionEntry(sid, null);
     if (!okWrite) return `tail-set= error: store-write-failed (the boundary file could not be written)`;
     appendLog(buildLine("tail", { session: sid, state: "cleared", from: before != null && before.boundary !== "" ? before.boundary : undefined, marks: keepSets ? String(before.staged.length + before.active.length) : undefined }, {}));
@@ -1079,7 +1076,7 @@ async function tailSet(sid: string, form: { target?: string; keep?: number; clea
   }
   if (targetID === "") return `tail-set= rejected: target-not-found`;
   const before = readStore().sessions[sid];
-  if (!writeSessionEntry(sid, { boundary: targetID, keep: retained, setAt: new Date().toISOString(), staged: before?.staged ?? [], active: before?.active ?? [], tags: before?.tags ?? false, guard: before?.guard ?? false, auto: before?.auto ?? [] })) {
+  if (!writeSessionEntry(sid, { boundary: targetID, keep: retained, setAt: new Date().toISOString(), staged: before?.staged ?? [], active: before?.active ?? [], guard: before?.guard ?? false, auto: before?.auto ?? [] })) {
     return `tail-set= error: store-write-failed (the boundary file could not be written)`;
   }
   staleLogged.delete(sid);
@@ -1089,38 +1086,35 @@ async function tailSet(sid: string, form: { target?: string; keep?: number; clea
 
 // ------------------------------------------------------------------ markSet (the (8)/(9) staged drop-list store write)
 
-async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; clear?: boolean; tags?: boolean; guard?: boolean }): Promise<string> {
-  // (U10) TAGS TOGGLE + (U14) GUARD TOGGLE — a TOGGLE-ONLY call (`tags` and/or
-  // `guard`, no ids/unmark/clear) is valid: it writes ONLY the per-session
-  // flags (a flag-only entry survives the empty-sets prune). DEFAULT OFF for
-  // both — the control arm stays clean until a session opts in.
-  if ((form.tags !== undefined || form.guard !== undefined) && form.ids == null && form.unmark == null && form.clear !== true) {
+async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; clear?: boolean; guard?: boolean }): Promise<string> {
+  // (U14) GUARD TOGGLE — a TOGGLE-ONLY call (`guard`, no ids/unmark/clear) is
+  // valid: it writes ONLY the per-session flag (a flag-only entry survives the
+  // empty-sets prune). DEFAULT OFF — the control arm stays clean until a
+  // session opts in. (U17 #203) the (U10) tags TOGGLE is DELETED with the tag
+  // lane — a legacy store `tags` key prunes on this write.
+  if (form.guard !== undefined && form.ids == null && form.unmark == null && form.clear !== true) {
     const before = readStore().sessions[sid];
     const next: StoreEntry = before != null
-      ? { boundary: before.boundary, keep: before.keep, setAt: new Date().toISOString(), staged: before.staged, active: before.active, tags: form.tags ?? before.tags, guard: form.guard ?? before.guard, auto: before.auto }
-      : { boundary: "", keep: 0, setAt: new Date().toISOString(), staged: [], active: [], tags: form.tags ?? false, guard: form.guard ?? false, auto: [] };
+      ? { boundary: before.boundary, keep: before.keep, setAt: new Date().toISOString(), staged: before.staged, active: before.active, guard: form.guard ?? before.guard, auto: before.auto }
+      : { boundary: "", keep: 0, setAt: new Date().toISOString(), staged: [], active: [], guard: form.guard ?? false, auto: [] };
     if (!writeSessionEntry(sid, next)) return `mark-set= error: store-write-failed (the boundary file could not be written)`;
-    appendLog(buildLine("mark", { session: sid, tags: form.tags !== undefined ? (form.tags ? "on" : "off") : undefined, guard: form.guard !== undefined ? (form.guard ? "on" : "off") : undefined, total: String(next.staged.length + next.active.length) }, {}));
-    const echoTags = form.tags !== undefined ? `tags=${form.tags ? "on" : "off"}` : "";
-    const echoGuard = form.guard !== undefined ? `guard=${form.guard ? "on" : "off"}` : "";
-    return `mark-set= ${[echoTags, echoGuard].filter((x) => x !== "").join(" ")}`;
+    appendLog(buildLine("mark", { session: sid, guard: form.guard ? "on" : "off", total: String(next.staged.length + next.active.length) }, {}));
+    return `mark-set= guard=${form.guard ? "on" : "off"}`;
   }
   if (form.clear === true) {
     const before = readStore().sessions[sid];
     // (9) mark `clear` empties BOTH sets (staged AND active) and keeps a stored
-    // boundary (the tail `clear` is the mirror — it keeps both sets). (U10) the
-    // tags flag SURVIVES a clear — a separate lever; `tags:false` rides the
-    // same write to turn tags off.
+    // boundary (the tail `clear` is the mirror — it keeps both sets).
+    // (U17 #203) the tags lever is GONE — only the guard FLAG survives a clear.
     const removed = before != null ? before.staged.length + before.active.length + before.auto.length : 0;
-    const tagsNext = form.tags ?? before?.tags ?? false;
     const guardNext = form.guard ?? before?.guard ?? false;
-    if (removed > 0 || form.tags !== undefined || form.guard !== undefined) {
+    if (removed > 0 || form.guard !== undefined) {
       // (U14) `clear` empties the guard's `auto` set TOO (all three drop sets);
-      // the tags AND guard FLAGS survive a clear — separate levers, like tags.
-      if (!writeSessionEntry(sid, { boundary: before?.boundary ?? "", keep: before?.keep ?? 0, setAt: new Date().toISOString(), staged: [], active: [], auto: [], tags: tagsNext, guard: guardNext }))
+      // the guard FLAG survives a clear — a separate lever.
+      if (!writeSessionEntry(sid, { boundary: before?.boundary ?? "", keep: before?.keep ?? 0, setAt: new Date().toISOString(), staged: [], active: [], auto: [], guard: guardNext }))
         return `mark-set= error: store-write-failed (the boundary file could not be written)`;
       marksStaleLogged.delete(sid);
-      appendLog(buildLine("mark", { session: sid, added: "0", removed: String(removed), total: "0", est: "0", tags: form.tags !== undefined ? (form.tags ? "on" : "off") : undefined, guard: form.guard !== undefined ? (form.guard ? "on" : "off") : undefined }, {}));
+      appendLog(buildLine("mark", { session: sid, added: "0", removed: String(removed), total: "0", est: "0", guard: form.guard !== undefined ? (form.guard ? "on" : "off") : undefined }, {}));
       return `mark-set= +0 -${removed} total=0 rows_dropped_est=0`;
     }
     return `mark-set= +0 -0 total=0 rows_dropped_est=0`; // idempotent — nothing stored
@@ -1217,7 +1211,7 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
   if (retained < FLOOR)
     return `mark-set= rejected: mark-floor ${retained} breach=${cap(newIds.length > 0 ? newIds.join(",") : "none", 160)}`; // (U12) names the offending resolved rows
   const est = markEstimate(rows, staged);
-  if (!writeSessionEntry(sid, { boundary, keep: entry?.keep ?? 0, setAt: new Date().toISOString(), staged, active, tags: form.tags ?? entry?.tags ?? false, guard: form.guard ?? entry?.guard ?? false, auto: entry?.auto ?? [] }))
+  if (!writeSessionEntry(sid, { boundary, keep: entry?.keep ?? 0, setAt: new Date().toISOString(), staged, active, guard: form.guard ?? entry?.guard ?? false, auto: entry?.auto ?? [] }))
     return `mark-set= error: store-write-failed (the boundary file could not be written)`;
   marksStaleLogged.delete(sid);
   appendLog(buildLine("mark", { session: sid, added: String(newIds.length), removed: String(removed), total: String(staged.length), est: String(est) }, {}));
@@ -1288,7 +1282,7 @@ async function applySet(sid: string, force: boolean): Promise<string> {
   if (projected > bound && !force) return `apply= rejected: over-bound ${projected} ${bound}`;
   const active = [...(entry?.active ?? [])];
   for (const id of staged) if (!active.includes(id)) active.push(id);
-  if (!writeSessionEntry(sid, { boundary: entry?.boundary ?? "", keep: entry?.keep ?? 0, setAt: new Date().toISOString(), staged: [], active, tags: entry?.tags ?? false, guard: entry?.guard ?? false, auto: entry?.auto ?? [] }))
+  if (!writeSessionEntry(sid, { boundary: entry?.boundary ?? "", keep: entry?.keep ?? 0, setAt: new Date().toISOString(), staged: [], active, guard: entry?.guard ?? false, auto: entry?.auto ?? [] }))
     return `apply= error: store-write-failed (the boundary file could not be written)`;
   marksStaleLogged.delete(sid);
   appendLog(buildLine("apply", { session: sid, n: String(staged.length), dropEst: String(dropEst), projected: String(projected), bound: String(bound), mixed: String(mixed), forced: force ? "true" : undefined }, {}));
@@ -1343,7 +1337,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     // (9) the hook drops ONLY `active` ids — a staged-only entry (no boundary,
     // no active) is fully SILENT (no service call, no line): marking is cheap
     // and continuous; one `apply` makes it effective.
-    if (entry.boundary === "" && entry.active.length === 0 && entry.tags !== true && entry.guard !== true && entry.auto.length === 0) return;
+    if (entry.boundary === "" && entry.active.length === 0 && entry.guard !== true && entry.auto.length === 0) return;
     if (!Array.isArray(event.messages)) {
       appendLog(buildLine("gauge", { session: sid, reason: "messages-not-array" }, {}));
       return;
@@ -1409,8 +1403,8 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
       }
     }
     // One ordinals read per assembly, shared by the guard, the notice, and the
-    // tag lane (the DB read is the expensive leg; three reads per request
-    // would be waste).
+    // seq forensics lane (the DB read is the expensive leg; three reads per
+    // request would be waste).
     let ordLoaded: Ordinals | undefined;
     const ordOf = async (): Promise<Ordinals> => {
       if (ordLoaded == null) ordLoaded = await readOrdinals(sid);
@@ -1488,7 +1482,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
                 .filter((x): x is number => typeof x === "number")
                 .sort((a, b) => a - b);
               const rankText = rankNums.length > 0 ? rankNums.slice(0, 12).map((n) => `#${n}`).join(",") + (rankNums.length > 12 ? ` +${rankNums.length - 12} more` : "") : "unavailable";
-              const wrote = writeSessionEntry(sid, { boundary: entry.boundary, keep: entry.keep, setAt: entry.setAt, staged: entry.staged, active: entry.active, tags: entry.tags, guard: true, auto: [...entry.auto, ...pickedIds] });
+              const wrote = writeSessionEntry(sid, { boundary: entry.boundary, keep: entry.keep, setAt: entry.setAt, staged: entry.staged, active: entry.active, guard: true, auto: [...entry.auto, ...pickedIds] });
               appendLog(buildLine("guard", { session: sid, event: "auto", n: String(pickedIds.length), mass: String(pickedMass), ranks: rankText, projected: String(lastReq), bound: String(gBound), marks: String(entry.active.length), store: wrote ? undefined : "write-failed" }, {}));
             }
           }
@@ -1520,9 +1514,10 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     // id-carrying entry (dropped iff that entry is). (c) a projection matched by
     // NEITHER stays and counts `orphan=`. The call part lives INSIDE the owning
     // entry, so a call never leaves without its outputs and a result never
-    // leaves while its call stays. U10: the flags compute even when the drop
-    // set is EMPTY (a tags-only entry must still render) — the rule body runs
-    // only with something to drop, so `orphan=` semantics are UNCHANGED.
+    // leaves while its call stays. U17 (#203): the flags do NOT need to
+    // compute on an EMPTY drop set (the deleted tag lane once forced that) —
+    // the rule body runs only with something to drop, so `orphan=` semantics
+    // are UNCHANGED.
     const hadDrop = drop.size > 0;
     const dropFlags = new Array<boolean>(messages.length).fill(false);
     let orphan = 0;
@@ -1566,35 +1561,25 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
         else orphan++;
       });
     }
-    // (11) U10 (#196) IN-WINDOW NUMBER TAGS — opt-in per session (store flag
-    // `tags`), DEFAULT OFF. Hook-side render ONLY (NO store write). U11 (#200)
-    // PLACEMENT PRIORITY: the tag `[#N] ` goes before the FIRST `text` part;
-    // else before the entry's FIRST `reasoning` part (tool-call-only turns are
-    // the majority of a working session — text-only placement left them
-    // untagged); else the entry stays UNTAGGED and is counted (`untagged=` on
-    // the trim line). A tool-call part's `input` bytes are NEVER touched.
-    // Candidates: surviving id-carrying user/assistant entries. Entries with
-    // no place for the tag stay untagged — tool-result projections (their mass
-    // rides the owning ordinal via the #193 call-id link), id-less system
-    // entries, id-carrying entries with neither text nor reasoning. ONE TAG
-    // PER ENTRY, never one per part: a multi-text-part entry carries exactly
-    // one `[#N] `. DETERMINISTIC: the tag is the row's PER-SESSION RANK (never
-    // a window position), so the tagged bytes are IDENTICAL across assemblies
-    // — byte-stable history, stable prompt cache after the ONE-TIME bust the
-    // first tagged request causes. RENDER BEFORE THE SPLICE: dropFlags are
-    // indexed against the PRE-splice array — tagging after the splice would
-    // read SHIFTED indices (the U10 unit found this live in smoke).
-    let tagged = 0;
-    let untagged = 0;
-    let seqSpan = "none"; // (U12 #202) ABSOLUTE store seq span of the surviving id-carrying entries — forensics: rank -> DB row
-    if (entry.tags === true) {
+    // (11) U17 (#203) SEQ-SPAN FORENSICS — the ABSOLUTE store seq span of the
+    // surviving id-carrying entries (rank -> DB row forensics on the `trim`
+    // line; the ordinals read is shared with the guard and notice legs). The
+    // U10 tag lane that owned this leg is DELETED: the host re-persists live
+    // rows' `data` on its own UPDATE (finalize + later updates), so ANY hook
+    // write into existing part bytes lands in the store and COMPOUNDS every
+    // turn (TODO #203 mechanism). Doctrine: the hook only ever REMOVES
+    // (splices) — surviving entries are BYTE-IDENTICAL, no part text changes
+    // ever. COMPUTED BEFORE THE SPLICE: dropFlags are indexed against the
+    // PRE-splice array (the U10 unit found the shifted-index trap live).
+    let seqSpan = "none";
+    if (hadDrop) {
       const ord = await ordOf();
       let seqMin = Number.POSITIVE_INFINITY;
       let seqMax = Number.NEGATIVE_INFINITY;
       messages.forEach((m, k) => {
-        if (dropFlags[k]) return; // a dropped entry is never tagged or counted
+        if (dropFlags[k]) return; // a dropped entry never counts into the span
         const id = typeof m["id"] === "string" ? m["id"] : "";
-        if (id === "") return; // id-less projections NEVER tagged or counted
+        if (id === "") return; // id-less projections never count
         if (ord.ok === true) {
           const sq = ord.seqById.get(id);
           if (sq != null) {
@@ -1602,31 +1587,6 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
             if (sq > seqMax) seqMax = sq;
           }
         }
-        const role = m["role"];
-        if (role !== "user" && role !== "assistant") return; // only these two are candidates
-        const rank = ord.ok === true ? ord.byId.get(id) : undefined;
-        if (rank == null) { untagged++; return; } // no ordinal -> no tag (never a guessed number)
-        const parts = asArray(m["content"]);
-        const lane = (type: string): Record<string, unknown> | undefined => {
-          for (const c of parts) {
-            const p = asRecord(c);
-            if (p != null && p["type"] === type && typeof p["text"] === "string") return p;
-          }
-          return undefined;
-        };
-        const target = lane("text") ?? lane("reasoning");
-        if (target == null) { untagged++; return; } // neither lane -> counted untagged
-        // (U13 #203) COPY-ON-WRITE: the host can hand draft entries whose
-        // content-part objects are SHARED with the live persisted message
-        // objects — writing the tag in place reached the store and COMPOUNDED
-        // every turn (read-only DB proof, TODO #203: a reasoning part starting
-        // `[#10887] [#10887] [#10897] …`). Clone the PART and the ENTRY,
-        // prepend on the clone, and REPLACE the draft slot. The source objects
-        // are NEVER mutated; other parts are shared but only ever read. The
-        // drop lane is untouched (its `splice` only moves array slots).
-        const partCopy = { ...target, text: `[#${rank}] ${String(target["text"])}` }; // (U12) the tag is the PER-SESSION RANK
-        messages[k] = { ...m, content: asArray(m["content"]).map((c) => (c === target ? partCopy : c)) };
-        tagged++;
       });
       if (seqMax >= seqMin) seqSpan = `${seqMin}-${seqMax}`;
     }
@@ -1640,10 +1600,10 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
       messages.splice(k, 1);
     }
     // (14) U14 (#205) NOTICE — the ADD lane (U5 `add-feasible`, live-proven):
-    // ONE FRESH entry the plugin BUILT, pushed at the END AFTER the tag lane
-    // and the splice: never tagged, never counted, never a mutation of
-    // history (the U13 copy-on-write rule — the plugin owns this object, no
-    // shared draft part is touched). Draft-only: never persisted, so every
+    // ONE FRESH entry the plugin BUILT, pushed at the END after the splice:
+    // never counted, never a mutation of history (the plugin owns this object,
+    // no shared draft part is touched; the tag lane it once rode behind is
+    // deleted). Draft-only: never persisted, so every
     // assembly regenerates it; the text is DETERMINISTIC from the drop set,
     // hence byte-stable while the set is stable (warm cache). Names the
     // dropped RANKS + the total token mass + whether the session's marks set
@@ -1672,11 +1632,11 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
       const marksText = entry.active.length === 0 ? "empty" : `non-empty (${entry.active.length})`;
       messages.push({ role: "user", content: [{ type: "text", text: `emergency trim: dropped ${rankText} = ${noticeMass} tokens; your marks were ${marksText}` }], id: "msg_ctx_guard_notice" });
     }
-    if (dropped + droppedProjections === 0 && tagged === 0 && untagged === 0) return; // stale boundary + all marks stale + no tag activity -> nothing happened, no trim line
+    if (dropped + droppedProjections === 0) return; // stale boundary + all marks stale + nothing dropped -> nothing happened, no trim line
     appendLog(
       buildLine(
         "trim",
-        { session: sid, boundary: entry.boundary !== "" ? entry.boundary : "none", boundaryIndex: bIdx >= 1 ? String(bIdx) : "none", marks: String(entry.active.length), droppedRows: String(drop.size), droppedEntries: String(dropped + droppedProjections), droppedProjections: String(droppedProjections), orphan: String(orphan), tagged: String(tagged), untagged: String(untagged), autoRows: autoTotal > 0 ? String(autoTotal) : undefined, autoMass: noticeMass > 0 ? String(noticeMass) : undefined, ordinal: seqSpan !== "none" ? "session-rank" : undefined, seq: seqSpan !== "none" ? seqSpan : undefined, keptEntries: String(messages.length) },
+        { session: sid, boundary: entry.boundary !== "" ? entry.boundary : "none", boundaryIndex: bIdx >= 1 ? String(bIdx) : "none", marks: String(entry.active.length), droppedRows: String(drop.size), droppedEntries: String(dropped + droppedProjections), droppedProjections: String(droppedProjections), orphan: String(orphan), autoRows: autoTotal > 0 ? String(autoTotal) : undefined, autoMass: noticeMass > 0 ? String(noticeMass) : undefined, ordinal: seqSpan !== "none" ? "session-rank" : undefined, seq: seqSpan !== "none" ? seqSpan : undefined, keptEntries: String(messages.length) },
         {},
       ),
     );
@@ -1689,7 +1649,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
 // ------------------------------------------------------------------ the tool surface
 
 const TOOL_DESCRIPTION =
-  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = the PER-SESSION RANK (1..N over the session's append order — stable forever; refs take a bare rank, a range `A-B`, or an id). `mode:'report'` — READ-ONLY window map (post-compaction rows): header = head row, count, BOUNDARY state, retained, STAGED/ACTIVE counts (active-est=own sum); rows flag s/x/g, header in-window drop counts; `window_rows != request` line (request-est=CTX; window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: window position + `#N` (rows omit `id=` unless `showIds`), `own=` OWN weight (bytes/4 of own parts), assistant rows add `req-at=` = REQUEST size at that step (NOT weight); tool targets; `last: N`; low/med/high trim options (rank anchor, keep, own retained/dropped + read/thought/shell, hint ≤ 80); `biggest:` top-5 turns by OWN weight; `target` = dry-run; `gauge:` line = the shared core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ranks/ranges `A-B`), `unmark` remove (ranges too), `clear` empties all drop sets (boundary stays), `tags` on/off = in-window `[#N] ` tags (default OFF; text→reasoning, unplaced counted), `guard` on/off wall guard (at 92% drops heaviest rows + notice); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req minus drop_est; refuses `nothing-staged` / `over-bound` unless `force:true`; same-step mark+apply re-reads the store). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (call-id link, adjacency fallback, unmatched stay — `orphan=`); history untouched; stale refs log ONE deduped line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` rejections or `error: <usage>`; guards: outside the window (`*-not-found`), head (`*-at-window-head`), floor keep >= 6 (`mark-floor`/`retained-tail-below-floor`), range (`mark-range-*`); read failures print `context-read-failed`; unreadable ordinals print `#?`. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>` (+`resolved=<c> ordinals=<a>-<b>` on ranges), `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
+  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = the PER-SESSION RANK (1..N over the session's append order — stable forever; refs take a bare rank, a range `A-B`, or an id). `mode:'report'` — READ-ONLY window map (post-compaction rows): header = head row, count, BOUNDARY state, retained, STAGED/ACTIVE counts (active-est=own sum); rows flag s/x/g, header in-window drop counts; `window_rows != request` line (request-est=CTX; window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: window position + `#N` (rows omit `id=` unless `showIds`), `own=` OWN weight (bytes/4 of own parts), assistant rows add `req-at=` = REQUEST size at that step (NOT weight); tool targets; `last: N`; low/med/high trim options (rank anchor, keep, own retained/dropped + read/thought/shell, hint ≤ 80); `biggest:` top-5 turns by OWN weight; `target` = dry-run; `gauge:` line = the shared core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ranks/ranges `A-B`), `unmark` remove (ranges too), `clear` empties all drop sets (boundary stays), `guard` on/off wall guard (at 92% drops heaviest rows + notice); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req minus drop_est; refuses `nothing-staged` / `over-bound` unless `force:true`; same-step mark+apply re-reads the store). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (call-id link, adjacency fallback, unmatched stay — `orphan=`); history untouched; stale refs log ONE deduped line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` rejections or `error: <usage>`; guards: outside the window (`*-not-found`), head (`*-at-window-head`), floor keep >= 6 (`mark-floor`/`retained-tail-below-floor`), range (`mark-range-*`); read failures print `context-read-failed`; unreadable ordinals print `#?`. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>` (+`resolved=<c> ordinals=<a>-<b>` on ranges), `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
 
 const TOOL_INPUT = {
   "type": "object",
@@ -1739,10 +1699,6 @@ const TOOL_INPUT = {
       "type": "boolean",
       "description": "apply (mode 'apply' only): accept a projection over the 80% bound deliberately; without it an over-bound apply is refused."
     },
-    "tags": {
-      "type": "boolean",
-      "description": "mark: ON/OFF in-window `[#N] ` tags (default OFF; toggle-only). text→reasoning placement; tool input untouched; unplaced counted."
-    },
     "guard": {
       "type": "boolean",
       "description": "mark: ON/OFF the per-session preventive wall guard (default OFF; toggle-only). At assembly, projected >= 92% of the window auto-drops the heaviest droppable rows (head never, keep floor respected, outputs leave with their calls) and appends ONE notice entry; auto drops persist until mark clear."
@@ -1763,7 +1719,6 @@ async function execute(args: unknown, toolContext: { sessionID?: unknown }): Pro
   const mode = a.mode;
   const target = a.target != null && String(a.target).trim() !== "" ? String(a.target).trim() : undefined;
   const keep = a.keepMessages != null ? a.keepMessages : undefined;
-  const tagsArg = a.tags === true || a.tags === false ? (a.tags as boolean) : undefined; // (U10) the opt-in tags toggle
   const guardArg = a.guard === true || a.guard === false ? (a.guard as boolean) : undefined; // (U14) the opt-in wall-guard toggle
   if (mode === "report") return { output: await reportWindow(sid, target, a.showIds === true) }; // (U11 #200) `showIds:true` restores id= on rows
   if (mode === "tail") {
@@ -1792,11 +1747,11 @@ async function execute(args: unknown, toolContext: { sessionID?: unknown }): Pro
     if (isClear && (a.ids != null || a.unmark != null)) {
       return { output: "error: mark mode: clear is mutually exclusive with ids/unmark (use one form)" };
     }
-    if (!isClear && ids == null && unmark == null && tagsArg == null && guardArg == null) {
-      return { output: "error: mark mode requires ids (window rows to stage — ids or bare ordinals), unmark (refs to restore), clear (empty ALL drop sets — staged, active, guard auto — a stored boundary stays), tags (the opt-in in-window ordinal tags on/off), or guard (the opt-in preventive wall guard on/off)" };
+    if (!isClear && ids == null && unmark == null && guardArg == null) {
+      return { output: "error: mark mode requires ids (window rows to stage — ids or bare ordinals), unmark (refs to restore), clear (empty ALL drop sets — staged, active, guard auto — a stored boundary stays), or guard (the opt-in preventive wall guard on/off)" };
     }
-    if (isClear) return { output: await markSet(sid, { clear: true, tags: tagsArg, guard: guardArg }) };
-    return { output: await markSet(sid, { ids, unmark, tags: tagsArg, guard: guardArg }) };
+    if (isClear) return { output: await markSet(sid, { clear: true, guard: guardArg }) };
+    return { output: await markSet(sid, { ids, unmark, guard: guardArg }) };
   }
   if (mode === "apply") {
     const bad = Object.keys(a).filter((k) => k !== "mode" && k !== "session" && k !== "force");

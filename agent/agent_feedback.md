@@ -1064,3 +1064,6 @@ After a planner cross-compaction a worker wrote its handover under the WRONG uni
 ### 2026-10-28_12-35 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
 A shell double-quoted grep pattern containing backticks is command-substituted, so `grep -c "PLANNER-VERIFIED (\`f32de038\`)"` returned 0 on a file where the line existed and nearly caused a correct file to be "re-fixed" — verification greps must use single quotes when the pattern contains backticks.
 
+### 2026-10-28_13-51 worker_FlashNext ses_e8174a794ffe1Noetk8NJeDKVl
+Hook-code fixes cannot be live-verified in the SAME session that saves them: the plugin process keeps the pre-save hook closure (U13: tags still persisted into rows 7507/7516 after the committed copy-on-write fix). Verification units must state "verify on fresh process" and the planner should schedule the live check as the FIRST action after resume.
+

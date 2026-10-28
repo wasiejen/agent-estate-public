@@ -1067,3 +1067,12 @@ A shell double-quoted grep pattern containing backticks is command-substituted, 
 ### 2026-10-28_13-51 worker_FlashNext ses_e8174a794ffe1Noetk8NJeDKVl
 Hook-code fixes cannot be live-verified in the SAME session that saves them: the plugin process keeps the pre-save hook closure (U13: tags still persisted into rows 7507/7516 after the committed copy-on-write fix). Verification units must state "verify on fresh process" and the planner should schedule the live check as the FIRST action after resume.
 
+### 2026-10-28_14-20 worker_FlashNext ses_e7d5cc806ffeQddo2L0xBI7VVb
+context_trim `mode:'mark', tags:true` rejected with "Expected boolean — got string \"True\"" (boolean coerced to string at the tool-arg boundary); first call wasted, retry with bare boolean succeeded. Fix: coerce literal "true"/"false" strings to booleans in the schema handler.
+
+### 2026-10-28_15-16 worker_FlashNext ses_e8174a794ffe1Noetk8NJeDKVl
+Dev-lane smoke copy under `.opencode/temp/<unit>_work/` cannot run standalone: the plugin's `import "./scripts/gauge.mjs"` resolves against the DEV file's dir, so the whole `scripts/` folder must be copied into the dev folder before the env-steered smoke runs (hit twice in U14: gauge.mjs, then loop_root.mjs). Worth one line in the dev-lane recipe (repo_commands.md or the unit-spec convention).
+
+### 2026-10-28_15-21 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+A subagent result slot returned ONLY the context-limit rejection text for a unit that had actually completed and committed (`07b31ee8`/`df99a68c`, smoke green) — the session continued past the rejection after the queued compaction landed. The planner had to rebuild the true state from `git log` + the plugin log before deciding resume vs relaunch. Cheap fix: the planner rule "a limit-error result is not a failure verdict — verify files first" should sit in the role prompt, not only in memory.
+

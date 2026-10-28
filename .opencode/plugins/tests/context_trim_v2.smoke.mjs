@@ -713,17 +713,17 @@ function draftBase(sessionID = SID) {
 
 // ------------------------------------------------------------------ U14 (#205) the preventive wall-guard leg
 // The guard flag (store `guard`, DEFAULT OFF) + the guard's OWN drop set
-// (`auto`, SEPARATE from the agent's `active` set): at assembly, when the
-// projected request (gauge last-req = ctx − output) reaches GUARD_FRAC (0.92)
-// of the gauge-core window, the heaviest droppable rows leave by OWN weight
-// (tool outputs ride the #193 pair rule) until the projection FITS — NEVER the
-// head row, NEVER below the keep floor (>= max(FLOOR, keep) survivors AND never
-// a row inside the last floor rows), NEVER a boundary-retained row. ONE notice
-// entry rides the ADD lane (U5 add-feasible): a FRESH entry, byte-stable while
-// the drop set is stable. Fail-safe: a throw in the guard path sends the
-// request UNMODIFIED and logs ONE event:fail line per session. Fixture math:
-// window 120000 -> bound = floor(120000 * 0.92) = 110400; row masses a3=205,
-// a2=111, u1=2 (indices 1..3 — index 4+ sits inside the floor-protected tail).
+// (`auto`, SEPARATE from the agent's `active` set). (U21 #214) The trigger rides
+// the LIVE assembly estimate (bytes/4 over the draft array + the request-overhead
+// constant), NOT the gauge last-req figure (that stays the fallback when the array
+// is unusable); the picks drain to the 80% FIT bound; the selection rule is the
+// shared `dropCandidates` symbol (head/user/compaction/newest-assistant never; a
+// tool-output-dominant floor row CAN leave); the notice is appended ONCE per
+// CHANGED drop set. Fail-safe: a throw in the guard path sends the request
+// UNMODIFIED and logs ONE event:fail line per session. Fixture math: window
+// 120000 -> trigger = floor(120000 * 0.92) = 110400, fit = floor(120000 * 0.80) =
+// 96000; row masses a3=205, a2=111, u1=2 (indices 1..3 — index 4+ sits inside the
+// floor, where only rows above FLOOR_MASS=4000 are candidates).
 {
   RPC.rows = null; // the seq-carrying window again (ranks ride the ordinal fixture)
   const fxSet = (inp, outp) => {
@@ -741,57 +741,106 @@ function draftBase(sessionID = SID) {
   // G0 the toggle lanes (guard flag ONLY; the tags flag is deleted in U17)
   chk("U14 G0 guard toggle-ON -> the flag lands as a guard-only entry (no `tags` key ever lands)", (await trim({ mode: "mark", session: SID, guard: true })) === "mark-set= guard=on" && readStore()?.sessions?.[SID]?.guard === true && readStore()?.sessions?.[SID]?.tags === undefined && readStore()?.sessions?.[SID]?.auto === undefined);
   chk("U14 G0 the report header names the guard flag + the auto-set size (U17: no tags token)", (await trim({ mode: "report", session: SID })).split("\n")[1].endsWith("guard=on auto=0"), JSON.stringify((await trim({ mode: "report", session: SID })).split("\n")[1]));
-  // G1 ONE BELOW the trigger -> NO fire, the draft is byte-identical
+  // (U21) the LIVE assembly estimate the plugin computes = bytes/4 over the draft
+  // entries + the request-overhead constant; the lane steers the constant
+  // (`setSysTokForTest`) so the trigger math is EXACT. TRIGGER = 110400 (92% of the
+  // 120K window), FIT = 96000 (the 80% drain target).
+  const asmEst = (d) => Math.floor(d.messages.reduce((b, m) => b + JSON.stringify(m).length, 0) / 4);
+  const EST = asmEst(draft());
+  const TRIGGER = 110400;
+  const FIT = 96000;
+  // (RED-before, WM-18) the pre-fix plugin copy has no such export — the steer is a
+  // no-op there, so the same pins run against the old lane and FAIL on F1/F3/F4.
+  const sysToLive = (live) => (typeof pluginMod.setSysTokForTest === "function" ? pluginMod.setSysTokForTest(live - EST) : undefined);
+  // (U21 G3) the growth window: the 10 base rows + a tool-output-dominant FLOOR
+  // assistant msg_a10 (own = (21 + 17979)/4 = 4500 > FLOOR_MASS), a HEAVY user row
+  // (own 5000) and a HEAVY newest assistant row (own 6000) at the tail; rows 13,
+  // floor = indices 7..12.
+  const grownRows = () => [
+    ...windowRows(),
+    { id: "msg_a10", seq: 4412, type: "assistant", agent: "worker-1", model: { id: MODEL_ID, providerID: "llama-swap" }, time: { created: 2400, completed: 2401 }, tokens: { input: 100, output: 50, reasoning: 0, cache: { read: 0, write: 0 } }, content: [{ type: "tool", id: "t10", name: "bash", executed: true, state: { status: "completed", input: { command: "ls -la" }, content: [{ type: "text", text: "T".repeat(17979) }] } }] },
+    { id: "msg_u11", seq: 4413, type: "user", text: "U".repeat(20000), time: { created: 2500 } },
+    { id: "msg_a12", seq: 4414, type: "assistant", agent: "worker-1", model: { id: MODEL_ID, providerID: "llama-swap" }, time: { created: 2600, completed: 2601 }, tokens: { input: 100, output: 50, reasoning: 0, cache: { read: 0, write: 0 } }, content: [{ type: "tool", id: "t12", name: "bash", executed: true, state: { status: "completed", input: { command: "ls -la" }, content: [{ type: "text", text: "V".repeat(23979) }] } }] },
+  ];
+  // G1 (U21 F1 authority) the LIVE estimate 1 BELOW the trigger while last-req sits
+  // ABOVE it -> NO fire: the assembly drives the trigger, the gauge figure does not.
   {
-    fxSet(110399, 0); // last-req 110399 < bound 110400
+    sysToLive(TRIGGER - 1);
+    fxSet(119000, 0); // last-req 119000 > trigger — the pre-U21 lane fired here
     const lB = readLog().length;
     const d = draft();
     await fire(d);
-    chk("U14 G1 last-req 1 BELOW the 92% bound: NO fire — draft byte-identical, no guard line, no notice, no auto set", d.messages.length === 15 && noticeOf(d).length === 0 && guardLines(lB).length === 0 && JSON.stringify(d.messages) === JSON.stringify(draft().messages) && readStore()?.sessions?.[SID]?.auto === undefined, `len=${d.messages.length}`);
+    chk("U21 G1 assembly 1 BELOW trigger + last-req ABOVE it: NO fire — draft byte-identical, no guard line, no notice, no auto set", d.messages.length === 15 && noticeOf(d).length === 0 && guardLines(lB).length === 0 && JSON.stringify(d.messages) === JSON.stringify(draft().messages) && readStore()?.sessions?.[SID]?.auto === undefined, `len=${d.messages.length}`);
   }
-  // G2 AT the trigger -> fires; ONE pick makes the projection fit
+  // G2 (U21 F1 + F2) last-req FAR BELOW the trigger but the LIVE assembly AT it:
+  // fires, and the picks drain toward the 80% fit bound until the pool exhausts.
   {
-    fxSet(110400, 0); // last-req == bound -> trigger (>=)
+    sysToLive(TRIGGER);
+    fxSet(20000, 0); // last-req 20000 — the pre-U21 lane stayed silent here (RED-before)
     const lB = readLog().length;
     const d = draft();
     await fire(d);
     const ids = d.messages.map((m) => m.id ?? "(none)");
     const nt = noticeOf(d);
-    chk("U14 G2 AT the bound: fires — the heaviest row msg_a3 (own=205) + its LINKED output leave; msg_a2 stays (projection fits after ONE pick)", ids.indexOf("msg_a3") === -1 && !JSON.stringify(d.messages).includes("a3 output") && ids.includes("msg_a2") && d.messages.length === 14, JSON.stringify(ids));
-    chk("U14 G2 the notice = ONE fresh entry AT THE END naming the rank + mass (add lane)", nt.length === 1 && d.messages[d.messages.length - 1]?.id === "msg_ctx_guard_notice" && nt[0].content[0].text === "emergency trim: dropped #6 = 205 tokens; your marks were empty", JSON.stringify(nt[0]?.content?.[0]?.text ?? null));
+    chk("U21 G2 assembly AT trigger with last-req 20000: fires — msg_a3 + msg_a2 leave WITH their linked outputs (drain toward the fit bound exhausts the pool)", ids.indexOf("msg_a3") === -1 && ids.indexOf("msg_a2") === -1 && !JSON.stringify(d.messages).includes("a3 output") && !JSON.stringify(d.messages).includes("a2 output") && ids.includes("msg_u1") && d.messages.length === 11, JSON.stringify(ids));
+    chk("U21 G2 the notice = ONE fresh entry AT THE END naming both ranks + the total mass (add lane)", nt.length === 1 && d.messages[d.messages.length - 1]?.id === "msg_ctx_guard_notice" && nt[0].content[0].text === "emergency trim: dropped #5,#6 = 316 tokens; your marks were empty", JSON.stringify(nt[0]?.content?.[0]?.text ?? null));
     const gl = guardLines(lB);
-    chk("U14 G2 ONE kind:guard event:auto line with n/mass/ranks/projected/bound/marks", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "1" && gl[0].mass === "205" && gl[0].ranks === "#6" && gl[0].projected === "110400" && gl[0].bound === "110400" && gl[0].marks === "0", JSON.stringify(gl[0] ?? null));
-    chk("U14 G2 the auto set is SEPARATE from active (store auto=[msg_a3], no active key)", readStore()?.sessions?.[SID]?.auto?.join(",") === "msg_a3" && readStore()?.sessions?.[SID]?.active === undefined, JSON.stringify(readStore()?.sessions?.[SID] ?? null));
-    chk("U14 G2 the trim line carries autoRows=1 + autoMass=205", (() => { const t = readLog().slice(lB).find((l) => l.kind === "trim"); return t != null && t.autoRows === "1" && t.autoMass === "205"; })(), JSON.stringify(readLog().slice(lB).find((l) => l.kind === "trim") ?? null));
+    chk("U21 G2 ONE kind:guard event:auto line: projected=LIVE 110400, src=assembly, fit=96000, after=110084, bound=110400, n=2, mass=316, ranks #5,#6", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "2" && gl[0].mass === "316" && gl[0].ranks === "#5,#6" && gl[0].projected === "110400" && gl[0].src === "assembly" && gl[0].fit === "96000" && gl[0].after === "110084" && gl[0].bound === "110400" && gl[0].marks === "0" && gl[0].prev === undefined, JSON.stringify(gl[0] ?? null));
+    chk("U21 G2 the auto set is SEPARATE from active (store auto=[msg_a3,msg_a2], no active key)", readStore()?.sessions?.[SID]?.auto?.join(",") === "msg_a3,msg_a2" && readStore()?.sessions?.[SID]?.active === undefined, JSON.stringify(readStore()?.sessions?.[SID] ?? null));
+    chk("U21 G2 the trim line carries autoRows=2 + autoMass=316", (() => { const t = readLog().slice(lB).find((l) => l.kind === "trim"); return t != null && t.autoRows === "2" && t.autoMass === "316" && t.droppedRows === "2" && t.droppedEntries === "5" && t.keptEntries === "11"; })(), JSON.stringify(readLog().slice(lB).find((l) => l.kind === "trim") ?? null));
   }
-  // G3 an UNREACHABLE projection -> exhausts only the floor-legal candidates;
-  // the head AND the floor-protected tail rows survive
+  // G3 (U21 F2 + F3) the NEXT step crosses the trigger again: the re-check rides
+  // the LIVE estimate and the CHANGED set picks the heavy FLOOR row (D3 rule) while
+  // the heavy user / newest-assistant rows stay.
   {
-    fxSet(119000, 0);
+    RPC.rows = grownRows();
+    sysToLive(TRIGGER);
+    fxSet(20000, 0);
     const lB = readLog().length;
     const d = draft();
     await fire(d);
-    const ids = d.messages.map((m) => m.id ?? "(none)");
-    chk("U14 G3 floor: auto grows to {a3,a2,u1} — NEVER the head, NEVER index 4+ (the last 6 rows are floor-protected), survivors >= 6", readStore()?.sessions?.[SID]?.auto?.slice().sort().join(",") === "msg_a2,msg_a3,msg_u1" && ids.includes("msg_c0") && ids.includes("msg_u4") && ids.includes("msg_a5") && ids.includes("msg_a7") && ids.includes("msg_a9"), JSON.stringify(readStore()?.sessions?.[SID]?.auto ?? null));
-    const nt = noticeOf(d);
-    chk("U14 G3 the notice names ALL dropped ranks + the TOTAL mass (318 incl the earlier pick) over the 9-entry kept draft + notice", nt.length === 1 && nt[0].content[0].text === "emergency trim: dropped #4,#5,#6 = 318 tokens; your marks were empty" && d.messages.length === 10, JSON.stringify([nt[0]?.content?.[0]?.text ?? null, d.messages.length]));
+    chk("U21 G3 second fire on the live estimate: auto grows to {a3,a2,a10} — the heavy FLOOR row leaves; the heavy USER row, the heavy NEWEST assistant row and the head never", readStore()?.sessions?.[SID]?.auto?.slice().sort().join(",") === "msg_a10,msg_a2,msg_a3", JSON.stringify(readStore()?.sessions?.[SID]?.auto ?? null));
     const gl = guardLines(lB);
-    chk("U14 G3 event:auto names only the NEW picks (n=2, mass 113 — a3 was already auto)", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "2" && gl[0].mass === "113" && gl[0].ranks === "#4,#5", JSON.stringify(gl[0] ?? null));
+    chk("U21 G3 event:auto names only the NEW pick (n=1, mass=4499, ranks #15) + prev=110084 (the per-session projected-after-drops state)", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "1" && gl[0].mass === "4499" && gl[0].ranks === "#15" && gl[0].projected === "110400" && gl[0].src === "assembly" && gl[0].after === "105901" && gl[0].prev === "110084", JSON.stringify(gl[0] ?? null));
+    const nt = noticeOf(d);
+    chk("U21 G3 the CHANGED set notices again: one fresh entry naming #5,#6,#15 = 4815 tokens over the 10-entry kept draft + notice", nt.length === 1 && nt[0].content[0].text === "emergency trim: dropped #5,#6,#15 = 4815 tokens; your marks were empty" && d.messages.length === 11, JSON.stringify([nt[0]?.content?.[0]?.text ?? null, d.messages.length]));
   }
-  // G4 still over-bound with the candidates exhausted: NOTHING further leaves;
-  // the notice repeats BYTE-IDENTICAL (stable set = warm cache), no new log
+  // G4 (U21 F4 notice-once) the same drop set over consecutive assemblies: exactly
+  // ONE notice row total; the drops stay sticky-and-applied.
   {
+    const lB = readLog().length;
     const d1 = draft();
     await fire(d1);
-    const t1 = noticeOf(d1)[0]?.content[0].text;
-    const lB = readLog().length;
+    const ids = d1.messages.map((m) => m.id ?? "(none)");
+    chk("U21 G4 assembly 2, SAME set: NO notice row, drops still applied (a2/a3 gone), NO new event:auto line", noticeOf(d1).length === 0 && ids.indexOf("msg_a2") === -1 && ids.indexOf("msg_a3") === -1 && d1.messages.length === 10 && guardLines(lB).length === 0, JSON.stringify([noticeOf(d1).length, d1.messages.length]));
     const d2 = draft();
     await fire(d2);
-    chk("U14 G4 over-bound + exhausted: no further drop; the notice repeats BYTE-IDENTICAL; NO new event:auto line", noticeOf(d2).length === 1 && noticeOf(d2)[0]?.content[0].text === t1 && t1 === "emergency trim: dropped #4,#5,#6 = 318 tokens; your marks were empty" && d2.messages.length === 10 && guardLines(lB).length === 0, `t=${JSON.stringify(t1)}`);
+    chk("U21 G4 assembly 3, SAME set: still NO notice; the trim line still names autoRows=3 autoMass=4815", noticeOf(d2).length === 0 && d2.messages.length === 10 && (() => { const t = readLog().slice(lB).find((l) => l.kind === "trim"); return t != null && t.autoRows === "3" && t.autoMass === "4815"; })(), JSON.stringify(readLog().slice(lB).find((l) => l.kind === "trim") ?? null));
+    const d3 = draft();
+    await fire(d3);
+    chk("U21 G4 assembly 4, SAME set: still no notice — ONE notice row total across the four assemblies", noticeOf(d3).length === 0 && d3.messages.length === 10, JSON.stringify(noticeOf(d3).length));
+    RPC.rows = null; // msg_a10 LEAVES the window: the in-window drop set CHANGES (#5,#6 only)
+    const d4 = draft();
+    await fire(d4);
+    chk("U21 G4 a CHANGED set (a10 out of the window) notices again: one entry naming #5,#6 = 316 tokens", noticeOf(d4).length === 1 && noticeOf(d4)[0].content[0].text === "emergency trim: dropped #5,#6 = 316 tokens; your marks were empty" && d4.messages.length === 11, JSON.stringify(noticeOf(d4)[0]?.content?.[0]?.text ?? null));
   }
-  // G5 the fail-safe: the gauge throws -> request UNMODIFIED + ONE fail line
+  // G5 (U21 F1 fallback) an UNUSABLE draft array (a circular entry) -> the lane
+  // falls back to the gauge last-req figure and NAMES it in the log.
   {
-    chk("U14 G5 mark clear empties the AUTO set too (the third drop set; the flag survives)", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -3 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID]?.auto === undefined && readStore()?.sessions?.[SID]?.guard === true);
+    chk("U21 G5 clear empties the auto set from the G4 fire (3 ids) and the notice signature", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -3 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID]?.auto === undefined && readStore()?.sessions?.[SID]?.guard === true);
+    fxSet(110400, 0); // last-req EXACTLY at the trigger; the live estimate is unavailable here
+    const lB = readLog().length;
+    const d = draft();
+    const cyc = { role: "user", content: [] };
+    cyc.self = cyc; // JSON.stringify throws -> assemblyEstimate prints undefined -> last-req drives
+    d.messages.push(cyc);
+    await fire(d);
+    const gl = guardLines(lB);
+    chk("U21 G5 unusable assembly array: fires on last-req 110400 with src=last-req, picks a3+a2 (n=2, mass=316)", gl.length === 1 && gl[0].event === "auto" && gl[0].src === "last-req" && gl[0].projected === "110400" && gl[0].n === "2" && gl[0].mass === "316" && d.messages.filter((m) => m.id === "msg_a2").length === 0, JSON.stringify(gl[0] ?? null));
+    chk("U21 G5 clear after the fallback fire", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -2 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID]?.auto === undefined);
+  }
+  // G5b the fail-safe: the gauge throws -> request UNMODIFIED + ONE fail line
+  {
     const good = gaugeMod;
     pluginMod.setGaugeCoreForTest({ formatGauge: good.formatGauge, getDbPath: good.getDbPath, readGauge: async () => { throw new Error("boom-gauge"); } });
     const lB = readLog().length;
@@ -812,6 +861,7 @@ function draftBase(sessionID = SID) {
     chk("U14 G6 guard OFF + no entry: the hook is SILENT (no service call, no line) and the draft is byte-identical", RPC.calls.length === nCalls && readLog().length === lB && JSON.stringify(d.messages) === JSON.stringify(draft().messages), `calls=${RPC.calls.length - nCalls}`);
   }
   fxRestore(); // the gauge fixture returns to the 57000-of-120K mass for the C block
+  if (typeof pluginMod.setSysTokForTest === "function") pluginMod.setSysTokForTest(-1); // (U21) a non-positive value restores the production overhead constant
 }
 
 // ------------------------------------------------------------------ U15 (#204) the report drop-indicator leg
@@ -932,20 +982,20 @@ function draftBase(sessionID = SID) {
   // UNCHANGED hook removal + notice.
   {
     const lB = readLog().length;
-    chk("U18 F5 default target 20%: freed 318 of need 24000, bound-fill 45%, picks 3, short=yes (the echo form is pinned byte-exact)", (await trim({ mode: "free", session: SID })) === "free= freed=318 target=20 bound-fill=45% picks=3 short=yes");
-    chk("U18 F2 selection order: HEAVIEST first (a3=205, a2=111, u1=2) — the pool exhausts at the floor, the head and index 4+ never enter `auto`", autoOf() === JSON.stringify(["msg_a3", "msg_a2", "msg_u1"]) && readStore()?.sessions?.[SID]?.active === undefined && readStore()?.sessions?.[SID]?.boundary === "", autoOf());
+    chk("U18 F5 (U21 D3 re-pinned) default target 20%: freed 316 of need 24000, bound-fill 45%, picks 2, short=yes — the pool exhausts on the SHARED rule (user row never)", (await trim({ mode: "free", session: SID })) === "free= freed=316 target=20 bound-fill=45% picks=2 short=yes");
+    chk("U21 F2 selection order (shared rule): HEAVIEST first (a3=205, a2=111) — the USER row u1 is never a candidate, the head and the light floor rows never enter `auto`", autoOf() === JSON.stringify(["msg_a3", "msg_a2"]) && readStore()?.sessions?.[SID]?.active === undefined && readStore()?.sessions?.[SID]?.boundary === "", autoOf());
     const fl = freeLines(lB);
-    chk("U18 F3 exactly ONE kind:free line (session/target/freed/picks/short)", fl.length === 1 && fl[0].session === SID && fl[0].target === "20" && fl[0].freed === "318" && fl[0].picks === "3" && fl[0].short === "yes", JSON.stringify(fl[0] ?? null));
+    chk("U18 F3 exactly ONE kind:free line (session/target/freed/picks/short)", fl.length === 1 && fl[0].session === SID && fl[0].target === "20" && fl[0].freed === "316" && fl[0].picks === "2" && fl[0].short === "yes", JSON.stringify(fl[0] ?? null));
     const r = await trim({ mode: "report", session: SID });
-    chk("U18 F3 the report flags the free picks ` g` (rows 2/3/4) + header auto=3 dropped-in-window=3 + the legend", (r.split("\n").find((l) => l.startsWith("row: 2 ")) === "row: 2 #4 g user own=2 req-at=unavailable" && r.split("\n").find((l) => l.startsWith("row: 3 ")) === "row: 3 #5 g assistant own=111 req-at=5200 tool=read target=C:/a/b.ts offset=5 limit=20" && r.split("\n").find((l) => l.startsWith("row: 4 ")) === "row: 4 #6 g assistant own=205 req-at=9000 tool=bash target=ls -la" && r.split("\n")[1].includes("auto=3 dropped-in-window=3") && r.split("\n").filter((l) => l.startsWith("flags: ")).length === 1), JSON.stringify([r.split("\n").find((l) => l.startsWith("row: 2 ")), r.split("\n")[1]]));
+    chk("U21 F3 the report flags ONLY the two picks (rows 3/4 ` g`; the user row 2 stays unflagged) + header auto=2 dropped-in-window=2 + one legend", (r.split("\n").find((l) => l.startsWith("row: 2 ")) === "row: 2 #4 user own=2 req-at=unavailable" && r.split("\n").find((l) => l.startsWith("row: 3 ")) === "row: 3 #5 g assistant own=111 req-at=5200 tool=read target=C:/a/b.ts offset=5 limit=20" && r.split("\n").find((l) => l.startsWith("row: 4 ")) === "row: 4 #6 g assistant own=205 req-at=9000 tool=bash target=ls -la" && r.split("\n")[1].includes("auto=2 dropped-in-window=2") && r.split("\n").filter((l) => l.startsWith("flags: ")).length === 1), JSON.stringify([r.split("\n").find((l) => l.startsWith("row: 2 ")), r.split("\n")[1]]));
     const d = draft();
     await fire(d);
     const ids = d.messages.map((m) => m.id ?? "(none)");
     const texts = JSON.stringify(d.messages);
     const t = readLog().slice(lB).find((l) => l.kind === "trim");
-    chk("U18 F3 the UNCHANGED hook lane removes the free picks WITH their outputs (3 ids + 3 projections, pair rule intact)", !ids.includes("msg_u1") && !ids.includes("msg_a2") && !ids.includes("msg_a3") && ids.includes("msg_c0") && ids.includes("msg_u4") && ids.includes("msg_a9") && !texts.includes("a2 output") && !texts.includes("a2 adjacent output") && !texts.includes("a3 output") && d.messages.filter((m) => !("id" in m)).length === 2, JSON.stringify(d.messages.map((m) => m.id ?? "(none)")));
-    chk("U18 F3 the notice + trim line ride the free picks (autoRows=3, autoMass=318, 6 entries dropped, 10 kept + notice)", d.messages.length === 10 && d.messages[d.messages.length - 1]?.id === "msg_ctx_guard_notice" && d.messages[d.messages.length - 1]?.content[0].text === "emergency trim: dropped #4,#5,#6 = 318 tokens; your marks were empty" && t != null && t.autoRows === "3" && t.autoMass === "318" && t.droppedRows === "3" && t.droppedEntries === "6" && t.keptEntries === "10", JSON.stringify(t ?? null));
-    chk("U18 F3 mark clear empties the free picks too (the third drop set; the entry prunes)", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -3 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
+    chk("U21 F3 the hook lane removes the free picks WITH their outputs (2 ids + 3 projections) and KEEPS the user row msg_u1 (never a candidate)", ids.includes("msg_u1") && !ids.includes("msg_a2") && !ids.includes("msg_a3") && ids.includes("msg_c0") && ids.includes("msg_u4") && ids.includes("msg_a9") && !texts.includes("a2 output") && !texts.includes("a2 adjacent output") && !texts.includes("a3 output") && d.messages.filter((m) => !("id" in m)).length === 2, JSON.stringify(d.messages.map((m) => m.id ?? "(none)")));
+    chk("U21 F3 the notice + trim line ride the free picks (autoRows=2, autoMass=316, 5 entries dropped, 11 kept incl the notice)", d.messages.length === 11 && d.messages[d.messages.length - 1]?.id === "msg_ctx_guard_notice" && d.messages[d.messages.length - 1]?.content[0].text === "emergency trim: dropped #5,#6 = 316 tokens; your marks were empty" && t != null && t.autoRows === "2" && t.autoMass === "316" && t.droppedRows === "2" && t.droppedEntries === "5" && t.keptEntries === "11", JSON.stringify(t ?? null));
+    chk("U21 F3 mark clear empties the free picks too (the third drop set; the entry prunes)", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -2 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
   }
   // F2 the never-rules: a stored boundary makes its whole drop region
   // non-candidate (already dropped) and its retained rows stay.
@@ -980,6 +1030,21 @@ function draftBase(sessionID = SID) {
     chk("U18 cleanup of the tie leg (picks cleared, store clean)", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -2 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
     RPC.rows = null;
     pluginMod.setGaugeCoreForTest(good);
+    // (U21 F3) `free` NOW frees a heavy FLOOR tool-output row (the U20 #14 shape) —
+    // the SHARED rule: head / user / newest-assistant rows never, a floor row above
+    // FLOOR_MASS leaves.
+    {
+      const floorRows = () => [
+        ...windowRows(),
+        { id: "msg_a10", seq: 4412, type: "assistant", agent: "worker-1", model: { id: MODEL_ID, providerID: "llama-swap" }, time: { created: 2400, completed: 2401 }, tokens: { input: 100, output: 50, reasoning: 0, cache: { read: 0, write: 0 } }, content: [{ type: "tool", id: "t10", name: "bash", executed: true, state: { status: "completed", input: { command: "ls -la" }, content: [{ type: "text", text: "T".repeat(17979) }] } }] },
+        { id: "msg_u11", seq: 4413, type: "user", text: "U".repeat(20000), time: { created: 2500 } },
+        { id: "msg_a12", seq: 4414, type: "assistant", agent: "worker-1", model: { id: MODEL_ID, providerID: "llama-swap" }, time: { created: 2600, completed: 2601 }, tokens: { input: 100, output: 50, reasoning: 0, cache: { read: 0, write: 0 } }, content: [{ type: "tool", id: "t12", name: "bash", executed: true, state: { status: "completed", input: { command: "ls -la" }, content: [{ type: "text", text: "V".repeat(23979) }] } }] },
+      ];
+      RPC.rows = floorRows();
+      chk("U21 F3 free frees the heavy FLOOR tool-output row (own 4499 > FLOOR_MASS) but NEVER the heavy user or newest-assistant row: freed 4815, picks 3 (a10 first), short=yes", (await trim({ mode: "free", session: SID, target: 5 })) === "free= freed=4815 target=5 bound-fill=41% picks=3 short=yes" && autoOf() === JSON.stringify(["msg_a10", "msg_a3", "msg_a2"]), autoOf());
+      chk("U21 F3 cleanup of the heavy-floor leg (picks cleared, store clean)", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -3 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
+      RPC.rows = null;
+    }
   }
   // F4 the gauge-window anchor + the honest bound-fill leg
   {
@@ -1118,7 +1183,7 @@ function draftBase(sessionID = SID) {
   chk("INV the `trim` lines all name a session + boundary + the counts incl droppedProjections/orphan (U9; U17: the tagged/untagged counters are GONE with the tag lane)", lines.filter((l) => l.kind === "trim").every((l) => typeof l.session === "string" && typeof l.boundary === "string" && typeof l.droppedRows === "string" && typeof l.droppedEntries === "string" && typeof l.droppedProjections === "string" && typeof l.orphan === "string" && l.tagged === undefined && l.untagged === undefined && typeof l.keptEntries === "string"));
   chk("INV the `mark` lines all name session + added/removed/total scalars (a TOGGLE line carries `guard` instead — the exempt shape; U17: the tags exemption is gone)", lines.filter((l) => l.kind === "mark").every((l) => typeof l.session === "string" && ((typeof l.added === "string" && typeof l.removed === "string" && typeof l.total === "string") || typeof l.guard === "string")));
   chk("INV the `apply` lines all name session + n/dropEst/projected/bound/mixed scalars (U8)", lines.filter((l) => l.kind === "apply").every((l) => typeof l.session === "string" && typeof l.n === "string" && typeof l.dropEst === "string" && typeof l.projected === "string" && typeof l.bound === "string" && typeof l.mixed === "string"));
-  chk("INV the `free` lines (U18) all name session + target/freed/picks/short scalars and there are EXACTLY 5 (the base shortfall, the boundary picks=0 leg, the tie-break leg, the ctx-missing leg, the cross-session leg — every rejection logs nothing)", lines.filter((l) => l.kind === "free").length === 5 && lines.filter((l) => l.kind === "free").every((l) => typeof l.session === "string" && typeof l.target === "string" && typeof l.freed === "string" && typeof l.picks === "string" && (l.short === "yes" || l.short === "no")), `count=${lines.filter((l) => l.kind === "free").length}`);
+  chk("INV the `free` lines (U18) all name session + target/freed/picks/short scalars and there are EXACTLY 6 (the base shortfall, the boundary picks=0 leg, the tie-break leg, the U21 heavy-floor leg, the ctx-missing leg, the cross-session leg — every rejection logs nothing)", lines.filter((l) => l.kind === "free").length === 6 && lines.filter((l) => l.kind === "free").every((l) => typeof l.session === "string" && typeof l.target === "string" && typeof l.freed === "string" && typeof l.picks === "string" && (l.short === "yes" || l.short === "no")), `count=${lines.filter((l) => l.kind === "free").length}`);
   chk("INV the applied kind:apply lines (rejections log nothing — fail-closed; U9 retry leg, U10 ordinal legs, U15 V3 leg; U17: the tag-lane applies are gone)", lines.filter((l) => l.kind === "apply").length === 7, `count=${lines.filter((l) => l.kind === "apply").length}`);
   chk("INV the ONE boundary-stale line for the (session,boundary) state (deduped)", lines.filter((l) => l.kind === "boundary-stale").length === 1, `count=${lines.filter((l) => l.kind === "boundary-stale").length}`);
   chk("INV the ONE marks-stale line for the (session,count) state (deduped)", lines.filter((l) => l.kind === "marks-stale").length === 1, `count=${lines.filter((l) => l.kind === "marks-stale").length}`);

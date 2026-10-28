@@ -280,6 +280,26 @@ const LINE_CAP = 2000;
 const CAPS = [500, 150, 60];
 const DOT = "\u2026";
 const FLOOR = 6; // the keepMessages floor (v1, the maintainer's round-2 ruling)
+// (U21 D3, #214) the floor protects DIALOG STRUCTURE, not mass: a row inside the
+// last floor rows is droppable when its OWN mass is tool-output-dominant — above
+// this token threshold. Head, user, and compaction rows and the newest assistant
+// row NEVER (see `dropCandidates`).
+const FLOOR_MASS = 4000;
+// (U21 D1, #214) the request payload the draft array does NOT carry: system prompt
+// + tool schemas + tokenizer drift. MEASURED 2026-10-28 read-only on three live
+// sessions of this repo (`ctx_gauge` CTX/output vs `context_trim mode:'report'`
+// window-est): worker ses_e7b6237a5ffe = 81,486 − 53,610 = 27,876; U20 worker
+// ses_e7b71db78ffe = 172,014 − (137,299 − 62,179 auto mass) = 96,894; U19 worker
+// ses_e7b96ab54ffe = 187,204 − 98,763 = 88,441. The hook's array carries MORE than
+// window-est (tool-call args, projections), so the hook-time residual sits BELOW
+// the first figure; 25,000 is the conservative lower bound of that band. The
+// 92%-trigger / 80%-fit-bound gap (12% of the window = 31,457 tok at 262,144)
+// absorbs the residual bytes/4 drift (provider prompt ≈ 1.15–1.5x bytes/4).
+const SYS_PROMPT_TOK = 25000;
+let sysPromptTok = SYS_PROMPT_TOK; // the test lane may steer it (see setSysTokForTest)
+export function setSysTokForTest(n: number): void {
+  sysPromptTok = Number.isFinite(n) && n >= 0 ? n : SYS_PROMPT_TOK;
+}
 
 // ------------------------------------------------------------------ plugin state
 
@@ -294,6 +314,15 @@ const marksStaleLogged = new Map<string, string>();
 // (U14) per-session dedup for the guard fail-safe line — ONE `guard event:fail`
 // line per session per plugin load (the spec's "logged ONCE per session").
 const guardFailLogged = new Map<string, string>();
+// (U21 D4, #214) per-session notice signature: the drop-set signature the LAST
+// notice named. The notice entry is appended ONLY when the set CHANGED — the U20
+// wall run appended it at EVERY assembly while the set was identical (6 identical
+// kind:trim lines, 22:21:20→22:22:12Z, keptEntries 32→42).
+const noticeSig = new Map<string, string>();
+// (U21 F2) per-session projected-after-drops of the last fire (in-memory evidence,
+// never store state — the store entry shape stays {boundary, keep, setAt, staged,
+// active, guard, auto}).
+const guardAfter = new Map<string, number>();
 
 function storePath(): string {
   return join(dir, ".opencode", "temp", "context_trim_v2.json");
@@ -674,6 +703,65 @@ function idsMass(rows: Array<Record<string, unknown>>, ids: string[]): { mass: n
     if (providerTotalOf(rows[i]) < 0) mixed++;
   }
   return { mass, mixed };
+}
+
+// (U21 F1, #214 D1) the LIVE assembly projection: bytes/4 over the draft entries
+// the `session.context` hook received, plus the request-overhead constant
+// (`SYS_PROMPT_TOK`). The old authority was the gauge's LAST-FINISHED step
+// (`last-req`), which misses everything the step grew AFTER it — U20 measured
+// last-req 190,241 against an assembly of 224,000 `in=` + 16,384 `cache.read`:
+// ~34k blind, and the request died at 284,070 while the projection still read
+// `ok`. Returns undefined when the array is unusable (not an array, or a
+// serialization failure) — ONLY then does the guard fall back to `last-req`.
+function assemblyEstimate(messages: unknown): number | undefined {
+  if (!Array.isArray(messages)) return undefined;
+  try {
+    let bytes = 0;
+    for (const m of messages) bytes += JSON.stringify(m).length;
+    return Math.floor(bytes / 4) + sysPromptTok;
+  } catch {
+    return undefined;
+  }
+}
+
+// (U21 F3, #214 D3) ONE shared selection rule — the wall guard and `free` call
+// this symbol, so the floor rule can never drift between the two lanes. Own-mass
+// weight (`ownMassOf`, so tool OUTPUTS ride first), HEAVIEST-first with AGE (window
+// index ascending) tie-break. NEVER a candidate: the head row (index 0), a row at
+// or after a live boundary (the session's explicit keep), a row another lever
+// already drops, a zero-weight row, DIALOG STRUCTURE (user rows, compaction rows,
+// the NEWEST assistant row), and — inside the last `floorKeep` rows — any row
+// whose own mass does not exceed `FLOOR_MASS` (the floor protects structure, not
+// mass: a tool-output-dominant floor row leaves, per the planner's ruling).
+function dropCandidates(
+  rows: Array<Record<string, unknown>>,
+  floorKeep: number,
+  bIdx: number,
+  dropIdx: Set<number>,
+): { id: string; idx: number; mass: number }[] {
+  let newestAsst = -1;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (rows[i]?.["type"] === "assistant") {
+      newestAsst = i;
+      break;
+    }
+  }
+  const cand: { id: string; idx: number; mass: number }[] = [];
+  rows.forEach((r, i) => {
+    if (i < 1) return; // (1) the head row is NEVER droppable
+    if (bIdx >= 1 && i >= bIdx) return; // (2) boundary-retained rows are explicitly KEPT
+    const id = idOf(r);
+    if (id === "" || dropIdx.has(i)) return; // (3) already dropped by a lever
+    const type = String(r["type"] ?? "");
+    if (type === "user" || type === "compaction") return; // (4) dialog structure survives
+    if (i === newestAsst) return; // (5) the newest assistant row survives
+    const mass = ownMassOf(r);
+    if (mass <= 0) return; // (6) a zero-weight row frees nothing
+    if (i >= rows.length - floorKeep && mass <= FLOOR_MASS) return; // (7) the floor: only heavy rows leave
+    cand.push({ id, idx: i, mass });
+  });
+  cand.sort((a, b) => b.mass - a.mass || a.idx - b.idx); // heaviest first, oldest tie-break
+  return cand;
 }
 
 // ------------------------------------------------------------------ the window read
@@ -1422,14 +1510,12 @@ const FREE_MAX = 60;
 
 // ONE atomic free-space op: drop rows into the session's `auto` set (the (13)
 // guard's own sticky set — the hook's removal lane and the report's ` g` flag
-// are UNCHANGED) until `pct`% of the gauge window value is freed. Candidate
-// rules are the guard lane's, verbatim (the same `cand` shape and sort): OWN
-// mass via `ownMassOf`, HEAVIEST-first, AGE (window index ascending)
-// tie-break, the head row never, the keep floor never, a boundary-retained row
-// never, a row another lever already drops never, a zero-weight row never.
-// The freed sum is the SAME OWN-mass estimator as `markEstimate`. A shortfall
-// stops at pool exhaustion and says so — no escalation, no bound check (this
-// lane FREES space, it does not project a request).
+// are UNCHANGED) until `pct`% of the gauge window value is freed. The candidate
+// rule is the SHARED `dropCandidates` symbol (U21 F3: the guard and `free` can no
+// longer drift — one head/user/compaction/newest-assistant rule, one floor-mass
+// rule, one sort). The freed sum is the SAME OWN-mass estimator as `markEstimate`.
+// A shortfall stops at pool exhaustion and says so — no escalation, no bound check
+// (this lane FREES space, it does not project a request).
 async function freeSet(sid: string, pct: number): Promise<string> {
   const read = await readWindow(sid);
   if (!read.ok) {
@@ -1456,27 +1542,17 @@ async function freeSet(sid: string, pct: number): Promise<string> {
     const i = rows.findIndex((r) => idOf(r) === m);
     if (i >= 1) dropIdx.add(i);
   }
-  const cand: { id: string; idx: number; mass: number }[] = [];
-  rows.forEach((r, i) => {
-    if (i < 1) return; // (1) the head row is NEVER droppable
-    if (bIdx >= 1 && i >= bIdx) return; // (2) boundary-retained rows are explicitly KEPT
-    if (i >= rows.length - floorKeep) return; // (3) the keep floor: the last floorKeep rows survive
-    const id = idOf(r);
-    if (id === "" || dropIdx.has(i)) return; // (4) already dropped by a lever
-    const mass = ownMassOf(r);
-    if (mass > 0) cand.push({ id, idx: i, mass }); // (5) a zero-weight row cannot free anything
-  });
-  cand.sort((a, b) => b.mass - a.mass || a.idx - b.idx); // heaviest first, oldest tie-break
+  const cand = dropCandidates(rows, floorKeep, bIdx, dropIdx);
   const need = Math.floor((gWin * pct) / 100);
   const picks: string[] = [];
   let freed = 0;
-  let surviving = rows.length - dropIdx.size;
+  // No survivor-count stop (U21 D3): the structural never-rules inside
+  // `dropCandidates` (head, user, compaction, newest assistant) keep the dialog
+  // alive, and a tool-output-dominant floor row is droppable by ruling.
   for (const c of cand) {
     if (freed >= need) break; // the target is met — stop
-    if (surviving <= floorKeep) break; // the floor is reached — stop honest, shortfall and all
     picks.push(c.id);
     freed += c.mass;
-    surviving--;
   }
   const short = freed < need;
   if (picks.length > 0) {
@@ -1619,19 +1695,23 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     // mutation and the whole lane rides its own try/catch (fail-safe): a throw
     // logs ONE kind:guard event:fail line per session and the request
     // continues WITHOUT guard picks — byte-identical to the guard-off path.
-    // Projection authority = the SAME figure `apply` uses (U8): the LAST
-    // completed request prompt (gauge ctx − output = input + cache.read); the
-    // gauge already reflects previous guard drops, so only the NEW picks
-    // subtract. Trigger: last-req >= GUARD_FRAC * window. Selection: the
-    // heaviest droppable rows by OWN weight (`ownMassOf` counts tool OUTPUTS,
-    // so big reads and outputs leave FIRST; tie = oldest window position),
-    // until the projection FITS (projected < bound). Hard limits: NEVER the
-    // head row (index >= 1), NEVER below the keep floor (>= max(FLOOR,
-    // entry.keep) surviving rows AND never a row inside the last floor
-    // rows), NEVER a boundary-retained row (index >= boundary) — the session's
-    // explicit keep stands. Picks join the drop set BEFORE the pair-rule block
-    // (they ride the #193 atomic call+output drop), persist to `auto`, and log
-    // ONE kind:guard event:auto line with ranks + mass.
+    // (U21 F1, #214 D1) projection authority = the LIVE assembly estimate
+    // (`assemblyEstimate`: bytes/4 over THIS draft array + `SYS_PROMPT_TOK`). The
+    // gauge `last-req` figure (U8) rides ONLY as the fallback when the array is
+    // unusable — U20 measured last-req 190,241 against an assembly of 224,000
+    // `in=` + 16,384 `cache.read`: ~34k blind, request dead at 284,070 with the
+    // projection still `ok`. Trigger: projection >= GUARD_FRAC (0.92) of the
+    // window — UNCHANGED. Selection: the SHARED `dropCandidates` rule (U21 F3 —
+    // head/user/compaction/newest-assistant never; a tool-output-dominant floor
+    // row CAN leave). Drain target (U21 F2): the picks run until the projection
+    // sits UNDER the apply-side fit bound (BOUND_FRAC = 0.8 of the window); the
+    // U20 fire stopped ONE pick below the trigger (log 22:17:27Z projected=244,787
+    // bound=241,172) and the next step died at 284,070 — the 80% fit bound leaves
+    // the headroom the next step grows into. Picks join the drop set BEFORE the
+    // pair-rule block (they ride the #193 atomic call+output drop; the splice
+    // mutates the array the host builds THIS request from, so the drop reduces the
+    // request the fire fires ON), persist to `auto`, and log ONE kind:guard
+    // event:auto line with ranks + mass + the projection figures.
     let guardPicked = 0;
     const guardPickIds: string[] = []; // kept OUTSIDE the try: the fail-safe must be able to UNDO the picks
     if (entry.guard === true) {
@@ -1641,11 +1721,15 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
         const gCtx = typeof gr.ctx === "number" && Number.isFinite(gr.ctx) ? gr.ctx : undefined;
         const gOut = typeof gr.output === "number" && Number.isFinite(gr.output) ? gr.output : undefined;
         const gWin = typeof gr.window === "number" && Number.isFinite(gr.window) ? gr.window : undefined;
-        if (gCtx != null && gWin != null) {
+        if (gWin != null) {
           // An unknown OUTPUT prints CTX itself (the apply lane's own rule).
-          const lastReq = gOut != null ? gCtx - gOut : gCtx;
+          const lastReq = gCtx != null ? (gOut != null ? gCtx - gOut : gCtx) : undefined;
+          const live = assemblyEstimate(messages);
+          const projection = live != null ? live : lastReq;
+          const src = live != null ? "assembly" : "last-req";
           const gBound = Math.floor(gWin * GUARD_FRAC);
-          if (lastReq >= gBound) {
+          const gFit = Math.floor(gWin * BOUND_FRAC);
+          if (projection != null && projection >= gBound) {
             const floorKeep = Math.max(FLOOR, entry.keep);
             const dropIdx = new Set<number>();
             if (bIdx >= 1) for (let k = 0; k < bIdx; k++) dropIdx.add(k); // the boundary drop region
@@ -1653,32 +1737,21 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
               const i = rows.findIndex((r) => idOf(r) === m);
               if (i >= 1) dropIdx.add(i);
             }
-            const cand: { id: string; idx: number; mass: number }[] = [];
-            rows.forEach((r, i) => {
-              if (i < 1) return; // (1) the head row is NEVER droppable
-              if (bIdx >= 1 && i >= bIdx) return; // (2) boundary-retained rows are explicitly KEPT
-              if (i >= rows.length - floorKeep) return; // (3) the keep floor: the last floorKeep rows survive
-              const id = idOf(r);
-              if (id === "" || dropIdx.has(i)) return; // already dropped by a lever or by the guard itself
-              const mass = ownMassOf(r);
-              if (mass > 0) cand.push({ id, idx: i, mass }); // a zero-weight row cannot help the fit
-            });
-            cand.sort((a, b) => b.mass - a.mass || a.idx - b.idx);
+            const cand = dropCandidates(rows, floorKeep, bIdx, dropIdx);
             const pickedIds: string[] = guardPickIds;
             let pickedMass = 0;
-            let projected = lastReq;
-            let surviving = rows.length - dropIdx.size;
+            let projected = projection;
+            const prevAfter = guardAfter.get(sid);
             for (const c of cand) {
-              if (projected < gBound) break; // the projection FITS — stop
-              if (surviving <= floorKeep) break; // the floor is reached — stop honest, even over
+              if (projected < gFit) break; // the projection sits UNDER the fit bound — stop
               pickedIds.push(c.id);
               pickedMass += c.mass;
               projected -= c.mass;
-              surviving--;
               drop.add(c.id);
             }
             guardPicked = pickedIds.length;
             if (pickedIds.length > 0) {
+              guardAfter.set(sid, projected);
               const ord = await ordOf();
               const rankNums = pickedIds
                 .map((id) => (ord.ok === true ? ord.byId.get(id) : undefined))
@@ -1686,7 +1759,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
                 .sort((a, b) => a - b);
               const rankText = rankNums.length > 0 ? rankNums.slice(0, 12).map((n) => `#${n}`).join(",") + (rankNums.length > 12 ? ` +${rankNums.length - 12} more` : "") : "unavailable";
               const wrote = writeSessionEntry(sid, { boundary: entry.boundary, keep: entry.keep, setAt: entry.setAt, staged: entry.staged, active: entry.active, guard: true, auto: [...entry.auto, ...pickedIds] });
-              appendLog(buildLine("guard", { session: sid, event: "auto", n: String(pickedIds.length), mass: String(pickedMass), ranks: rankText, projected: String(lastReq), bound: String(gBound), marks: String(entry.active.length), store: wrote ? undefined : "write-failed" }, {}));
+              appendLog(buildLine("guard", { session: sid, event: "auto", n: String(pickedIds.length), mass: String(pickedMass), ranks: rankText, projected: String(projection), src, fit: String(gFit), after: String(projected), prev: prevAfter != null ? String(prevAfter) : undefined, bound: String(gBound), marks: String(entry.active.length), store: wrote ? undefined : "write-failed" }, {}));
             }
           }
         }
@@ -1806,34 +1879,46 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     // ONE FRESH entry the plugin BUILT, pushed at the END after the splice:
     // never counted, never a mutation of history (the plugin owns this object,
     // no shared draft part is touched; the tag lane it once rode behind is
-    // deleted). Draft-only: never persisted, so every
-    // assembly regenerates it; the text is DETERMINISTIC from the drop set,
-    // hence byte-stable while the set is stable (warm cache). Names the
-    // dropped RANKS + the total token mass + whether the session's marks set
-    // was empty.
+    // deleted). Draft-only: never persisted. Names the dropped RANKS + the total
+    // token mass + whether the session's marks set was empty.
+    // (U21 F4, #214 D4) NOTICE ONCE PER CHANGED DROP SET: the U20 wall run
+    // appended this entry at EVERY assembly while the drop set was identical (6
+    // identical kind:trim lines 22:21:20→22:22:12Z, droppedRows=12 autoMass=62179,
+    // keptEntries 32→42 churn). The entry is appended ONLY when the in-window drop
+    // set CHANGED since the last notice; the drops themselves stay
+    // sticky-and-applied (the splice lane above is untouched), and an EMPTY set
+    // clears the signature so a later set always notices.
     let noticeMass = 0;
     const autoTotal = autoInWindow + guardPicked;
-    if (autoTotal > 0) {
+    if (autoTotal === 0) noticeSig.delete(sid);
+    else {
       const noticeIds = new Set<string>(entry.auto);
       for (const id of guardPickIds) noticeIds.add(id);
       const ord = await ordOf();
       const ranks: number[] = [];
+      const sigIds: string[] = [];
       let unnamed = 0;
       rows.forEach((r, i) => {
         if (i === 0) return; // the head is NEVER a guard row
         const id = idOf(r);
         if (id === "" || !noticeIds.has(id)) return; // stale ids outside the window are absent here
         noticeMass += ownMassOf(r);
+        sigIds.push(id);
         const rk = ord.ok === true ? ord.byId.get(id) : undefined;
         if (typeof rk === "number") ranks.push(rk);
         else unnamed++;
       });
+      sigIds.sort();
+      const sig = sigIds.join(",");
       ranks.sort((a, b) => a - b);
       const shown = ranks.slice(0, 12);
       const more = ranks.length - shown.length + unnamed;
       const rankText = ranks.length > 0 ? shown.map((n) => `#${n}`).join(",") + (more > 0 ? ` +${more} rows` : "") : `${autoTotal} rows`;
       const marksText = entry.active.length === 0 ? "empty" : `non-empty (${entry.active.length})`;
-      messages.push({ role: "user", content: [{ type: "text", text: `emergency trim: dropped ${rankText} = ${noticeMass} tokens; your marks were ${marksText}` }], id: "msg_ctx_guard_notice" });
+      if (noticeSig.get(sid) !== sig) {
+        noticeSig.set(sid, sig);
+        messages.push({ role: "user", content: [{ type: "text", text: `emergency trim: dropped ${rankText} = ${noticeMass} tokens; your marks were ${marksText}` }], id: "msg_ctx_guard_notice" });
+      }
     }
     if (dropped + droppedProjections === 0) return; // stale boundary + all marks stale + nothing dropped -> nothing happened, no trim line
     appendLog(
@@ -1905,7 +1990,7 @@ const TOOL_INPUT = {
     },
     "guard": {
       "type": "boolean",
-      "description": "mark: ON/OFF the per-session preventive wall guard (default OFF; toggle-only). At assembly, projected >= 92% of the window auto-drops the heaviest droppable rows (head never, keep floor respected, outputs leave with their calls) and appends ONE notice entry; auto drops persist until mark clear."
+      "description": "mark: ON/OFF the per-session wall guard (default OFF; toggle-only). Assembly estimate >= 92% of the window auto-drops heaviest droppable rows (head/user/newest never, heavy floor rows may leave, outputs leave with calls); ONE notice per changed drop set; auto drops persist until clear."
     },
     "showIds": {
       "type": "boolean",

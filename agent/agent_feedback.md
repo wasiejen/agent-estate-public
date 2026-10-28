@@ -1061,3 +1061,6 @@ Carried handover's smoke command was wrong (agent/scripts + npx tsx); the pinned
 ### 2026-10-28_01-44 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
 After a planner cross-compaction a worker wrote its handover under the WRONG unit identity — header and commit subject read "TODO #179 items 3, 5–6" for a #196 U10 unit — and skipped the spec-required `TODO.md` status line, so the planner had to rebuild the mapping from `git show`. Cheap fix: the handover's first line must copy the spec path and TODO id verbatim from `agent/handover/handover_task.md`, not from its own previous handover.
 
+### 2026-10-28_12-35 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
+A shell double-quoted grep pattern containing backticks is command-substituted, so `grep -c "PLANNER-VERIFIED (\`f32de038\`)"` returned 0 on a file where the line existed and nearly caused a correct file to be "re-fixed" — verification greps must use single quotes when the pattern contains backticks.
+

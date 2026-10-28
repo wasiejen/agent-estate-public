@@ -32,6 +32,13 @@
   once is cheaper than re-deriving them later; adapting a committed spec
   costs less context than re-deriving it for the next or a compacted
   planner. Use it after a design session that settles a multi-item build.
+- **Tool-surface files edit via scratch copy + ONE live apply (2026-10-28 ruling):**
+  files whose parts sit in the live system prompt (plugin/tool exports,
+  prompts, destill memory) hot-reload on save; every live edit busts the
+  prompt cache for ALL live sessions (measured: 9 full re-prefills in one
+  worker run). Specs for such files MUST mandate: develop on a scratch
+  copy, apply the final content to the live path in ONE write per
+  checkpoint, never piecemeal live edits.
 - **Claims in a spec are the planner's verified facts** — measured at
   spec time. They are not assignments for the worker to re-derive.
 - **Flag behaviour-pinning tests explicitly.** The spec's verified-facts

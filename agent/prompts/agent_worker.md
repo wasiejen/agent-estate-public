@@ -74,6 +74,18 @@ Read the relevant project files before changing that project.
 - Continue until the required checks are green.
 - Report measured results, not assumptions.
 
+## Tool-surface file edits (system-prompt files)
+
+Files whose descriptions or schemas load into the live system prompt (the
+`.opencode/plugins/**` tool exports, `.opencode/tools/**`, `AGENTS.md`,
+`agent/prompts/**`, `agent/memory/**` destill files) are hot-reloaded by the
+host on save. Each live edit busts the session prompt cache and forces a
+full re-prefill.
+
+- Develop such changes on a scratch copy (scratchpad or a copy in the tree).
+- Apply the final content to the live path in ONE write per checkpoint.
+- Never re-edit a live tool-surface file piecemeal.
+
 ## Command output
 
 Follow `AGENTS.md` §Command Output.

@@ -1154,3 +1154,6 @@ My spec error 2026-10-29 (U26): `agent/handover/specs/2026-10-29_u26-suffix-drop
 ### 2026-10-29_04-10 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
 block_transfer friction 2026-10-29: I emitted a malformed parameter name for `targetMarker` in a PASTE call and the tool did NOT reject it — it applied the PASTE at EOF, putting 2 NAP lines into the `## Standing` section (fixed with a same-file MOVE). Treat a PASTE/MOVE feedback line that says "(at EOF)" as a red flag when a targetMarker was intended: check the feedback phrase before trusting placement.
 
+### 2026-10-29_04-28 planner_FlashNext ses_e7a552918ffeMsyhgLaQJjxJOo
+TODO.md entry sweep `grep '^## #'` silently misses bare `## N.` headers — #93/#97 were invisible to entry counts/status sweeps until normalized at maintenance pass 3 (now fixed; consider a sweep pattern `^## #?[0-9]+`).
+

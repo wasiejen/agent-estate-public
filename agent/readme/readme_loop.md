@@ -161,6 +161,23 @@ NAP — not here.
 - Discipline: append only; NO curation of this file. A dead session loses
   at most its unfinished tail.
 
+## Session wake digest (reader-facing)
+
+- Purpose: a maintainer-readable running summary of one session's rounds.
+  Watchdog wakes log only a `loop_log` line and a NAP line — no prose.
+- ONE file per PRIMARY session, in the current loop folder:
+  `loop/<run>/plan<N>_wakes_<session-short-id>.md`, created on first wake
+  close, growing per wake. Iteration-numbered sessions keep their
+  `plan<N>_summary.md` close summary; the digest complements it.
+- Content per wake: 2-3 lines — round label, what landed (commit hashes),
+  what is now waiting on the maintainer. Plain sentences, no tables.
+- Write triggers: (1) at every wake/session close, with the closing commit;
+  (2) IMMEDIATELY before any `context_trim` drop lands (`free`/`apply`) —
+  the digest must survive the drop and serves as the post-trim rebuild
+  channel alongside committed state.
+- Ownership: the acting primary planner writes its own digest. Workers and
+  explorers do not. Append-only; curation happens at session close.
+
 ## Interrupt handling
 - Rebuild from committed state: `git log`, the NAP
   (`agent/handover/handover_planner.md`), `TODO.md` — never from memory.

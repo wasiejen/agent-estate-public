@@ -1,0 +1,39 @@
+# Repo rename — drop the vendor name from the repo identity
+
+Status: awaiting approval. Your note (2026-10-29): opencode discourages
+direct vendor mentions to avoid confusion with their project.
+
+## Intention
+Keep the repo's identity about WHAT it is (the agent estate: protocol,
+roles, loop, tools, memory) instead of naming the host product.
+
+## Problem
+- Repo folder + remote are `the estate (former name)`; the name appears in 117 tracked
+  files (`grep -rl "the estate (former name)" *.md *.ts *.mjs *.jsonc` measured
+  2026-10-29), including absolute paths used by plugins/tools and docs.
+- The host itself is referenced functionally elsewhere (`opencode.jsonc`,
+  `.opencode/` dirs) — those are host-mandated literals, NOT naming choices;
+  they stay.
+
+## Options
+1. **RECOMMENDED — `agent-estate`** (folder + remote). Matches vocabulary
+   already used here (`repo_overview.md` "the opencode agent bookkeeping",
+   TODO #150 "v1-estate removal"); short, no vendor token, no collision.
+2. `agent-bookkeeping` — literal, less distinctive.
+3. `selfmanaged-agents` — describes the trim/self-management angle, longer.
+4. Keep the name until upstream complains (cheapest; you said it is
+   discouraged, not forbidden).
+
+## Execution parts (independently approvable)
+- A. Remote rename on your host + local `git remote set-url` + folder rename
+  (you run the folder move; agents adapt paths from there).
+- B. Text sweep: replace `the estate (former name)` → new name in the 117 files, ONE
+  commit, then re-run probe + smokes (they resolve paths from repo root
+  dynamically — expected green).
+- C. README note: state the naming rationale once (belongs in the new
+  `README.md`, see inbox item).
+
+## Acceptance
+- `git remote -v` shows the new remote; `grep -r "the estate (former name)"` returns
+  only historical/archive mentions; probe 115/115 + typecheck green; a fresh
+  session starts clean from the new folder.

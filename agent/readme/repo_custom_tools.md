@@ -1,7 +1,7 @@
 # repo_custom_tools.md — host tools for this repo (read when you use one, or its behavior surprises you)
 
-This repo registers host-specific tools: `.opencode/tools/{block_transfer,ctx_gauge,loop_log}.ts`
-plus the `compact_memory` plugin (`.opencode/plugins/compact_memory.ts`).
+This repo registers host-specific tools: `.opencode/tools/{block_transfer,ctx_gauge,loop_log,context_trim}.ts`
+plus the `context_trim_v2` plugin (`.opencode/plugins/context_trim_v2.ts`).
 The tool description injected into your context is CURRENT and authoritative.
 This part adds WHEN-to-use guidance and traps the description omits.
 Contract pinning lives in `.opencode/plugins/probes/handover_probe.mjs`.
@@ -47,27 +47,22 @@ Contract pinning lives in `.opencode/plugins/probes/handover_probe.mjs`.
 - Pass your session id from the injected `SESSION=` field.
 - Never hand-edit `loop_log.md`; it is the loop's committed record.
 
-## compact_memory — session compaction (SELF / CROSS)
-- Fire it to compact your OWN session (SELF) at the L3 trigger.
-- Or compact a named session (CROSS): the planner rescues a worker before a `task_id` resume.
-- Args: `[sessionID, keepMessages, message, emergency]` (`keepTokens` is
-  gone).
-- CROSS dispatches are fire-and-forget. Verify success by the `COMPACT` line
-  in `.opencode/temp/ctx.log` (or the terminal), not by the response.
-- Budget is per target session + model (cap from `compact_budget.json`
-  `model_budget`, bare model id → cap; unlisted models get the configured default; CPU models denied, cap 0); the `emergency` arg consumes the one extra compaction AFTER the normal budget is drained (once per session).
-- Pre-compaction dump (TODO #55, landed plan4): before ANY dispatch, the tool
-  dumps the target session's full content to `archive/sessions/compaction_dumps/<sid>_c<count>.md`.
-- The dump is NEVER overwritten; a same-count collision falls back to a STAMPED name.
-- A dump failure is logged (`DUMP-FAIL` in `ctx.log`) and never blocks.
-- After a SELF compaction the session ENDS — continuation rides the
-  post-compaction reload directive / `task_id` resume (planner prompt
-  §Context-budget trigger).
-- A failed dispatch consumes NO budget.
-- The summarizer is the target session's OWN model (same-model —
-  `agent.compaction.model` commented out in opencode.jsonc) → expect ONE
-  flush delegation after a CROSS dispatch (llama-swap single slot;
-  knowledge_tools.md).
+## context_trim — context survival lanes (SELF / CROSS)
+- The compact lane is denied (root permission, 2026-10-29); the trim lanes
+  replace it. AGENTS.md §Context Trim is the authority and the tool
+  description is CURRENT — this section adds WHEN-to-use only.
+- `report`: read-only window map (ranks `#N`, `own=`, flags) — read it
+  before any manual drop.
+- `mark` + `apply`: drop chosen rows behind the fit bound; `guard:true`
+  arms the wall guard.
+- `free target=N`: one call frees ~N % of the window — the stop-line and
+  recovery lane. `tail`: keep-boundary (shapes the report, not the live
+  request). `clear`: empty the drop sets.
+- Drops land at the next assembly; dropped tool outputs are recoverable
+  only from committed files — commit state before dropping.
+- CROSS (planner): rescue a walled or dead child — `report`, then `free`
+  ~25–45 %, then resume with the recovery flow: re-read committed files,
+  write a self-summary file + commit, then an informed self-trim.
 
 ## NOT here
 - Built-ins (`task`, `skill`, `webfetch`, …) are not custom tools.

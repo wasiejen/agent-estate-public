@@ -12,7 +12,8 @@ NAP — not here.
   `loop/<folder>/counter.json`
   (`{"looprun": <folder>, "n": N, "round": R}`) is the AUTHORITATIVE
   iteration state. `n` counts SPAWNS (the ` ITER=<n>` + title leg); `round`
-  counts spawns PLUS verified compactions (`(round ?? n ?? 0) + 1`).
+  counts spawns PLUS verified compactions (`(round ?? n ?? 0) + 1`; the
+  compaction leg is dormant since the compact lane was denied 2026-10-29).
   The auto_resume plugin writes it at every autorun spawn — a dead session
   can never leave it behind. Candidate = counter.n + 1; an absent or
   foreign-looprun counter gives 1. N_final = max(candidate, log-max + 1),
@@ -127,7 +128,8 @@ NAP — not here.
       worker) writes one on task completion. Content = the final gauge
       readout, verbatim from the gauge tool or command and never guessed:
       the full `CTX=n (p%) REM=m | N compactions left` line (the usual form
-      live today) or the condensed `<CTX>%/<REM>K` form. (The explorer's
+      live today; the `N compactions left` suffix is pending retirement,
+      #212) or the condensed `<CTX>%/<REM>K` form. (The explorer's
       completion normally rides the planner's
       `-RETURN-` line — under the CURRENT pre-tightening permissions the
       explorer ALSO has loop-folder write access and writes its own DONE
@@ -169,7 +171,8 @@ NAP — not here.
 ## Maintenance unit (counter-triggered, planner-run — GO 2026-09-25)
 - Trigger: every 5th ROUND — `round % 5 == 0` in `counter.json` (#171,
   2026-10-26: rounds count spawns PLUS verified compactions, so a session
-  that survives by compaction still advances the clock). The token surfaces
+  that survives by compaction still advances the clock; the leg is dormant
+  since the compact lane was denied 2026-10-29). The token surfaces
   as `ROUND=<r> MAINT=1` on the `state_snapshot` digest's `## loop` line and
   on the `ctx_gauge` tool line (that one only on %5 rounds). Run the pass at
   session START — after the state rebuild (git log / NAP / TODO) and BEFORE

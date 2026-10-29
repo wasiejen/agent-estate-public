@@ -100,14 +100,18 @@ repo facts:
   ` ROUND=<n> MAINT=1` (#171) — run the maintenance pass as the first unit
   then; other rounds add nothing. The peek fallback: run
   `node .opencode/plugins/scripts/peek.mjs` from the repo root; the read is
-  read-only and prints `SESSION=… CTX=n (p%) REM=m`. An unknown window
-  yields `CTX=n` only; a session with no finished step yields
-  `CTX=notAvailable`.
+  read-only and prints the canonical readout form `SESSION=… CTX=n (p%)
+  REM=m`. An unknown window yields `CTX=n` only; a session with no finished
+  step yields `CTX=notAvailable`. The gauge line may end with the budget
+  suffix ` | N compactions left` — PENDING RETIREMENT (TODO #212); treat it
+  as legacy text until it lands.
   **Margin rule (maintainer 2026-09-14):** the readout UNDER-reports actual
-  usage. A compaction fired at a 95 % nudge landed at 119.6 K of the ~120 K
-  window. Add a 5 % margin to the gauge and nudge numbers when making budget
+  usage. A compact-era save fired at a 95 % nudge landed at 119.6 K of the
+  ~120 K window. Add a 5 % margin to the gauge and nudge numbers when making budget
   decisions. A first-ever gauge in a FRESH session can return
   `CTX=notAvailable` — no finished step yet; the next call reads fine.
+- Context trim lanes: the `context_trim` tool — when-to-use in
+  `repo_custom_tools.md` §context_trim; authority: AGENTS.md §Context Trim.
 - Durable maintainer TODOs: `TODO.md`.
 - Session DB forensics (v2 store): `node agent/scripts/db/dump_session_v2.mjs <sid> --lite`
   reads `session_message` (the live v2 shape). `sesinspect.cjs` and `sesdata.cjs` still read the

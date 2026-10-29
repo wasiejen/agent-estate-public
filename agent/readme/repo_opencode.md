@@ -12,9 +12,10 @@ plus the area files. Read those on need-to-know.
   in `@opencode-ai/plugin` dist/index.d.ts; they are notification-only:
   `event?: (input: {
   Event }) => Promise<void>`.
-- Live config: `opencode.jsonc` (repo root). It holds the agent roster,
-  permissions, and the compaction defaults block. The maintainer LIVE-edits
-  it. Verify the roster before a delegation. Never stage or flag his live files.
+- Live config: `opencode.jsonc` (repo root). It holds the agent roster and
+  permissions (the compact lane is denied since 2026-10-29). The maintainer
+  LIVE-edits it. Verify the roster before a delegation. Never stage or flag
+  his live files.
 
 ## Plugins (ours)
 - The host auto-loads `.opencode/plugins/*.ts`. opencode.jsonc has NO
@@ -29,9 +30,9 @@ plus the area files. Read those on need-to-know.
   `summarize` vs `compact` client surface, the `Event` union. Deep-dives:
   `agent/knowledge/opencode-plugins/` (surface report + A/B/C) +
   `agent/knowledge/knowledge_tools.md`.
-- Compaction mechanics: budgets, keep, dumps, the auto-resume interplay.
-  Docs: AGENTS.md `# Compaction Guidelines` +
-  `maintainer/draft/archive/compaction_guide/full_guide.md`.
+- Context trim mechanics: window map, drop lanes, the wall guard, the
+  recovery flow. Docs: AGENTS.md §Context Trim + the `context_trim` tool
+  description.
 - auto_resume internals: units, scope, the spawn/restart path. Docs: TODO
   #75/#85/#90/#91 + `agent/knowledge/opencode-plugins/auto-resume-*`.
 - The single backend slot: NEVER launch raw inference-server requests.

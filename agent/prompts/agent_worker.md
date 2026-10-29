@@ -52,7 +52,7 @@ Paths are relative to `agent/readme/`.
 - `repo_opencode.md`: OpenCode host and plugin behavior.
 - `readme_todo.md`: appending findings to `todo_inbox.md`.
 - `readme_loop.md`: loop-log format and session activity records.
-- `readme_post_compaction.md`: required after resuming a compacted session.
+- `readme_post_trim.md`: required after resuming a trimmed session.
 - `agent/knowledge/`: verified repository knowledge; read the relevant area file first.
 - `agent/knowledge/plugin_tools/2026-09-18_tool-plugin-design-handout.md`: mandatory for plugin-tool work.
 
@@ -95,7 +95,7 @@ limit — it never drops your instructions or your newest step.
 - Tight context: `context_trim mode:'free' target=20` (one call, frees ~20%
   of the window). Inspect with `mode:'report'`; drop chosen rows via
   `mode:'mark'` ids then `mode:'apply'`.
-- Never compact while walled; never grow context on purpose.
+- The compact lane is denied; never grow context on purpose.
 
 ## Command output
 
@@ -161,49 +161,50 @@ Report the hash after the commit.
 
 ## Context budget
 
-`AGENTS.md` §Context Budget and §Compaction Guidelines define the
+`AGENTS.md` §Context Budget and §Context Trim define the
 thresholds, the live nudge rungs, and the gauge-lag rule.
 
-Compaction is maintenance.
+Trimming is maintenance.
 It is not a restart.
 
 The worker-specific rule is:
 
 - At the 80% triage point, create an early handover checkpoint.
 - If the next unit cannot finish safely, checkpoint before starting it.
-- Compact after tool output has been distilled.
+- Free context after tool output has been distilled
+  (`context_trim mode:'free'`).
 
 The worker's per-rung actions:
 
-- `triage`: estimate remaining calls; checkpoint and compact if more
+- `triage`: estimate remaining calls; checkpoint and trim if more
   than approximately 10 remain
-- `stop`: close and compact if more than approximately 6 remain
-- `emergency`: commit and compact immediately
+- `stop`: close and trim if more than approximately 6 remain
+- `emergency`: commit and trim immediately
 - `maintainer`: surface the context state
 
-NEVER self-compact at task close.
+NEVER trim at task close.
 A completed unit closes with the handover file + the final message.
-Self-compaction fires ONLY after a live nudge rung, the 80% triage
+Self-trim fires ONLY after a live nudge rung, the 80% triage
 point, or the stop line — never as a handover or courtesy step.
-The planner owns a worker's post-hoc compaction (a dead or compacted
+The planner owns a worker's post-hoc trim (a dead or trimmed
 worker is resumed by the planner through `task_id`).
 
-Before self-compaction:
+At the stop line, follow the AGENTS.md §Context Trim own-session order:
 
 1. Write the current state to `handover_task_to_planner.md`.
 2. Commit the handover checkpoint.
-3. Pass a concise resume message.
-4. Stop the current session.
+3. `context_trim mode:'free'` with a target; continue from committed
+   state.
 
 The planner resumes the same session through `task_id`.
 It must not launch a replacement worker.
 
 After resumption:
 
-1. Read `readme_post_compaction.md`.
+1. Read `readme_post_trim.md`.
 2. Read the committed handover.
 3. Continue from committed files.
-4. Do not resume from the compaction summary alone.
+4. Do not resume from memory of the dropped steps alone.
 
 ## Honesty guard
 

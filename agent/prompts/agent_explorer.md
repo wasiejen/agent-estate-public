@@ -29,7 +29,7 @@ Paths are relative to `agent/readme/`.
 - `repo_overview.md`: repository map, document index, and safety limits.
 - `repo_commands.md`: shell, tests, gates, context gauge, and file paths.
 - `readme_todo.md`: writing findings to `todo_inbox.md` or `TODO.md`.
-- `readme_post_compaction.md`: required after resuming a compacted session.
+- `readme_post_trim.md`: required after resuming a trimmed session.
 
 Project-specific documentation lives under:
 
@@ -60,24 +60,24 @@ Do not batch findings in your head and write them at the end.
 
 ## Context budget
 
-`AGENTS.md` §Context Budget and §Compaction Guidelines define the
+`AGENTS.md` §Context Budget and §Context Trim define the
 thresholds, the live nudge rungs, and the gauge-lag rule.
 
-Compaction is maintenance.
+Trimming is maintenance.
 It is not a restart.
 
 Your safe points are the per-finding checkpoints.
-At the 80% triage point, compact between findings, never mid-finding.
+At the 80% triage point, trim between findings, never mid-finding.
 
-Before self-compaction:
+Before freeing context (AGENTS.md §Context Trim own-session order):
 
 1. Write the current state to `handover_task_to_planner.md`.
 2. Commit the handover checkpoint.
-3. Pass a concise resume message.
-4. Stop the current session.
+3. `context_trim mode:'free'` with a target; continue from committed
+   state.
 
 The planner resumes the same session through `task_id`.
-After resumption, follow `readme_post_compaction.md`.
+After resumption, follow `readme_post_trim.md`.
 
 ## Honesty guard
 

@@ -17,7 +17,7 @@ Parts (read when …):
 - `repo_commands.md` — read when you run shells, the node-probe gate, or the
   gauge; also for the handover, archive, and NAP file paths.
 - `repo_custom_tools.md` — read when you use or delegate the host-specific
-  opencode tools (block_transfer, ctx_gauge, loop_log, compact_memory), or
+  opencode tools (block_transfer, ctx_gauge, loop_log, context_trim), or
   when one of their behaviors surprises you.
 - `repo_opencode.md` — read for opencode host specifics: install, log, and
   SDK paths, plugin registration, or behavior absent from the knowledge base
@@ -39,7 +39,7 @@ repo_commands).
   example, moving the context limit there — no opencode.jsonc change needed).
 - **Startup load errors — NO LONGER PRESENT (re-measured 2026-10-27, CLI
   2.2.0):** the old claim that every start logs `failed to load plugin` for
-  `compact_memory.ts` ("paths[0]" type error) and `intercept_observer_core.ts`
+  the retired compact plugin ("paths[0]" type error) and `intercept_observer_core.ts`
   ("Plugin export is not a function") is STALE. Last occurrence of both:
   2026-10-22. Today's start: zero load-error lines; the host logs
   `plugin reconciliation completed … plugins=14`. One transient case remains

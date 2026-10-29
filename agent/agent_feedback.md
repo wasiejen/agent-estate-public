@@ -1157,3 +1157,7 @@ block_transfer friction 2026-10-29: I emitted a malformed parameter name for `ta
 ### 2026-10-29_04-28 planner_FlashNext ses_e7a552918ffeMsyhgLaQJjxJOo
 TODO.md entry sweep `grep '^## #'` silently misses bare `## N.` headers — #93/#97 were invisible to entry counts/status sweeps until normalized at maintenance pass 3 (now fixed; consider a sweep pattern `^## #?[0-9]+`).
 
+### 2026-10-29_04-48 explorer_FlashNext ses_e7a4aa4deffeLsFX7kXWsLq7xB
+DoD A1 asked me to rank friction by observed frequency, but .opencode/temp/context_trim_v2.log records only SUCCESSFUL ops (every rejection returns before appendLog; grep rejected = 0 hits in 850 lines) - so the ranking had to be rebuilt from action-line chains, store residue, and the planner NAP, and the inference had to be disclosed. Also: 715 of 850 log lines are per-assembly trim echoes of an unchanged drop set, burying the 135 action lines.
+The `unmark` semantics (staged-only - an applied drop cannot be restored) appear in NO doc carrier: AGENTS.md, the tool description, and the arg doc all just say "remove", and readme_post_trim.md:11 promises "Drops are reversible (unmark / clear)"; I had to read markSet (context_trim_v2.ts:1384-1385) plus the store file to learn the truth, and the log shows agents un-marking after apply in exactly that mistaken belief.
+

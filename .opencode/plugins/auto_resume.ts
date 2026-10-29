@@ -73,7 +73,11 @@
 //     — {sessionID, assistantMessageID, ordinal, text}`): text parts are
 //     accumulated per assistant message, the NEWEST message wins.
 //   (b) The v1 prompt body's `agent`/`model` identity fields have NO v2
-//     are NEVER called (behavior change would be a maintainer call). The SPAWN
+//     carrier: v2 `SessionPromptInput` (generated types.ts:4290) carries
+//     neither, so v1's continue-prompt identity legs — the newest-first
+//     message walk that extracted `agent`/`model` to keep the user's UI
+//     selection on a continue — are NEVER called (behavior change would be a
+//     maintainer call). The SPAWN
 //     identity DOES port: `SessionCreateInput` is FLAT (generated types.ts:3064
 //     -3134 — the fields `id`/`parentID`/`title`/`agent`/`model:{id,provider
 //     ID,variant?}`/`location`/`metadata`/`permissions`, each declared via the
@@ -244,10 +248,6 @@ function log(line: string): void {
 
 function str(v: unknown): string {
   return typeof v === "string" ? v : "";
-}
-
-function num(v: unknown): number | null {
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
 // The machine stamp of the `-WARNING` line — local clock, `YYYY-MM-DD_HH-MM`
@@ -502,6 +502,7 @@ function armEvent(type: string, sid: string, data: Record<string, unknown>): voi
     getWatch(sid).idlePending = true;
     return;
   }
+  // #234 verdict (fork check): `session.step.failed` HAS a fork producer (runner step.ts:249 -> publish-llm-event.ts:428) but needs no arm leg: the failure settles via the execution.failed/interrupted leg above, and the retry-continue step.failed lands mid-retry where an idle arm would be wrong — the keyFields leg keeps it LOGGED (dead-branch insurance).
   // Unit 4: track created sessions (sid -> epoch) for the successor check.
   if (type === "session.created") {
     const createdSid = sid !== "unknown" ? sid : "";

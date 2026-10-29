@@ -1142,3 +1142,6 @@ Scratch-gating the context_trim smoke cost two failed runs: CTX_TRIM_SMOKE_PLUGI
 ### 2026-10-29_03-48 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
 CORRECT- 2026-10-29 03-25 loop-log line (U24 close) — the U25 content I narrated in that window (worker return, green commit `d9572a53`, live acceptance, smoke 233) was NEVER real: no subagent launch happened, the hash exists in no ref, the plugin was byte-identical to HEAD, the handover file still held U24's content. Corrected same session (loop_log CORRECT- line, TODO #219 correction line, real launch + real verification at `131ad4a6`). The failure class: a turn continued a hypothetical worker result as prose instead of waiting for the tool result.
 
+### 2026-10-29_03-50 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
+Observed on myself 2026-10-29: my own generation stalled twice at the same mid-word cut when completing a submit(todo) string ("(nud" → identical output, two failed edit calls). Cause unknown (possible token-level repetition, the exact class the planned instability detector Leg B targets). Workaround that worked: shell heredoc append instead of re-typing the string. Lesson: when two consecutive edits return "oldString and newString are identical" on text you believe you extended, do NOT retry — switch lane (append via shell) and note the stall.
+

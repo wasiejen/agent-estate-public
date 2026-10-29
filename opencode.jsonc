@@ -47,7 +47,8 @@
       "home/Repos/opencode": "allow",
       "home/Repos/opencode/**": "allow"
     },
-    "execute": "deny"
+    "execute": "deny",
+    "compact_memory": "deny"
   },
   "references": {
     "scratchpad": {
@@ -310,7 +311,7 @@
     "planner_FlashNext": {
       "description": "plans tasks, delegates to sub-agents and acts as contact point for maintainer and design discussions",
       "mode": "all",
-      "model": "llama-swap/Qwen3.8-NEXT-IQ3S",
+      "model": "llama-swap/Qwen3.8-NEXT-GyroM",
       "prompt": "{file:./agent/prompts/agent_planner.md}\n{file:agent/memory/planner/destilled_mem.md}",
       // "prompt": "{file:./prompts/base.txt}\n{file:./prompts/rules.txt}\n{file:./prompts/examples.txt}"
       "temperature": 1.0,
@@ -329,7 +330,7 @@
     "worker_FlashNext": {
       "description": "best for very complex coding and code review work",
       "mode": "all",
-      "model": "llama-swap/Qwen3.8-NEXT-IQ3S",
+      "model": "llama-swap/Qwen3.8-NEXT-GyroM",
       "prompt": "{file:./agent/prompts/agent_worker.md}",
       "temperature": 1.0,
       "permission": {
@@ -351,7 +352,7 @@
     "explorer_FlashNext": {
       "description": "for research and exploration of needed information",
       "mode": "all",
-      "model": "llama-swap/Qwen3.8-NEXT-IQ3S",
+      "model": "llama-swap/Qwen3.8-NEXT-GyroM",
       "prompt": "{file:./agent/prompts/agent_worker.md}\n{file:./agent/prompts/agent_explorer.md}",
       "temperature": 1.0,
       "permission": {
@@ -373,7 +374,7 @@
     "agent_FlashNext": {
       "description": "no additional system prompt - plain AGENTS.md - same permissions as worker",
       "mode": "all",
-      "model": "llama-swap/Qwen3.8-NEXT-IQ3S",
+      "model": "llama-swap/Qwen3.8-NEXT-GyroM",
       "prompt": "",
       "temperature": 1.0,
       "permission": {
@@ -396,7 +397,7 @@
       "hidden": "true",
       "description": "no system prompt - no AGENTS.md - same permissions as worker",
       "mode": "all",
-      "model": "llama-swap/Qwen3.8-NEXT-IQ3S",
+      "model": "llama-swap/Qwen3.8-NEXT-GyroM",
       "prompt": "",
       "temperature": 1.0,
       "permission": {

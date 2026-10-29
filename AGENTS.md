@@ -274,15 +274,17 @@ Do not bundle them into the task commit.
 
 Check the context gauge between logical work chunks and after every commit.
 
-Use the read-only command and path documented in `repo_commands.md` in `agent/readme/`.
+Use the read-only gauge tool or command documented in `repo_commands.md`.
 The output has this form:
 
 ```text
-CTX=n (p%) REM=m N Compactions left
+CTX=n (p%) REM=m
 ```
 
-The injected `ctx:` value is a reminder from the last completed message.
+`CTX` is the provider-measured request size of the last finished step.
+The injected `ctx:` line is a reminder from the last completed message.
 The current gauge is authoritative.
+The gauge lags by about one tool call. Treat it as a lower bound.
 
 Stop starting new work when either condition is true:
 
@@ -297,7 +299,7 @@ When the stop line is reached:
 2. Update the handover state.
 3. Finish the commit routine.
 4. Stop at a clean point.
-5. Inform the user, or compact the session before continuing.
+5. Free context with a trim (see `Context Trim`), or close per the role ladder.
 
 Do not start new work past the stop line.
 
@@ -305,94 +307,79 @@ When the live context nudge appears, it names a rung:
 
 - `triage`: estimate the remaining calls before starting a unit
 - `stop`: finish the current safe operation
-- `emergency`: commit the current state and compact immediately
+- `emergency`: commit the current state and free context immediately
 - `maintainer`: report the context state to the maintainer
 
-Rough call estimates: at the `triage` rung, compact when more than
+Rough call estimates: at the `triage` rung, free context when more than
 approximately 10 calls remain; at the `stop` rung, the threshold is
 approximately 6 calls.
 
 Role prompts define their per-rung actions.
 
-## Compaction Guidelines
+## Context Trim
 
-Full reference:
+Context survival rides on the trim lanes. The host runs no automatic
+compaction. A wall-rejected request is recoverable, but only via an
+external drop.
 
-`maintainer/draft/archive/compaction_guide/full_guide.md`
+### Doctrine
 
-The available compaction budget is model-specific.
-Read the current context gauge instead of assuming fixed values.
+- Trim removes stored context entries. It never edits stored bytes.
+- Drops land at the next assembly. They are reversible until the store
+  entry is cleared.
+- Dropped content is recoverable only from committed files. Commit state
+  before dropping.
+- The wall guard prevents provider rejections. It fires per session when
+  enabled, drops the heaviest completed tool-output rows first (oldest
+  tie-break), and never drops the head, user rows, or the newest step.
 
-### Compaction Behavior
+### Lanes
 
-Compaction removes older conversation history.
+`context_trim` modes, per session id (omit `session` for your own):
 
-The last `keepMessages` messages remain intact.
-A same-model summary replaces the removed history.
+- `report`: read-only window map. Rows carry rank `#N`, own mass `own=`,
+  and flags. Read this before any manual drop.
+- `mark`: stage named rows for drop; `guard:true` arms the wall guard.
+- `apply`: commit staged drops behind the fit bound.
+- `free`: one atomic call, frees `target` percent of the window,
+  heaviest-and-oldest first. Use it at the stop line and for recovery.
+- `tail`: set a keep-boundary (first kept row). Note: a boundary shapes
+  the report window; it does not shrink the provider request — use
+  `free` to free live space.
+- `clear`: empty drop sets.
 
-The summary records:
+### Use
 
-- session objective
-- important details
-- completed work
-- active work
-- blocked work
-- next move
-- relevant files
-
-Compaction is not a restart.
-
-After compaction:
-
-1. Read the NAP.
-2. Read relevant task and worker handover files.
-3. Read `TODO.md`.
-4. Continue from committed state.
-5. Do not re-plan from scratch.
-
-The optional compaction message becomes the starting message after compaction.
-
-### Compaction Use
-
-Use normal compaction as a routine maintenance operation.
-
-Compact when:
+Free context when:
 
 - tool output has been read and distilled
 - raw tool output is no longer needed
 - remaining work is long enough to benefit from a smaller context
-- context usage reaches a triage threshold
+- the stop line or an emergency rung is reached
 
-At the stop line or during a handover, compact proactively.
-Do not wait for automatic emergency compaction if manual compaction is available.
+Order for your own session at the stop line:
 
-Choose `keepMessages` to preserve information that would be expensive to recreate.
-Preserve drafts, rationale, in-flight work, and current plans.
-Keep fewer messages when committed handover files contain the required state.
-When uncertain, keep more messages.
+1. Commit the current state.
+2. `free` with a target (default 20–25 percent).
+3. Continue from committed state.
 
-### Compaction Guardrails
+Order for a walled or dead child session (planner):
 
-Commit before compacting when the current work depends on early-session knowledge.
-Compaction can remove that knowledge.
+1. `report` on its session id. Confirm the heavy rows.
+2. `free` on it with `target` around 25–45 percent.
+3. Resume it with the instruction: re-read the committed files, write a
+   short self-summary file, commit, then trim your own spent payload.
 
-Compaction must follow the commit.
-Do not compact before committing required state.
+### Guardrails
 
-The emergency compaction uses default settings.
-It may not allow custom `keepMessages` values.
-
-The context gauge can lag actual usage by one generated turn.
-Treat the gauge as a lower bound.
-
-Use these triage thresholds:
-
-- At 80%, estimate whether the current work can finish safely.
-- At 90%, stop starting new work and compact before continuing.
-- At 95%, commit and compact immediately.
-
-A session dump is created during self or cross compaction.
-The dump is the recovery source if the system starts a new session.
+- Commit before dropping when the work depends on in-context knowledge.
+- Never grow context on purpose and never run trim lanes on a session
+  under an active measurement (the guard is the measured object there).
+- A guard notice names the dropped ranks. Judge guard health from the
+  trim log and the report flags, not from the notice count.
+- Dropped tool outputs leave no replacement text. Absent steps are the
+  drop landing, not an error.
+- Keep at most one unit of uncommitted work before a drop.
 
 ## Discovery and Adjacent Fixes
 

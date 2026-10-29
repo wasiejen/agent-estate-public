@@ -99,8 +99,9 @@ repo facts:
   maintainer's next process restart. The tool line always ends with
   ` ROUND=<trips>` (#213 maintenance-trip counter — cumulative session
   input tokens ÷ the budget-file `maintenance_trip_tokens`, default 1M;
-  the #171 ` MAINT=1` duty token is retired; the maintenance trigger lives
-  in the planner prompt + the `state_snapshot` digest line). The peek fallback: run
+  the #171 ` MAINT=1` duty token is retired on every carrier
+  (`ctx_gauge` + the `state_snapshot` digest alike — #213); the trigger
+  lives in the planner prompt). The peek fallback: run
   `node .opencode/plugins/scripts/peek.mjs` from the repo root; the read is
   read-only and prints the canonical readout form `SESSION=… CTX=n (p%)
   REM=m`. An unknown window yields `CTX=n` only; a session with no finished

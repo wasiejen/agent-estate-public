@@ -175,9 +175,9 @@ NAP — not here.
   2026-10-26: rounds count spawns PLUS verified compactions, so a session
   that survives by compaction still advances the clock; the leg is dormant
   since the compact lane was denied 2026-10-29). The token surfaces
-  as `ROUND=<r> MAINT=1` on the `state_snapshot` digest's `## loop` line
-  (the `ctx_gauge` line no longer carries it — #213 replaced it with the
-  informational trip token `ROUND=<trips>`). Run the pass at
+  as `ROUND=<r>` only — ` MAINT=1` is RETIRED on the `state_snapshot`
+  digest line too (#213; the `ctx_gauge` line carries the informational
+  trip token `ROUND=<trips>` instead). Run the pass at
   session START — after the state rebuild (git log / NAP / TODO) and BEFORE
   task selection. Never idle-triggered (idle detection is the
   ghost/unit-4 pathology zone) and not via the priority list (that channel

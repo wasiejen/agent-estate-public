@@ -421,10 +421,11 @@ chk(
   chk("#155 loop: looprun-mismatch / missing counter / non-integer n → `no-looprun` (fail-closed)", ok, JSON.stringify({ mismatch, missing, badN }));
 }
 
-// 28 — #171 (2026-10-26, ROUND counter): a counter carrying an INTEGER
-//      `round` prints ` ROUND=<r>` after `ITER=<n>` (` MAINT=1` on every 5th
-//      round); a non-integer `round` keeps the OLD byte-exact line
-//      (fail-closed — the token is dropped, the line is NOT `no-looprun`).
+// 28 — #171 (2026-10-26, ROUND counter) + #213 (2026-10-29, MAINT RETIRED):
+//      a counter carrying an INTEGER `round` prints ` ROUND=<r>` after
+//      `ITER=<n>` (no duty token on %5 rounds anymore); a non-integer
+//      `round` keeps the OLD byte-exact line (fail-closed — the token is
+//      dropped, the line is NOT `no-looprun`).
 {
   write(FX4, "loop/autorun-X/counter.json", '{"looprun":"autorun-X","n":7,"round":9}');
   const lpR = sectionBody(await run(FX4, "planner_Q3S"), "loop");
@@ -433,8 +434,8 @@ chk(
     JSON.stringify(lpR));
   write(FX4, "loop/autorun-X/counter.json", '{"looprun":"autorun-X","n":10,"round":10}');
   const lpM = sectionBody(await run(FX4, "planner_Q3S"), "loop");
-  chk("#171 loop: FX4 round=10 → ` MAINT=1` rides the line (every 5th round)",
-    Array.isArray(lpM) && lpM.length === 1 && lpM[0] === "loop=autorun-X ITER=10 ROUND=10 MAINT=1 log=loop/autorun-X/loop_log.md",
+  chk("#213 loop: FX4 round=10 (%5) → NO MAINT token, byte-exact `loop=autorun-X ITER=10 ROUND=10 log=loop/autorun-X/loop_log.md`",
+    Array.isArray(lpM) && lpM.length === 1 && lpM[0] === "loop=autorun-X ITER=10 ROUND=10 log=loop/autorun-X/loop_log.md",
     JSON.stringify(lpM));
   write(FX4, "loop/autorun-X/counter.json", '{"looprun":"autorun-X","n":7,"round":"nine"}');
   const lpB = sectionBody(await run(FX4, "planner_Q3S"), "loop");

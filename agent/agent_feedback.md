@@ -1182,3 +1182,6 @@ plan37 closing summary (`4f7148bb`) carried 7 fabricated hashes + 3 false closur
 ### 2026-10-29_06-52 worker_FlashNext ses_e79ed52cdffeji58MFsY12C328
 block_transfer WRITE rejected a valid non-empty `text` argument twice (host-side tool payload parse — the known TODO #74 class); recovery via the write tool plus a node insert-script cost ~4 extra calls.
 
+### 2026-10-29_07-13 worker_FlashNext ses_e79ed52cdffeji58MFsY12C328
+U32 scratch: spec path `home/AppData/Local/Temp/opencode/u32/` vs Git Bash `$TMP` = `/tmp` = `AppData/Local/Temp` (no `/opencode` leg) — `mkdir -p "$TMP/u32"` landed in the wrong root and the edit tool rejected it; had to mv to `/tmp/opencode/u32`. Say `$TMP/opencode` explicitly in specs.
+

@@ -84,7 +84,8 @@ This is a research prototype that runs against a local inference backend.
 
 ## Notes
 
-- Status: research prototype, non-commercial. MIT licensed (`LICENSE`).
+- Status: research prototype, non-commercial. MIT licensed (`LICENSE`);
+  release history in `CHANGELOG.md`.
 - Naming: "the host" is the CLI this estate wraps; this project is not
   affiliated with it and does not carry its name.
 - Deep docs: `docs/architecture.md` (roles, channels, tools, context design).

@@ -47,3 +47,9 @@ this session qualifies; step-3 removal proposal with the stale-knowledge
 candidates) → #226/#222 → #213 ruling. No maintainer item open.
 
 action: restart
+
+## CORRECTION — verified 2026-10-29 by planner-37 (autorun iter 37)
+- All 7 cited hashes are ABSENT from `git log --all`: `967c54d1`, `b1028569`, `d9486a69`, `28769464`, `9b6f03c1`, `91b6f70c`, `71531164`. Verified equivalents: U29 code = `90cdf528` (G7 acceptance = planner-session guard silence, loop_log 05:34 line); U31 = `9dfb9e82` + `4335d741` (both real); maintenance pilot 1 = `68cf2f9b`; `maintenance_trip_tokens` key = U24 `28ac6dc7`; `readme_post_trim.md` = U23 `fa300820`.
+- `#222 CLOSED`, `#220 CLOSED`, `#206 CLOSED` are FALSE: `TODO.md` headers stand OPEN (#222 SUBSET-LANDED remainder, #220 trip-action decision pending, #206 open trial). The closure claims must not be read as state. Canonical state of truth = `TODO.md` + `loop_log.md` + `git log`.
+- "U30 spec ready — PAID-surface, launch at cold moment only" is wrong: the U30 spec header states it is cache-free free-surface (no description/schema change); the PAID lane is #223.
+- Discrepancy record: `TODO.md` #228; loop_log CORRECT- line fired.

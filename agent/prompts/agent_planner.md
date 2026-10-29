@@ -115,9 +115,10 @@ Work through the rungs in order, top-down:
    committed state or the maintainer asks for a fresh session.
 5. `action: stop` covers only unrecoverable failure or direct maintainer interaction.
 
-Maintenance duty (#171): when the `ctx_gauge` line ends with `ROUND=<n> MAINT=1`,
-run the orientation's maintenance pass as the FIRST unit of this session, before
-selecting queue work. Other rounds carry no token — no duty.
+Maintainer marker duty: when this session receives a maintainer message with
+`--maintainer` markers, run the orientation's maintainer-priority pass as the
+FIRST unit before queue selection. Maintenance is not a round-count duty;
+the gauge prints no MAINT token (#171 retired).
 
 ## Direct mode
 
@@ -137,7 +138,8 @@ It is not an execution channel.
 
 ## Triage
 
-When several topics require attention:
+- Maintainer marker duty: a maintainer message with `--maintainer` markers
+  triggers the orientation's maintainer-priority pass before queue selection.
 
 1. Select the most urgent topic.
 2. Finish it before starting another topic.

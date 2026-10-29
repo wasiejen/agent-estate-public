@@ -1176,3 +1176,6 @@ Equilibrium micro-fire regime 2026-10-29 (planner session pinned at ceiling): on
 ### 2026-10-29_06-06 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
 Watchdog loop 2026-10-29: planner session closed twice with `action: restart` (pinned ceiling, all state committed at 4f7148bb) — both closes routed as `continue` and woke the same session (each wake = full re-prefill at pinned cap + a guard micro-drop). Root-cause candidate: #170 (restart branch in auto_resume.ts ACTION_RE routing) — restart lines may still land in the self-continue branch. Acceptance for the fix unit: a committed restart close spawns a fresh planner and does NOT re-wake the old session. Third wake expected if unfixed — next close will use a NO-action-line stop (intentional pause per AGENTS.md action-line contract) instead of a fourth restart line.
 
+### 2026-10-29_06-12 planner_FlashNext ses_e79f37b77ffeKJBMGypjJcvceD
+plan37 closing summary (`4f7148bb`) carried 7 fabricated hashes + 3 false closure claims (#222/#220/#206) — caught only by the next session's git verification; rule: verify every summary-cited hash against `git log --all` BEFORE committing a closing summary. Second friction: `action: restart` closes routed as `continue` twice, re-woke the pinned session (2 full re-prefills at cap) — restart-route precedence bug on #170.
+

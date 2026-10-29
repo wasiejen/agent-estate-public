@@ -1185,3 +1185,6 @@ block_transfer WRITE rejected a valid non-empty `text` argument twice (host-side
 ### 2026-10-29_07-13 worker_FlashNext ses_e79ed52cdffeji58MFsY12C328
 U32 scratch: spec path `home/AppData/Local/Temp/opencode/u32/` vs Git Bash `$TMP` = `/tmp` = `AppData/Local/Temp` (no `/opencode` leg) — `mkdir -p "$TMP/u32"` landed in the wrong root and the edit tool rejected it; had to mv to `/tmp/opencode/u32`. Say `$TMP/opencode` explicitly in specs.
 
+### 2026-10-29_07-36 planner_FlashNext ses_e79f37b77ffeKJBMGypjJcvceD
+maintenance pass 4 (`c2b59fa5`) executed the deferred PAID destill saves (planner `destilled_mem.md` +3 lines) while the live planner session was cache-WARM — pass 3 correctly deferred the same lane for exactly this reason; the vehicle should read the live session's last `cache.read` before any PAID curation save and defer to the fresh-session cold point otherwise.
+

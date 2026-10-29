@@ -18,7 +18,7 @@ set -euo pipefail
 DB="${OPENCODE_DB:-$HOME/.local/share/opencode/opencode.db}"
 FROM_DIR="repo-root"
 TO_DIR="repo-root"
-FROM_ID="00ad292f31bafe388d67ea7213d6db8659767a11"   # git-remote:github.com/wasiejen/the estate (former name)
+FROM_ID="00ad292f31bafe388d67ea7213d6db8659767a11"   # git-remote:github.com/wasiejen/agent-estate
 TO_ID="a80d10e672d6229fbb5e4a605c8e4a234c107b98"     # git-remote:github.com/wasiejen/agent-estate
 APPLY=0
 
@@ -44,13 +44,12 @@ echo "db=$DB"
 echo "dirs: $FROM_DIR -> $TO_DIR"
 echo "ids:  $FROM_ID -> $TO_ID"
 
-# Live-host guard: refuse --apply while the WAL is busy (the host writes there).
-if [ "$APPLY" = "1" ] && [ -f "$DB-wal" ]; then
-  wal_size=$(stat -c%s "$DB-wal" 2>/dev/null || echo 0)
-  if [ "$wal_size" -gt 0 ]; then
-    echo "REFUSE: $DB-wal is non-empty ($wal_size B) — stop the OpenCode host first."
-    exit 1
-  fi
+# Live-host guard: a non-empty WAL is NOT a live signal (SQLite leaves the WAL
+# after a clean exit on this host — measured 2026-10-29), so --apply refuses
+# while the -shm file exists: its presence means a connection is open.
+if [ "$APPLY" = "1" ] && [ -f "$DB-shm" ]; then
+  echo "REFUSE: $DB-shm exists — a host connection is open; stop the OpenCode host first."
+  exit 1
 fi
 
 echo "== rows matching FROM_DIR:"

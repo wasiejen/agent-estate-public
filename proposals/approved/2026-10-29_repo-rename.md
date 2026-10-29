@@ -8,8 +8,8 @@ Keep the repo's identity about WHAT it is (the agent estate: protocol,
 roles, loop, tools, memory) instead of naming the host product.
 
 ## Problem
-- Repo folder + remote are `the estate (former name)`; the name appears in 117 tracked
-  files (`grep -rl "the estate (former name)" *.md *.ts *.mjs *.jsonc` measured
+- Repo folder + remote are `agent-estate`; the name appears in 117 tracked
+  files (`grep -rl "agent-estate" *.md *.ts *.mjs *.jsonc` measured
   2026-10-29), including absolute paths used by plugins/tools and docs.
 - The host itself is referenced functionally elsewhere (`opencode.jsonc`,
   `.opencode/` dirs) — those are host-mandated literals, NOT naming choices;
@@ -27,14 +27,14 @@ roles, loop, tools, memory) instead of naming the host product.
 ## Execution parts (independently approvable)
 - A. Remote rename on your host + local `git remote set-url` + folder rename
   (you run the folder move; agents adapt paths from there).
-- B. Text sweep: replace `the estate (former name)` → new name in the 117 files, ONE
+- B. Text sweep: replace `agent-estate` → new name in the 117 files, ONE
   commit, then re-run probe + smokes (they resolve paths from repo root
   dynamically — expected green).
 - C. README note: state the naming rationale once (belongs in the new
   `README.md`, see inbox item).
 
 ## Acceptance
-- `git remote -v` shows the new remote; `grep -r "the estate (former name)"` returns
+- `git remote -v` shows the new remote; `grep -r "agent-estate"` returns
   only historical/archive mentions; probe 115/115 + typecheck green; a fresh
   session starts clean from the new folder.
 
@@ -45,4 +45,4 @@ and verified reachable; README naming note rewritten to the new name; LICENSE
 (MIT) added per the maintainer's license ruling; the public-extract procedure
 (pending local folder move + ~117-file text sweep) is documented in
 `docs/public-extract.md`. Deviation: the acceptance grep-clean for
-`the estate (former name)` is NOT met yet — it needs the folder rename + sweep.
+`agent-estate` is NOT met yet — it needs the folder rename + sweep.

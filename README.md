@@ -1,4 +1,4 @@
-# the estate (former name) — a self-maintaining agent estate
+# agent-estate — a self-maintaining agent estate
 
 This repository holds an agent system, not an application. Three agent roles run
 an autonomous loop around one shared protocol, keep their own bookkeeping, and
@@ -148,8 +148,9 @@ their own context through `context_trim` instead (`AGENTS.md` §Context Trim;
 
 The estate is named `agent-estate` (ruled 2026-10-29). The host product is
 mentioned only as "the host (opencode CLI)" — this repository is not part of
-that project and does not carry its name. The origin remote already uses the
-new name; the local folder rename and the text sweep are pending.
+that project and does not carry its name. The origin remote, the local folder,
+and the tracked-text sweep landed 2026-10-29; historical mentions in archived
+records keep their original names.
 
 ## Pointers
 

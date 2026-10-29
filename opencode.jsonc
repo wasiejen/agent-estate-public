@@ -55,9 +55,9 @@
       "path": "home/AppData/Local/Temp/opencode",
       "description": "Local windows temporary directory for intermediate agent outputs"
     },
-    "the estate (former name)": {
+    "agent-estate": {
       "path": "repo-root",
-      "description": "New Repo for our opencode agent - Deep Copy of Free-Snap-Tap"
+      "description": "New Repo for our agent-estate - Deep Copy of Free-Snap-Tap"
     },
     "Free-Snap-Tap": {
       "path": "home/Repos/Free-Snap-Tap",

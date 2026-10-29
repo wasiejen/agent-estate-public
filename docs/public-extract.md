@@ -38,7 +38,7 @@ Steps (route A):
    `local-inference-host` → `local-inference-host`.
 4. Add the public face: rewrite `README.md` (purpose-first, measured numbers)
    and move the technical text to `docs/architecture.md` (see split below).
-5. Verify the extract: `grep -r "operator\|192\.168\|the estate (former name)" .`
+5. Verify the extract: `grep -r "operator\|192\.168\|agent-estate" .`
    must be empty; `git log --oneline | wc -l` reported in the README.
 6. Push to the public remote (maintainer pushes; agents do not).
 
@@ -65,7 +65,11 @@ Steps (route A):
 
 ## Open items for the maintainer
 1. Install `git-filter-repo` (route A) or approve route B.
-2. Local folder rename `Repos/the estate (former name)` → `Repos/agent-estate`
-   (needs the host stopped; then the text sweep, ~117 files, one commit).
-3. Create the public remote (or reuse `agent-estate` for public and keep the
-   estate private under a new remote name).
+2. DONE 2026-10-29 (maintainer): folder renamed `Repos/the estate (former name)` →
+   `Repos/agent-estate`, session DB repointed via `repath_sessions.sh`
+   (82 sessions rebound; WAL caveat: SQLite leaves a non-empty WAL after a
+   clean exit on this host — the script guard now keys on the `-shm` file).
+   Text sweep agent-side (same day): 88 tracked files, `the estate (former name)` →
+   `agent-estate`; archive/history mentions kept intentionally.
+3. Create the PUBLIC remote (the private estate keeps `agent-estate.git`);
+   the filtered sibling pushes there.

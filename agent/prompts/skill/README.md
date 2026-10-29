@@ -13,4 +13,4 @@ not the intended launch path.
   dump from `archive/sessions/` through ONE perspective and writes EXACTLY ONE findings file.
 Does NOT go here: role prompts / repo parts / agent readmes (sibling folders
 under `prompts/`), and maintainer memory files (his call — the folder layout
-clashes with opencode agent auto-registration, see `maintainer/my_todos.md`).
+clashes with the host's `agents/` auto-registration, see `maintainer/my_todos.md`).

@@ -180,8 +180,8 @@ const out = async (args) => (await t.execute(args, {})).output;
     o10.startsWith("Copied 2 lines from '"), o10);
   const rl = rootsOf(o3) ?? [];
   const npm = "C:\\Users\\operator\\AppData\\Roaming\\npm";
-  const agent = "C:\\Users\\operator\\Repos\\the estate (former name)";
-  chk("(A12) config /** twins DEDUPE: the standalone 'Roaming\\npm' entry ONCE + 'Repos\\the estate (former name)' ONCE (the /** and -v2 twins do not re-add)",
+  const agent = "C:\\Users\\operator\\Repos\\agent-estate";
+  chk("(A12) config /** twins DEDUPE: the standalone 'Roaming\\npm' entry ONCE + 'Repos\\agent-estate' ONCE (the /** and -v2 twins do not re-add)",
     rl.filter((s) => s.toLowerCase() === npm.toLowerCase()).length === 1 &&
     rl.filter((s) => s.toLowerCase() === agent.toLowerCase()).length === 1, JSON.stringify(rl));
 }

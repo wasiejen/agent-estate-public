@@ -1,6 +1,6 @@
 # repo_overview.md — repo-specific map for the agent repo (READ FIRST)
 
-This repo holds the opencode agent bookkeeping: the shared protocol
+This repo holds the agent-estate bookkeeping: the shared protocol
 (`AGENTS.md`), role prompts (`agent/prompts/`), custom plugins/tools
 (`.opencode/plugins/`, `.opencode/tools/`), the live loop plus the
 handover/NAP files (`loop/`, `agent/handover/`), and per-project

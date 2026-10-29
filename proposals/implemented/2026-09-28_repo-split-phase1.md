@@ -1,7 +1,7 @@
 # repo-split — Phase 1 (git-level split, old location untouched)
 
 **One idea:** approve Phase 1 of the repo split — create the two sibling repos
-(FST product / the estate (former name)) as fresh inits on `Projects\Repos\…`, with the
+(FST product / agent-estate) as fresh inits on `Projects\Repos\…`, with the
 OLD folder continuing to operate as the live workspace, and the physical move
 (Phase 2) deferred to a between-sessions window. Your priority.md sketch and
 explicit allowance of a deferred move; the research is one full run (plan32
@@ -47,7 +47,7 @@ inert.
 --comment:
 I added the 2 new paths to opencode.json:
   "references": {
-    "the estate (former name)": {
+    "agent-estate": {
       "path": "repo-root",
       "description": "New Repo for our opencode agent - Deep Copy of Free-Snap-Tap"
     },
@@ -56,7 +56,7 @@ I added the 2 new paths to opencode.json:
       "description": "clone of current Repo in new location"
     },
 
-- "the estate (former name)" is the new home for our agents a completely new and seperate repo with the copied history of Free-Snap-Tap.
+- "agent-estate" is the new home for our agents a completely new and seperate repo with the copied history of Free-Snap-Tap.
 - "Free-Snap-Tap" is a clone of this copy in the new location
   - idea is that you can change whatever needs changing before the move
   - I would also like to then move all the folder that are not opencode native in .opencode into the root folder
@@ -66,7 +66,7 @@ I added the 2 new paths to opencode.json:
       - should we use git submodules on a per repo basis to manage the repo specific files??
 
 - goal is to strip "Free-Snap-Tap" of all opencode related parts abd verse versa to strop
-"the estate (former name)" of all Free-Snap-Tap parts.
+"agent-estate" of all Free-Snap-Tap parts.
 - inclusive the history
 - the now opencode_test branch on "Free-Snap-Tap" will then be the dev channel in which changes land.
 
@@ -81,7 +81,7 @@ I added the 2 new paths to opencode.json:
   goal only half-met, plus live-loop two-commit ceremony); the
   full-gate re-baseline is deferred to the next session.
 - The 22:27 rename mystery solved: GitHub Desktop renamed the agent
-  folder back to "autorun"; fixed to `the estate (former name)` (now on disk,
+  folder back to "autorun"; fixed to `agent-estate` (now on disk,
   matching the live config — accessible without a restart).
 - Executable carve plan:
   `.opencode/agent/research/repo-split/2026-09-29_carve_plan.md`

@@ -1118,3 +1118,9 @@ U21 spec premise gap: it said "the system-prompt constant the lane already uses"
 ### 2026-10-29_00-05 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
 Owned misread 2026-10-29 (maintainer correction): I relaunched the U21 acceptance worker 2× after `request exceeds the context window` results without checking what the dead sessions HAD done — a wall error means the worker RAN (MEM-0104/0109); I even claimed attempts void from an ungrepped store read. Rule restated: on ANY wall/subagent error → report the session (context_trim report) + git log FIRST, then decide resume vs relaunch. Cost: 2 redundant pressure runs (~500k tokens of worker growth) + slot churn.
 
+### 2026-10-29_00-46 worker_FlashNext ses_e7b24af38ffeYZWHbeKC9FxvpK
+Spec said "the #218 status line" while its Do-NOT-touch list named TODO.md — conflicting channels; I recorded the status in the handover + todo inbox instead. Rule needed: when a spec forbids TODO.md, name the status channel explicitly.
+
+### 2026-10-29_01-18 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
+block_transfer friction 2026-10-29 (two live incidents): (1) WRITE on an LF-terminated file rewrote the WHOLE file with CRLF — commit `3442fe5` shows 677 changed lines for a 7-line semantic edit (semantic diff verified clean; kept as landed). (2) WRITE with a single-line anchor REPLACED it again (TODO #214 anchor lost mid-repair; restored same session, counts verified) — the append pattern needs the anchor's own line FIRST in `text`, and a line-span WRITE echo `file now N lines` can be identical when the span's line count equals the text's — verify with grep-count of both old and new content after every multi-line append. Rule: prefer the `edit` tool for prose appends inside long files; block_transfer WRITE for whole-region swaps only.
+

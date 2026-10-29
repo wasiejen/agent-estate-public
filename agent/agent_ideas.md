@@ -53,6 +53,7 @@ The context gauge reports the wrong quantity after a compaction. `ctx_gauge` CTX
 
 ### 2026-10-27_19-36 worker_FlashNext ses_e8174a794ffe1Noetk8NJeDKVl
 context_trim's rows_dropped_est sums per-row tokens which all count the same shared cache.read — it overstates the provider-visible drop ~20x (est 124,615 vs measured −5,838). If the est is used for decision-making (U7 composer token caps), add a caveat or derive est from content bytes/4 instead of the tokens sum.
+[CLOSED 2026-10-29 planner-36c: already landed via U8 (`493eb96a`/`c126d5db`, TODO #205) — row mass is now `own=` = bytes/4 of the row's own parts and every DROP sum is the DROPPABLE part; measured agreement +3.4% vs `drop_est` at the U8 live acceptance (±35% gate). The idea's requested mechanism is exactly what shipped.]
 
 ### 2026-10-29_03-02 planner_FlashNext ses_e7aa51393ffexJ3FqX3NG3oEjQ
 Maintenance-pass vehicle refinement: pass specs should NAME the scratch-naming rule (unique per-file scratch names) and the paid-file scratch+one-save rule in the same boundary block — both are mechanical and were the only two near-misses in pilot pass 1.

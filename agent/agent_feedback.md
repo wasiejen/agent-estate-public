@@ -1194,3 +1194,6 @@ block_transfer WRITE documents a multi-region `regions` list with "a text per re
 ### 2026-10-29_07-56 worker_FlashNext ses_e799e718affeXkDIqlsKc5DMwO
 block_transfer anchors are ASCII-safe: a marker containing an em-dash (`// the spec — the boundary/pair…`) reported "not found" with unrelated closest lines; use an ASCII prefix or a line number instead.
 
+### 2026-10-29_08-04 planner_FlashNext ses_e799fc0e7ffeeaphaDITjnBhBv
+block_transfer WRITE with a line-number span REPLACES it — re-issuing a region whose text accidentally ended up equal to the anchor line produced a silent duplicate line in the NAP (no error, feedback echoed success); a same-content-write guard or teaching line would catch this class cheaply.
+

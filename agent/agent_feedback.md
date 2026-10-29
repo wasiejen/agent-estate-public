@@ -1191,3 +1191,6 @@ maintenance pass 4 (`c2b59fa5`) executed the deferred PAID destill saves (planne
 ### 2026-10-29_07-56 worker_FlashNext ses_e799e718affeXkDIqlsKc5DMwO
 block_transfer WRITE documents a multi-region `regions` list with "a text per region", but the schema carries ONE `text` field — a 5-region WRITE is rejected ("would fan the same text into every region"), so multi-region edits need one call per region; that breaks the G6 one-save rule unless you land via COPY-buffer + REPLACE whole-file.
 
+### 2026-10-29_07-56 worker_FlashNext ses_e799e718affeXkDIqlsKc5DMwO
+block_transfer anchors are ASCII-safe: a marker containing an em-dash (`// the spec — the boundary/pair…`) reported "not found" with unrelated closest lines; use an ASCII prefix or a line number instead.
+

@@ -363,7 +363,7 @@ function draftBase(sessionID = SID) {
   const out = await trim({ mode: "report", session: SID });
   const lines = out.split("\n");
   chk("U17 R5a (#208) the report row source is the SQL lane: ZERO service calls (no `context`, no `get` RPC)", RPC.calls.length === rpc0, `calls=${RPC.calls.length - rpc0}`);
-  chk("R1 header line: the compaction head + rows=10 + no boundary + empty staged/active sets + ordinal source + guard OFF/empty auto (U14 defaults; U17 #203: the `tags=` token is GONE)", lines[1] === `header: head=msg_c0 head-type=compaction rows=10 boundary=none boundary-state=absent retained=10 staged=0 active=0 active-est=0 ordinal=session-rank guard=off auto=0`, JSON.stringify(lines[1] ?? null));
+  chk("R1 header line: the compaction head + rows=10 + no boundary + the store-missing band (U35 #230: NO store file yet — the NORMAL state, neutral wording, replaces the empty-set band) + ordinal source + guard OFF/empty auto (U14 defaults; U17 #203: the `tags=` token is GONE)", lines[1] === `header: head=msg_c0 head-type=compaction rows=10 boundary=none boundary-state=absent retained=10 store=missing (normal when no drops were stored) ordinal=session-rank guard=off auto=0`, JSON.stringify(lines[1] ?? null));
   chk("R1 (#189+U8) the two-quantity line: window_rows != request + request-est (gauge CTX) + OWN-mass window-est 332", lines[2] === "window_rows != request; request also carries system prompt + retained slice request-est=57000 window-est=332", JSON.stringify(lines[2] ?? null));
   chk("R1 (U7) the projection line: last-req = gauge CTX 57000 − output 2000; bound = 80% of the 120K window", lines[3] === "projection: last-req=55000 staged-est=0 projected=55000 bound=96000 ok", JSON.stringify(lines[3] ?? null));
   chk("R1 the gauge line rides the shared v2-paired core (fixture mass 57000 / 120K, NO budget suffix — #212)", lines[4] === `gauge: SESSION=${SID} CTX=57000 (47%) REM=63000`, JSON.stringify(lines[4] ?? null));
@@ -1199,7 +1199,7 @@ function draftBase(sessionID = SID) {
   const legends = (out) => out.split("\n").filter((l) => l.startsWith("flags: "));
   // V1 the clean window: NO flag token, NO legend, NO in-window counts anywhere
   const rClean = await trim({ mode: "report", session: SID });
-  chk("U15 V1 clean report: header byte-clean, no flags: line, no dropped-in-window, kept rows unprefixed (U17: no tags token; U30 #222 R4: user rows carry no req-at token)", headerOf(rClean) === "header: head=msg_c0 head-type=compaction rows=10 boundary=none boundary-state=absent retained=10 staged=0 active=0 active-est=0 ordinal=session-rank guard=off auto=0" && legends(rClean).length === 0 && !rClean.includes("dropped-in-window") && !rClean.includes("staged-in-window") && rowLine(rClean, 2) === "row: 2 #4 user own=2" && !rClean.includes(" x ") && !rClean.includes(" g ") && !rClean.includes(" s "), JSON.stringify([headerOf(rClean), rowLine(rClean, 2)]));
+  chk("U15 V1 clean report: header byte-clean, no flags: line, no dropped-in-window, kept rows unprefixed (U17: no tags token; U30 #222 R4: user rows carry no req-at token; U35 #230: NO entry exists here — the header prints the neutral `store=missing` band, the V7 roundtrip compares it to the cleared state)", headerOf(rClean) === "header: head=msg_c0 head-type=compaction rows=10 boundary=none boundary-state=absent retained=10 store=missing (normal when no drops were stored) ordinal=session-rank guard=off auto=0" && legends(rClean).length === 0 && !rClean.includes("dropped-in-window") && !rClean.includes("staged-in-window") && rowLine(rClean, 2) === "row: 2 #4 user own=2" && !rClean.includes(" x ") && !rClean.includes(" g ") && !rClean.includes(" s "), JSON.stringify([headerOf(rClean), rowLine(rClean, 2)]));
   // V2 staged-only -> ` s`; the row STAYS in the request (nothing applied)
   {
     const mk = await trim({ mode: "mark", session: SID, ids: ["4"] });
@@ -1687,6 +1687,24 @@ function draftBase(sessionID = SID) {
   })(), "R4 carrier table drifted");
 }
 
+// ------------------------------------------------------------------ U35 (#230) the store=missing report distinguisher
+
+{
+  const headerOf35 = (out) => out.split("\n")[1];
+  // Pin A: the store FILE EXISTS but the session's ENTRY is absent (pruned —
+  // the normal steady state) -> the header names the state INSTEAD of the
+  // staged/active band, with the neutral normal-state wording.
+  writeFileSync(STORE, JSON.stringify({ sessions: { "ses_other35001": { boundary: "msg_u4", keep: 6, set_at: "2026-01-01T00:00:00Z" } } }), "utf8");
+  const rMiss = await trim({ mode: "report", session: SID });
+  chk("U35 #230 store file EXISTS + session entry ABSENT -> `store=missing (normal when no drops were stored)` replaces the staged/active band (byte-identical to the file-absent R1/V1 form)", headerOf35(rMiss) === "header: head=msg_c0 head-type=compaction rows=10 boundary=none boundary-state=absent retained=10 store=missing (normal when no drops were stored) ordinal=session-rank guard=off auto=0" && !rMiss.includes("staged=0 active=0"), JSON.stringify(headerOf35(rMiss)));
+  // Pin B: entry EXISTS -> the clean band stays BYTE-IDENTICAL to the U33 form
+  // (no regression of the clean-report byte-identity): a boundary-only entry
+  // still prints the staged/active/active-est band.
+  writeFileSync(STORE, JSON.stringify({ sessions: { [SID]: { boundary: "msg_u4", keep: 6, set_at: "2026-01-01T00:00:00Z" } } }), "utf8");
+  const rBand = await trim({ mode: "report", session: SID });
+  chk("U35 #230 entry EXISTS -> the staged/active band stays BYTE-IDENTICAL to the U33 clean form (staged=0 active=0 active-est=0)", headerOf35(rBand) === "header: head=msg_c0 head-type=compaction rows=10 boundary=msg_u4 boundary-state=inside retained=6 staged=0 active=0 active-est=0 ordinal=session-rank guard=off auto=0", JSON.stringify(headerOf35(rBand)));
+}
+
 // ------------------------------------------------------------------ whole-log invariants
 
 {
@@ -1703,7 +1721,7 @@ function draftBase(sessionID = SID) {
   chk("INV the ONE boundary-stale line for the (session,boundary) state (deduped)", lines.filter((l) => l.kind === "boundary-stale").length === 1, `count=${lines.filter((l) => l.kind === "boundary-stale").length}`);
   chk("INV the ONE marks-stale line for the (session,count) state (deduped)", lines.filter((l) => l.kind === "marks-stale").length === 1, `count=${lines.filter((l) => l.kind === "marks-stale").length}`);
   chk("INV the gauge lines' reasons are only the two honest read failures", lines.filter((l) => l.kind === "gauge").every((l) => l.reason === "context-read-failed" || l.reason === "session-not-found" || l.reason === "messages-not-array"));
-  chk("INV report mode emitted a kind:report line per call (30 lines: 9 + the 4 U10 legs + the 2 U11 compact legs + the U12 range leg + the 2 U14 G0 header legs + the 7 U15 flag legs + the U17 R5b + restore legs + the U18 ` g` flag leg + the U30 R4 carrier leg — the U30 R5 `session:'all'` listing calls emit NO report line; the R5a/U17 not-found/sql-fail calls emit no kind:report line — they log ONE kind:reject line each (U28 F1))", lines.filter((l) => l.kind === "report").length === 30, `count=${lines.filter((l) => l.kind === "report").length}`);
+  chk("INV report mode emitted a kind:report line per call (32 lines: 9 + the 4 U10 legs + the 2 U11 compact legs + the U12 range leg + the 2 U14 G0 header legs + the 7 U15 flag legs + the U17 R5b + restore legs + the U18 ` g` flag leg + the U30 R4 carrier leg + the 2 U35 (#230) store-missing/entry-exists header legs — the U30 R5 `session:'all'` listing calls emit NO report line; the R5a/U17 not-found/sql-fail calls emit no kind:report line — they log ONE kind:reject line each (U28 F1))", lines.filter((l) => l.kind === "report").length === 32, `count=${lines.filter((l) => l.kind === "report").length}`);
 }
 
 // ------------------------------------------------------------------ cleanup

@@ -1174,6 +1174,15 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
   const entry = store.sessions[sid];
   const staged = entry?.staged ?? [];
   const active = entry?.active ?? [];
+  // (U35 #230) THE STORE-PRESENCE DISTINGUISHER on the report read path: the
+  // store FILE is absent (ENOENT — `readStore` fail-opens to an empty sessions
+  // map) or the session carries NO ENTRY (entries are PRUNED when every lever
+  // drains — the NORMAL steady state). Both previously read as the
+  // `staged=0 active=0` band, so an agent could not tell "my drop set vanished"
+  // from "an entry EXISTS with empty sets". The header names the state
+  // NEUTRALLY below (`store=missing`) — absence is a state, not an error, and
+  // recovery stays a re-mark by the agent (no lane).
+  const storeMissing = entry === undefined;
   // (U15 #204) the per-row drop mask for the REPORT — flags come from the STORE
   // ids matched against WINDOW rows: a stale stored id matches no row, so it
   // neither flags a kept row nor inflates the in-window counts. Precedence
@@ -1222,7 +1231,10 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
   const headType = rows[0] != null ? String(rows[0]["type"] ?? "?") : "empty";
   lines.push(
     `header: head=${head} head-type=${headType} rows=${rows.length} boundary=${entry != null && entry.boundary !== "" ? entry.boundary : "none"}` +
-      ` boundary-state=${state} retained=${retained} staged=${staged.length} active=${active.length} active-est=${markEstimate(rows, active)}` +
+      ` boundary-state=${state} retained=${retained} ` +
+      // (U35 #230) missing store -> the NEUTRAL band; an entry that EXISTS
+      // keeps the U33 clean band BYTE-IDENTICAL (the U10/U14/U15 literals too).
+      (storeMissing ? "store=missing (normal when no drops were stored)" : `staged=${staged.length} active=${active.length} active-est=${markEstimate(rows, active)}`) +
       ` ordinal=${ord.ok === true ? "session-rank" : "unavailable"}` +
       ` guard=${entry?.guard === true ? "on" : "off"} auto=${entry?.auto.length ?? 0}` +
       // (U15) the in-window counts ride the header ONLY when at least one row

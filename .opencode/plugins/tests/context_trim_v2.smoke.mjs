@@ -369,13 +369,13 @@ function draftBase(sessionID = SID) {
   chk("R1 the gauge line rides the shared v2-paired core (fixture mass 57000 / 120K, NO budget suffix — #212)", lines[4] === `gauge: SESSION=${SID} CTX=57000 (47%) REM=63000`, JSON.stringify(lines[4] ?? null));
   chk("S0b the tool's name is 'context_trim' (the v1 name — a same-name twin is precedent) and the args mirror v1 (+ clear, + mark ids/unmark, + U7 apply mode + force, + U11 showIds, + U14 guard; U17 #203: the `tags` arg is GONE; U18 #209: the mode enum gains `free` and `target` accepts string OR number — the percent form)", TOOL.name === "context_trim" && JSON.stringify(Object.keys(TOOL.input.properties).sort()) === JSON.stringify(["clear", "force", "guard", "ids", "keepMessages", "mode", "session", "showIds", "target", "unmark"]) && JSON.stringify(TOOL.input.properties.mode.enum) === JSON.stringify(["report", "tail", "mark", "apply", "free"]) && JSON.stringify(TOOL.input.properties.target.type) === JSON.stringify(["string", "number"]) && TOOL.output.type === "string", JSON.stringify(TOOL.name + "|" + Object.keys(TOOL.input.properties)));
   chk("U14 the description literal grew by AT MOST 80 chars over the pre-U14 2369 and names the guard (U15: AT MOST +60 over the pre-U15 2430, names the flags; U18: cap 2499 = pre-U18 2439 + 60, names the free_space clause)", TOOL.description.length <= 2499 && TOOL.description.includes("`guard` on/off wall guard") && TOOL.description.includes("rows flag s/x/g") && TOOL.description.includes("`mode:'free'` — free_space"), `len=${TOOL.description.length}`);
-  chk("R1 (U10+U11) row 1 = the compaction head + its ABSOLUTE ordinal #4300 — COMPACT form, NO id= by default (the opaque id costs ~8-10 tokens/row); (U17 #208 R3) a row without the provider figure prints req-at=unavailable", lines[5] === "row: 1 #3 compaction own=5 req-at=unavailable", JSON.stringify(lines[5] ?? null));
-  chk("R1 user rows take the own-bytes4 mass + stable ordinals (#4301/#4304/#4308), compact, req-at=unavailable", lines[6] === "row: 2 #4 user own=2 req-at=unavailable" && lines[9] === "row: 5 #7 user own=2 req-at=unavailable" && lines[13] === "row: 9 #11 user own=2 req-at=unavailable", JSON.stringify([lines[6], lines[9], lines[13]]));
+  chk("R1 (U10+U11) row 1 = the compaction head + its ABSOLUTE ordinal #4300 — COMPACT form, NO id= by default (the opaque id costs ~8-10 tokens/row); (U30 #222 R4) rows that cannot carry the figure (user/system/synthetic/compaction/idle) print NO req-at token; an unfinished assistant row still prints req-at=unavailable", lines[5] === "row: 1 #3 compaction own=5", JSON.stringify(lines[5] ?? null));
+  chk("R1 user rows take the own-bytes4 mass + stable ordinals (#4301/#4304/#4308), compact, NO req-at token at all (U30 #222 R4)", lines[6] === "row: 2 #4 user own=2" && lines[9] === "row: 5 #7 user own=2" && lines[13] === "row: 9 #11 user own=2", JSON.stringify([lines[6], lines[9], lines[13]]));
   chk("R1 (U8 pin) row 3 asserts OWN mass (111 = input-JSON 45 + output 400 / 4), NOT the provider sum — the cumulative figure rides relabeled req-at=5200; (U10) ordinal #4302, (U11) no id", lines[7] === "row: 3 #5 assistant own=111 req-at=5200 tool=read target=C:/a/b.ts offset=5 limit=20", JSON.stringify(lines[7] ?? null));
   chk("R1 row 4 = the bash-target row (own=205, req-at=9000, #4303, no id)", lines[8] === "row: 4 #6 assistant own=205 req-at=9000 tool=bash target=ls -la", JSON.stringify(lines[8] ?? null));
   chk("R1 the zero-content rows print own=0 + req-at (the provider figure cannot masquerade as weight), compact", lines[10] === "row: 6 #8 assistant own=0 req-at=150" && lines[12] === "row: 8 #10 assistant own=0 req-at=25000" && lines[14] === "row: 10 #12 assistant own=3 req-at=400", JSON.stringify([lines[10], lines[12], lines[14]]));
   chk("R1 the `last:` flag + (U8) `biggest:` ranks by OWN weight: the NEWEST row (#4309=3) is the SMALLEST, the old tool rows dominate (the error turn excluded); (U10/U12) entries are PER-SESSION-RANK-named", lines[15] === "last: 10" && lines[19] === "biggest: #6=205 #5=111 #12=3", JSON.stringify([lines[15], lines[19]]));
-  chk("U12 (#202) PER-SESSION RANKS: the window numbers run 3..12 — rows msg_x1/msg_x2 BEFORE the head occupy ranks 1-2 (trimmed-away rows occupy their rank), so rank is contiguous 1..N over the session and is NEITHER the window position NOR a sparse global seq", lines[5] === "row: 1 #3 compaction own=5 req-at=unavailable" && lines[14] === "row: 10 #12 assistant own=3 req-at=400", JSON.stringify([lines[5], lines[14]]));
+  chk("U12 (#202) PER-SESSION RANKS: the window numbers run 3..12 — rows msg_x1/msg_x2 BEFORE the head occupy ranks 1-2 (trimmed-away rows occupy their rank), so rank is contiguous 1..N over the session and is NEITHER the window position NOR a sparse global seq", lines[5] === "row: 1 #3 compaction own=5" && lines[14] === "row: 10 #12 assistant own=3 req-at=400", JSON.stringify([lines[5], lines[14]]));
   chk("R1 the recommendation block = the trim RANGE with OWN-mass sums (U9: outputs count again — they drop with their call); (U10) anchors name rows by ORDINAL (mark accepts them)", lines[16] === "option low: msg=#7 keep=6 retained=14 (read=0 thought=10 shell=0) dropped=318 (read=100 thought=2 shell=200) hint=user four" && lines[17] === "option medium: msg=#5 keep=8 retained=330 (read=100 thought=10 shell=200) dropped=2 (read=0 thought=2 shell=0) hint=C:/a/b.ts offset=5 limit=20" && lines[18] === "option high: msg=#4 keep=9 retained=332 (read=100 thought=12 shell=200) dropped=0 (read=0 thought=0 shell=0) hint=user one", JSON.stringify([lines[16], lines[17], lines[18]]));
   chk("R1 report mode makes ZERO store writes (the report never writes)", readStore() === null && existsSync(LOG), JSON.stringify(readStore()));
   chk("U28 F3 the report ends with exactly ONE steer line after `biggest:` (starts with 'next: ', <= 110 chars)", lines.filter((l) => l.startsWith("next: ")).length === 1 && lines[20] != null && lines[20].startsWith("next: ") && lines[20].length <= 110, JSON.stringify(lines[20] ?? null));
@@ -402,19 +402,19 @@ function draftBase(sessionID = SID) {
   chk("T1 the report reflects the stored boundary (inside + retained=6) + ordinal source + guard off (U14 header; U17: no tags token)", out.split("\n")[1] === "header: head=msg_c0 head-type=compaction rows=10 boundary=msg_u4 boundary-state=inside retained=6 staged=0 active=0 active-est=0 ordinal=session-rank guard=off auto=0", out.split("\n")[1]);
   const dry = await trim({ mode: "report", session: SID, target: "msg_a5" });
   chk("T1 dry-run vs the stored boundary: only the ADDITIONAL drop is counted (own mass; the floor rejection still counts)", dry.split("\n")[20] === "dry-run: target=msg_a5 remove=1 (2 tokens) keep=5 (7 tokens) verdict=rejected: retained-tail-below-floor 5", dry.split("\n")[20]);
-  chk("T2 the head row is never a boundary", (await t({ session: SID, target: "msg_c0" })) === "tail-set= rejected: target-at-window-head");
-  chk("T3 an unknown target id", (await t({ session: SID, target: "msg_absent999" })) === "tail-set= rejected: target-not-found");
-  chk("T4 floor: a boundary leaving 5 rows", (await t({ session: SID, target: "msg_a5" })) === "tail-set= rejected: retained-tail-below-floor 5");
-  chk("T5 keep=0 refused (keep-invalid)", (await t({ session: SID, keepMessages: 0 })) === "tail-set= rejected: keep-invalid 0");
-  chk("T6 keep non-integer refused", (await t({ session: SID, keepMessages: 2.5 })) === "tail-set= rejected: keep-invalid 2.5");
-  chk("T7 keep above the window row count", (await t({ session: SID, keepMessages: 11 })) === "tail-set= rejected: keep-exceeds-history 11");
-  chk("T8 keep = the whole window lands at the head (no legal boundary)", (await t({ session: SID, keepMessages: 10 })) === "tail-set= rejected: keep-at-window-head 10");
+  chk("T2 the head row is never a boundary (U30 R1: the echo names the ref + the fix)", (await t({ session: SID, target: "msg_c0" })) === "tail-set= rejected: target-at-window-head msg_c0 — a boundary sits after the window head");
+  chk("T3 an unknown target id (U30 R1: ref + fix)", (await t({ session: SID, target: "msg_absent999" })) === "tail-set= rejected: target-not-found msg_absent999 — use a row id or #<rank> from report");
+  chk("T4 floor: a boundary leaving 5 rows (U30 R1: ref + fix)", (await t({ session: SID, target: "msg_a5" })) === "tail-set= rejected: retained-tail-below-floor 5 msg_a5 — keep >= 6 rows");
+  chk("T5 keep=0 refused (keep-invalid; U30 R1 fix clause)", (await t({ session: SID, keepMessages: 0 })) === "tail-set= rejected: keep-invalid 0 — keepMessages is a positive count");
+  chk("T6 keep non-integer refused", (await t({ session: SID, keepMessages: 2.5 })) === "tail-set= rejected: keep-invalid 2.5 — keepMessages is a positive count");
+  chk("T7 keep above the window row count", (await t({ session: SID, keepMessages: 11 })) === "tail-set= rejected: keep-exceeds-history 11 — keep <= the 10 window rows");
+  chk("T8 keep = the whole window lands at the head (no legal boundary)", (await t({ session: SID, keepMessages: 10 })) === "tail-set= rejected: keep-at-window-head 10 — keep fewer than the 10 window rows");
   chk("T9 keep form success computes the anchor (keepMessages=6 -> msg_u4)", (await t({ session: SID, keepMessages: 6 })) === "tail-set= msg_u4 -> msg_u4 keep=6");
   chk("T10 clear -> '-> none' (idempotent second clear)", (await t({ session: SID, clear: true })) === "tail-set= msg_u4 -> none" && (await t({ session: SID, clear: true })) === "tail-set= none -> none");
   chk("T11 mutual-exclusion usage lines", (await t({ session: SID, target: "msg_u4", keepMessages: 6 })) === "error: tail mode: target and keepMessages are mutually exclusive (use one or the other)" && (await t({ session: SID, clear: true, target: "msg_u4" })) === "error: tail mode: clear is mutually exclusive with target/keepMessages (use one form)");
-  chk("T12 the unknown session is refused (the existence probe discriminates)", (await t({ session: "ses_absent000", target: "msg_c0" })) === "tail-set= rejected: session-not-found");
+  chk("T12 the unknown session is refused (the existence probe discriminates; U30 R1 names the sid + fix)", (await t({ session: "ses_absent000", target: "msg_c0" })) === "tail-set= rejected: session-not-found ses_absent000 — pass a live session id");
   chk("T13 no target/keepMessages/clear -> the usage line", (await t({ session: SID })) === "error: tail mode requires target (the boundary message id), keepMessages (the retained-tail message count), or clear (remove the stored boundary)");
-  chk("T14 bad mode -> the v1 error line (U7: the line names the fourth mode; U18: the fifth)", (await trim({ mode: "sideways", session: SID })) === "error: mode must be 'report', 'tail', 'mark', 'apply', or 'free'");
+  chk("T14 bad mode -> the v1 error line (U7: the line names the fourth mode; U18: the fifth; U30 R1: the got-value)", (await trim({ mode: "sideways", session: SID })) === "error: mode must be 'report', 'tail', 'mark', 'apply', or 'free' (got 'sideways')");
   chk("T15 the store is UNTOUCHED by every rejection (only the two sets + clears landed)", JSON.stringify(readStore()?.sessions?.[SID] ?? null) === JSON.stringify(null) && Object.keys(readStore()?.sessions ?? {}).length === 0, JSON.stringify(readStore()));
 }
 
@@ -512,7 +512,7 @@ function draftBase(sessionID = SID) {
   chk("H3 the stale line is DEDUPED per session+boundary (second fire -> no new line)", readLog().slice(before + 1 + delta.length).filter((l) => l.kind === "boundary-stale").length === 0, JSON.stringify(readLog().slice(before + 1).map((l) => l.kind)));
   addCompactedToReportDb(); // (U17 #208) the SQL fixture serves the post-compaction window too
   const staleReport = await trim({ mode: "report", session: SID }); // RPC.rows is still the post-compaction window (HOOK lane) — the REPORT reads the fixture DB
-  chk("H3 the report shows the stale boundary (state=stale, retained = the whole new window; U10: the new head keeps its absolute #4410 — ordinals are NEVER renumbered; U17: no tags token; #208: rows from the SQL fixture)", staleReport.split("\n")[1] === "header: head=msg_c1 head-type=compaction rows=3 boundary=msg_u4 boundary-state=stale retained=3 staged=0 active=0 active-est=0 ordinal=session-rank guard=off auto=0" && staleReport.split("\n")[5] === "row: 1 #13 compaction own=2 req-at=unavailable", JSON.stringify([staleReport.split("\n")[1], staleReport.split("\n")[5]]));
+  chk("H3 the report shows the stale boundary (state=stale, retained = the whole new window; U10: the new head keeps its absolute #4410 — ordinals are NEVER renumbered; U17: no tags token; #208: rows from the SQL fixture)", staleReport.split("\n")[1] === "header: head=msg_c1 head-type=compaction rows=3 boundary=msg_u4 boundary-state=stale retained=3 staged=0 active=0 active-est=0 ordinal=session-rank guard=off auto=0" && staleReport.split("\n")[5] === "row: 1 #13 compaction own=2", JSON.stringify([staleReport.split("\n")[1], staleReport.split("\n")[5]]));
   dropCompactedFromReportDb(); // the SQL fixture is back at the 10-row base window
   await trim({ mode: "tail", session: SID, clear: true });
   RPC.rows = null; // back to the base window for the later legs
@@ -583,17 +583,17 @@ function draftBase(sessionID = SID) {
   chk("M2c ONE kind:trim line (boundary none, marks=2, 2 rows/3 entries = 2 ids + 1 projection, orphan=2, 12 kept)", dM.length === 1 && dM[0].kind === "trim" && dM[0].boundary === "none" && dM[0].marks === "2" && dM[0].droppedRows === "2" && dM[0].droppedEntries === "3" && dM[0].droppedProjections === "1" && dM[0].orphan === "2" && dM[0].keptEntries === "12", JSON.stringify(dM[0] ?? null));
   chk("M2d stage then un-mark a staged id (un-marking needs no window; own est 2)", (await m({ session: SID, ids: ["msg_u4"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=2" && stagedOf() === JSON.stringify(["msg_u4"]) && (await m({ session: SID, unmark: ["msg_u4"] })) === "mark-set= +0 -1 total=0 rows_dropped_est=0" && stagedOf() === "null" && activeOf() === JSON.stringify(["msg_u1", "msg_a3"]));
   // M3-M5c fail-closed guards (a rejection writes NOTHING; the floor is the UNION)
-  chk("M3 head mark rejected (the head carries the summary)", (await m({ session: SID, ids: ["msg_c0"] })) === "mark-set= rejected: mark-at-window-head #3 msg_c0" && stagedOf() === "null" && activeOf() === JSON.stringify(["msg_u1", "msg_a3"]));
-  chk("M4 an id outside the window rows", (await m({ session: SID, ids: ["msg_absent999"] })) === "mark-set= rejected: mark-not-found" && stagedOf() === "null");
-  chk("M5 the floor over the UNION active+staged: the staged result would leave 5 retained (< 6)", (await m({ session: SID, ids: ["msg_a2", "msg_u4", "msg_a5"] })) === "mark-set= rejected: mark-floor 5 breach=msg_a2,msg_u4,msg_a5" && stagedOf() === "null");
+  chk("M3 head mark rejected (the head carries the summary)", (await m({ session: SID, ids: ["msg_c0"] })) === "mark-set= rejected: mark-at-window-head #3 msg_c0 — the head is never droppable" && stagedOf() === "null" && activeOf() === JSON.stringify(["msg_u1", "msg_a3"]));
+  chk("M4 an id outside the window rows", (await m({ session: SID, ids: ["msg_absent999"] })) === "mark-set= rejected: mark-not-found msg_absent999 — use an id or #<rank> from report" && stagedOf() === "null");
+  chk("M5 the floor over the UNION active+staged: the staged result would leave 5 retained (< 6)", (await m({ session: SID, ids: ["msg_a2", "msg_u4", "msg_a5"] })) === "mark-set= rejected: mark-floor 5 breach=msg_a2,msg_u4,msg_a5 — stage fewer rows (floor 6)" && stagedOf() === "null");
   chk("M5b staging an ALREADY-ACTIVE id passes (the union drops it once; own est 2)", (await m({ session: SID, ids: ["msg_u1"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=2" && stagedOf() === JSON.stringify(["msg_u1"]));
   chk("M5c mark clear empties BOTH sets (staged 1 + active 2; the entry goes with them)", (await m({ session: SID, clear: true })) === "mark-set= +0 -3 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
   // M6 the apply guards
-  chk("M6 apply with nothing staged is refused", (await ap()) === "apply= rejected: nothing-staged");
-  chk("M6 apply takes no list args", (await ap({ ids: ["msg_u1"] })) === "error: apply mode takes no list args (stage with mark mode first; only `force` is accepted)");
+  chk("M6 apply with nothing staged is refused", (await ap()) === "apply= rejected: nothing-staged — stage rows with mark mode first");
+  chk("M6 apply takes no list args (U30 #222 R2: names the arg + its lane)", (await ap({ ids: ["msg_u1"] })) === "error: 'apply' mode does not take 'ids' (only on mark)");
   // M7 the boundary + staged/active interplay + the clear symmetry
   chk("M7a boundary set + a pre-boundary id staged (own est 111)", (await trim({ session: SID, mode: "tail", target: "msg_u4" })) === "tail-set= none -> msg_u4 keep=6" && (await m({ session: SID, ids: ["msg_a2"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=111");
-  chk("M7a a further staged mark at the boundary+staged floor is rejected (the boundary keeps 6)", (await m({ session: SID, ids: ["msg_a9"] })) === "mark-set= rejected: mark-floor 5 breach=msg_a9" && stagedOf() === JSON.stringify(["msg_a2"]));
+  chk("M7a a further staged mark at the boundary+staged floor is rejected (the boundary keeps 6)", (await m({ session: SID, ids: ["msg_a9"] })) === "mark-set= rejected: mark-floor 5 breach=msg_a9 — stage fewer rows (floor 6)" && stagedOf() === JSON.stringify(["msg_a2"]));
   chk("M7b apply unions the pre-boundary staged id (positive drop_est 111, mixed=0 — it has a req-at counterpart)", (await ap()) === "apply= staged->active n=1 drop_est=111 projected=54889 bound=96000 ok mixed=0" && activeOf() === JSON.stringify(["msg_a2"]));
   chk("M7c mark clear empties BOTH sets and KEEPS the boundary", (await m({ session: SID, clear: true })) === "mark-set= +0 -1 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID]?.boundary === "msg_u4" && stagedOf() === "null" && activeOf() === "null");
   const dm7 = draft();
@@ -630,7 +630,7 @@ function draftBase(sessionID = SID) {
   chk("M10 stage a LIGHT id (own mass 2 — the projection STILL sits over the 96000 bound)", (await m({ session: SID, ids: ["msg_u4"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=2");
   const oL = (await trim({ mode: "report", session: SID })).split("\n");
   chk("M10 the report projection line reads `over` (last-req 97000 − 2 > bound 96000)", oL[3] === "projection: last-req=97000 staged-est=2 projected=96998 bound=96000 over", JSON.stringify(oL[3] ?? null));
-  chk("M10 apply REFUSES over-bound (the rejection writes NOTHING — staged stays)", (await ap()) === "apply= rejected: over-bound 96998 96000" && stagedOf() === JSON.stringify(["msg_u4"]) && activeOf() === "null");
+  chk("M10 apply REFUSES over-bound (the rejection writes NOTHING — staged stays)", (await ap()) === "apply= rejected: over-bound 96998 96000 — pass force:true to ride through deliberately" && stagedOf() === JSON.stringify(["msg_u4"]) && activeOf() === "null");
   chk("M10 apply force:true rides through deliberately (positive drop_est printed)", (await ap({ force: true })) === "apply= staged->active n=1 drop_est=2 projected=96998 bound=96000 ok mixed=1" && activeOf() === JSON.stringify(["msg_u4"]));
   {
     const db = new DatabaseSync(FX_DB);
@@ -639,7 +639,7 @@ function draftBase(sessionID = SID) {
   }
   chk("M10 clear leaves the store CLEAN for the C block", (await m({ session: SID, clear: true })) === "mark-set= +0 -1 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
   // M11 the usage + validation lanes
-  chk("M11 usage lines (form guards + id-array validation) + the unknown-session rejection", (await m({ session: SID, clear: true, ids: ["msg_u1"] })) === "error: mark mode: clear is mutually exclusive with ids/unmark (use one form)" && (await m({ session: SID })) === "error: mark mode requires ids (window rows to stage — ids or bare ordinals), unmark (refs to restore), clear (empty ALL drop sets — staged, active, guard auto — a stored boundary stays), or guard (the opt-in preventive wall guard on/off)" && (await m({ session: SID, ids: "msg_u1" })) === "error: mark mode: ids and unmark must be arrays of non-empty message id strings" && (await trim({ mode: "mark", session: "ses_absent000", ids: ["msg_x"] })) === "mark-set= rejected: session-not-found");
+  chk("M11 usage lines (form guards + id-array validation) + the unknown-session rejection", (await m({ session: SID, clear: true, ids: ["msg_u1"] })) === "error: mark mode: clear is mutually exclusive with ids/unmark/guard (send the guard toggle in its own call)" && (await m({ session: SID })) === "error: mark mode requires ids (window rows to stage — ids or bare ordinals), unmark (refs to restore), clear (empty ALL drop sets — staged, active, guard auto — a stored boundary stays), or guard (the opt-in preventive wall guard on/off)" && (await m({ session: SID, ids: "msg_u1" })) === "error: mark mode: ids and unmark must be arrays of non-empty message id strings" && (await trim({ mode: "mark", session: "ses_absent000", ids: ["msg_x"] })) === "mark-set= rejected: session-not-found ses_absent000 — pass a live session id");
 }
 
 // ------------------------------------------------------------------ U9 the #194 pins: hint cap + same-step apply truthfulness
@@ -674,19 +674,19 @@ function draftBase(sessionID = SID) {
 {
   const ordLine = (out, n) => out.split("\n").find((l) => l.startsWith(`row: ${n} `)) ?? "(missing)";
   const r0 = await trim({ mode: "report", session: SID });
-  chk("U10a ordinal stability BEFORE a drop: msg_u8 #4308, msg_a9 #4309 (absolute seq — not window position)", ordLine(r0, 9) === "row: 9 #11 user own=2 req-at=unavailable" && ordLine(r0, 10) === "row: 10 #12 assistant own=3 req-at=400", JSON.stringify([ordLine(r0, 9), ordLine(r0, 10)]));
+  chk("U10a ordinal stability BEFORE a drop: msg_u8 #4308, msg_a9 #4309 (absolute seq — not window position)", ordLine(r0, 9) === "row: 9 #11 user own=2" && ordLine(r0, 10) === "row: 10 #12 assistant own=3 req-at=400", JSON.stringify([ordLine(r0, 9), ordLine(r0, 10)]));
   // drop a row ABOVE them: stage + apply msg_a2 (#4302, index 2)
   chk("U10a the drop: stage #4302 BY ORDINAL + apply", (await trim({ mode: "mark", session: SID, ids: ["5"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=111" && (await trim({ mode: "apply", session: SID })) === "apply= staged->active n=1 drop_est=111 projected=54889 bound=96000 ok mixed=0");
   const r1 = await trim({ mode: "report", session: SID });
-  chk("U10a (STABILITY) the SAME ids keep the SAME ordinals after the drop above them — #4308/#4309 UNCHANGED (window position IS NOT the source)", ordLine(r1, 9) === "row: 9 #11 user own=2 req-at=unavailable" && ordLine(r1, 10) === "row: 10 #12 assistant own=3 req-at=400", JSON.stringify([ordLine(r1, 9), ordLine(r1, 10)]));
+  chk("U10a (STABILITY) the SAME ids keep the SAME ordinals after the drop above them — #4308/#4309 UNCHANGED (window position IS NOT the source)", ordLine(r1, 9) === "row: 9 #11 user own=2" && ordLine(r1, 10) === "row: 10 #12 assistant own=3 req-at=400", JSON.stringify([ordLine(r1, 9), ordLine(r1, 10)]));
   chk("U10a the ACTIVE set prints the resolved id + the ordinal-stable header (ordinal=session-rank; U15: + in-window counts; U17: no tags token)", r1.split("\n")[1] === "header: head=msg_c0 head-type=compaction rows=10 boundary=none boundary-state=absent retained=10 staged=0 active=1 active-est=111 ordinal=session-rank guard=off auto=0 dropped-in-window=1 staged-in-window=0", r1.split("\n")[1]);
   await trim({ mode: "mark", session: SID, clear: true });
   // ordinal resolution: a bare number resolves through the ORDINAL MAP, never
   // through window position — it stages the SAME id as the id string does.
   chk("U10b mark by bare ordinal '4304' == mark by id msg_u4 (same staged id, same est)", (await trim({ mode: "mark", session: SID, ids: ["7"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=2" && JSON.stringify(JSON.parse(readFileSync(STORE, "utf8")).sessions[SID].staged) === JSON.stringify(["msg_u4"]));
   chk("U10b unmark by bare ordinal removes the stored id", (await trim({ mode: "mark", session: SID, unmark: ["7"] })) === "mark-set= +0 -1 total=0 rows_dropped_est=0" && JSON.stringify(JSON.parse(readFileSync(STORE, "utf8")).sessions?.[SID]?.staged ?? null) === "null");
-  chk("U10b an ordinal naming a row OUTSIDE the window rejects like an unknown id (4290 = a pre-window row); an unknown ordinal too", (await trim({ mode: "mark", session: SID, ids: ["4290"] })) === "mark-set= rejected: mark-not-found" && (await trim({ mode: "mark", session: SID, ids: ["9999"] })) === "mark-set= rejected: mark-not-found");
-  chk("U10b the ordinal of the WINDOW HEAD rejects like the head id (mark-at-window-head)", (await trim({ mode: "mark", session: SID, ids: ["3"] })) === "mark-set= rejected: mark-at-window-head #3 msg_c0");
+  chk("U10b an ordinal naming a row OUTSIDE the window rejects like an unknown id (4290 = a pre-window row); an unknown ordinal too (U30 R1 names the ref + the fix)", (await trim({ mode: "mark", session: SID, ids: ["4290"] })) === "mark-set= rejected: mark-not-found 4290 — use an id or #<rank> from report" && (await trim({ mode: "mark", session: SID, ids: ["9999"] })) === "mark-set= rejected: mark-not-found 9999 — use an id or #<rank> from report");
+  chk("U10b the ordinal of the WINDOW HEAD rejects like the head id (mark-at-window-head)", (await trim({ mode: "mark", session: SID, ids: ["3"] })) === "mark-set= rejected: mark-at-window-head #3 msg_c0 — the head is never droppable");
   chk("U10b the tail target accepts a bare ordinal (4304 resolves to msg_u4)", (await trim({ mode: "tail", session: SID, target: "7" })) === "tail-set= none -> msg_u4 keep=6" && (await trim({ mode: "tail", session: SID, clear: true })) === "tail-set= msg_u4 -> none");
   chk("U10b the report dry-run accepts a bare ordinal (names the resolved id)", (await trim({ mode: "report", session: SID, target: "7" })).split("\n")[20] === "dry-run: target=msg_u4 remove=4 (323 tokens) keep=6 (9 tokens) verdict=ok");
   // (U12 #202) RANGE REFS `A-B` — inclusive on BOTH ends, mixed with singletons,
@@ -695,11 +695,11 @@ function draftBase(sessionID = SID) {
   // echoes the resolved count + first/last resolved rank.
     const stagedOfU12 = () => JSON.stringify(readStore()?.sessions?.[SID]?.staged ?? null);
   const activeOfU12 = () => JSON.stringify(readStore()?.sessions?.[SID]?.active ?? null);
-  chk("U12a a rank naming a TRIMMED-AWAY row (rank 1 = msg_x1, before the window) rejects like any out-of-window ref", (await trim({ mode: "mark", session: SID, ids: ["1"] })) === "mark-set= rejected: mark-not-found" && stagedOfU12() === "null");
-  chk("U12a an invalid range (A>B) rejects BEFORE any resolution; nothing written", (await trim({ mode: "mark", session: SID, ids: ["6-4"] })) === "mark-set= rejected: mark-range-invalid 6-4" && stagedOfU12() === "null");
-  chk("U12a a range touching a trimmed-away rank rejects FAIL-CLOSED naming the offending ranks (1-5 hits ranks 1,2)", (await trim({ mode: "mark", session: SID, ids: ["1-5"] })) === "mark-set= rejected: mark-range-unresolved 1,2" && stagedOfU12() === "null");
-  chk("U12a a range touching the head row rejects naming the resolved row (#3 = msg_c0)", (await trim({ mode: "mark", session: SID, ids: ["3-4"] })) === "mark-set= rejected: mark-at-window-head #3 msg_c0" && stagedOfU12() === "null");
-  chk("U12a a range breaching the keep-floor rejects FAIL-CLOSED naming the offending rows (4-12 = 9 rows, retained 1 < 6)", (await trim({ mode: "mark", session: SID, ids: ["4-12"] })) === "mark-set= rejected: mark-floor 1 breach=msg_u1,msg_a2,msg_a3,msg_u4,msg_a5,msg_u6,msg_a7,msg_u8,msg_a9" && stagedOfU12() === "null" && activeOfU12() === "null");
+  chk("U12a a rank naming a TRIMMED-AWAY row (rank 1 = msg_x1, before the window) rejects like any out-of-window ref (U30 R1 names the ref + the fix)", (await trim({ mode: "mark", session: SID, ids: ["1"] })) === "mark-set= rejected: mark-not-found 1 — use an id or #<rank> from report" && stagedOfU12() === "null");
+  chk("U12a an invalid range (A>B) rejects BEFORE any resolution; nothing written", (await trim({ mode: "mark", session: SID, ids: ["6-4"] })) === "mark-set= rejected: mark-range-invalid 6-4 — range needs A-B with A >= 1 and B >= A" && stagedOfU12() === "null");
+  chk("U12a a range touching a trimmed-away rank rejects FAIL-CLOSED naming the offending ranks (1-5 hits ranks 1,2)", (await trim({ mode: "mark", session: SID, ids: ["1-5"] })) === "mark-set= rejected: mark-range-unresolved 1-5 ranks 1,2 — use #<rank> rows from report" && stagedOfU12() === "null");
+  chk("U12a a range touching the head row rejects naming the resolved row (#3 = msg_c0)", (await trim({ mode: "mark", session: SID, ids: ["3-4"] })) === "mark-set= rejected: mark-at-window-head #3 msg_c0 — the head is never droppable" && stagedOfU12() === "null");
+  chk("U12a a range breaching the keep-floor rejects FAIL-CLOSED naming the offending rows (4-12 = 9 rows, retained 1 < 6)", (await trim({ mode: "mark", session: SID, ids: ["4-12"] })) === "mark-set= rejected: mark-floor 1 breach=msg_u1,msg_a2,msg_a3,msg_u4,msg_a5,msg_u6,msg_a7,msg_u8,msg_a9 — stage fewer rows (floor 6)" && stagedOfU12() === "null" && activeOfU12() === "null");
   chk("U12a SUCCESS with a mixed range list: [4-6]+singleton 9 -> 4 rows staged (u1,a2,a3,u6), est 320, echo resolved=4 ordinals=4-9 (a2 joins the audit though already active)", (await trim({ mode: "mark", session: SID, ids: ["4-6", "9"] })) === "mark-set= +4 -0 total=4 rows_dropped_est=320 resolved=4 ordinals=4-9" && JSON.stringify(JSON.parse(readFileSync(STORE, "utf8")).sessions[SID].staged) === JSON.stringify(["msg_u1", "msg_a2", "msg_a3", "msg_u6"]));
   const rr = await trim({ mode: "report", session: SID });
   chk("U12a the report PROJECTION reflects the range-staged set (staged-est=320 — the bulk op is inspectable before apply)", rr.split("\n")[3] === "projection: last-req=55000 staged-est=320 projected=54680 bound=96000 ok", JSON.stringify(rr.split("\n")[3]));
@@ -714,18 +714,18 @@ function draftBase(sessionID = SID) {
   // Ranks stay 1..15 over ORD_DB — NEVER renumbered.
   addCompactedToReportDb();
   const r2 = await trim({ mode: "report", session: SID });
-  chk("U17 R5d (#208) SQL window = rows after the LAST completed compaction: fixture 15 rows -> the report reads 3 (seq >= 4410): new head #13 compaction + #14/#15; rows BEFORE the new head excluded", ordLine(r2, 1) === "row: 1 #13 compaction own=2 req-at=unavailable" && ordLine(r2, 2) === "row: 2 #14 user own=5 req-at=unavailable" && ordLine(r2, 3) === "row: 3 #15 assistant own=0 req-at=20", JSON.stringify([ordLine(r2, 1), ordLine(r2, 2), ordLine(r2, 3)]));
+  chk("U17 R5d (#208) SQL window = rows after the LAST completed compaction: fixture 15 rows -> the report reads 3 (seq >= 4410): new head #13 compaction + #14/#15; rows BEFORE the new head excluded", ordLine(r2, 1) === "row: 1 #13 compaction own=2" && ordLine(r2, 2) === "row: 2 #14 user own=5" && ordLine(r2, 3) === "row: 3 #15 assistant own=0 req-at=20", JSON.stringify([ordLine(r2, 1), ordLine(r2, 2), ordLine(r2, 3)]));
   dropCompactedFromReportDb();
   // (U11 #200) COMPACT REPORT: no `id=` by default; `showIds:true` restores it.
   const rc = await trim({ mode: "report", session: SID });
   chk("U11 compact report: NO row line prints id= by default", rc.split("\n").filter((l) => l.startsWith("row: ")).every((l) => !l.includes("id=")) && rc.includes("id=msg_") === false, JSON.stringify(rc.split("\n")[5]));
   const rci = await trim({ mode: "report", session: SID, showIds: true });
-  chk("U11 showIds:true restores id= on every row (the flag's name is `showIds`)", rci.split("\n").filter((l) => l.startsWith("row: ")).every((l) => l.includes("id=msg_")) && rci.split("\n")[5] === "row: 1 #3 compaction id=msg_c0 own=5 req-at=unavailable", JSON.stringify(rci.split("\n")[5]));
+  chk("U11 showIds:true restores id= on every row (the flag's name is `showIds`)", rci.split("\n").filter((l) => l.startsWith("row: ")).every((l) => l.includes("id=msg_")) && rci.split("\n")[5] === "row: 1 #3 compaction id=msg_c0 own=5", JSON.stringify(rci.split("\n")[5]));
   // (U17 #203) THE TAG LANE IS DELETED — the hook renders NOTHING and mutates
   // NOTHING beyond splice removals; the pins below pin the DELETED lane's
   // absence (arg gone, render gone) and the DOCTRINE that replaces it.
   chk("U10d clean session: the draft carries NO `[#` token and the hook is SILENT (no store entry)", (() => { const d = draft(); return JSON.stringify(d.messages).includes("[#") === false; })() && readStore()?.sessions?.[SID] === undefined);
-  chk("U17 D3 the `tags` ARG is GONE from the tool: a tags-toggle call lands in the mark usage line", (await trim({ mode: "mark", session: SID, tags: true })) === "error: mark mode requires ids (window rows to stage — ids or bare ordinals), unmark (refs to restore), clear (empty ALL drop sets — staged, active, guard auto — a stored boundary stays), or guard (the opt-in preventive wall guard on/off)");
+  chk("U17 D3 the `tags` ARG is GONE from the tool (U30 #222 R2: the mode-foreign gate names it as an unknown arg)", (await trim({ mode: "mark", session: SID, tags: true })) === "error: 'mark' mode does not take 'tags' (unknown arg — no lane takes it)");
   // (U17 #203) DOCTRINE — with ANY store entry present the hook renders entries
   // BYTE-IDENTICAL except the splice removals: no part text changes ever (the
   // tag lane that mutated part bytes is DELETED — the host re-persists live
@@ -759,8 +759,8 @@ function draftBase(sessionID = SID) {
   pluginMod.setOrdinalsDbForTest(path.join(SCRATCH, "fx_missing.db"));
   RPC.rows = windowRows().map((r) => { const { seq, ...rest } = r; return rest; });
   const r3 = await trim({ mode: "report", session: SID });
-  chk("U10h fail-open: ordinal=unavailable, rows print #? (never a guessed number; #208: req-at=unavailable rides too)", r3.split("\n")[1].includes("ordinal=unavailable") && ordLine(r3, 2) === "row: 2 #? user own=2 req-at=unavailable", JSON.stringify([r3.split("\n")[1], ordLine(r3, 2)]));
-  chk("U10h fail-open: a bare number is REJECTED as not-found; an id string still marks normally", (await trim({ mode: "mark", session: SID, ids: ["7"] })) === "mark-set= rejected: mark-not-found" && (await trim({ mode: "mark", session: SID, ids: ["msg_u4"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=2" && (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -1 total=0 rows_dropped_est=0");
+  chk("U10h fail-open: ordinal=unavailable, rows print #? (never a guessed number; U30 #222 R4: user rows carry no req-at token)", r3.split("\n")[1].includes("ordinal=unavailable") && ordLine(r3, 2) === "row: 2 #? user own=2", JSON.stringify([r3.split("\n")[1], ordLine(r3, 2)]));
+  chk("U10h fail-open: a bare number is REJECTED as not-found (U30 R1 names the ref + the fix); an id string still marks normally", (await trim({ mode: "mark", session: SID, ids: ["7"] })) === "mark-set= rejected: mark-not-found 7 — use an id or #<rank> from report" && (await trim({ mode: "mark", session: SID, ids: ["msg_u4"] })) === "mark-set= +1 -0 total=1 rows_dropped_est=2" && (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -1 total=0 rows_dropped_est=0");
   chk("U17 fail-open: the BOUNDARY drop still applies with unreadable ordinals and the trim line carries NO `seq=` token", await (async () => {
     await trim({ mode: "tail", session: SID, target: "msg_u4" });
     const d = draft();
@@ -1198,25 +1198,25 @@ function draftBase(sessionID = SID) {
   const legends = (out) => out.split("\n").filter((l) => l.startsWith("flags: "));
   // V1 the clean window: NO flag token, NO legend, NO in-window counts anywhere
   const rClean = await trim({ mode: "report", session: SID });
-  chk("U15 V1 clean report: header byte-clean, no flags: line, no dropped-in-window, kept rows unprefixed (U17: no tags token; #208: user rows print req-at=unavailable)", headerOf(rClean) === "header: head=msg_c0 head-type=compaction rows=10 boundary=none boundary-state=absent retained=10 staged=0 active=0 active-est=0 ordinal=session-rank guard=off auto=0" && legends(rClean).length === 0 && !rClean.includes("dropped-in-window") && !rClean.includes("staged-in-window") && rowLine(rClean, 2) === "row: 2 #4 user own=2 req-at=unavailable" && !rClean.includes(" x ") && !rClean.includes(" g ") && !rClean.includes(" s "), JSON.stringify([headerOf(rClean), rowLine(rClean, 2)]));
+  chk("U15 V1 clean report: header byte-clean, no flags: line, no dropped-in-window, kept rows unprefixed (U17: no tags token; U30 #222 R4: user rows carry no req-at token)", headerOf(rClean) === "header: head=msg_c0 head-type=compaction rows=10 boundary=none boundary-state=absent retained=10 staged=0 active=0 active-est=0 ordinal=session-rank guard=off auto=0" && legends(rClean).length === 0 && !rClean.includes("dropped-in-window") && !rClean.includes("staged-in-window") && rowLine(rClean, 2) === "row: 2 #4 user own=2" && !rClean.includes(" x ") && !rClean.includes(" g ") && !rClean.includes(" s "), JSON.stringify([headerOf(rClean), rowLine(rClean, 2)]));
   // V2 staged-only -> ` s`; the row STAYS in the request (nothing applied)
   {
     const mk = await trim({ mode: "mark", session: SID, ids: ["4"] });
     const r2 = await trim({ mode: "report", session: SID });
-    chk("U15 V2 stage #4 (msg_u1): the row flags ` s` after the rank + staged-in-window=1 + the legend appears exactly once", mk === "mark-set= +1 -0 total=1 rows_dropped_est=2" && rowLine(r2, 2) === "row: 2 #4 s user own=2 req-at=unavailable" && headerOf(r2).endsWith(" dropped-in-window=0 staged-in-window=1") && legends(r2).join("|") === "flags: s=staged x=dropped g=guard-auto", JSON.stringify([rowLine(r2, 2), headerOf(r2)]));
+    chk("U15 V2 stage #4 (msg_u1): the row flags ` s` after the rank + staged-in-window=1 + the legend appears exactly once", mk === "mark-set= +1 -0 total=1 rows_dropped_est=2" && rowLine(r2, 2) === "row: 2 #4 s user own=2" && headerOf(r2).endsWith(" dropped-in-window=0 staged-in-window=1") && legends(r2).join("|") === "flags: s=staged x=dropped g=guard-auto", JSON.stringify([rowLine(r2, 2), headerOf(r2)]));
   }
   // V3 applied -> ` x`; staged drains, the drop count rides
   {
     chk("U15 V3 apply", (await trim({ mode: "apply", session: SID })) === "apply= staged->active n=1 drop_est=2 projected=54998 bound=96000 ok mixed=1");
     const r3 = await trim({ mode: "report", session: SID });
-    chk("U15 V3 applied row flags ` x` (not ` s`) + dropped-in-window=1 staged-in-window=0", rowLine(r3, 2) === "row: 2 #4 x user own=2 req-at=unavailable" && headerOf(r3).endsWith(" dropped-in-window=1 staged-in-window=0") && legends(r3).length === 1, JSON.stringify([rowLine(r3, 2), headerOf(r3)]));
+    chk("U15 V3 applied row flags ` x` (not ` s`) + dropped-in-window=1 staged-in-window=0", rowLine(r3, 2) === "row: 2 #4 x user own=2" && headerOf(r3).endsWith(" dropped-in-window=1 staged-in-window=0") && legends(r3).length === 1, JSON.stringify([rowLine(r3, 2), headerOf(r3)]));
   }
   // V4 precedence: staged AGAIN while already active -> ` x` wins; the staged
   // raw count rides (staged=1) but staged-in-window counts staged-ONLY rows = 0
   {
     const mk4 = await trim({ mode: "mark", session: SID, ids: ["4"] });
     const r4 = await trim({ mode: "report", session: SID });
-    chk("U15 V4 re-stage an ACTIVE row: ` x` beats ` s`; staged=1 raw (total counts the STAGED set), staged-in-window=0", mk4 === "mark-set= +1 -0 total=1 rows_dropped_est=2" && rowLine(r4, 2) === "row: 2 #4 x user own=2 req-at=unavailable" && headerOf(r4).includes("staged=1 active=1") && headerOf(r4).endsWith(" dropped-in-window=1 staged-in-window=0"), JSON.stringify([mk4, rowLine(r4, 2), headerOf(r4)]));
+    chk("U15 V4 re-stage an ACTIVE row: ` x` beats ` s`; staged=1 raw (total counts the STAGED set), staged-in-window=0", mk4 === "mark-set= +1 -0 total=1 rows_dropped_est=2" && rowLine(r4, 2) === "row: 2 #4 x user own=2" && headerOf(r4).includes("staged=1 active=1") && headerOf(r4).endsWith(" dropped-in-window=1 staged-in-window=0"), JSON.stringify([mk4, rowLine(r4, 2), headerOf(r4)]));
   }
   // V5 ` g` via the guard's auto set (store-injected — the guard lane is
   // U14-pinned; the REPORT only reads entry.auto)
@@ -1234,7 +1234,7 @@ function draftBase(sessionID = SID) {
     base.sessions[SID] = { boundary: "", keep: 0, set_at: "2026-01-01T00:00:00Z", guard: true, staged: ["msg_dead0"], active: ["msg_u1", "msg_dead1"], auto: ["msg_a3", "msg_dead2"] };
     writeFileSync(STORE, JSON.stringify(base), "utf8");
     const r6 = await trim({ mode: "report", session: SID });
-    chk("U15 V6 stale ids do NOT inflate: active=2 auto=2 staged=1 raw, dropped-in-window=2 staged-in-window=0; rows 2/4 flag x/g", headerOf(r6).includes("staged=1 active=2") && headerOf(r6).includes("auto=2 dropped-in-window=2 staged-in-window=0") && rowLine(r6, 2) === "row: 2 #4 x user own=2 req-at=unavailable" && rowLine(r6, 4) === "row: 4 #6 g assistant own=205 req-at=9000 tool=bash target=ls -la" && legends(r6).length === 1, JSON.stringify([headerOf(r6), rowLine(r6, 2), rowLine(r6, 4)]));
+    chk("U15 V6 stale ids do NOT inflate: active=2 auto=2 staged=1 raw, dropped-in-window=2 staged-in-window=0; rows 2/4 flag x/g", headerOf(r6).includes("staged=1 active=2") && headerOf(r6).includes("auto=2 dropped-in-window=2 staged-in-window=0") && rowLine(r6, 2) === "row: 2 #4 x user own=2" && rowLine(r6, 4) === "row: 4 #6 g assistant own=205 req-at=9000 tool=bash target=ls -la" && legends(r6).length === 1, JSON.stringify([headerOf(r6), rowLine(r6, 2), rowLine(r6, 4)]));
   }
   // V7 roundtrip: OFF + clear -> the report is BYTE-IDENTICAL to V1's clean map
   {
@@ -1260,7 +1260,7 @@ function draftBase(sessionID = SID) {
     await trim({ mode: "tail", session: SID, clear: true });
     return untouched && pruned && readStore()?.sessions?.[SID] === undefined;
   })(), "the report mutated the store or the legacy key survived");
-  chk("U17 (#208) the SQL COUNT discriminates: a session with ZERO rows -> the honest session-not-found line", (await trim({ mode: "report", session: "ses_absent000" })) === "session ses_absent000\nreport= rejected: session-not-found");
+  chk("U17 (#208) the SQL COUNT discriminates: a session with ZERO rows -> the honest session-not-found line (U30 R1 names the sid + the fix)", (await trim({ mode: "report", session: "ses_absent000" })) === "session ses_absent000\nreport= rejected: session-not-found ses_absent000 — no rows for this id (omit session to use the caller)");
   chk("U17 (#208) an unreadable report DB -> the honest `error: sql-read-failed:` line (both backends dead, no throw)", await (async () => {
     pluginMod.setReportDbForTest(path.join(SCRATCH, "fx_report_missing.db"));
     const out = await trim({ mode: "report", session: SID });
@@ -1293,9 +1293,9 @@ function draftBase(sessionID = SID) {
   // F1 the fail-closed target validation — rejected BEFORE any read or write
   {
     const lB = readLog().length;
-    chk("U18 F1 target-invalid rejects fail-closed: 0, 61, a float, a word, a negative (echo names the raw value)", (await trim({ mode: "free", session: SID, target: 0 })) === "free= rejected: target-invalid 0" && (await trim({ mode: "free", session: SID, target: 61 })) === "free= rejected: target-invalid 61" && (await trim({ mode: "free", session: SID, target: 2.5 })) === "free= rejected: target-invalid 2.5" && (await trim({ mode: "free", session: SID, target: "abc" })) === "free= rejected: target-invalid abc" && (await trim({ mode: "free", session: SID, target: -1 })) === "free= rejected: target-invalid -1");
-    chk("U18 F1 free mode takes ONLY `target` — any other arg rides the usage line", (await trim({ mode: "free", session: SID, ids: ["msg_u1"] })) === "error: free mode takes only `target` (the percent of the window to free; other args are refused)");
-    chk("U18 F1 an unknown session rejects like the other lanes", (await trim({ mode: "free", session: "ses_absent000" })) === "free= rejected: session-not-found");
+    chk("U18 F1 target-invalid rejects fail-closed: 0, 61, a float, a word, a negative (echo names the raw value; U30 R1 adds the fix clause)", (await trim({ mode: "free", session: SID, target: 0 })) === "free= rejected: target-invalid 0 — pass an integer percent 5..60" && (await trim({ mode: "free", session: SID, target: 61 })) === "free= rejected: target-invalid 61 — pass an integer percent 5..60" && (await trim({ mode: "free", session: SID, target: 2.5 })) === "free= rejected: target-invalid 2.5 — pass an integer percent 5..60" && (await trim({ mode: "free", session: SID, target: "abc" })) === "free= rejected: target-invalid abc — pass an integer percent 5..60" && (await trim({ mode: "free", session: SID, target: -1 })) === "free= rejected: target-invalid -1 — pass an integer percent 5..60");
+    chk("U18 F1 free mode takes ONLY `target` (U30 #222 R2: the foreign-arg gate names the arg + its lane)", (await trim({ mode: "free", session: SID, ids: ["msg_u1"] })) === "error: 'free' mode does not take 'ids' (only on mark)");
+    chk("U18 F1 an unknown session rejects like the other lanes (U30 R1 names the sid + fix)", (await trim({ mode: "free", session: "ses_absent000" })) === "free= rejected: session-not-found ses_absent000 — pass a live session id");
     chk("U18 F1 every rejection wrote NOTHING and logged NO kind:free line (fail-closed)", readStore()?.sessions?.[SID] === undefined && freeLines(lB).length === 0, `lines=${freeLines(lB).length}`);
   }
   // F2/F3/F5 the base leg: the floor-legal pool cannot reach 20% -> honest
@@ -1303,12 +1303,12 @@ function draftBase(sessionID = SID) {
   // UNCHANGED hook removal + notice.
   {
     const lB = readLog().length;
-    chk("U18 F5 (U21 D3 re-pinned) default target 20%: freed 316 of need 24000, bound-fill 45%, picks 2, short=yes — the pool exhausts on the SHARED rule (user row never)", (await trim({ mode: "free", session: SID })) === "free= freed=316 target=20 bound-fill=45% picks=2 short=yes");
+    chk("U18 F5 (U21 D3 re-pinned) default target 20%: freed 316 of need 24000, bound-fill 45%, picks 2, short=yes — the pool exhausts on the SHARED rule (user row never)", (await trim({ mode: "free", session: SID })) === "free= freed=316 target=20 bound-fill=45% fill=47% picks=2 short=yes");
     chk("U21 F2 selection order (shared rule): HEAVIEST first (a3=205, a2=111) — the USER row u1 is never a candidate, the head and the light floor rows never enter `auto`", autoOf() === JSON.stringify(["msg_a3", "msg_a2"]) && readStore()?.sessions?.[SID]?.active === undefined && readStore()?.sessions?.[SID]?.boundary === "", autoOf());
     const fl = freeLines(lB);
     chk("U18 F3 exactly ONE kind:free line (session/target/freed/picks/short)", fl.length === 1 && fl[0].session === SID && fl[0].target === "20" && fl[0].freed === "316" && fl[0].picks === "2" && fl[0].short === "yes", JSON.stringify(fl[0] ?? null));
     const r = await trim({ mode: "report", session: SID });
-    chk("U21 F3 the report flags ONLY the two picks (rows 3/4 ` g`; the user row 2 stays unflagged) + header auto=2 dropped-in-window=2 + one legend", (r.split("\n").find((l) => l.startsWith("row: 2 ")) === "row: 2 #4 user own=2 req-at=unavailable" && r.split("\n").find((l) => l.startsWith("row: 3 ")) === "row: 3 #5 g assistant own=111 req-at=5200 tool=read target=C:/a/b.ts offset=5 limit=20" && r.split("\n").find((l) => l.startsWith("row: 4 ")) === "row: 4 #6 g assistant own=205 req-at=9000 tool=bash target=ls -la" && r.split("\n")[1].includes("auto=2 dropped-in-window=2") && r.split("\n").filter((l) => l.startsWith("flags: ")).length === 1), JSON.stringify([r.split("\n").find((l) => l.startsWith("row: 2 ")), r.split("\n")[1]]));
+    chk("U21 F3 the report flags ONLY the two picks (rows 3/4 ` g`; the user row 2 stays unflagged) + header auto=2 dropped-in-window=2 + one legend", (r.split("\n").find((l) => l.startsWith("row: 2 ")) === "row: 2 #4 user own=2" && r.split("\n").find((l) => l.startsWith("row: 3 ")) === "row: 3 #5 g assistant own=111 req-at=5200 tool=read target=C:/a/b.ts offset=5 limit=20" && r.split("\n").find((l) => l.startsWith("row: 4 ")) === "row: 4 #6 g assistant own=205 req-at=9000 tool=bash target=ls -la" && r.split("\n")[1].includes("auto=2 dropped-in-window=2") && r.split("\n").filter((l) => l.startsWith("flags: ")).length === 1), JSON.stringify([r.split("\n").find((l) => l.startsWith("row: 2 ")), r.split("\n")[1]]));
     const d = draft();
     await fire(d);
     const ids = d.messages.map((m) => m.id ?? "(none)");
@@ -1326,7 +1326,7 @@ function draftBase(sessionID = SID) {
       const out = await trim({ mode: "free", session: SID, target: 5 });
       const kept = readStore()?.sessions?.[SID]?.boundary === "msg_u4" && readStore()?.sessions?.[SID]?.auto === undefined;
       const cleared = (await trim({ mode: "tail", session: SID, clear: true })) === "tail-set= msg_u4 -> none";
-      return out === "free= freed=0 target=5 bound-fill=45% picks=0 short=yes" && kept && cleared;
+      return out === "free= freed=0 target=5 bound-fill=45% fill=47% picks=0 short=yes" && kept && cleared;
     })(), "a boundary-region row got picked or the echo form drifted");
   }
   // F2/F5 the target-met stop + the AGE tie-break on a steered 1000-token
@@ -1347,7 +1347,7 @@ function draftBase(sessionID = SID) {
     ];
     RPC.rows = tieRows();
     steer({ ok: true, kind: "ok", sid: SID, modelId: MODEL_ID, total: 900, output: 0, ctx: 900, window: 1000 });
-    chk("U18 F2/F5 target MET stops the loop: need 150 of the 1000-token window picks the two 111-mass rows and stops (tie_a3=50 untouched); the AGE tie-break sends the OLDER row first", (await trim({ mode: "free", session: SID, target: 15 })) === "free= freed=222 target=15 bound-fill=67% picks=2 short=no" && autoOf() === JSON.stringify(["tie_a1", "tie_a2"]), autoOf());
+    chk("U18 F2/F5 target MET stops the loop: need 150 of the 1000-token window picks the two 111-mass rows and stops (tie_a3=50 untouched); the AGE tie-break sends the OLDER row first", (await trim({ mode: "free", session: SID, target: 15 })) === "free= freed=222 target=15 bound-fill=67% fill=67% picks=2 short=no" && autoOf() === JSON.stringify(["tie_a1", "tie_a2"]), autoOf());
     chk("U18 cleanup of the tie leg (picks cleared, store clean)", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -2 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
     RPC.rows = null;
     pluginMod.setGaugeCoreForTest(good);
@@ -1362,7 +1362,7 @@ function draftBase(sessionID = SID) {
         { id: "msg_a12", seq: 4414, type: "assistant", agent: "worker-1", model: { id: MODEL_ID, providerID: "llama-swap" }, time: { created: 2600, completed: 2601 }, tokens: { input: 100, output: 50, reasoning: 0, cache: { read: 0, write: 0 } }, content: [{ type: "tool", id: "t12", name: "bash", executed: true, state: { status: "completed", input: { command: "ls -la" }, content: [{ type: "text", text: "V".repeat(23979) }] } }] },
       ];
       RPC.rows = floorRows();
-      chk("U21 F3 free frees the heavy FLOOR tool-output row (own 4499 > FLOOR_MASS) but NEVER the heavy user or newest-assistant row: freed 4815, picks 3 (a10 first), short=yes", (await trim({ mode: "free", session: SID, target: 5 })) === "free= freed=4815 target=5 bound-fill=41% picks=3 short=yes" && autoOf() === JSON.stringify(["msg_a10", "msg_a3", "msg_a2"]), autoOf());
+      chk("U21 F3 free frees the heavy FLOOR tool-output row (own 4499 > FLOOR_MASS) but NEVER the heavy user or newest-assistant row: freed 4815, picks 3 (a10 first), short=yes", (await trim({ mode: "free", session: SID, target: 5 })) === "free= freed=4815 target=5 bound-fill=41% fill=43% picks=3 short=yes" && autoOf() === JSON.stringify(["msg_a10", "msg_a3", "msg_a2"]), autoOf());
       chk("U21 F3 cleanup of the heavy-floor leg (picks cleared, store clean)", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -3 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
       RPC.rows = null;
     }
@@ -1378,7 +1378,7 @@ function draftBase(sessionID = SID) {
     chk("U18 F5 the ctx leg missing prints `bound-fill=unavailable` honestly (never a guessed fill); the target-met stop still holds", await (async () => {
       const out = await trim({ mode: "free", session: SID, target: 20 });
       const cleared = (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -1 total=0 rows_dropped_est=0";
-      return out === "free= freed=205 target=20 bound-fill=unavailable picks=1 short=no" && cleared && readStore()?.sessions?.[SID] === undefined;
+      return out === "free= freed=205 target=20 bound-fill=unavailable fill=unavailable picks=1 short=no" && cleared && readStore()?.sessions?.[SID] === undefined;
     })(), JSON.stringify(readStore()?.sessions?.[SID] ?? null));
     pluginMod.setGaugeCoreForTest(good);
   }
@@ -1390,7 +1390,7 @@ function draftBase(sessionID = SID) {
       const out = await trim({ mode: "free", session: OTHER }, SID);
       const landed = autoOf(OTHER) === JSON.stringify(["msg_a3"]) && readStore()?.sessions?.[SID] === undefined;
       const cleared = (await trim({ mode: "mark", session: OTHER, clear: true })) === "mark-set= +0 -1 total=0 rows_dropped_est=0";
-      return out === "free= freed=205 target=20 bound-fill=29% picks=1 short=no" && landed && cleared && readStore()?.sessions?.[OTHER] === undefined;
+      return out === "free= freed=205 target=20 bound-fill=29% fill=29% picks=1 short=no" && landed && cleared && readStore()?.sessions?.[OTHER] === undefined;
     })(), JSON.stringify(readStore()?.sessions ?? null));
     pluginMod.setGaugeCoreForTest(good);
   }
@@ -1410,7 +1410,7 @@ function draftBase(sessionID = SID) {
   await trim({ mode: "free", session: "ses_absent000" }); // free= rejected: session-not-found
   await trim({ mode: "sideways", session: SID }); // error: mode must be ... (usage refusal)
   const rej = readLog().slice(lB).filter((l) => l.kind === "reject");
-  chk("U28 F1 every rejection path logs ONE kind:reject line (5 calls, 5 lines, exact reason order + session attribution)", rej.length === 5 && rej.map((l) => l.reason).join("|") === "target-not-found|nothing-staged|target-invalid 77|session-not-found|mode must be 'report', 'tail', 'mark', 'apply', or 'free'" && rej[0].session === SID && rej[3].session === "ses_absent000", JSON.stringify(rej));
+  chk("U28 F1 every rejection path logs ONE kind:reject line (5 calls, 5 lines, exact reason order + session attribution)", rej.length === 5 && rej.map((l) => l.reason).join("|") === "target-not-found msg_absent999 — use a row id or #<rank> from report|nothing-staged — stage rows with mark mode first|target-invalid 77 — pass an integer percent 5..60|session-not-found ses_absent000 — pass a live session id|mode must be 'report', 'tail', 'mark', 'apply', or 'free' (got 'sideways')" && rej[0].session === SID && rej[3].session === "ses_absent000", JSON.stringify(rej));
   chk("U28 F1 the reject payload is exactly {ts, kind, session, reason} — nothing else", rej.every((l) => Object.keys(l).sort().join(",") === "kind,reason,session,ts"), JSON.stringify(rej[0] ?? null));
   const okOut = await trim({ mode: "tail", session: SID, target: "msg_u4" });
   chk("U28 F1 a SUCCESSFUL call logs NO reject line (the reject delta stays 5)", okOut === "tail-set= none -> msg_u4 keep=6" && readLog().slice(lB).filter((l) => l.kind === "reject").length === 5, `delta=${readLog().slice(lB).filter((l) => l.kind === "reject").length}`);
@@ -1515,12 +1515,116 @@ function draftBase(sessionID = SID) {
   storeMod.setStoreFileForTest("");
 }
 
+// ------------------------------------------------------------------ U30 (#226 R5) store-hygiene lanes + the DEAD guard
+
+{
+  // Fixture store: one DEAD entry (set_at in the future — every provider row is
+  // older, auto/noticed counts to show), one LIVE entry (set_at at the epoch ->
+  // provider rows newer than it), one legacy entry (set_at unparseable), and the
+  // CALLER's own entry (SID) which must NEVER be clearable.
+  writeFileSync(STORE, JSON.stringify({
+    sessions: {
+      "ses_dead001": { boundary: "msg_z1", keep: 3, set_at: "2999-01-01T00:00:00.000Z", auto: ["msg_q1", "msg_q2"], noticed: ["msg_q1"] },
+      "ses_live001": { boundary: "msg_w1", keep: 1, set_at: "1970-01-01T00:00:00.000Z" },
+      "ses_legacy001": { boundary: "msg_l1", keep: 2, set_at: "not-a-date" },
+      [SID]: { boundary: "msg_u4", keep: 6, set_at: "1970-01-01T00:00:00.000Z" },
+    },
+  }), "utf8");
+  // provider rows: ses_dead001 seq 9002 (completed 2000 — older than its 2999
+  // set_at = DEAD); ses_live001 seq 9003 (completed NOW = LIVE vs epoch set_at).
+  {
+    const db = new DatabaseSync(REPORT_DB);
+    const ins = db.prepare("INSERT INTO session_message VALUES(?, ?, ?, ?, ?)");
+    ins.run("msg_h1", "ses_dead001", "assistant", 9002, JSON.stringify({ type: "assistant", time: { created: 1000, completed: 2000 }, tokens: { input: 40, output: 10, cache: { read: 0, write: 0 } } }));
+    ins.run("msg_h2", "ses_live001", "assistant", 9003, JSON.stringify({ type: "assistant", time: { created: Date.now(), completed: Date.now() }, tokens: { input: 40, output: 10, cache: { read: 0, write: 0 } } }));
+    db.close();
+  }
+  const all = (args) => trim({ session: "all", ...args });
+  const logBefore = readLog().length;
+  const storeBefore = readFileSync(STORE, "utf8");
+  const listing = await all({ mode: "report" });
+  chk("U30 R5 store listing (session:'all' report): header names store + count; per-entry set_at/auto/noticed/newest/live/self", (() => {
+    const L = listing.split("\n");
+    return L[0].startsWith("trim-store:") && L[0].includes("(4 entries)") &&
+      L.some((l) => /^entry: ses_dead001 set_at=2999-01-01T00:00:00\.000Z auto=2 noticed=1 newest=9002 live=no self=no$/.test(l)) &&
+      L.some((l) => /^entry: ses_live001 set_at=1970-01-01T00:00:00\.000Z auto=0 noticed=0 newest=9003 live=yes self=no$/.test(l)) &&
+      L.some((l) => /^entry: ses_legacy001 set_at=not-a-date auto=0 noticed=0 newest=none live=\? self=no$/.test(l)) &&
+      L.some((l) => new RegExp("^entry: " + SID + " set_at=1970-01-01T00:00:00\\.000Z auto=\\d+ noticed=\\d+ newest=\\d+ live=yes self=yes$").test(l)) &&
+      L[L.length - 1].includes("next: clear DEAD entries");
+  })(), JSON.stringify(listing.split("\n")));
+  chk("U30 R5 the listing is READ-ONLY: the store byte-identical and ZERO log lines gained", readFileSync(STORE, "utf8") === storeBefore && readLog().length === logBefore, "storeDelta=" + String(readFileSync(STORE, "utf8") !== storeBefore) + " logDelta=" + String(readLog().length - logBefore));
+  chk("U30 R5 refusing clear: a LIVE sid (actionable, names sid + the live cause)", await (async () => {
+    const out = await all({ mode: "tail", clear: true, ids: ["ses_live001"] });
+    return out === "store-clear= rejected: nothing cleared (kept: ses_live001 live) — an entry clears once no provider row is newer than its set_at; the caller's own entry never clears" && JSON.parse(readFileSync(STORE, "utf8")).sessions["ses_live001"] !== undefined;
+  })(), "live clear drifted");
+  chk("U30 R5 refusing clear: the caller's OWN sid + an unknown sid (fail-closed, nothing written)", await (async () => {
+    const out = await all({ mode: "tail", clear: true, ids: [SID, "ses_ghost999"] });
+    return out === "store-clear= rejected: nothing cleared (kept: ses_trim001 self, ses_ghost999 not-in-store) — see the listing first (mode:'report' session:'all')" && JSON.parse(readFileSync(STORE, "utf8")).sessions[SID] !== undefined;
+  })(), "self/unknown clear drifted");
+  chk("U30 R5 refusing clear: the legacy entry names the set_at cause", await (async () => {
+    const out = await all({ mode: "tail", clear: true, ids: ["ses_legacy001"] });
+    return out.startsWith("store-clear= rejected: nothing cleared (kept: ses_legacy001 set_at-unreadable)") && JSON.parse(readFileSync(STORE, "utf8")).sessions["ses_legacy001"] !== undefined;
+  })(), "legacy clear drifted");
+  chk("U30 R5 the DEAD clear lands: only the named DEAD sid is removed, ONE kind:store-clear line carries cleared/refused", await (async () => {
+    const out = await all({ mode: "tail", clear: true, ids: ["ses_dead001", "ses_live001"] });
+    const st = JSON.parse(readFileSync(STORE, "utf8"));
+    const lg = readLog().filter((l) => l.kind === "store-clear");
+    return out === "store-clear= cleared=1 (ses_dead001) refused=1 (kept: ses_live001 live)" && st.sessions["ses_dead001"] === undefined && st.sessions["ses_live001"] !== undefined && st.sessions[SID] !== undefined && lg.length === 1 && lg[0].cleared === "1" && lg[0].refused === "1";
+  })(), "DEAD clear drifted");
+  chk("U30 R5 the store-hygiene lanes refuse foreign args naming each one's lane", await (async () => {
+    const o1 = await all({ mode: "report", ids: ["x"] });
+    const o2 = await all({ mode: "tail", clear: true, ids: ["ses_dead001"], target: 20 });
+    return o1 === "error: the store-hygiene lanes (session='all') does not take 'ids' (only on mark)" && o2 === "error: the store-hygiene lanes (session='all') does not take 'target' (only on report dry-run, tail boundary or free percent)";
+  })(), "hygiene arg gate drifted");
+  chk("U30 R5 the 'all' usage line (listing/clear are the only lanes; clear without ids)", await (async () => {
+    const o1 = await all({ mode: "mark" });
+    const o2 = await all({ mode: "free" });
+    const o3 = await all({ mode: "tail", clear: true });
+    return o1 === "error: session='all' supports mode 'report' (read-only store listing) or mode 'tail' with clear:true + ids (named DEAD sids to clear)" && o2 === o1 && o3 === "error: the store-hygiene clear needs ids — the list of sids to clear, exactly as the listing names them";
+  })(), "all-usage drifted");
+  // leave the store fixture clean for the cleanup pins (S3 keeps it readable)
+  writeFileSync(STORE, JSON.stringify({ sessions: {} }), "utf8");
+}
+
+// ------------------------------------------------------------------ U30 (#222 R2/R4) the mode-foreign gate + the carrier-row band
+
+{
+  chk("U30 R2 report refuses ids/guard/keepMessages/clear in ONE line each naming the owning lane", await (async () => {
+    const o1 = await trim({ mode: "report", session: SID, ids: ["msg_u1"] });
+    const o2 = await trim({ mode: "report", session: SID, guard: true });
+    const o3 = await trim({ mode: "tail", session: SID, keepMessages: 8, target: "msg_u4" });
+    return o1 === "error: 'report' mode does not take 'ids' (only on mark)" && o2 === "error: 'report' mode does not take 'guard' (only on mark)" && o3.startsWith("error: tail mode: target and keepMessages are mutually exclusive");
+  })(), "R2 report gate drifted");
+  chk("U30 R2 mark refuses target/showIds; free refuses ids; apply refuses force-foreign args", await (async () => {
+    const o1 = await trim({ mode: "mark", session: SID, target: "msg_u4" });
+    const o2 = await trim({ mode: "mark", session: SID, showIds: true });
+    const o3 = await trim({ mode: "free", session: SID, clear: true });
+    return o1 === "error: 'mark' mode does not take 'target' (only on report dry-run, tail boundary or free percent)" && o2 === "error: 'mark' mode does not take 'showIds' (only on report)" && o3 === "error: 'free' mode does not take 'clear' (only on tail (boundary) or mark (drop sets))";
+  })(), "R2 mark/free gate drifted");
+  chk("U30 R2 an UNKNOWN arg rejects with the no-lane clause (report + free legs)", await (async () => {
+    const o1 = await trim({ mode: "report", session: SID, bogus: 1 });
+    return o1 === "error: 'report' mode does not take 'bogus' (unknown arg — no lane takes it)";
+  })(), "R2 unknown-arg clause drifted");
+  chk("U30 R4 the report's req-at carrier table: user/compaction rows print NO req-at; a figure-less assistant row prints req-at=unavailable; measured rows keep the figure", await (async () => {
+    const keepRow = { id: "msg_a5", seq: 4305, type: "assistant", agent: "worker-1", model: { id: MODEL_ID, providerID: "llama-swap" }, time: { created: 1600, completed: 1601 }, tokens: { input: 100, output: 50, reasoning: 0, cache: { read: 0, write: 0 } }, error: { type: "provider.error", message: "boom" }, content: [] };
+    setReportRowData("msg_a5", { id: "msg_a5", seq: 4305, type: "assistant", content: [] }); // the figure-less shape: no tokens, no time
+    const r = await trim({ mode: "report", session: SID });
+    setReportRowData("msg_a5", keepRow);
+    const L = r.split("\n");
+    const users = L.filter((l) => l.startsWith("row:") && l.includes(" user "));
+    const comps = L.filter((l) => l.startsWith("row:") && l.includes(" compaction "));
+    const asst = L.filter((l) => l.startsWith("row:") && l.includes(" assistant "));
+    const unavailable = asst.filter((l) => l.includes("req-at=unavailable"));
+    return users.length === 4 && users.every((l) => !l.includes("req-at")) && comps.length === 1 && !comps[0].includes("req-at") && unavailable.length === 1 && unavailable[0].startsWith("row: 6 ") && asst.length - unavailable.length === 4 && L.some((l) => l.includes("assistant own=111 req-at=5200"));
+  })(), "R4 carrier table drifted");
+}
+
 // ------------------------------------------------------------------ whole-log invariants
 
 {
   const lines = readLog();
   const kinds = new Set(lines.map((l) => l.kind));
-  chk("INV every line parses; kinds ⊂ {report, tail, trim, boundary-stale, gauge, mark, marks-stale, apply, ordinals (U10 fail-open), guard (U14), free (U18), reject (U28 F1)}", [...kinds].sort().join(",") === "apply,boundary-stale,free,gauge,guard,mark,marks-stale,ordinals,reject,report,tail,trim", JSON.stringify([...kinds].sort()));
+  chk("INV every line parses; kinds ⊂ {report, tail, trim, boundary-stale, gauge, mark, marks-stale, apply, ordinals (U10 fail-open), guard (U14), free (U18), reject (U28 F1), store-clear (U30 R5)}", [...kinds].sort().join(",") === "apply,boundary-stale,free,gauge,guard,mark,marks-stale,ordinals,reject,report,store-clear,tail,trim", JSON.stringify([...kinds].sort()));
   chk("INV every line carries ts + kind and stays within the LINE_CAP ladder", lines.every((l) => typeof l.ts === "string" && typeof l.kind === "string" && JSON.stringify(l).length <= 2000 && JSON.stringify(l).length > 0));
   chk("U28 F1 INV the `reject` lines all name session + a non-empty reason (payload keys exactly {ts,kind,session,reason})", lines.filter((l) => l.kind === "reject").length > 0 && lines.filter((l) => l.kind === "reject").every((l) => typeof l.session === "string" && typeof l.reason === "string" && l.reason !== "" && Object.keys(l).sort().join(",") === "kind,reason,session,ts"), `count=${lines.filter((l) => l.kind === "reject").length}`);
   chk("INV the `trim` lines all name a session + boundary + the counts incl droppedProjections/orphan + the U22 droppedBytes measurement (U9; U17: the tagged/untagged counters are GONE)", lines.filter((l) => l.kind === "trim").every((l) => typeof l.session === "string" && typeof l.boundary === "string" && typeof l.droppedRows === "string" && typeof l.droppedEntries === "string" && typeof l.droppedBytes === "string" && typeof l.droppedProjections === "string" && typeof l.orphan === "string" && l.tagged === undefined && l.untagged === undefined && typeof l.keptEntries === "string"));
@@ -1531,7 +1635,7 @@ function draftBase(sessionID = SID) {
   chk("INV the ONE boundary-stale line for the (session,boundary) state (deduped)", lines.filter((l) => l.kind === "boundary-stale").length === 1, `count=${lines.filter((l) => l.kind === "boundary-stale").length}`);
   chk("INV the ONE marks-stale line for the (session,count) state (deduped)", lines.filter((l) => l.kind === "marks-stale").length === 1, `count=${lines.filter((l) => l.kind === "marks-stale").length}`);
   chk("INV the gauge lines' reasons are only the two honest read failures", lines.filter((l) => l.kind === "gauge").every((l) => l.reason === "context-read-failed" || l.reason === "session-not-found" || l.reason === "messages-not-array"));
-  chk("INV report mode emitted a kind:report line per call (29 lines: 9 + the 4 U10 legs + the 2 U11 compact legs + the U12 range leg + the 2 U14 G0 header legs + the 7 U15 flag legs + the U17 R5b + restore legs + the U18 ` g` flag leg; the R5a/U17 not-found/sql-fail calls emit no kind:report line — they log ONE kind:reject line each (U28 F1))", lines.filter((l) => l.kind === "report").length === 29, `count=${lines.filter((l) => l.kind === "report").length}`);
+  chk("INV report mode emitted a kind:report line per call (30 lines: 9 + the 4 U10 legs + the 2 U11 compact legs + the U12 range leg + the 2 U14 G0 header legs + the 7 U15 flag legs + the U17 R5b + restore legs + the U18 ` g` flag leg + the U30 R4 carrier leg — the U30 R5 `session:'all'` listing calls emit NO report line; the R5a/U17 not-found/sql-fail calls emit no kind:report line — they log ONE kind:reject line each (U28 F1))", lines.filter((l) => l.kind === "report").length === 30, `count=${lines.filter((l) => l.kind === "report").length}`);
 }
 
 // ------------------------------------------------------------------ cleanup

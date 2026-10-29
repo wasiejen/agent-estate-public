@@ -1158,7 +1158,7 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
   // service call; the hook self-call lane (`readWindow`) stays for the writes.
   const read = await readReportRows(sid);
   if (!read.ok) {
-    if (read.reason === "not-found") return `session ${sid}\nreport= rejected: session-not-found`;
+    if (read.reason === "not-found") return `session ${sid}\nreport= rejected: session-not-found ${sid} — no rows for this id (omit session to use the caller)`;
     return `session ${sid}\nerror: sql-read-failed: ${read.preview}`;
   }
   const rows = read.rows;
@@ -1267,7 +1267,12 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
     // staged and active takes ` x`; a kept row prints NOTHING extra.
     const mid = idOf(r);
     const flag = mid !== "" && activeSet.has(mid) ? " x" : mid !== "" && autoSet.has(mid) ? " g" : mid !== "" && stagedSet.has(mid) ? " s" : "";
-    lines.push(`row: ${i + 1} #${ordinalOf(ord, r)}${flag} ${String(r["type"] ?? "?")}` + (ids ? ` id=${idOf(r)}` : "") + ` own=${ownMassOf(r)}` + (reqAt >= 0 ? ` req-at=${reqAt}` : " req-at=unavailable") + toolTargets(r)); // (U11 #200) id= DROPPED by default — the opaque id cost ~8-10 tokens/row; the row is named by #<seq>; `ids:true` restores
+    // (U30 #222 R4) `req-at=` rides ONLY rows that CAN carry the figure: completed
+    // assistant rows print the number, unfinished/figure-less assistant rows print
+    // `unavailable` (U17 honesty), the never-carrying classes (user/system/
+    // synthetic/compaction/idle) print NOTHING for it (the noise class is gone).
+    const rtype = String(r["type"] ?? "?");
+    lines.push(`row: ${i + 1} #${ordinalOf(ord, r)}${flag} ${rtype}` + (ids ? ` id=${idOf(r)}` : "") + ` own=${ownMassOf(r)}` + (reqAt >= 0 ? ` req-at=${reqAt}` : rtype === "assistant" ? " req-at=unavailable" : "") + toolTargets(r)); // (U11 #200) id= DROPPED by default — the opaque id cost ~8-10 tokens/row; the row is named by #<seq>; `ids:true` restores
   });
   lines.push(`last: ${rows.length}`);
 
@@ -1394,7 +1399,7 @@ async function tailSet(sid: string, form: { target?: string; keep?: number; clea
   }
   const read = await readWindow(sid);
   if (!read.ok) {
-    if (read.reason === "not-found") return `tail-set= rejected: session-not-found`;
+    if (read.reason === "not-found") return `tail-set= rejected: session-not-found ${sid} — pass a live session id`;
     return `tail-set= error: context-read-failed: ${read.preview}`;
   }
   const rows = read.rows;
@@ -1405,20 +1410,26 @@ async function tailSet(sid: string, form: { target?: string; keep?: number; clea
   let retained: number;
   if (form.keep != null) {
     const keep = form.keep;
-    if (!Number.isInteger(keep) || keep <= 0) return `tail-set= rejected: keep-invalid ${String(keep)}`;
-    if (keep > rows.length) return `tail-set= rejected: keep-exceeds-history ${String(keep)}`;
+    if (!Number.isInteger(keep) || keep <= 0) return `tail-set= rejected: keep-invalid ${String(keep)} — keepMessages is a positive count`;
+    if (keep > rows.length) return `tail-set= rejected: keep-exceeds-history ${String(keep)} — keep <= the ${rows.length} window rows`;
     const i = rows.length - keep;
-    if (i < 1) return `tail-set= rejected: keep-at-window-head ${String(keep)}`;
+    if (i < 1) return `tail-set= rejected: keep-at-window-head ${String(keep)} — keep fewer than the ${rows.length} window rows`;
     targetID = idOf(rows[i]);
     retained = keep;
-    if (retained < FLOOR) return `tail-set= rejected: retained-tail-below-floor ${retained}`;
+    if (retained < FLOOR) return `tail-set= rejected: retained-tail-below-floor ${retained} keep=${keep} — keep >= ${FLOOR} rows`;
   } else {
     targetID = resolveRef(ord, form.target ?? "", rows);
     const verdict = tailVerdict(rows, targetID);
-    if (verdict !== "ok") return `tail-set= ${verdict}`;
+    if (verdict !== "ok") {
+      // (U30 #222 R1) the rejection NAMES the offending ref AND the fix, ONE line.
+      const rem = verdict.startsWith("rejected: retained-tail-below-floor")
+        ? `keep >= ${FLOOR} rows`
+        : verdict === "rejected: target-at-window-head" ? "a boundary sits after the window head" : "use a row id or #<rank> from report";
+      return `tail-set= ${verdict} ${cap(String(form.target ?? ""), 40)} — ${rem}`;
+    }
     retained = rows.length - rows.findIndex((r) => idOf(r) === targetID);
   }
-  if (targetID === "") return `tail-set= rejected: target-not-found`;
+  if (targetID === "") return `tail-set= rejected: target-not-found ${cap(String(form.target ?? ""), 40)} — use a row id or #<rank> from report`;
   const before = readStore().sessions[sid];
   if (!writeSessionEntry(sid, { boundary: targetID, keep: retained, setAt: new Date().toISOString(), staged: before?.staged ?? [], active: before?.active ?? [], guard: before?.guard ?? false, auto: before?.auto ?? [], noticed: before?.noticed ?? [] })) {
     return `tail-set= error: store-write-failed (the boundary file could not be written)`;
@@ -1466,7 +1477,7 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
   }
   const read = await readWindow(sid);
   if (!read.ok) {
-    if (read.reason === "not-found") return `mark-set= rejected: session-not-found`;
+    if (read.reason === "not-found") return `mark-set= rejected: session-not-found ${sid} — pass a live session id`;
     return `mark-set= error: context-read-failed: ${read.preview}`;
   }
   const rows = read.rows;
@@ -1503,8 +1514,8 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
     sawRange = true;
     const a = Number(m[1]);
     const b = Number(m[2]);
-    if (a < 1 || b < a) return `mark-set= rejected: mark-range-invalid ${cap(ref, 40)}`;
-    if (ord.ok === false) return `mark-set= rejected: mark-range-unresolved ${cap(ref, 40)} ordinal=unavailable`;
+    if (a < 1 || b < a) return `mark-set= rejected: mark-range-invalid ${cap(ref, 40)} — range needs A-B with A >= 1 and B >= A`;
+    if (ord.ok === false) return `mark-set= rejected: mark-range-unresolved ${cap(ref, 40)} ordinal=unavailable — mark row ids from report`;
     const missing: number[] = [];
     const picked: { rank: number; id: string }[] = [];
     for (let rk = a; rk <= b && rk - a < 10000; rk++) {
@@ -1516,12 +1527,12 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
       picked.push({ rank: rk, id });
     }
     if (missing.length > 0)
-      return `mark-set= rejected: mark-range-unresolved ${missing.slice(0, 10).join(",")}${missing.length > 10 ? ` +${missing.length - 10} more` : ""}`; // fail-closed — the whole batch is refused, NOTHING written
+      return `mark-set= rejected: mark-range-unresolved ${cap(ref, 40)} ranks ${missing.slice(0, 10).join(",")}${missing.length > 10 ? ` +${missing.length - 10} more` : ""} — use #<rank> rows from report`; // fail-closed — the whole batch is refused, NOTHING written
     for (const { rank, id } of picked) {
       resolvedById.set(id, rank);
       if (current.includes(id) || newIds.includes(id)) continue; // already staged — no-op, not re-validated
       const i = rows.findIndex((r) => idOf(r) === id);
-      if (i === 0) return `mark-set= rejected: mark-at-window-head #${rank} ${id}`; // (U12) names the offending row
+      if (i === 0) return `mark-set= rejected: mark-at-window-head #${rank} ${id} — the head is never droppable`; // (U12) names the offending row
       newIds.push(id);
     }
   }
@@ -1532,10 +1543,10 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
       if (rk != null && rows.some((r) => idOf(r) === id)) resolvedById.set(id, rk); // join the audit echo
     }
     if (current.includes(id) || newIds.includes(id)) continue; // already staged — no-op, not re-validated
-    if (id === "") return `mark-set= rejected: mark-not-found`; // unknown rank / number with an unreadable source
+    if (id === "") return `mark-set= rejected: mark-not-found ${cap(ref, 40)} — use an id or #<rank> from report`; // (U30 R1) unknown rank / number with an unreadable source — names the ref AND the fix
     const i = rows.findIndex((r) => idOf(r) === id);
-    if (i < 0) return `mark-set= rejected: mark-not-found`; // a rank naming an OUT-of-window row lands here too
-    if (i === 0) return `mark-set= rejected: mark-at-window-head ${ord.ok === true ? `#${ord.byId.get(id) ?? "?"} ` : ""}${id}`; // (U12) names the offending row
+    if (i < 0) return `mark-set= rejected: mark-not-found ${cap(ref, 40)} — use an id or #<rank> from report`; // (U30 R1) a rank naming an OUT-of-window row lands here too — names the ref AND the fix
+    if (i === 0) return `mark-set= rejected: mark-at-window-head ${ord.ok === true ? `#${ord.byId.get(id) ?? "?"} ` : ""}${id} — the head is never droppable`; // (U12) names the offending row
     newIds.push(id);
   }
   const staged = [...kept, ...newIds];
@@ -1554,7 +1565,7 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
   }
   const retained = rows.length - dropIdx.size;
   if (retained < FLOOR)
-    return `mark-set= rejected: mark-floor ${retained} breach=${cap(newIds.length > 0 ? newIds.join(",") : "none", 160)}`; // (U12) names the offending resolved rows
+    return `mark-set= rejected: mark-floor ${retained} breach=${cap(newIds.length > 0 ? newIds.join(",") : "none", 160)} — stage fewer rows (floor ${FLOOR})`; // (U12) names the offending resolved rows
   const est = markEstimate(rows, staged);
   if (!writeSessionEntry(sid, { boundary, keep: entry?.keep ?? 0, setAt: new Date().toISOString(), staged, active, guard: form.guard ?? entry?.guard ?? false, auto: entry?.auto ?? [], noticed: entry?.noticed ?? [] }))
     return `mark-set= error: store-write-failed (the boundary file could not be written)`;
@@ -1617,11 +1628,11 @@ async function applySet(sid: string, force: boolean): Promise<string> {
     await new Promise((r) => setTimeout(r, 350));
     entry = readStore().sessions[sid];
     staged = entry?.staged ?? [];
-    if (staged.length === 0) return `apply= rejected: nothing-staged`;
+    if (staged.length === 0) return `apply= rejected: nothing-staged — stage rows with mark mode first`;
   }
   const read = await readWindow(sid);
   if (!read.ok) {
-    if (read.reason === "not-found") return `apply= rejected: session-not-found`;
+    if (read.reason === "not-found") return `apply= rejected: session-not-found ${sid} — pass a live session id`;
     return `apply= error: context-read-failed: ${read.preview}`;
   }
   const g = await gauge.readGauge(undefined, sid);
@@ -1634,7 +1645,7 @@ async function applySet(sid: string, force: boolean): Promise<string> {
   const { mass: dropEst, mixed } = idsMass(read.rows, staged);
   const projected = lastReq - dropEst;
   const bound = Math.floor(gWin * BOUND_FRAC);
-  if (projected > bound && !force) return `apply= rejected: over-bound ${projected} ${bound}`;
+  if (projected > bound && !force) return `apply= rejected: over-bound ${projected} ${bound} — pass force:true to ride through deliberately`;
   const active = [...(entry?.active ?? [])];
   for (const id of staged) if (!active.includes(id)) active.push(id);
   if (!writeSessionEntry(sid, { boundary: entry?.boundary ?? "", keep: entry?.keep ?? 0, setAt: new Date().toISOString(), staged: [], active, guard: entry?.guard ?? false, auto: entry?.auto ?? [], noticed: entry?.noticed ?? [] }))
@@ -1664,7 +1675,7 @@ const FREE_MAX = 60;
 async function freeSet(sid: string, pct: number): Promise<string> {
   const read = await readWindow(sid);
   if (!read.ok) {
-    if (read.reason === "not-found") return `free= rejected: session-not-found`;
+    if (read.reason === "not-found") return `free= rejected: session-not-found ${sid} — pass a live session id`;
     return `free= error: context-read-failed: ${read.preview}`;
   }
   const rows = read.rows;
@@ -1709,10 +1720,128 @@ async function freeSet(sid: string, pct: number): Promise<string> {
   const lastReq = gCtx != null ? (gOut != null ? gCtx - gOut : gCtx) : undefined;
   const projected = lastReq != null ? lastReq - freed : undefined;
   const boundFill = projected != null ? Math.floor((projected * 100) / gWin) : undefined;
+  // (U30 #222 R3) the BAND the free landed in: `fill=` = the projected REQUEST
+  // fill over the window AFTER the drops (the CTX-based request leg; `bound-fill`
+  // stays the PROMPT projection). Existing fields keep their order; the log
+  // line stays byte-identical (the free record keeps {ts,session,target,freed,
+  // picks,short}).
+  const fillPct = gCtx != null ? Math.floor(((gCtx - freed) * 100) / gWin) : undefined;
   appendLog(buildLine("free", { session: sid, target: String(pct), freed: String(freed), picks: String(picks.length), short: short ? "yes" : "no" }, {}));
-  return `free= freed=${freed} target=${pct} bound-fill=${boundFill != null ? `${boundFill}%` : "unavailable"} picks=${picks.length} short=${short ? "yes" : "no"}`;
+  return `free= freed=${freed} target=${pct} bound-fill=${boundFill != null ? `${boundFill}%` : "unavailable"} fill=${fillPct != null ? `${fillPct}%` : "unavailable"} picks=${picks.length} short=${short ? "yes" : "no"}`;
+}
+// ------------------------------------------------------------------ (U30 #226 R5) the store-hygiene lanes
+
+// The newest COMPLETED-assistant ("provider") row per sid — the DEAD-sid guard
+// input. One read-only statement over the SAME backend chain + path resolution as
+// the report lane; NOTHING is ever written. null = the DB lane is unreadable (the
+// caller fails closed); a sid ABSENT from the Map = zero provider rows (DEAD).
+const HYGIENE_SQL =
+  "SELECT seq, json_extract(data, '$.time.completed') AS tc FROM session_message WHERE session_id = ? AND type = 'assistant' AND json_extract(data, '$.time.completed') IS NOT NULL ORDER BY seq DESC LIMIT 1";
+
+async function newestProviderRows(sids: string[]): Promise<Map<string, { seq: number; tc: number }> | null> {
+  const p = reportOverridePath ?? ordinalsOverridePath ?? getDbPath();
+  for (const backend of ["node:sqlite", "bun:sqlite"]) {
+    try {
+      const db = await openReadonlySqlite(backend, p);
+      if (db == null) continue;
+      const out = new Map<string, { seq: number; tc: number }>();
+      try {
+        const stmt = db.prepare(HYGIENE_SQL);
+        for (const sid of sids) {
+          const raw = stmt.all(sid);
+          const row = asRecord(Array.isArray(raw) ? raw[0] : undefined);
+          if (row != null && typeof row["seq"] === "number") {
+            const tcRaw = row["tc"];
+            const tc = typeof tcRaw === "number" ? tcRaw : Date.parse(String(tcRaw ?? ""));
+            out.set(sid, { seq: row["seq"], tc: Number.isFinite(tc) ? tc : NaN });
+          }
+        }
+      } finally {
+        try {
+          db.close?.();
+        } catch {
+          // close is best-effort — a read-only handle releases on GC anyway
+        }
+      }
+      return out;
+    } catch {
+      // try the next backend; an all-dead chain stays `null`
+    }
+  }
+  return null;
 }
 
+// The DEAD verdict for ONE entry (shared by the listing and the clear lane):
+// the caller's own entry is NEVER clearable; an unreadable `set_at`, an unreadable
+// DB, or an unreadable provider-row time REFUSE fail-closed; a provider row newer
+// than `set_at` means the session is still LIVE — refuse (it clears once it dies).
+function entryVerdict(sid: string, entry: StoreEntry, callerID: string | null, newest: Map<string, { seq: number; tc: number }> | null): { dead: boolean; cause: string } {
+  if (callerID != null && sid === callerID) return { dead: false, cause: "self" };
+  const setMs = entry.setAt === "" ? NaN : Date.parse(entry.setAt);
+  if (!Number.isFinite(setMs)) return { dead: false, cause: "set_at-unreadable" };
+  if (newest == null) return { dead: false, cause: "store-db-unreadable" };
+  const row = newest.get(sid);
+  if (row == null) return { dead: true, cause: "" };
+  if (!Number.isFinite(row.tc)) return { dead: false, cause: "newest-row-time-unreadable" };
+  if (row.tc > setMs) return { dead: false, cause: "live" };
+  return { dead: true, cause: "" };
+}
+
+async function storeListing(callerID: string | null): Promise<string> {
+  const store = readStore();
+  const sids = Object.keys(store.sessions).sort();
+  const newest = sids.length > 0 ? await newestProviderRows(sids) : new Map<string, { seq: number; tc: number }>();
+  const lines = [`trim-store: ${storeFile()} (${sids.length} entries)`];
+  for (const sid of sids) {
+    const e = store.sessions[sid];
+    const row = newest?.get(sid);
+    const v = entryVerdict(sid, e, callerID, newest);
+    const liveTok = v.dead ? "no" : v.cause === "live" || v.cause === "self" ? "yes" : "?";
+    lines.push(
+      `entry: ${sid} set_at=${e.setAt !== "" ? e.setAt : "-"} auto=${e.auto.length} noticed=${e.noticed.length}` +
+        ` newest=${newest == null ? "unavailable" : row != null ? row.seq : "none"} live=${liveTok} self=${callerID != null && sid === callerID ? "yes" : "no"}`,
+    );
+  }
+  if (sids.length === 0) return `${lines[0]}\n(empty — no session holds a trim entry)`;
+  lines.push("next: clear DEAD entries via mode:'tail' clear:true session:'all' ids:[\"<sid>\"] (live entries stay; never your own)");
+  return lines.join("\n");
+}
+
+async function storeClear(callerID: string | null, ids: string[]): Promise<string> {
+  const store = readStore();
+  const named: string[] = [];
+  for (const s of ids) if (!named.includes(s)) named.push(s);
+  const present = named.filter((s) => store.sessions[s] != null);
+  const newest = present.length > 0 ? await newestProviderRows(present) : new Map<string, { seq: number; tc: number }>();
+  const cleared: string[] = [];
+  const refused: string[] = [];
+  for (const sid of named) {
+    const entry = store.sessions[sid];
+    if (entry == null) {
+      refused.push(`${sid} not-in-store`);
+      continue;
+    }
+    const v = entryVerdict(sid, entry, callerID, newest);
+    if (!v.dead) {
+      refused.push(`${sid} ${v.cause}`);
+      continue;
+    }
+    if (!writeSessionEntry(sid, null)) {
+      return `store-clear= error: store-write-failed on ${sid} (cleared ${cleared.length} before it)`;
+    }
+    cleared.push(sid);
+    staleLogged.delete(sid);
+    trimApplied.delete(sid); // (U28 F2) the entry is GONE — the trace signature resets
+  }
+  if (cleared.length > 0) appendLog(buildLine("store-clear", { session: callerID ?? "store", cleared: String(cleared.length), refused: String(refused.length) }, {}));
+  if (cleared.length === 0) {
+    const rem = refused.some((r) => r.includes("live") || r.includes("unreadable"))
+      ? "an entry clears once no provider row is newer than its set_at; the caller's own entry never clears"
+      : "see the listing first (mode:'report' session:'all')";
+    return `store-clear= rejected: nothing cleared (kept: ${cap(refused.join(", "), 160)}) — ${rem}`;
+  }
+  return `store-clear= cleared=${cleared.length} (${cap(cleared.join(","), 120)}) refused=${refused.length}${refused.length > 0 ? ` (kept: ${cap(refused.join(", "), 140)})` : ""}`;
+}
 // ------------------------------------------------------------------ the context draft hook
 
 // U9 PROBE lane (#193, file-gated — DEFAULT OFF): when `.opencode/temp/u9_probe.on`
@@ -2260,8 +2389,36 @@ const TOOL_INPUT = {
   }
 };
 
-// The dispatch core — UNCHANGED behavior; the (U28 F1) `execute` wrapper below
-// adds only the reject-evidence logging around it.
+// The dispatch core. (U30 #222 R2) every mode REFUSES args it does not consume:
+// the echo names the offending arg AND the lane that DOES take it. (U30 #226 R5)
+// `session:"all"` is the store-hygiene sentinel — `mode:"report"` prints the
+// READ-ONLY trim-store listing, `mode:"tail"` with `clear:true` runs the DEAD-sid
+// hygiene clear (live entries and the caller's own entry are refused, fail-closed).
+// A real session id always starts with `ses_`, so the sentinel can never collide.
+// The (U28 F1) `execute` wrapper below adds only the reject-evidence logging.
+// (U30 #222 R7) the description literal + input schema stay byte-identical —
+// the sentinel rides the existing `session` arg; documenting it is the planner's
+// cold-pass decision (U32), NOT a live edit here.
+const ARG_LANES: Record<string, string> = {
+  target: "report dry-run, tail boundary or free percent",
+  keepMessages: "tail",
+  clear: "tail (boundary) or mark (drop sets)",
+  ids: "mark",
+  unmark: "mark",
+  guard: "mark",
+  force: "apply",
+  showIds: "report",
+};
+const MODE_ARGS: Record<string, string[]> = {
+  report: ["target", "showIds"],
+  tail: ["target", "keepMessages", "clear"],
+  mark: ["ids", "unmark", "clear", "guard"],
+  apply: ["force"],
+  free: ["target"],
+};
+function foreignEcho(label: string, keys: string[]): string {
+  return cap(`error: ${label} does not take ${keys.map((k) => (ARG_LANES[k] != null ? `'${k}' (only on ${ARG_LANES[k]})` : `'${k}' (unknown arg — no lane takes it)`)).join(", ")}`, 200);
+}
 async function dispatch(args: unknown, toolContext: { sessionID?: unknown }): Promise<{ output: string }> {
   const a: Record<string, unknown> = args != null && typeof args === "object" && !Array.isArray(args) ? (args as Record<string, unknown>) : {};
   const explicitSession = typeof a.session === "string" && a.session.trim() !== "" ? String(a.session).trim() : null;
@@ -2269,9 +2426,32 @@ async function dispatch(args: unknown, toolContext: { sessionID?: unknown }): Pr
   const sid = explicitSession ?? callerID;
   if (sid == null) return { output: "error: missing session (pass `session` or call from a session context)" };
   const mode = a.mode;
+  // (U30 #226 R5) THE STORE-HYGIENE SENTINEL — the listing is READ-ONLY (no log
+  // line, no store write); the clear touches ONLY DEAD entries, NEVER the
+  // caller's own session. The extra-arg gate reuses the R2 echo shape.
+  if (explicitSession === "all") {
+    const extra = Object.keys(a).filter((k) => k !== "mode" && k !== "session" && !(mode === "tail" && a.clear === true && (k === "clear" || k === "ids")));
+    if (extra.length > 0) return { output: foreignEcho("the store-hygiene lanes (session='all')", extra) };
+    if (mode === "report") return { output: await storeListing(callerID) };
+    if (mode === "tail" && a.clear === true) {
+      const named = Array.isArray(a.ids) && a.ids.length > 0 && a.ids.every((x) => typeof x === "string" && (x as string).trim() !== "")
+        ? (a.ids as string[]).map((x) => x.trim())
+        : null;
+      if (named == null) return { output: "error: the store-hygiene clear needs ids — the list of sids to clear, exactly as the listing names them" };
+      return { output: await storeClear(callerID, named) };
+    }
+    return { output: "error: session='all' supports mode 'report' (read-only store listing) or mode 'tail' with clear:true + ids (named DEAD sids to clear)" };
+  }
   const target = a.target != null && String(a.target).trim() !== "" ? String(a.target).trim() : undefined;
   const keep = a.keepMessages != null ? a.keepMessages : undefined;
   const guardArg = a.guard === true || a.guard === false ? (a.guard as boolean) : undefined; // (U14) the opt-in wall-guard toggle
+  // (U30 #222 R2) the mode-foreign arg gate — every known arg belongs to exactly
+  // one lane set; an arg the mode never consumes rejects, naming its lane.
+  const allowed = MODE_ARGS[String(mode)];
+  if (allowed != null) {
+    const bad = Object.keys(a).filter((k) => k !== "mode" && k !== "session" && !allowed.includes(k));
+    if (bad.length > 0) return { output: foreignEcho(`'${mode}' mode`, bad) };
+  }
   if (mode === "report") return { output: await reportWindow(sid, target, a.showIds === true) }; // (U11 #200) `showIds:true` restores id= on rows
   if (mode === "tail") {
     const isClear = a.clear === true;
@@ -2296,36 +2476,32 @@ async function dispatch(args: unknown, toolContext: { sessionID?: unknown }): Pr
     const ids = norm(a.ids);
     const unmark = norm(a.unmark);
     if (usage !== "") return { output: usage };
-    if (isClear && (a.ids != null || a.unmark != null)) {
-      return { output: "error: mark mode: clear is mutually exclusive with ids/unmark (use one form)" };
+    // (U30 #222 R2) `clear` with ANY other mark arg refuses — the guard toggle
+    // rides its own call (before it was silently ignored by the clear write).
+    if (isClear && (a.ids != null || a.unmark != null || guardArg != null)) {
+      return { output: "error: mark mode: clear is mutually exclusive with ids/unmark/guard (send the guard toggle in its own call)" };
     }
     if (!isClear && ids == null && unmark == null && guardArg == null) {
       return { output: "error: mark mode requires ids (window rows to stage — ids or bare ordinals), unmark (refs to restore), clear (empty ALL drop sets — staged, active, guard auto — a stored boundary stays), or guard (the opt-in preventive wall guard on/off)" };
     }
-    if (isClear) return { output: await markSet(sid, { clear: true, guard: guardArg }) };
+    if (isClear) return { output: await markSet(sid, { clear: true }) };
     return { output: await markSet(sid, { ids, unmark, guard: guardArg }) };
   }
-  if (mode === "apply") {
-    const bad = Object.keys(a).filter((k) => k !== "mode" && k !== "session" && k !== "force");
-    if (bad.length > 0) return { output: "error: apply mode takes no list args (stage with mark mode first; only `force` is accepted)" };
-    return { output: await applySet(sid, a.force === true) };
-  }
+  if (mode === "apply") return { output: await applySet(sid, a.force === true) };
   if (mode === "free") {
     // (15) U18 — the free-space op takes ONLY the percent; the number-shaped
     // string form is accepted too (a host that stringifies numbers), anything
     // else is refused fail-closed BEFORE any read or write.
-    const bad = Object.keys(a).filter((k) => k !== "mode" && k !== "session" && k !== "target");
-    if (bad.length > 0) return { output: "error: free mode takes only `target` (the percent of the window to free; other args are refused)" };
     const raw = a.target;
     if (raw == null) return { output: await freeSet(sid, FREE_DEFAULT) };
     let pct: number | undefined;
     if (typeof raw === "number") pct = raw;
     else if (typeof raw === "string" && /^\d+$/.test(raw.trim())) pct = Number(raw.trim());
     if (pct === undefined || !Number.isInteger(pct) || pct < FREE_MIN || pct > FREE_MAX)
-      return { output: `free= rejected: target-invalid ${cap(String(raw), 40)}` };
+      return { output: `free= rejected: target-invalid ${cap(String(raw), 40)} — pass an integer percent ${FREE_MIN}..${FREE_MAX}` };
     return { output: await freeSet(sid, pct) };
   }
-  return { output: "error: mode must be 'report', 'tail', 'mark', 'apply', or 'free'" };
+  return { output: `error: mode must be 'report', 'tail', 'mark', 'apply', or 'free' (got '${cap(String(mode), 40)}')` };
 }
 
 // (U28 F1) THE AUDIT WRAPPER — dispatch is untouched; every early-failure echo

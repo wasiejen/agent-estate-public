@@ -1124,3 +1124,15 @@ Spec said "the #218 status line" while its Do-NOT-touch list named TODO.md — c
 ### 2026-10-29_01-18 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
 block_transfer friction 2026-10-29 (two live incidents): (1) WRITE on an LF-terminated file rewrote the WHOLE file with CRLF — commit `3442fe5` shows 677 changed lines for a 7-line semantic edit (semantic diff verified clean; kept as landed). (2) WRITE with a single-line anchor REPLACED it again (TODO #214 anchor lost mid-repair; restored same session, counts verified) — the append pattern needs the anchor's own line FIRST in `text`, and a line-span WRITE echo `file now N lines` can be identical when the span's line count equals the text's — verify with grep-count of both old and new content after every multi-line append. Rule: prefer the `edit` tool for prose appends inside long files; block_transfer WRITE for whole-region swaps only.
 
+### 2026-10-29_01-46 worker_FlashNext ses_e7aea177dffeaquhRld4S2ObcE
+Near-miss on U23: the CRLF probe `grep -c $'\r'` (CR stripped from shell command text → empty pattern matched ALL lines) made me deploy 8 LF files as CRLF; caught via git diff --numstat whole-file churn, corrected with one corrective save per file. Use the node CR-counter (repo_commands.md) before any line-ending decision on paid files.
+
+### 2026-10-29_03-02 planner_FlashNext ses_e7aa51393ffexJ3FqX3NG3oEjQ
+Maintenance pass 1 shipped with a boundary error: the mid-pass maintainer correction (`TODO.md` was wrongly excluded, then re-scoped to FULL curation) — spec-side boundary lines should be validated against the pass goal before launch; the correction cost a re-scope mid-unit.
+
+### 2026-10-29_03-16 worker_FlashNext ses_e7a98e91effeLHr2IWGbWrxgaf
+edit failed twice on readme_loop.md because oldString indentation was inferred from the read-tool line-number gutter (display shows one extra space vs the file's actual 2-space indent); byte-check leading whitespace (node JSON.stringify of the line) before composing exact-match edits.
+
+### 2026-10-29_03-31 planner_FlashNext ses_e7a85b3abffeltcpYsomO4YlJ7
+Heading-anchor edit failed on text recalled from an earlier grep echo (KP-08 "Plugins" vs actual "A plugin") — re-read the exact line with sed before heading-anchored edits; echoes can differ from file bytes.
+

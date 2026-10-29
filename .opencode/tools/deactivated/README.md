@@ -11,4 +11,7 @@ those ride their removal proposal); anything PAID-rendered.
 
 Usage: `git mv` in, `git mv` out to reactivate. Register by filename only
 when reactivating. Moved here: `session_info.ts` (TODO #239, 2026-10-29 —
-absent from live session tool lists, no config deny, no importer).
+no twin, no registration) + wake-15 batch `block_transfer.ts`,
+`context_trim.ts`, `ctx_gauge.ts`, `dev_get_tool_context_contents.ts`,
+`loop_log.ts`, `state_snapshot.ts`, `submit.ts` (+ pre-existing `dev/` copies)
+— all inert legacy twins of live plugin files (TODO #240 verdict).

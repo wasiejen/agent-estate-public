@@ -1,13 +1,14 @@
-# tools/ — custom opencode tools (file-named, host-registered)
+# tools/ — legacy v1 tool-file lane (all `.ts` deactivated, 2026-10-29)
 
-Purpose: `export default tool({ description, args, execute })` modules — NO
-`name` field; the host names a tool by FILENAME (`compact_memory`, `ctx_gauge`,
-`loop_log`, `block_transfer`, `session_info`, …). A new/changed tool takes
-effect at the next host restart; keep the probe gate green. `dev/` =
-development/test copies. These are opencode program files — agent protocol does
-not live here (that is `agent/prompts/`).
+Purpose: historical home of v1-format `export default tool({...})` modules.
+Registration verdict (wake-15, TODO #240): NO loader exists in fork v2 core;
+every live tool registers via its `.opencode/plugins/**` twin
+(`ctx.tool.transform` + `editor.add`). All `.ts` files here were inert twins.
 
-Per-file docs: `block_transfer.md` · `loop_log.md` · `submit.md` · `ctx_gauge.md`.
-Minor host-bridge tools (no own README): `session_info.ts` — minor host-bridge
-tool, see its header; `dev_get_tool_context_contents.ts` — minor host-bridge
-tool, see its header.
+Allowed now: `README.md`, per-file `.md` docs (kept beside their deactivated
+code), `deactivated/` holding the moved `.ts` twins + `dev/` test copies.
+Excluded: new tool modules — write plugins instead (plugins lane is the only
+registration path); reactivation needs a maintainer call.
+
+Usage: twins live in `deactivated/` (provenance in dir README); the live code
+is `../plugins/<same-name>.ts`. Do not measure these files as rendered bytes.

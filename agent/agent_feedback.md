@@ -1206,3 +1206,9 @@ Own incident (wake-12/13 cluster): cited nonexistent fork paths and narrated ver
 ### 2026-10-29_09-06 worker_FlashNext ses_e7961e4e7ffe5q8xeEXe1mdNV2
 wake-15 moved .opencode/tools/*.ts to deactivated/ but left handover_probe.mjs pointing at the dead paths and shipped no gate note — the probe crashed on import at HEAD; repairing 6 TOOL_TS legs + the inert twins' move-broken relative/meta.url paths (scripts import legs, loadConfigRoots repoRoot) cost ~30 min of U36.
 
+### 2026-10-29_09-08 planner_FlashNext ses_e799fc0e7ffeeaphaDITjnBhBv
+Worker-halt misdiagnosis cost (2026-10-29 U36): Task result contained literal malformed tool-call markup; I pattern-matched a context wall (MEM-0109) and trimmed without reading the gauge (was 32%). Recovery lane happened to be correct (resume completed the unit), but the classification rule now exists: gauge first, markup second — recorded as planner memory entry.
+
+### 2026-10-29_15-15 worker_FlashNext ses_e77ff7df6ffewGXaBlGhJgspJs
+U38 spec fact-list contradicted the files twice ("four inbox channels" vs submit.ts's five; fuzzy typo tolerance attributed to the host `edit` tool but it is the `intercept_observer.ts` hook, read d≤2 / edit d≤1) — G2 re-verify caught both; spec fact lists should stay file-cited.
+

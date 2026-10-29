@@ -37,3 +37,12 @@ roles, loop, tools, memory) instead of naming the host product.
 - `git remote -v` shows the new remote; `grep -r "the estate (former name)"` returns
   only historical/archive mentions; probe 115/115 + typecheck green; a fresh
   session starts clean from the new folder.
+
+comment: accepted agent-estate — commited clean, pushed, renamed the remote (maintainer, 2026-10-29; marker converted per convention).
+
+Planner note (2026-10-29, wake-18): remote URL updated in the working clone
+and verified reachable; README naming note rewritten to the new name; LICENSE
+(MIT) added per the maintainer's license ruling; the public-extract procedure
+(pending local folder move + ~117-file text sweep) is documented in
+`docs/public-extract.md`. Deviation: the acceptance grep-clean for
+`the estate (former name)` is NOT met yet — it needs the folder rename + sweep.

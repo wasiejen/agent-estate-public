@@ -146,10 +146,10 @@ their own context through `context_trim` instead (`AGENTS.md` §Context Trim;
 
 ## Naming note
 
-The repository is named `the estate (former name)` because it wraps the host (opencode
-CLI) with an agent layer. That vendor name ties it to a product it does not
-own. The rename is under discussion in `proposals/2026-10-29_repo-rename.md`,
-which recommends `agent-estate`. Nothing has been renamed.
+The estate is named `agent-estate` (ruled 2026-10-29). The host product is
+mentioned only as "the host (opencode CLI)" — this repository is not part of
+that project and does not carry its name. The origin remote already uses the
+new name; the local folder rename and the text sweep are pending.
 
 ## Pointers
 

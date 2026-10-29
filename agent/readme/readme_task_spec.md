@@ -27,10 +27,10 @@
   MULTIPLE files (e.g. `handover/specs/` + a README naming each spec +
   the queue order) instead of one spec at a time. Each spec still follows
   every rule above (committed before launch, written against the
-  just-verified state). The launching planner — fresh or post-compaction —
+  just-verified state). The launching planner — fresh or post-trim —
   launches from the committed files. Rationale: generating many specs at
   once is cheaper than re-deriving them later; adapting a committed spec
-  costs less context than re-deriving it for the next or a compacted
+  costs less context than re-deriving it for the next or a trimmed
   planner. Use it after a design session that settles a multi-item build.
 - **Tool-surface files edit via scratch copy + ONE live apply (2026-10-28 ruling):**
   files whose parts sit in the live system prompt (plugin/tool exports,

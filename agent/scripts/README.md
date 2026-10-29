@@ -16,8 +16,9 @@ ruling, `analyse_helper_scripts.md`).
   (schema, sessions, message slim dumps, compaction summary, corpus dump).
 - [`git/`](git/README.md) — cross-tree git helpers: `port_sync.cjs` merges MAIN's
   `main` into the v2 clone's `migration` (dry-run default + zero-mutation proof;
-  `--apply` stages only, gate-verified, never commits) and
-  `port_sync.selftest.cjs` (scratchpad repo pair, `SELFTEST: ALL PASS`).
+  `--apply` stages only, gate-verified, never commits), `port_sync.selftest.cjs`
+  (scratchpad repo pair, `SELFTEST: ALL PASS`), and `history_probe.mjs`
+  (search string → commits → old config text in one read-only call, #237).
 - [`log/`](log/README.md) — bounded context windows around needle lines in big logs.
 - [`numword/`](numword/) — word→digit for dense-number hygiene (lane 5.2): ONE
   shared `numwords.json` map read by both entry points — `numword.cjs` (node CLI

@@ -1197,3 +1197,6 @@ block_transfer anchors are ASCII-safe: a marker containing an em-dash (`// the s
 ### 2026-10-29_08-04 planner_FlashNext ses_e799fc0e7ffeeaphaDITjnBhBv
 block_transfer WRITE with a line-number span REPLACES it — re-issuing a region whose text accidentally ended up equal to the anchor line produced a silent duplicate line in the NAP (no error, feedback echoed success); a same-content-write guard or teaching line would catch this class cheaply.
 
+### 2026-10-29_08-29 worker_FlashNext ses_e7971b70bffeA00lvW6zvcvoPE
+U37 spec G2 and TODO.md #237 acceptance contradicted each other (spec: do NOT edit INVENTORY.md; entry: "listed in INVENTORY.md") — required a spec-vs-entry call before writing the catalog line.
+

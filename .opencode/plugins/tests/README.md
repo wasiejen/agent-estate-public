@@ -57,8 +57,8 @@ hook list EXACTLY `execute.before` + `execute.after` (the `session.hook(
 the append lanes (a string `output`, the LAST text item of a content array, a
 content array without a text item -> a NEW tail item, a string `content`, an
 empty result -> `output` SET), the append-only tail (the original output survives
-as a byte prefix), the byte-exact gauge line `ctx: CTX=<n> (<p>%) REM=<m> | N
-compactions left` (NO `SESSION=` token, NO `ITER=`), the >= 1%-of-window economy
+as a byte prefix), the byte-exact gauge line `ctx: CTX=<n> (<p>%) REM=<m>`
+(NO `SESSION=` token, NO `ITER=` — #212 dropped the budget suffix), the >= 1%-of-window economy
 gate (delta below -> nothing, delta at exactly 1% -> append), the `ctx_gauge`
 skip on a below-rung AND on a rung session, the silence lanes (a no-total read —
 which carries a resolved window but NO ctx —, an sid mismatch, a missing event
@@ -241,12 +241,12 @@ optional `sessionID` string arg, no required, string output, teardown disposes
 the registration, NO hooks), the v1-carried in-band readout forms over a
 scratchpad FIXTURE `session_v2`/`session_message` DB steered via the gauge
 core's test hooks (NEVER the live DB): the named-session byte-exact readout
-(mass/pct/REM + the ` | 5 compactions left` budget suffix from the fixture
-budget file), the EMPTY/non-string-`sessionID` default read (newest
-`time_updated` row, the SINGULAR `1 compaction left` form), the no-total
-`CTX=notAvailable` form carrying the silent cap-1 fallback suffix ` (unlisted)`
-(#132 — model unlisted + no finite `model_budget.default`), the budget-store
-absent -> NO-suffix fail-open, and the db-error in-band mirror (NO throw, the
+(mass/pct/REM ending at REM — #212 (U26) retired the ` | N compactions
+left` budget suffix; the fixture-store pins are drop-regression guards),
+the EMPTY/non-string-`sessionID` default read (newest `time_updated` row),
+the no-total `CTX=notAvailable` form (NO cap-1 fallback suffix, NO
+` (unlisted)` marker — #212 retired both), the budget-store absent ->
+default trip constant, and the db-error in-band mirror (NO throw, the
 line NEVER replaced, ` — <error>` appended, the `unknown` sid -> NO suffix,
 the steer restores). Fixtures ride the scratchpad
 `home/AppData/Local/Temp/opencode/ctx-gauge-smoke-v2`. Expected

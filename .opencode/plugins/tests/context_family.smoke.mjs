@@ -173,17 +173,17 @@ const fireAfter = async (event) => {
   await ctx._hooks["execute.after"](event);
   await Promise.resolve();
 };
-
 // The pinned readouts. The GAUGE line drops the `SESSION=<sid> ` token (DoD 2 —
 // the line sits inside the session's own tool result) and carries NO ITER
 // suffix; the RUNG text keeps the BARE formatGauge readout + the v1 instruction
-// VERBATIM (only the channel changed).
-const G1 = "ctx: CTX=57000 (47%) REM=63000 | 6 compactions left";
-const R1_RO = "SESSION=ses_rung1 CTX=60000 (50%) REM=60000 | 6 compactions left";
-const R2_RO = "SESSION=ses_rung2 CTX=50000 (62%) REM=30000 | 4 compactions left";
-const R3_RO = "SESSION=ses_rung3 CTX=60000 (75%) REM=20000 | 4 compactions left";
-const R4_RO = "SESSION=ses_rung4 CTX=70000 (87%) REM=10000 | 4 compactions left";
-const R5_RO = "SESSION=ses_rung5 CTX=76000 (95%) REM=4000 | 4 compactions left";
+// VERBATIM (only the channel changed). #212 (U26): the budget suffix is
+// RETIRED — every pinned line ends at REM=<m>.
+const G1 = "ctx: CTX=57000 (47%) REM=63000";
+const R1_RO = "SESSION=ses_rung1 CTX=60000 (50%) REM=60000";
+const R2_RO = "SESSION=ses_rung2 CTX=50000 (62%) REM=30000";
+const R3_RO = "SESSION=ses_rung3 CTX=60000 (75%) REM=20000";
+const R4_RO = "SESSION=ses_rung4 CTX=70000 (87%) REM=10000";
+const R5_RO = "SESSION=ses_rung5 CTX=76000 (95%) REM=4000";
 const RUNG_TXT = {
   1: "context watch: past 50% of the context window; gauge-check between steps and keep new work small.",
   2: "context high: wrap the current step, start the commit routine, begin the handover summary.",
@@ -367,7 +367,7 @@ const RUNG_TXT = {
   const ev = afterEvent("ses_rung3", { output: "moved" });
   await fireAfter(ev);
   const st = readStoreFile().sessions.ses_rung3;
-  chk("N8 a fired rung does NOT re-fire after reload while the gauge line appends (store keeps fired[3], ctx updated)", ev.result.output === `moved\nctx: CTX=60000 (75%) REM=20000 | 4 compactions left` && st.fired.length === 1 && st.fired[0] === 3 && st.ctx === 60000, JSON.stringify(st));
+  chk("N8 a fired rung does NOT re-fire after reload while the gauge line appends (store keeps fired[3], ctx updated)", ev.result.output === `moved\nctx: CTX=60000 (75%) REM=20000` && st.fired.length === 1 && st.fired[0] === 3 && st.ctx === 60000, JSON.stringify(st));
 }
 
 chk("N9 NO synthetic delivery happened anywhere in the run (DoD 3)", SYNTH.calls.length === 0, JSON.stringify(SYNTH.calls.slice(0, 2)));

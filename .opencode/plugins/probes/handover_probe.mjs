@@ -215,19 +215,13 @@
 //      every readout / parseWindow cases (256K, 210K, 1.5M, 120K_MTP, no-match,
 //      non-string) / parseModelId (JSON id / plain / malformed / empty) /
 //      setDbPath+getDbPath global plumbing with explicit-path override
-//   S6b item 3 (2026-09-24): the "N compactions left" budget suffix on the
-//      readout line (8): the 3 states (count < cap → plural ` | N
-//      compactions left` / count === cap + key ABSENT → ` | 1 compaction
-//      left` (the fail-open default-1 emergency — NOT 0) / count > cap →
-//      ` | 0 compactions left`) + the emergency_budget-0 explicit case +
-//      the fail-open no-suffix form (the probe default budget path is a
-//      never-created sandbox file → every pre-existing readout pin stays
-//      byte-identical) + the no-total SESSION-ROW-model cap (#114, 2026-09-28
-//      — the row model resolves the cap, path-discriminating vs the entry
-//      model) + the no-total model-nowhere default-1 fallback (row model
-//      NULL + no budget entry) + the silent built-in cap-1 fallback
-//      readout marker ` (unlisted)` (#132, 2026-10-01 — model unlisted + no
-//      finite `model_budget.default` key)
+//   S6b item 3 RETIRED (#212, U26, 2026-10-29) (8): the ` | N compactions
+//      left` suffix is DROPPED — formatGauge reads NO budget store; the old
+//      reader's states (count < cap / === cap / > cap, the emergency key
+//      absent / explicit-0 legs, the fail-open missing file, the no-total
+//      SESSION-ROW-model and model-nowhere reads, the silent cap-1 fallback
+//      map shape with the old ` (unlisted)` marker) ALL land as the plain
+//      readout form — regression guards for the drop
 //   S7 backend chain (11) — the #37 chain IS contract: each backend is
 //      FORCED via setBackends([...]) and verified against the sandbox
 //      fixtures (the list is cleared/restored between sections):
@@ -1149,14 +1143,15 @@ const MISSING_DB = path.join(SANDBOX, "missing_fx.db"); // never created — the
 
 // the core — SAME module instance the plugin imports (same resolved file), so
 // setDbPath below steers the plugin's chat.message read to the fixtures.
-const { readGauge, formatGauge, parseWindow, parseModelId, setDbPath, getDbPath, setBackends, getBackends, DEFAULT_BACKENDS, setImportForTest, clearImportForTest, importAttemptsForTest, setBudgetFileForTest, getBudgetFile, compactionsLeftSuffix, loopIterationSuffix, setLoopRootForTest } =
+const { readGauge, formatGauge, parseWindow, parseModelId, setDbPath, getDbPath, setBackends, getBackends, DEFAULT_BACKENDS, setImportForTest, clearImportForTest, importAttemptsForTest, setBudgetFileForTest, getBudgetFile, loopIterationSuffix, setLoopRootForTest } =
   await import(new URL("../scripts/gauge.mjs", import.meta.url).href);
 
-// Item 3 (2026-09-24): the "N compactions left" suffix reads the budget
-// store PER formatGauge call — steered to a NEVER-CREATED sandbox path so
-// every pre-existing formatGauge / ctx-line pin stays byte-identical
-// (fail-open → no suffix); the S6b section points it at fixture budget
-// files for its own pins.
+// #212 (U26, 2026-10-29): formatGauge NO LONGER reads the budget store —
+// the ` | N compactions left` suffix is retired. The steering stays pointed
+// at a NEVER-CREATED sandbox path so every pre-existing formatGauge /
+// ctx-line pin stays byte-identical and the trip-constant read
+// (maintenanceTripTokens) falls back to its default; the S6b section
+// points it at fixture budget files for its no-suffix regression pins.
 setBudgetFileForTest(path.join(SANDBOX, "missing_budget.json"));
 
 // Loop iteration counter (2026-10-05, Part 2): the INJECTED chat.message
@@ -1267,16 +1262,16 @@ check(
   );
 }
 
-// ------------------------------------------------------------------ S6b item 3 (2026-09-24): the "N compactions
-// left" budget suffix on the readout line (8) — the formatGauge extension:
-// remaining = max(0, cap - count) PLUS 1 iff the once-per-session emergency
-// compaction is still available (count === cap && the effective
-// emergency_budget >= 1 — the key read LENIENTLY: absent → the fail-open
-// default 1, matching compact_memory's gate). The cap is resolved EXACTLY
-// like compact_memory's resolveCap (CPU invariant 0, then the model_budget
-// map's exact bare-model-id key, else default, else 1). The budget store is
-// steered at fixture files via setBudgetFileForTest (the setDbPath pattern);
-// the FX_OK fixture read carries sid ses_fx_ok + model probe-model-256K_MTP.
+// ------------------------------------------------------------------ S6b item 3 RETIRED (#212, U26, 2026-10-29):
+// the budget suffix DROPPED from the readout line (8) — formatGauge reads
+// NO budget store: every state of the old `compactionsLeftSuffix` reader
+// (the cap states, the emergency key absent / explicit-0 legs, the
+// fail-open missing file, the no-total SESSION-ROW-model and
+// model-nowhere reads, the silent cap-1 fallback map shape with the old
+// `(unlisted)` marker) lands as the PLAIN readout form — these pins guard
+// the drop against a regression. The store is still steered via
+// setBudgetFileForTest (inert for formatGauge now). The FX_OK fixture read
+// carries sid ses_fx_ok + model probe-model-256K_MTP.
 
 const BUDGET_FX = path.join(SANDBOX, "budget_fx.json");
 const MB_FX = { "probe-model-256K_MTP": 3, default: 1 };
@@ -1288,83 +1283,79 @@ const setBudgetFx = (count, eb, sid = "ses_fx_ok") => {
 };
 const FX_OK_LINE = "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655";
 
-// 28.1 — state 1: count 0 < cap 3 → 3 remaining (plural form)
+// 28.1 — state 1 (count 0 < cap 3): NO budget suffix — the known-window
+//      line is the plain readout form (#212 suffix drop).
 {
   setBudgetFx(0);
   const r = await readGauge(FX_OK);
   check(
     "28.1",
     "S6b",
-    "state 1 (count 0 < cap 3): the known-window line ends ` | 3 compactions left`",
-    formatGauge(r) === `${FX_OK_LINE} | 3 compactions left`,
+    "state 1 (count 0 < cap 3): NO budget suffix — the line is the plain readout form (#212)",
+    formatGauge(r) === FX_OK_LINE,
     JSON.stringify(formatGauge(r)),
   );
 }
 
-// 28.2 — state 2: count === cap, the emergency_budget key ABSENT → the
-//      fail-open default 1 IS available → 1 remaining (singular form; the
-//      spec pin: NOT 0)
+// 28.2 — state 2: count === cap, the emergency_budget key ABSENT (the old
+//      fail-open default-1 emergency leg): still NO suffix — formatGauge
+//      ignores the budget store entirely (#212).
 {
   setBudgetFx(3);
   const r = await readGauge(FX_OK);
   check(
     "28.2",
     "S6b",
-    "state 2 (count === cap, key absent → default 1): the line ends ` | 1 compaction left` (singular)",
-    formatGauge(r) === `${FX_OK_LINE} | 1 compaction left`,
+    "state 2 (count === cap, key absent): NO budget suffix (#212)",
+    formatGauge(r) === FX_OK_LINE,
     JSON.stringify(formatGauge(r)),
   );
 }
 
-// 28.3 — state 3: count 4 > cap 3 → fully exhausted → 0 remaining
+// 28.3 — state 3 (count 4 > cap 3 — fully exhausted): NO suffix.
 {
   setBudgetFx(4);
   const r = await readGauge(FX_OK);
   check(
     "28.3",
     "S6b",
-    "state 3 (count > cap — fully exhausted): the line ends ` | 0 compactions left`",
-    formatGauge(r) === `${FX_OK_LINE} | 0 compactions left`,
+    "state 3 (count > cap — fully exhausted): NO budget suffix (#212)",
+    formatGauge(r) === FX_OK_LINE,
     JSON.stringify(formatGauge(r)),
   );
 }
 
-// 28.4 — state 2b: count === cap + emergency_budget 0 EXPLICIT → the
-//      emergency is unavailable → 0 remaining (the lenient read distinguishes
-//      0 from absent)
+// 28.4 — state 2b (count === cap + emergency_budget 0 EXPLICIT): NO suffix.
 {
   setBudgetFx(3, 0);
   const r = await readGauge(FX_OK);
   check(
     "28.4",
     "S6b",
-    "state 2b (count === cap, emergency_budget 0 explicit): the line ends ` | 0 compactions left`",
-    formatGauge(r) === `${FX_OK_LINE} | 0 compactions left`,
+    "state 2b (count === cap, emergency_budget 0 explicit): NO budget suffix (#212)",
+    formatGauge(r) === FX_OK_LINE,
     JSON.stringify(formatGauge(r)),
   );
 }
 
 // 28.5 — fail-open: the budget file MISSING (the never-created sandbox path
-//      the probe default) → NO suffix — the line is byte-identical to the
-//      pre-item-3 form
+//      the probe default) → the line stands verbatim, as in every state.
 {
   setBudgetFileForTest(path.join(SANDBOX, "missing_budget.json"));
   const r = await readGauge(FX_OK);
   check(
     "28.5",
     "S6b",
-    "fail-open (budget file missing): NO suffix — the known-window line is byte-identical to the pre-item-3 form",
+    "fail-open (budget file missing): NO suffix — the known-window line is the plain readout form",
     formatGauge(r) === FX_OK_LINE,
     JSON.stringify(formatGauge(r)),
   );
 }
 
-// 28.6 — no-total read (#114, 2026-09-28): the cap resolves from the
-//      SESSION ROW's model — the row model probe-model-120K_MTP (cap 3)
-//      wins over the budget entry's model probe-model-256K_MTP (cap 2 — the
-//      pre-#114 entry-model fallback would have read "2 compactions left")
-//      and over the default 1. The dedicated budget fixture carries BOTH
-//      models with DIFFERENT caps so the pin is path-discriminating.
+// 28.6 — no-total read (#114): the shape fields stand (sid + session-row
+//      model carried, path-discriminating) and the line ends at
+//      CTX=notAvailable — NO suffix (#212 retired the row-model cap read
+//      on the readout).
 {
   const BUDGET_NOTAL = path.join(SANDBOX, "budget_fx_notal.json");
   writeFileSync(BUDGET_NOTAL, JSON.stringify({
@@ -1376,15 +1367,15 @@ const FX_OK_LINE = "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655";
   check(
     "28.6",
     "S6b",
-    "no-total read (#114): the session-row model resolves the cap — `SESSION=ses_fx_empty CTX=notAvailable | 3 compactions left` (row-model cap 3 — NOT the entry-model cap 2, NOT the default 1)",
-    r.ok === false && r.kind === "no-total" && r.sid === "ses_fx_empty" && r.modelId === "probe-model-120K_MTP" && formatGauge(r) === "SESSION=ses_fx_empty CTX=notAvailable | 3 compactions left",
+    "no-total read (#114): kind/sid/row-model fields stand, line ends `SESSION=ses_fx_empty CTX=notAvailable` — NO suffix (#212)",
+    r.ok === false && r.kind === "no-total" && r.sid === "ses_fx_empty" && r.modelId === "probe-model-120K_MTP" && formatGauge(r) === "SESSION=ses_fx_empty CTX=notAvailable",
     JSON.stringify({ r, line: formatGauge(r) }),
   );
 }
 
-// 28.7 — the OLD fallback still holds: no-total + model NOWHERE (the
-//      session-row model is NULL + no budget entry for the session) →
-//      model_budget.default (1) → ` | 1 compaction left`
+// 28.7 — no-total + model NOWHERE (session-row model NULL + no budget
+//      entry): the plain notAvailable form — NO suffix, NO default-1
+//      fallback on the readout.
 {
   const BUDGET_NOMODEL = path.join(SANDBOX, "budget_fx_nomodel.json");
   writeFileSync(BUDGET_NOMODEL, JSON.stringify({
@@ -1396,16 +1387,15 @@ const FX_OK_LINE = "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655";
   check(
     "28.7",
     "S6b",
-    "no-total + model nowhere (row model NULL, no budget entry): modelId '' → the default cap 1 — `SESSION=ses_fx_nomodel CTX=notAvailable | 1 compaction left`",
-    r.ok === false && r.kind === "no-total" && r.sid === "ses_fx_nomodel" && r.modelId === "" && formatGauge(r) === "SESSION=ses_fx_nomodel CTX=notAvailable | 1 compaction left",
+    "no-total + model nowhere (row model NULL, no budget entry): `SESSION=ses_fx_nomodel CTX=notAvailable` — NO suffix (#212)",
+    r.ok === false && r.kind === "no-total" && r.sid === "ses_fx_nomodel" && r.modelId === "" && formatGauge(r) === "SESSION=ses_fx_nomodel CTX=notAvailable",
     JSON.stringify({ r, line: formatGauge(r) }),
   );
 }
 
-// 28.8 — the silent built-in fallback (#132, 2026-10-01): the resolved model
-//      is UNLISTED in the budget map (the entry-model fallback carries it)
-//      and the map has NO `model_budget.default` key → the built-in cap 1
-//      applies and the readout carries the marker ` (unlisted)` after `left`
+// 28.8 — the old silent cap-1 fallback map shape (#132: map present with
+//      other entries, NO `model_budget.default` key): the readout carries
+//      NO suffix and NO `(unlisted)` marker (#212 retired both).
 {
   const BUDGET_UNLISTED = path.join(SANDBOX, "budget_fx_unlisted.json");
   writeFileSync(BUDGET_UNLISTED, JSON.stringify({
@@ -1417,8 +1407,8 @@ const FX_OK_LINE = "SESSION=ses_fx_ok CTX=12345 (4%) REM=243655";
   check(
     "28.8",
     "S6b",
-    "no-total + model unlisted (map present with other entries, NO default key): the silent cap-1 fallback — `SESSION=ses_fx_nomodel CTX=notAvailable | 1 compaction left (unlisted)`",
-    r.ok === false && r.kind === "no-total" && r.sid === "ses_fx_nomodel" && r.modelId === "" && formatGauge(r) === "SESSION=ses_fx_nomodel CTX=notAvailable | 1 compaction left (unlisted)",
+    "silent cap-1 fallback map shape (NO default key): NO suffix, NO `(unlisted)` marker (#212)",
+    r.ok === false && r.kind === "no-total" && r.sid === "ses_fx_nomodel" && r.modelId === "" && formatGauge(r) === "SESSION=ses_fx_nomodel CTX=notAvailable",
     JSON.stringify({ r, line: formatGauge(r) }),
   );
 }

@@ -2,8 +2,8 @@
 // (scratchpad origin: pw_test.mjs, moved per the 2026-09-15_smoke-harness-home
 // proposal; the old `.opencode/ctxgauge/gauge.mjs` reference is rewired to the
 // current location `.opencode/plugins/scripts/gauge.mjs`) + the item 3
-// (2026-09-24) "N compactions left" budget suffix (the 3 states + fail-open
-// — the budget store steered at temp fixtures via setBudgetFileForTest) +
+// RETIRED pins (#212, 2026-10-29: formatGauge emits NO budget suffix in
+// every store state — the budget store steered at temp fixtures as before) +
 // the v2-migration unit 1 (2026-10-21) TABLE-AWARE SESSION-ROW read pins:
 // the v1 `session` table / the `session_v2` table / an id in NEITHER / the
 // coexisting newest form / a DB with no session table (fixture DBs under
@@ -205,12 +205,13 @@ rmTear(tmpC, { recursive: true, force: true }); // #144 retry-on-EBUSY
   rmTearSoft(dP, { recursive: true, force: true }); // #160: readGauge handles lock the fixture DBs under bun until exit
 }
 
-// ---- item 3 (2026-09-24): the "N compactions left" budget suffix — the 3
-// states + fail-open. remaining = max(0, cap - count) + 1 iff the emergency
-// 1 is still available (count === cap && effective emergency_budget >= 1 —
-// key absent → fail-open default 1). The cap resolves like compact_memory's
-// resolveCap (exact bare-model-id key, else default, else 1). The store is
-// steered at temp fixtures (the setBudgetFileForTest hook).
+// ---- item 3 RETIRED (#212, U26, 2026-10-29): the ` | N compactions left`
+// budget suffix is DROPPED — formatGauge reads NO budget store. Pins: every
+// state of the old reader (the cap states, the emergency key absent /
+// explicit-0 legs, fail-open, the old silent cap-1 fallback map shapes, the
+// no-total entry-model and session-row-model reads) lands as the PLAIN
+// readout form — regression guards for the drop. The store is still steered
+// at temp fixtures (the setBudgetFileForTest hook — inert for formatGauge).
 const tmpB = fs.mkdtempSync(path.join(os.tmpdir(), "gauge_budget_"));
 const bfx = path.join(tmpB, "budget.json");
 const MB3 = { "probe-model-256K_MTP": 3, default: 1 };
@@ -230,48 +231,47 @@ const chkS = (label, want) => {
   console.log(`${ok ? "PASS" : "FAIL"} ${label}: ${got} (want ${want})`);
 };
 wb(0);
-chkS("state 1 (count 0 < cap 3)", `${base} | 3 compactions left`);
+chkS("state 1 (count 0 < cap 3): NO suffix (#212)", base);
 wb(3);
-chkS("state 2 (count === cap, emergency key ABSENT → default 1)", `${base} | 1 compaction left`);
+chkS("state 2 (count === cap, emergency key ABSENT): NO suffix (#212)", base);
 wb(4);
-chkS("state 3 (count 4 > cap 3 — fully exhausted)", `${base} | 0 compactions left`);
+chkS("state 3 (count 4 > cap 3 — fully exhausted): NO suffix (#212)", base);
 wb(3, 0);
-chkS("state 2b (count === cap, emergency_budget 0 explicit)", `${base} | 0 compactions left`);
-// #132 (2026-10-01): the SILENT built-in cap-1 fallback — model unlisted /
-// empty + no finite `model_budget.default` key → the marker ` (unlisted)`
-// after `left` (both entry points: the map present-without-default and the
-// map key entirely absent).
+chkS("state 2b (count === cap, emergency_budget 0 explicit): NO suffix (#212)", base);
+// The old #132 silent cap-1 fallback map shapes (unlisted model with no
+// default key / model_budget entirely ABSENT): NO suffix, NO `(unlisted)`
+// marker (#212 retired the readout marker too).
 {
   const rec = { model_budget: { "probe-model-120K_MTP": 2 }, sessions: { ses_fx_ok: { count: 0, updated: "fx", model: "probe-model-256K_MTP" } } };
   fs.writeFileSync(bfx, JSON.stringify(rec), "utf-8");
   m.setBudgetFileForTest(bfx);
-  chkS("silent fallback (model unlisted, map present, NO default key): ` | 1 compaction left (unlisted)`", `${base} | 1 compaction left (unlisted)`);
+  chkS("old silent fallback map (unlisted, NO default key): NO suffix (#212)", base);
 }
 {
   const rec = { sessions: { ses_fx_ok: { count: 0, updated: "fx", model: "probe-model-256K_MTP" } } };
   fs.writeFileSync(bfx, JSON.stringify(rec), "utf-8");
   m.setBudgetFileForTest(bfx);
-  chkS("silent fallback (model_budget key entirely ABSENT): ` | 1 compaction left (unlisted)`", `${base} | 1 compaction left (unlisted)`);
+  chkS("old silent fallback map (model_budget ABSENT): NO suffix (#212)", base);
 }
 m.setBudgetFileForTest(path.join(tmpB, "absent.json")); // never created
-chkS("fail-open (budget file missing → no suffix)", base);
+chkS("fail-open (budget file missing): NO suffix", base);
 wb(0);
 {
   const got = m.formatGauge(R_NOTAL);
-  const want = "SESSION=ses_fx_ok CTX=notAvailable | 3 compactions left";
-  const ok = got === want; // the no-total read falls back to the entry's model
+  const want = "SESSION=ses_fx_ok CTX=notAvailable";
+  const ok = got === want; // the no-total read ends at the notAvailable field
   if (!ok) fail++;
-  console.log(`${ok ? "PASS" : "FAIL"} no-total (modelId '' → entry-model fallback): ${got} (want ${want})`);
+  console.log(`${ok ? "PASS" : "FAIL"} no-total (modelId '' → field stands, no suffix): ${got} (want ${want})`);
 }
-// #114 (2026-09-28): a no-total read now carries the SESSION ROW's model as
-// its modelId — the suffix uses it (count 0 < cap 3 → 3), ahead of the
-// entry-model fallback.
+// #114 (2026-09-28): a no-total read carries the SESSION ROW's model as its
+// modelId (the field stands); the readout ends at CTX=notAvailable — NO
+// suffix (#212).
 {
   const got = m.formatGauge({ ok: false, kind: "no-total", sid: "ses_fx_ok", modelId: "probe-model-256K_MTP" });
-  const want = "SESSION=ses_fx_ok CTX=notAvailable | 3 compactions left";
+  const want = "SESSION=ses_fx_ok CTX=notAvailable";
   const ok = got === want;
   if (!ok) fail++;
-  console.log(`${ok ? "PASS" : "FAIL"} no-total (modelId = session-row model → model_budget key): ${got} (want ${want})`);
+  console.log(`${ok ? "PASS" : "FAIL"} no-total (modelId = session-row model → field stands, no suffix): ${got} (want ${want})`);
 }
 rmTear(tmpB, { recursive: true, force: true }); // #144 retry-on-EBUSY
 

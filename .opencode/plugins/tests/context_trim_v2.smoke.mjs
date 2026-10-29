@@ -101,9 +101,9 @@ function readStore() {
 
 // The gauge fixture DB: v2-paired tables (session_v2 + session_message) — the
 // SAME shape the gauge core's unit-1/unit-2 legs read. CTX mass 57000 of the
-// 120K window -> (47%) REM 63000; the budget fixture (cap 6, count 0) -> " |
-// 6 compactions left"; the loop root is steered at a MISSING dir (the gauge
-// line carries no ITER suffix — formatGauge only).
+// 120K window -> (47%) REM 63000 (NO budget suffix — #212 retired it; the
+// budget fixture steer is inert); the loop root is steered at a MISSING dir
+// (the gauge line carries no ITER suffix — formatGauge only).
 const FX_DB = path.join(SCRATCH, "fx_trim_v2.db");
 {
   rmSync(FX_DB, { force: true });
@@ -351,7 +351,7 @@ function draftBase(sessionID = SID) {
   chk("R1 header line: the compaction head + rows=10 + no boundary + empty staged/active sets + ordinal source + guard OFF/empty auto (U14 defaults; U17 #203: the `tags=` token is GONE)", lines[1] === `header: head=msg_c0 head-type=compaction rows=10 boundary=none boundary-state=absent retained=10 staged=0 active=0 active-est=0 ordinal=session-rank guard=off auto=0`, JSON.stringify(lines[1] ?? null));
   chk("R1 (#189+U8) the two-quantity line: window_rows != request + request-est (gauge CTX) + OWN-mass window-est 332", lines[2] === "window_rows != request; request also carries system prompt + retained slice request-est=57000 window-est=332", JSON.stringify(lines[2] ?? null));
   chk("R1 (U7) the projection line: last-req = gauge CTX 57000 − output 2000; bound = 80% of the 120K window", lines[3] === "projection: last-req=55000 staged-est=0 projected=55000 bound=96000 ok", JSON.stringify(lines[3] ?? null));
-  chk("R1 the gauge line rides the shared v2-paired core (fixture mass 57000 / 120K + budget suffix)", lines[4] === `gauge: SESSION=${SID} CTX=57000 (47%) REM=63000 | 6 compactions left`, JSON.stringify(lines[4] ?? null));
+  chk("R1 the gauge line rides the shared v2-paired core (fixture mass 57000 / 120K, NO budget suffix — #212)", lines[4] === `gauge: SESSION=${SID} CTX=57000 (47%) REM=63000`, JSON.stringify(lines[4] ?? null));
   chk("S0b the tool's name is 'context_trim' (the v1 name — a same-name twin is precedent) and the args mirror v1 (+ clear, + mark ids/unmark, + U7 apply mode + force, + U11 showIds, + U14 guard; U17 #203: the `tags` arg is GONE; U18 #209: the mode enum gains `free` and `target` accepts string OR number — the percent form)", TOOL.name === "context_trim" && JSON.stringify(Object.keys(TOOL.input.properties).sort()) === JSON.stringify(["clear", "force", "guard", "ids", "keepMessages", "mode", "session", "showIds", "target", "unmark"]) && JSON.stringify(TOOL.input.properties.mode.enum) === JSON.stringify(["report", "tail", "mark", "apply", "free"]) && JSON.stringify(TOOL.input.properties.target.type) === JSON.stringify(["string", "number"]) && TOOL.output.type === "string", JSON.stringify(TOOL.name + "|" + Object.keys(TOOL.input.properties)));
   chk("U14 the description literal grew by AT MOST 80 chars over the pre-U14 2369 and names the guard (U15: AT MOST +60 over the pre-U15 2430, names the flags; U18: cap 2499 = pre-U18 2439 + 60, names the free_space clause)", TOOL.description.length <= 2499 && TOOL.description.includes("`guard` on/off wall guard") && TOOL.description.includes("rows flag s/x/g") && TOOL.description.includes("`mode:'free'` — free_space"), `len=${TOOL.description.length}`);
   chk("R1 (U10+U11) row 1 = the compaction head + its ABSOLUTE ordinal #4300 — COMPACT form, NO id= by default (the opaque id costs ~8-10 tokens/row); (U17 #208 R3) a row without the provider figure prints req-at=unavailable", lines[5] === "row: 1 #3 compaction own=5 req-at=unavailable", JSON.stringify(lines[5] ?? null));
@@ -1277,7 +1277,7 @@ function draftBase(sessionID = SID) {
   const cf = (await import(pathToFileURL(CF_PLUGIN).href)).default;
   const cfCtx = makeCtx(WS); // its own hook map; the SAME shared gauge core (FX_DB), the same WS log/store root
   const cfCleanup = await cf.setup(cfCtx);
-  const G1 = "ctx: CTX=57000 (47%) REM=63000 | 6 compactions left"; // SID fixture: pct 47 < 50 -> NO rung, the gauge-line lane
+  const G1 = "ctx: CTX=57000 (47%) REM=63000"; // SID fixture: pct 47 < 50 -> NO rung, the gauge-line lane
   const cfLog = () => (existsSync(CF_LOG) ? readFileSync(CF_LOG, "utf8").split("\n").filter((l) => l !== "").map((l) => JSON.parse(l)) : []);
   const afterEvent = (result, tool = "bash") => ({ tool, sessionID: SID, agent: "worker-1", messageID: "msg-c1", id: "call-c1", input: { command: "ls" }, status: "completed", result });
   const trimFilter = CONTEXT_HANDLERS[0]; // this plugin's draft leg
@@ -1334,7 +1334,7 @@ function draftBase(sessionID = SID) {
   }
   const ev3 = afterEvent({ output: "after the trim" });
   await onAfter(ev3);
-  chk("C5 the append survives the boundary: the moved fill (59500 of 120K, delta 2500 >= 1%) appends its own line into the tool result", ev3.result.output === "after the trim\nctx: CTX=59500 (49%) REM=60500 | 6 compactions left", JSON.stringify(ev3.result.output));
+  chk("C5 the append survives the boundary: the moved fill (59500 of 120K, delta 2500 >= 1%) appends its own line into the tool result", ev3.result.output === "after the trim\nctx: CTX=59500 (49%) REM=60500", JSON.stringify(ev3.result.output));
   chk("C5 the earlier appended result stays byte-exact across the boundary, the filter and the moved read", ev1.result.output === `the tool output\n${G1}`, JSON.stringify(ev1.result.output));
   {
     const db = new DatabaseSync(FX_DB);

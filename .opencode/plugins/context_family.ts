@@ -72,11 +72,11 @@
 //   unknown-window read, a below-gate fill, an already-fired rung. Best-effort,
 //   NEVER throws out of the hook (the v1 house rule).
 //
-// (5) BUDGET SUFFIX — comes FREE via formatGauge (item 3: ` | N compactions
-// left`, fail-open when the store is missing/unparseable or the read session
-// is unknown). The suffix resolves against the CLONE's `.opencode/temp/
-// compact_budget.json` (gauge.mjs resolves relative to itself — the clone is
-// the v2-paired host of that store).
+// (5) BUDGET SUFFIX — RETIRED (#212, U26, 2026-10-29): formatGauge appends
+// no ` | N compactions left` field; the injected ctx line ends at REM=<m>.
+// The budget store (.opencode/temp/compact_budget.json) stays alive, read
+// only for the #213 trip constant (gauge.mjs resolves relative to itself —
+// the clone is the v2-paired host of that store).
 //
 // (6) NUDGE LADDER (spec 3b — the v1 v2.6 rung table + texts VERBATIM; design
 // of record = v1 header lines 98-122) — fired on EVERY `tool.execute.after`,

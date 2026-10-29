@@ -129,9 +129,9 @@ NAP — not here.
     - `DONE<---` — every agent WITH loop-folder write access (planner,
       worker) writes one on task completion. Content = the final gauge
       readout, verbatim from the gauge tool or command and never guessed:
-      the full `CTX=n (p%) REM=m | N compactions left` line (the usual form
-      live today; the `N compactions left` suffix is pending retirement,
-      #212) or the condensed `<CTX>%/<REM>K` form. (The explorer's
+      the full `CTX=n (p%) REM=m` line (#212 RETIRED the
+      ` | N compactions left` suffix, U26 2026-10-29) or the condensed
+      `<CTX>%/<REM>K` form. (The explorer's
       completion normally rides the planner's
       `-RETURN-` line — under the CURRENT pre-tightening permissions the
       explorer ALSO has loop-folder write access and writes its own DONE

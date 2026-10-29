@@ -10,7 +10,7 @@ Reads the context usage of the current (or a named) session, read-only, and retu
 
 - Entry: `export default tool({ description, args, execute })` — args: `sessionID?` (empty/omitted → the newest-updated session, the default peek read).
 - Wraps the ONE shared gauge core `../plugins/scripts/gauge.mjs` (`readGauge`/`formatGauge` — backend chain, window rule, readout forms; NOTHING re-derived here; the core NEVER throws — a hard failure comes back as `kind: "db-error"` with the capped, backend-naming error text, APPENDED in-band where peek.mjs would write stderr).
-- The budget suffix (item 3, 2026-09-24): when the compaction budget store (`.opencode/temp/compact_budget.json`) resolves, the readout line ENDS with the distinct ` | N compactions left` field (file absent / unparseable → no suffix) — the per-model cap (+ the once-per-session emergency).
+- The budget suffix (item 3) is RETIRED (#212, U26, 2026-10-29): the readout line ends at `REM=…` (or `CTX=notAvailable`) — no ` | N compactions left` field; the budget store (`.opencode/temp/compact_budget.json`) stays alive, read only for the #213 trip constant.
 
 ## Gotchas / lessons
 

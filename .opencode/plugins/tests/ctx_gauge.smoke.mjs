@@ -5,11 +5,11 @@
 // string arg, string output promise execute, teardown disposes the registration,
 // NO hooks), the readout forms carried from v1 IN-BAND (the named-session read,
 // the EMPTY/non-string-sessionID default read, the no-total `CTX=notAvailable`
-// form, the budget suffix ` | N compactions left` with the singular form and
-// the ` (unlisted)` marker — ALL riding the core's `compactionsLeftSuffix`,
-// NOTHING re-derived), the budget-store fail-open (file absent -> NO suffix),
-// and the db-error in-band mirror (NO throw, the line NEVER replaced, the core
-// error text APPENDED as ` — <error>`, NO suffix on the `unknown` sid).
+// form — #212 (U26, 2026-10-29) RETIRED the budget suffix: NO form carries
+// a ` | N compactions left` field (the S6b-style store pins below are
+// regression guards — the budget-store steer is inert for the readout),
+// NOTHING re-derived), and the db-error in-band mirror (NO throw, the line
+// NEVER replaced, the core error text APPENDED as ` — <error>`).
 // #213 (U24, 2026-10-29): every identified-session readout ends with the
 // maintenance-trip token ` ROUND=<trips>` (cumulative completed-assistant
 // `$.tokens.input` ÷ the budget-file `maintenance_trip_tokens`); the #171
@@ -151,48 +151,48 @@ chk("S1 the tool surface: JSON-schema input (ONLY the optional sessionID string,
     TOOL.output?.type === "string" &&
     typeof TOOL.execute === "function" &&
     typeof TOOL.description === "string" &&
-    TOOL.description.includes("compactions left") &&
+    !TOOL.description.includes("compactions left") &&
     TOOL.description.includes("ROUND=<trips>"),
   JSON.stringify([Object.keys(TOOL.input.properties), TOOL.input.required, TOOL.output]));
 
 const call = async (args) => (await TOOL.execute(args, {})).output;
 
-// ------------------------------------------------------------------ A the named-session read + budget suffix + trip token
+// ------------------------------------------------------------------ A the named-session read + trip token (NO budget suffix, #212)
 
 {
   const out = await call({ sessionID: "ses_gauge_1" });
-  chk("(A) named-session readout byte-exact: mass/pct/REM + the ' | 5 compactions left' suffix + ' ROUND=3' (cumulative 310000 / 100000)",
-    out === "SESSION=ses_gauge_1 CTX=57000 (47%) REM=63000 | 5 compactions left ROUND=3", out);
+  chk("(A) named-session readout byte-exact: mass/pct/REM + ' ROUND=3' (cumulative 310000 / 100000) — NO budget suffix (#212)",
+    out === "SESSION=ses_gauge_1 CTX=57000 (47%) REM=63000 ROUND=3", out);
 }
 
 // ------------------------------------------------------------------ B the default read (EMPTY / non-string sessionID)
 
 {
   const out1 = await call({});
-  chk("(B) default read picks the newest session_v2 row (time_updated), '1 compaction left' SINGULAR + ' ROUND=1' (cumulative 100000 / 100000)",
-    out1 === "SESSION=ses_gauge_2 CTX=10000 (15%) REM=54000 | 1 compaction left ROUND=1", out1);
+  chk("(B) default read picks the newest session_v2 row (time_updated) + ' ROUND=1' (cumulative 100000 / 100000) — NO budget suffix (#212)",
+    out1 === "SESSION=ses_gauge_2 CTX=10000 (15%) REM=54000 ROUND=1", out1);
   const out2 = await call({ sessionID: "" });
   const out3 = await call({ sessionID: 42 });
   chk("(B) EMPTY / non-string sessionID = the default read (the v1 arg semantics, wire-defensive)",
     out2 === out1 && out3 === out1, JSON.stringify([out2, out3]));
 }
 
-// ------------------------------------------------------------------ C no-total form + the (unlisted) marker + ROUND=0
+// ------------------------------------------------------------------ C no-total form + ROUND=0 (NO suffix, #212)
 
 {
   const out = await call({ sessionID: "ses_gauge_nx" });
-  chk("(C) no-total read: CTX=notAvailable (no pct/REM) + the cap-1 fallback suffix ' (unlisted)' (#132) + ' ROUND=0' (no completed rows)",
-    out === "SESSION=ses_gauge_nx CTX=notAvailable | 1 compaction left (unlisted) ROUND=0", out);
+  chk("(C) no-total read: CTX=notAvailable (no pct/REM) + ' ROUND=0' (no completed rows) — NO suffix, NO (unlisted) marker (#212)",
+    out === "SESSION=ses_gauge_nx CTX=notAvailable ROUND=0", out);
 }
 
-// ------------------------------------------------------------------ D budget store absent -> NO suffix (fail-open) + the default trip constant
+// ------------------------------------------------------------------ D budget store absent -> the default trip constant (NO suffix either way, #212)
 
 {
   const before = gaugeMod.getBudgetFile();
   gaugeMod.setBudgetFileForTest(path.join(SCRATCH, "no_dir", "missing_budget.json"));
   const out = await call({ sessionID: "ses_gauge_1" });
   gaugeMod.setBudgetFileForTest(before);
-  chk("(D) budget file absent -> NO budget suffix (fail-open) AND the trip constant falls back to the default 1M -> ' ROUND=0'",
+  chk("(D) budget file absent -> the trip constant falls back to the default 1M -> ' ROUND=0' (NO suffix either way, #212)",
     out === "SESSION=ses_gauge_1 CTX=57000 (47%) REM=63000 ROUND=0", out);
 }
 
@@ -216,13 +216,13 @@ const call = async (args) => (await TOOL.execute(args, {})).output;
     out);
   const outAfter = await call({ sessionID: "ses_gauge_1" });
   chk("(E) the DB steer restores cleanly (the readout lands again)",
-    outAfter === "SESSION=ses_gauge_1 CTX=57000 (47%) REM=63000 | 5 compactions left ROUND=3", outAfter);
+    outAfter === "SESSION=ses_gauge_1 CTX=57000 (47%) REM=63000 ROUND=3", outAfter);
 }
 
 // ------------------------------------------------------------------ F the #213 trip token (constant legs)
 
 {
-  const base = "SESSION=ses_gauge_1 CTX=57000 (47%) REM=63000 | 5 compactions left";
+  const base = "SESSION=ses_gauge_1 CTX=57000 (47%) REM=63000";
   writeFileSync(FX_BUDGET, budgetWith(50000), "utf8");
   const outBelow = await call({ sessionID: "ses_gauge_1" });
   chk("(F) maintenance_trip_tokens BELOW the 100_000 floor -> the default 1M -> ' ROUND=0'",
@@ -235,7 +235,7 @@ const call = async (args) => (await TOOL.execute(args, {})).output;
   chk("(F) a NON-INTEGER constant -> the default 1M -> ' ROUND=0'", outFrac === `${base} ROUND=0`, outFrac);
   writeFileSync(FX_BUDGET, budgetWith(100000), "utf8");
   const out3 = await call({ sessionID: "ses_gauge_1" });
-  chk("(F) constant 100000 over the cumulative input 310000 -> byte-exact ' ROUND=3' after the budget suffix",
+  chk("(F) constant 100000 over the cumulative input 310000 -> byte-exact ' ROUND=3' (no suffix, #212)",
     out3 === `${base} ROUND=3`, out3);
   // The loop counter is NO LONGER read for the gauge suffix: a live-shaped
   // counter fixture (the old %5 round=40 case) stays INERT — the trip token
@@ -249,7 +249,7 @@ const call = async (args) => (await TOOL.execute(args, {})).output;
     outCounter === `${base} ROUND=3` && !outCounter.includes("MAINT"), outCounter);
   gaugeMod.setLoopRootForTest(path.join(SCRATCH, "no-loop-root"));
   const outMissing = await call({ sessionID: "ses_gauge_nx" });
-  chk("(F) the notAvailable form still ends ' ROUND=0'", outMissing === "SESSION=ses_gauge_nx CTX=notAvailable | 1 compaction left (unlisted) ROUND=0", outMissing);
+  chk("(F) the notAvailable form still ends ' ROUND=0' — NO suffix (#212)", outMissing === "SESSION=ses_gauge_nx CTX=notAvailable ROUND=0", outMissing);
 }
 
 // ------------------------------------------------------------------ Z cleanup

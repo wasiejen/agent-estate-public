@@ -14,12 +14,15 @@
 // (the committed tool() form, cf. compact_memory.ts / block_transfer.ts).
 // Registration is the maintainer's domain (the live opencode.jsonc — this
 // file is deliberately NOT registered in any repo config).
+// #212 (U26, 2026-10-29): the item-3 budget suffix (` | N compactions
+// left`) and the ` (unlisted)` marker are RETIRED — the readout ends at the
+// CTX/REM (or CTX=notAvailable) field.
 import { tool } from "@opencode-ai/plugin"
 import { readGauge, formatGauge } from "../plugins/scripts/gauge.mjs"
 
 export default tool({
   description: `Reads the context usage of the current (or a named) session, read-only.
-Returns the \`SESSION=… CTX=… (…%) REM=…\` readout (window unknown → no pct/REM; no total / unreadable db → CTX=notAvailable with the error appended). The readout line ends with the distinct \` | N compactions left\` budget suffix when the budget store resolves (file absent / unparseable → no suffix; when the cap resolves via the silent built-in fallback — model unlisted/empty + no finite \`model_budget.default\` key — the suffix appends the marker \` (unlisted)\` after \`left\`, #132). Fire this for context-budget decisions instead of the peek.mjs shell-out.
+Returns the \`SESSION=… CTX=… (…%) REM=…\` readout (window unknown → no pct/REM; no total / unreadable db → CTX=notAvailable with the error appended). Fire this for context-budget decisions instead of the peek.mjs shell-out.
 The readout LAGS true usage by ≈1 tool call (~5k tokens — the in-flight step's output, not yet in the DB; the gauge reads the last FINISHED step's in+out+cr, #103) — treat it as a LOWER bound and plan with margin (the same lag applies to the injected ctx: nudge lines).`,
   args: {
     sessionID: tool.schema.string().optional().describe("Session id to read (the per-session read). Empty/omitted: the newest-updated session (the default peek read)."),

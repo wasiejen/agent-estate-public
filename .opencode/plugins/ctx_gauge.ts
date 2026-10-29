@@ -12,9 +12,9 @@
 // read the v2 tables FIRST) and mirrors peek.mjs IN-BAND: the same readout
 // string, and on a db failure the core's error text is APPENDED to the line
 // (` — <error>`) where peek.mjs writes it to stderr — the line is NEVER
-// replaced by a stack trace (the core NEVER throws). The budget suffix and the
-// `(unlisted)` marker ride the core's `compactionsLeftSuffix` — NOTHING is
-// re-derived here.
+// replaced by a stack trace (the core NEVER throws). #212 (U26, 2026-10-29):
+// the budget suffix + the `(unlisted)` marker are RETIRED — `formatGauge`
+// appends NOTHING after the CTX/REM (or notAvailable) field.
 //
 // U24/#213 (2026-10-29): the working line ends with ` ROUND=<trips>` — the
 // maintenance-trip counter (cumulative session input_tokens ÷ the
@@ -38,7 +38,7 @@ import { formatGauge, readGauge, tripRoundSuffix } from "./scripts/gauge.mjs";
 
 const TOOL_DESCRIPTION =
   `Reads the context usage of the current (or a named) session, read-only.
-Returns the \`SESSION=… CTX=… (…%) REM=…\` readout (window unknown → no pct/REM; no total / unreadable db → CTX=notAvailable with the error appended). The readout line ends with the distinct \` | N compactions left\` budget suffix when the budget store resolves (file absent / unparseable → no suffix; when the cap resolves via the silent built-in fallback — model unlisted/empty + no finite \`model_budget.default\` key — the suffix appends the marker \` (unlisted)\` after \`left\`, #132). Fire this for context-budget decisions instead of the peek.mjs shell-out.
+Returns the \`SESSION=… CTX=… (…%) REM=…\` readout (window unknown → no pct/REM; no total / unreadable db → CTX=notAvailable with the error appended). Fire this for context-budget decisions instead of the peek.mjs shell-out.
 The line always ends with \` ROUND=<trips>\` — maintenance trips = cumulative session input tokens ÷ \`maintenance_trip_tokens\` (budget-file key, default 1M, #213); the #171 MAINT duty token is retired.
 The readout LAGS true usage by ≈1 tool call (~5k tokens — the in-flight step's output, not yet in the DB; the gauge reads the last FINISHED step's in+out+cr, #103) — treat it as a LOWER bound and plan with margin (the same lag applies to the injected ctx: nudge lines).`;
 

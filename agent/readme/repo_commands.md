@@ -105,9 +105,8 @@ repo facts:
   `node .opencode/plugins/scripts/peek.mjs` from the repo root; the read is
   read-only and prints the canonical readout form `SESSION=… CTX=n (p%)
   REM=m`. An unknown window yields `CTX=n` only; a session with no finished
-  step yields `CTX=notAvailable`. The gauge line may end with the budget
-  suffix ` | N compactions left` — PENDING RETIREMENT (TODO #212); treat it
-  as legacy text until it lands.
+  step yields `CTX=notAvailable`. The gauge line ENDS at `REM=m` — the budget
+  suffix ` | N compactions left` is RETIRED (TODO #212, U26, 2026-10-29).
   **Margin rule (maintainer 2026-09-14):** the readout UNDER-reports actual
   usage. A compact-era save fired at a 95 % nudge landed at 119.6 K of the
   ~120 K window. Add a 5 % margin to the gauge and nudge numbers when making budget

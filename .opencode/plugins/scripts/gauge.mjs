@@ -123,14 +123,10 @@
 //                       pct/REM)
 // - no total / unreadable db: SESSION=<sid|unknown> CTX=notAvailable —
 //   verbatim, never a silent/zero confusion.
-// - the item-3 budget suffix (2026-09-24): when the compaction budget store
-//   resolves, the line ENDS with the distinct ` | N compactions left` field
-//   (singular at 1 — the ` | ` separator flags it as a separate field):
-//   remaining = max(0, cap - count) PLUS 1 iff the once-per-session emergency
-//   compaction is still available (count === cap && effective
-//   emergency_budget >= 1 — see compactionsLeftSuffix). Budget file missing /
-//   unparseable, or the read session unknown (db-error) → NO suffix
-//   (fail-open — the forms above stand verbatim).
+// - #212 (U26, 2026-10-29): the item-3 budget suffix (` | N compactions
+//   left`) is RETIRED — `compactionsLeftSuffix` is deleted; every form
+//   above ENDS the line verbatim. The budget store is now read ONLY for
+//   the #213 trip constant (see maintenanceTripTokens below).
 //
 // SESSION-GATING (the #32 cross-session feed root cause): the result carries
 // the id of the session the read came from (sid). The plugin posts its part
@@ -193,9 +189,9 @@ export function getBackends() {
   return [...backendList];
 }
 
-// Item 3 (2026-09-24): the budget store the "N compactions left" suffix
-// reads (the compact_memory budget store — the SAME file auto_resume.ts
-// reads per nudge-eligible call; READ-ONLY here, read per formatGauge call —
+// #212 (U26): the budget store (the compact_memory budget store — the SAME
+// file auto_resume.ts reads per nudge-eligible call). Here READ-ONLY, read
+// per maintenanceTripTokens call ONLY (the item-3 suffix reader is deleted;
 // small file, a per-call read is fine). Resolved RELATIVE to this file
 // (.opencode/plugins/scripts → ../.. = repo root → .opencode/temp/).
 export const DEFAULT_BUDGET_FILE = join(THIS_DIR, "..", "..", "temp", "compact_budget.json");
@@ -432,7 +428,7 @@ export async function tripRoundSuffix(sessionID, dbPathOverride) {
 // = the repo root (`../..` only reaches `.opencode` — #152 fix, see below),
 // preferring opencode.jsonc and falling back to opencode.json when
 // absent. READ per resolveWindow call (small file — same precedent as the
-// budget-store read in compactionsLeftSuffix); NEVER throws (missing /
+// budget-store read in maintenanceTripTokens); NEVER throws (missing /
 // unparseable / no entry → the parseWindow fallback stands).
 // #150 unit A (2026-10-26): the core moved from `.opencode/plugin/scripts/` to
 // `.opencode/plugins/scripts/` — the SAME depth, so every THIS_DIR number above
@@ -635,72 +631,17 @@ export function resolveWindow(modelId) {
 //   no total   : { ok:false, kind:"no-total",  sid, modelId }            // read ok, no total
 //   unreadable : { ok:false, kind:"db-error",  sid:"unknown", modelId:"", error }
 
-// Item 3 (2026-09-24): the "N compactions left" suffix — the compaction
-// budget remaining for the READ session, appended as a DISTINCT field to the
-// readout line (format ` | N compactions left`, singular at 1; the budget
-// THRESHOLD is deliberately NOT revealed — indirect information only).
-// remaining = max(0, cap - count) PLUS 1 iff the once-per-session emergency
-// compaction is still available: count === cap && the effective
-// emergency_budget >= 1. The key is read LENIENTLY — absent → the fail-open
-// default 1 (matching compact_memory's DEFAULT_EMERGENCY_BUDGET), so the
-// readout matches the ACTUAL gate after item 10: at count === cap the
-// emergency IS still available (count === cap + key absent → 1, NOT 0).
-// The cap is resolved EXACTLY like compact_memory's resolveCap (mirror of
-// the auto_resume budgetExhausted helper): the CPU safety invariant FIRST
-// (cap 0), then the model_budget map's EXACT bare-model-id key, else
-// model_budget.default, else 1. The model is the read's modelId (the
-// session's CURRENT model — the bare id, the map's key form; a no-total
-// read carries the SESSION ROW's model when the row has one — the #114
-// session-row fallback, 2026-09-28), so the session entry's `model` (the
-// model at the last increment) is the fallback only when neither carries a
-// model. File missing / unreadable / unparseable /
-// root-not-an-object / sid "unknown" (a db-error read) → NO suffix
-// (fail-open). NEVER throws.
-export function compactionsLeftSuffix(sid, modelId) {
-  if (typeof sid !== "string" || sid === "" || sid === "unknown") return "";
-  let data;
-  try {
-    data = JSON.parse(readFileSync(budgetFile, "utf-8"));
-  } catch {
-    return ""; // missing / unreadable / malformed → no suffix (fail-open)
-  }
-  if (typeof data !== "object" || data === null || Array.isArray(data)) return ""; // scalar root → no store
-  const rec = data;
-  const sessions = rec["sessions"];
-  let entry = null;
-  if (sessions != null && typeof sessions === "object" && !Array.isArray(sessions)) {
-    const e = sessions[sid];
-    if (e != null && typeof e === "object" && !Array.isArray(e)) entry = e;
-  }
-  const count = entry != null && typeof entry["count"] === "number" && Number.isFinite(entry["count"]) ? entry["count"] : 0;
-  const model =
-    typeof modelId === "string" && modelId !== ""
-      ? modelId
-      : entry != null && typeof entry["model"] === "string"
-        ? entry["model"]
-        : "";
-  const mb = rec["model_budget"];
-  let cap;
-  let unlisted = false; // #132: the SILENT built-in cap-1 fallback (model
-  // unlisted/empty + no finite model_budget.default key) — the readout
-  // carries the marker ` (unlisted)` ONLY on this branch
-  if (/^cpu/i.test(model)) cap = 0; // the CPU safety invariant (mirror of resolveCap)
-  else if (mb != null && typeof mb === "object" && !Array.isArray(mb)) {
-    if (model !== "" && typeof mb[model] === "number" && Number.isFinite(mb[model])) cap = mb[model];
-    else if (typeof mb["default"] === "number" && Number.isFinite(mb["default"])) cap = mb["default"];
-    else { cap = 1; unlisted = true; }
-  } else {
-    cap = 1; unlisted = true;
-  }
-  const eb = rec["emergency_budget"];
-  const emergency = typeof eb === "number" && Number.isFinite(eb) && eb >= 0 ? eb : 1; // absent → fail-open default 1
-  const remaining = Math.max(0, cap - count) + (count === cap && emergency >= 1 ? 1 : 0);
-  return ` | ${remaining} compaction${remaining === 1 ? "" : "s"} left${unlisted ? " (unlisted)" : ""}`;
-}
+// #212 (U26, 2026-10-29): the item-3 budget suffix is RETIRED — the
+// `compactionsLeftSuffix` reader is DELETED and formatGauge appends NOTHING
+// after the CTX/REM (or notAvailable) field. The budget store
+// (.opencode/temp/compact_budget.json) STAYS alive, read ONLY for the #213
+// trip constant (`maintenanceTripTokens` — see the budget-store header).
+// The db-error ` — <error>` append lives in the tool/peek carriers and is
+// UNCHANGED.
 
 // The ONE readout form (see the header). sid missing/undefined -> "unknown".
-// Item 3 (2026-09-24): the line ends with the budget suffix when the store
-// resolves (compactionsLeftSuffix — empty string on fail-open).
+// #212: the line ends at the CTX/REM (or CTX=notAvailable) field — NO budget
+// suffix.
 export function formatGauge(r) {
   let out;
   if (r.ok) {
@@ -712,7 +653,7 @@ export function formatGauge(r) {
   } else {
     out = "CTX=notAvailable";
   }
-  return `SESSION=${r.sid ?? "unknown"} ${out}` + compactionsLeftSuffix(r.sid ?? "unknown", r.modelId ?? "");
+  return `SESSION=${r.sid ?? "unknown"} ${out}`;
 }
 
 // The two single-row reads (see the header). json_extract never fetches the

@@ -23,8 +23,10 @@ NAP — not here.
   tokens ride the `state_snapshot` digest's `## loop` line
   (`loop=<folder> ITER=<n> ROUND=<r> log=…`) — NOT the injected `ctx:` line
   (the maintainer's no-waste ruling keeps ITER out of the per-message
-  append). The `ctx_gauge` tool line carries ` ROUND=<r> MAINT=1` on every
-  5th round only (#171 maintenance clock).
+  append). The `ctx_gauge` tool line always ends with ` ROUND=<trips>`
+  (#213 maintenance-trip counter — cumulative session input tokens ÷ the
+  budget-file `maintenance_trip_tokens`, default 1M; the #171 ` MAINT=1`
+  duty token is retired from that line).
 - **Counter mismatch (loop-signals Part 2, approved 2026-09-15):** the
   machine-side max() above supersedes the planner-side detection for
   plugin-spawned sessions. If a launch N is ever smaller than the last
@@ -173,8 +175,9 @@ NAP — not here.
   2026-10-26: rounds count spawns PLUS verified compactions, so a session
   that survives by compaction still advances the clock; the leg is dormant
   since the compact lane was denied 2026-10-29). The token surfaces
-  as `ROUND=<r> MAINT=1` on the `state_snapshot` digest's `## loop` line and
-  on the `ctx_gauge` tool line (that one only on %5 rounds). Run the pass at
+  as `ROUND=<r> MAINT=1` on the `state_snapshot` digest's `## loop` line
+  (the `ctx_gauge` line no longer carries it — #213 replaced it with the
+  informational trip token `ROUND=<trips>`). Run the pass at
   session START — after the state rebuild (git log / NAP / TODO) and BEFORE
   task selection. Never idle-triggered (idle detection is the
   ghost/unit-4 pathology zone) and not via the priority list (that channel

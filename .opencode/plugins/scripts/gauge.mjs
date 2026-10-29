@@ -257,20 +257,167 @@ export function loopIterationSuffix() {
   }
 }
 
-// #171 maintenance-clock leg (maintainer ruling 2026-10-26): the MAINT token on
-// the ctx_gauge readout ONLY. Every 5th round → ` ROUND=<r> MAINT=1`; all other
-// rounds → `""` (ZERO extra context burden on the other four rounds). Same
-// fail-closed rules as loopIterationSuffix: no folder / no counter / non-finite
-// `round` (legacy counters) → `""`. NEVER throws.
-export function maintSuffix() {
+// #213 (U24, 2026-10-29): the MAINTENANCE-TRIP carrier (maintainer rulings
+// 2026-10-29) — REPLACES the #171 compaction-derived clock: the `maintSuffix`
+// export and the ` MAINT=1` duty token are RETIRED. The ctx_gauge working
+// line appends ` ROUND=<trips>` INFORMATIONAL on every read that identified a
+// session: trips = floor(cumulative provider input_tokens of the READ session
+// ÷ the trip constant). Carrier (F1): the SUM of `$.tokens.input` over the
+// session's COMPLETED assistant rows — the SAME provider-count source and
+// finished-step discriminator as the mass leg; winner table pair (`session_v2`
+// holds the id → the v2 pair, else the v1 pair). Constant (F3): the
+// `maintenance_trip_tokens` key of the budget file — integer >= 100_000;
+// absent / unparseable / < 100_000 → the default 1_000_000 (one log-free read
+// on the existing budget-file path — the maintainer owns the file, READ ONLY).
+// F4: READ-ONLY SQL only — no provider request, no DB write. NEVER throws: no
+// sid / all sum backends fail → "" (fail-open — the readout stands verbatim).
+// The loop counter file is NOT read for this suffix anymore (its `n`/`round`
+// keys and the loop_log bump leg stay untouched).
+export const MAINT_TRIP_DEFAULT = 1_000_000;
+export const MAINT_TRIP_MIN = 100_000;
+
+// The trip constant (see the F3 rule above). NEVER throws.
+export function maintenanceTripTokens() {
   try {
-    const folder = currentLoopFolder(loopRoot);
-    if (folder === null) return "";
-    const data = readLoopCounter(loopRoot, folder);
-    if (data === null) return "";
-    const r = data["round"];
-    if (typeof r !== "number" || !Number.isFinite(r) || r % 5 !== 0) return "";
-    return ` ROUND=${r} MAINT=1`;
+    const data = JSON.parse(readFileSync(budgetFile, "utf-8"));
+    const v =
+      data != null && typeof data === "object" && !Array.isArray(data) ? data["maintenance_trip_tokens"] : undefined;
+    if (typeof v === "number" && Number.isInteger(v) && v >= MAINT_TRIP_MIN) return v;
+  } catch {
+    // missing / unreadable / malformed / scalar root → the default
+  }
+  return MAINT_TRIP_DEFAULT;
+}
+
+// The cumulative provider input over the session's completed assistant rows
+// (same discriminator as the mass leg; the v1 form mirrors the v1 finished-
+// step LIKE). Built per call (SQL_STEP_DISCRIMINATOR_V2 is declared below).
+const sqlInputSumV1 = () =>
+  "SELECT SUM(COALESCE(json_extract(m.data, '$.tokens.input'), 0)) AS inp FROM message m " +
+  "WHERE m.session_id = ? AND m.data LIKE '%\"finish\"%'";
+const sqlInputSumV2 = () =>
+  "SELECT SUM(COALESCE(json_extract(m.data, '$.tokens.input'), 0)) AS inp FROM session_message m " +
+  "WHERE m.session_id = ? AND " + SQL_STEP_DISCRIMINATOR_V2;
+
+// In-process sum read (backends 1+2): open READ-ONLY, busy_timeout, the
+// winner-pair SUM, ONE busy retry — the readApiDb discipline. The id held by
+// `session_v2` → the v2 pair (no cross-pair double count); a missing PAIRED
+// message table degrades to the other pair (the unit-2 rule); any other error
+// propagates. A session with no completed rows → SUM NULL → 0.
+function readInputSumDb(openFn, target) {
+  const attempt = () => {
+    let db;
+    try {
+      db = openFn();
+      db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS};`);
+      let holdsV2 = false;
+      try {
+        holdsV2 = db.prepare(sqlSessionById("session_v2")).get(target) != null;
+      } catch {
+        holdsV2 = false; // no session_v2 table → the v1 pair
+      }
+      let row;
+      try {
+        row = db.prepare(holdsV2 ? sqlInputSumV2() : sqlInputSumV1()).get(target);
+      } catch (e) {
+        if (!/no such table/i.test(String(e?.message ?? e))) throw e;
+        row = db.prepare(holdsV2 ? sqlInputSumV1() : sqlInputSumV2()).get(target);
+      }
+      return row?.inp == null ? 0 : Number(row.inp);
+    } finally {
+      try {
+        db?.close();
+      } catch {
+        // best effort — the read outcome has already been captured
+      }
+    }
+  };
+  try {
+    return attempt();
+  } catch (e) {
+    if (/busy|locked/i.test(String(e?.message ?? e))) return attempt();
+    throw e;
+  }
+}
+
+// Spawn sum read (backend 3): the table probe picks the pair (the spawn gauge
+// read's discipline); the CLI prints NULL as an empty field → 0.
+async function readSpawnInputSum(p, target) {
+  if (!existsSync(DEFAULT_EXE_PATH)) throw new Error(`exe-missing ${DEFAULT_EXE_PATH}`);
+  const tables = new Set(
+    String((await spawnExec(p, SQL_TABLE_PROBE)).stdout)
+      .split(/\r?\n/)
+      .map((x) => x.trim())
+      .filter((x) => x !== ""),
+  );
+  const q = sqlSidLiteral(target);
+  const useV2 = tables.has("session_v2") && tables.has("session_message");
+  const sql = useV2
+    ? `SELECT SUM(COALESCE(json_extract(m.data, '$.tokens.input'), 0)) FROM session_message m WHERE m.session_id = ${q} AND ${SQL_STEP_DISCRIMINATOR_V2};`
+    : `SELECT SUM(COALESCE(json_extract(m.data, '$.tokens.input'), 0)) FROM message m WHERE m.session_id = ${q} AND m.data LIKE '%"finish"%';`;
+  const res = await spawnExec(p, sql);
+  const line =
+    String(res.stdout)
+      .split(/\r?\n/)
+      .map((x) => x.trim())
+      .filter((x) => x !== "")[0] ?? "";
+  if (line === "" || line === "NULL") return 0;
+  const n = Number(line);
+  if (Number.isNaN(n)) throw new Error(`sum-unparseable ${line.slice(0, 24)}`);
+  return n;
+}
+
+const SUM_BACKENDS = {
+  "node:sqlite": async (p, target) => {
+    const mod = await importModule("node:sqlite");
+    const DatabaseSync = mod?.DatabaseSync;
+    if (typeof DatabaseSync !== "function") throw new Error("DatabaseSync export missing");
+    return readInputSumDb(() => new DatabaseSync(p, { readOnly: true }), target);
+  },
+  "bun:sqlite": async (p, target) => {
+    const mod = await importModule("bun:sqlite");
+    const Database = mod?.Database ?? (typeof mod?.default === "function" ? mod.default : mod?.default?.Database);
+    if (typeof Database !== "function") throw new Error("Database export missing");
+    const open = () => {
+      try {
+        return new Database(p, { readonly: true, timeout: BUSY_TIMEOUT_MS });
+      } catch (e) {
+        if (/bad parameter|api misuse|misspelled/i.test(String(e?.message ?? e))) return new Database(p, { readonly: true });
+        throw e;
+      }
+    };
+    return readInputSumDb(open, target);
+  },
+  "spawn-sqlite3": readSpawnInputSum,
+};
+
+// Cumulative input ÷ constant → trips for the session. Walks the backend
+// chain over the SAME per-path cache the gauge read just warmed; every sum
+// backend failure tries the next; ALL fail → null (fail-open). No/unknown
+// session → null. NEVER throws at this level (the walk swallows).
+export async function maintenanceTrips(sessionID, dbPathOverride) {
+  const p = dbPathOverride ?? dbPath;
+  const target = typeof sessionID === "string" && sessionID !== "" && sessionID !== "unknown" ? sessionID : undefined;
+  if (target === undefined) return null;
+  for (const name of orderedBackendsFor(p)) {
+    const impl = SUM_BACKENDS[name];
+    if (impl === undefined) continue;
+    try {
+      const sum = await impl(p, target);
+      return Number.isFinite(sum) && sum > 0 ? Math.floor(sum / maintenanceTripTokens()) : 0;
+    } catch {
+      // this sum backend failed — try the next one
+    }
+  }
+  return null;
+}
+
+// The ctx_gauge trip token (F2): ` ROUND=<trips>` always on an identified
+// session; "" fail-open (unknown sid / all sum backends failed). NEVER throws.
+export async function tripRoundSuffix(sessionID, dbPathOverride) {
+  try {
+    const trips = await maintenanceTrips(sessionID, dbPathOverride);
+    return trips == null ? "" : ` ROUND=${trips}`;
   } catch {
     return "";
   }

@@ -111,7 +111,8 @@ Work through the rungs in order, top-down:
    Trim-first: `context_trim mode:'free' target=25` on your own session, then
    continue from committed state. (`compact_memory` is permission-denied
    since 2026-10-29 — the trim lanes replace compaction, U22 proven.)
-4. `Compactions left = 0`: close with `action: restart`.
+4. Close with `action: restart` only when the session cannot continue from
+   committed state or the maintainer asks for a fresh session.
 5. `action: stop` covers only unrecoverable failure or direct maintainer interaction.
 
 Maintenance duty (#171): when the `ctx_gauge` line ends with `ROUND=<n> MAINT=1`,
@@ -307,9 +308,9 @@ The planner's per-rung actions:
 - `maintainer`: report the context state to the maintainer
 
 If no live nudge exists, use the thresholds in
-`AGENTS.md` §Compaction Guidelines.
+`AGENTS.md` §Context Budget and §Context Trim.
 
-Compact after tool output is distilled.
+Free context after tool output is distilled.
 The raw output is no longer useful at that point.
 
 Keep work IN the context.
@@ -321,8 +322,8 @@ At `REM ≤ 20k`, or when the next unit cannot finish safely:
 1. Pause the current unit.
 2. Update the NAP.
 3. Commit the current state.
-4. Compact SELF. Pass the `message` arg = next-unit pointer.
-5. Continue this session.
+4. Free context: `context_trim mode:'free' target=25` on your own session.
+5. Continue this session from committed state.
 
 A worker context-limit hit requires a cross-session trim and resume.
 Do not launch a replacement worker.

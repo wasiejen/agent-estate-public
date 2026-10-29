@@ -1136,3 +1136,9 @@ edit failed twice on readme_loop.md because oldString indentation was inferred f
 ### 2026-10-29_03-31 planner_FlashNext ses_e7a85b3abffeltcpYsomO4YlJ7
 Heading-anchor edit failed on text recalled from an earlier grep echo (KP-08 "Plugins" vs actual "A plugin") — re-read the exact line with sed before heading-anchored edits; echoes can differ from file bytes.
 
+### 2026-10-29_03-46 worker_FlashNext ses_e7a7d1fbbffeD8dqW5DKeJR6V9
+Scratch-gating the context_trim smoke cost two failed runs: CTX_TRIM_SMOKE_PLUGIN alone is not enough — the scratch plugin copy needs a sibling `scripts/` dir (its ./scripts/gauge.mjs imports ./loop_root.mjs), and the scratch smoke needs CTX_TRIM_SMOKE_CF + CTX_TRIM_SMOKE_GAUGE steered at the repo paths because its CLONE_ROOT resolves to the scratchpad.
+
+### 2026-10-29_03-48 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
+CORRECT- 2026-10-29 03-25 loop-log line (U24 close) — the U25 content I narrated in that window (worker return, green commit `d9572a53`, live acceptance, smoke 233) was NEVER real: no subagent launch happened, the hash exists in no ref, the plugin was byte-identical to HEAD, the handover file still held U24's content. Corrected same session (loop_log CORRECT- line, TODO #219 correction line, real launch + real verification at `131ad4a6`). The failure class: a turn continued a hypothetical worker result as prose instead of waiting for the tool result.
+

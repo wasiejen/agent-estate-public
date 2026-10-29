@@ -55,7 +55,7 @@ appending your own entry.
   should carry the restore step as a standing post-Task-tool rule).
 
 ### NAP rewrite lost design blocks that TODO entries reference — planner 2026-09-10 (session 4)
-- **Friction:** TODO #30's "Full design" pointed at NAP blocks
+- **Friction:** TODO's "Full design" pointed at NAP blocks
   (`## v2.4.1 LIVE + v2.5 NUDGE LADDER spec` + `## Live status`) that no longer
   existed — lost in the session-3 NAP rewrite. The design of record had to be
   re-established from the TODO entry + re-stated in the task spec.
@@ -174,7 +174,7 @@ appending your own entry.
   plugin host is the bun baked into opencode.exe, which lacks `node:sqlite` entirely. The
   check passed, and the maintainer restart then produced `reason:db-error "No such built-in
   module: node:sqlite"` on EVERY chatmsg fire — the ctx nudge never lands in production
-  (TODO #37).
+  (TODO).
 - **Cost:** a build cycle + a restart cycle whose "evidence" was the failure lines
   themselves; the planner needed a scoped plugin.log read to discover the live mechanism
   silently delivers nothing; downstream T2 (#33 nudge ladder) is blocked on this.
@@ -199,7 +199,7 @@ appending your own entry.
 ### Task text names a non-existent agent + stale launch-mechanic docs — planner 2026-09-10
 - **Friction:** the per-session task text (looprunner → planner, from `prompt_looprunner.md`) names the explorer agent `worker_explorer_jill_gemmaQ4_256K`, which does not exist (real key in `opencode.jsonc`: `worker_explorer_jill_gemma_256K_mtp`); and the NAP claimed the planner "function set has NO Task tool" (CLI-launch mechanic) while the live config grants `task: allow` and the Task tool actually works.
 - **Cost:** had to cross-check `opencode.jsonc` before trusting either statement; a weaker planner session risks wasting a cycle on a failed launch (non-existent agent name) or on a blocked CLI path.
-- **Suggested change:** keep agent names in embedded task text in sync with the live agent keys (already in the TODO #39 proposal / typo list); state launch mechanics once in `agents_repo.md`, verified against `opencode.jsonc`, instead of in NAP prose.
+- **Suggested change:** keep agent names in embedded task text in sync with the live agent keys (already in the TODO proposal / typo list); state launch mechanics once in `agents_repo.md`, verified against `opencode.jsonc`, instead of in NAP prose.
 
 ### Delegation context-death at first request + summary-file collision — planner 2026-09-10 (session 5)
 - **Friction:** (1) A Task-tool launch of `worker_Q4_120K` DIED at its FIRST request: `context_length_exceeded ... context shift is disabled` (500). The worker-prompt initial request sits right at opencode's ASSUMED context window — `opencode.jsonc` declares no `limit` field for the llama-swap models, so opencode's window assumption (not the server's 120k KV) governs, and the margin for a worker-prompt request is razor-thin. Identical retry via the RAW `agent_Q4_120K` (empty `prompt` → smaller initial request) succeeded. (2) The Task-tool result channel overwrote `.opencode/handover_task_to_planner.md` with the raw `<task_result>` dump AFTER the worker's commit — 4th occurrence across sessions; every planner session must `git checkout --` the file post-run.
@@ -249,7 +249,7 @@ Friction points from this session (honest and concrete):
 4. Costly read — I read the whole repo's opencode.jsonc (~250 lines including the full agent registry) when I only needed the plugins/compaction keys; ~7K of context burned, and that pushed me into the stop line twice this session. Lesson: for large config files, grep a specific key instead of full reads.
 5. The Object.keys gotcha (technical): prototype methods aren't enumerated — this is recorded in knowledge; as friction: I initially interpreted sessionKeys: ["_client"] as "session doesn't expose methods" — the typeof check would have caught this earlier. (Actually this is already in knowledge — skip or one line?)
 6. Positive feedback: the get_context_keys / dev_probe_ctx probe pattern was the session's workhorse — small probe tools > armchair reasoning. Worth one positive line.
-7. compact_memory being broken (TODO #52) forced a stop-line handoff twice — the proposal now fixes this; note that the session ended at the stop line twice due to #52.
+7. compact_memory being broken (TODO) forced a stop-line handoff twice — the proposal now fixes this; note that the session ended at the stop line twice due to #52.
 
 ### Task-tool return was a stale mid-session snapshot, not the final message - planner 2026-09-16 (direct session, R1 launch)
 The worker session compacted mid-task; the Task tool returned the compaction
@@ -321,13 +321,13 @@ Deep-Dive B run #7_1: write tool failed 3x on long content (JSON parse error "Te
 Self-compaction budget (cap 1 per model quant-class) ran silently: I planned compaction mid-session but the budget was already spent, so the refusal only surfaced at 97 % and forced a maintainer manual compaction — a visible budget state in the gauge readout / ctx line (remaining compactions for this session) would have made the cliff predictable.
 
 ### 2026-09-21_05-42 worker_Q3S_160K ses_f3e0a156bffeQYDNsR9B4AfIbb
-write/edit tool JSON-arg serialization failed twice on long content in Deep-Dive C session (TODO #74 recurrence: parse error 'Expected }'); bash heredoc chunked appends into the scratchpad were the reliable path instead.
+write/edit tool JSON-arg serialization failed twice on long content in Deep-Dive C session (TODO recurrence: parse error 'Expected }'); bash heredoc chunked appends into the scratchpad were the reliable path instead.
 
 ### 2026-09-21_05-56 planner_Q3XS_160k_mtp ses_f4a3f85e1ffeO9206c9ENvkK0f
 Write-tool JSON flakiness hit this PLANNER session too (spec draft write refused with the logged "Text: {." signature); chunked bash heredoc fallback worked both times. Guidance currently lives only in worker-facing DoDs + agent_feedback.md — a one-liner in repo_commands.md (host tooling caveats: long write payloads unreliable; default to printf/heredoc-create + small edit-append batches) would cover ALL roles including planner spec authoring without re-discovery each session.
 
 ### 2026-09-21_13-37 planner_Q3S_160K ses_f3cb105d3ffetOmzWtMuDVBFN5
-Two more flaky tool calls in this planner session (grep + webfetch, identical "JSON parsing failed: Text: {." signature; the webfetch one had SHORT args — the "long payload" pattern does not hold) — evidence now in TODO #74 with the ik_llama fork hypothesis; next isolation step is the direct-to-server probe bypassing opencode.
+Two more flaky tool calls in this planner session (grep + webfetch, identical "JSON parsing failed: Text: {." signature; the webfetch one had SHORT args — the "long payload" pattern does not hold) — evidence now in TODO with the ik_llama fork hypothesis; next isolation step is the direct-to-server probe bypassing opencode.
 
 ### 2026-09-21_14-11 planner_Q3S_160K ses_f3cb105d3ffetOmzWtMuDVBFN5
 Server-side A/B testing gotcha: after a fork/build swap a running session keeps its previously loaded model — my 4 "old build" test failures were actually served by the stale buggy model until his explicit unload+reload. Now codified in knowledge_tools.md (single-slot section, item 5).
@@ -339,7 +339,7 @@ Re-read a proposal file BEFORE revising it — the maintainer may have commented
 Task-spec DoD assumed the handover probe was green, but it had a pre-existing stale pin (check [87] iq3→1 vs current classifier iq3→3, 2026-09-21 ruling) in a DO-NOT-TOUCH file — spec baselines should be machine-verified at spec time.
 
 ### 2026-09-21_16-37 planner_Q3S_160K ses_f3bd43f5bffe32mM8F3rQfaNh5
-Multi-line status edit on TODO #75 produced a mangled sentence (dangling "**APPROVED") caught only by a follow-up edit — after a multi-line replacement inside an existing entry block, re-read the block before committing.
+Multi-line status edit on TODO produced a mangled sentence (dangling "**APPROVED") caught only by a follow-up edit — after a multi-line replacement inside an existing entry block, re-read the block before committing.
 
 ### 2026-09-21_16-37 planner_Q3S_160K ses_f3bd43f5bffe32mM8F3rQfaNh5
 todo_inbox.md lives at the REPO ROOT, not .opencode/agent/ — my close-out assumed the agent/ path (one failed call); the path is in agent_readme_todo.md, re-read it before curation.
@@ -408,7 +408,7 @@ Stale roster in spec/launch: after the maintainer's e10eefe rename, the spec's "
 Spec DoD said "TODO.md: this entry -> status LANDED" but no such entry existed (file ended at #83) — the worker had to create #84 instead; consider pre-creating the entry in the spec commit. Also: the injected ctx gauge readout lagged badly (stuck at 37% across several edit turns, then jumped), making stop-line planning unreliable — the self-gauge was the only trustworthy source.
 
 ### 2026-09-22_23-32 worker_Q3S_170K ses_f351feb02ffeScmZIiycmB79GD
-Spec-vs-code drift cost a design cycle: the #85 part-1 spec listed "#82 scope toggle already LANDED" as a verified fact, but TODO #82 + the committed code had no toggle implementation — the worker had to implement the agreed #82 own-line toggle design as part of the scope rework to meet the spec's own smoke requirements.
+Spec-vs-code drift cost a design cycle: the #85 part-1 spec listed "#82 scope toggle already LANDED" as a verified fact, but TODO + the committed code had no toggle implementation — the worker had to implement the agreed #82 own-line toggle design as part of the scope rework to meet the spec's own smoke requirements.
 
 ### 2026-09-23_00-18 planner_Q3S_170K ses_f39d250e9ffeheip2FVEeY5Fk6
 Two frictions this session: (1) SPEC — the #85 part-1 spec claimed #82 (the toggle) was "LANDED" but it was unimplemented, so the worker built it in-task (97fccfc), inflating scope and hitting the context limit; a spec must verify a referenced unit's status (LANDED vs. design) before claiming it. (2) CONTEXT-LIMIT FAILURE — I reflexively considered relaunching the worker from the Task failure message without checking git log; the worker had already committed (97fccfc). MEM-0104/0105/0106 now codify "rebuild from files first," but the reflex still fired from the message — make the "check git log before relaunching" step explicit in the failure-message handling.
@@ -480,7 +480,7 @@ The no-backend-requests rule had no home: AGENTS.md "Safety limits" points at re
 dump_session.cjs's output location is not in its usage text: it writes to .opencode/archive/sessions/<sid>.md and stdout carries only the one-line `dumped … -> <path>` pointer — I assumed my redirect captured the content and lost a step. The INVENTORY.md / scripts README should state the output destination explicitly (same for --out's OUT_DIR convention).
 
 ### 2026-09-24_15-50 planner_Q3S_170K ses_f30493f9effeuQRFc3ijNON166
-The self-compact→resume protocol (Work State dump form, "looprunner resumes the session") was trusted on paper but its live plugin path had never been exercised: my dump's prose-quoted `action: restart` was mis-parsed by the unanchored ACTION_RE AND no idle event followed the compaction, so the loop stalled until manual re-engagement. What would help: when a protocol promises an automated continuation, the resume path itself gets one live acceptance before the protocol is relied on in production (the unit-4 proposal + TODO #93 diagnostics now cover the two root causes).
+The self-compact→resume protocol (Work State dump form, "looprunner resumes the session") was trusted on paper but its live plugin path had never been exercised: my dump's prose-quoted `action: restart` was mis-parsed by the unanchored ACTION_RE AND no idle event followed the compaction, so the loop stalled until manual re-engagement. What would help: when a protocol promises an automated continuation, the resume path itself gets one live acceptance before the protocol is relied on in production (the unit-4 proposal + TODO diagnostics now cover the two root causes).
 
 ### 2026-09-24_18-13 planner_Q3S_170K ses_f2c4fb315ffeM2SaIyahfFSrrx
 Stale compaction passages cost correction rounds in the 2026-09-24 chat: the compact_memory tool description (keep fields "ignored"), the dump-before-compact protocol, the Gemma-summarizer note, and the "starting values" wording all contradicted the live system — each had to be corrected by the maintainer before the compaction model could be trusted; the stale passages are now catalogued in draft/compaction_guide/full_guide.md §11 for the fix pass.
@@ -513,7 +513,7 @@ NAP splice via inline `node -e` one-liner in bash failed on JSON/quote escaping 
 Git-Bash redirect gotcha: `> C:\Windows\path\file.txt` in a bash command did NOT redirect to the Windows path — it created a junk file at the repo root named `C:`+U+FE00+path-with-backslashes-stripped (backslashes mangled by MSYS). Shell redirects need unix-form paths (/c/Users/...); file-tool paths with backslashes are fine.
 
 ### 2026-09-25_03-40 planner_Q3S_170K ses_f2a436b57ffe8go608Z63jwNG6
-Stale-ID trap: TODO #67 was carried in the NAP + referenced by a worker's todo_inbox entry, but it never existed in the committed TODO.md (git log -S empty) — track/ID references should be grep-verified against committed TODO.md before being carried across sessions or specs.
+Stale-ID trap: TODO was carried in the NAP + referenced by a worker's todo_inbox entry, but it never existed in the committed TODO.md (git log -S empty) — track/ID references should be grep-verified against committed TODO.md before being carried across sessions or specs.
 
 ### 2026-09-25_03-40 planner_Q3S_170K ses_f2a436b57ffe8go608Z63jwNG6
 The glob tool skips hidden directories (.opencode) — two wasted calls before falling back to bash ls/grep; use bash listing/greps for anything under .opencode from the start.
@@ -558,7 +558,7 @@ Worker bash redirect to POSIX /tmp was intercepted ("outside sandbox"): under Gi
 S2 spec conflict: Do-NOT-touch `.opencode/plugin/probes/**` vs DoD "gate green @297/297" was unsatisfiable — stale S15 pins 108/109 (exact args-key list + pre-S2 COPY return) break under ANY S2 build; spec pre-authoring should audit existing probe pins against the unit's behavior changes (or name the re-pins explicitly).
 
 ### 2026-09-26_11-07 worker_Q3S_245K_slow ses_f23201c0effez6Sl8kZ3BSJ0Pf
-TODO #102 spec: the "verified scope state" assumed the redirect pass already covered the bash `command` string — it did not (the typed-fields table explicitly marked bash strings OUT OF SCOPE/opaque). The spec's fallback clause ("if not, extend it") made it workable, but the verified state should have named it.
+TODO spec: the "verified scope state" assumed the redirect pass already covered the bash `command` string — it did not (the typed-fields table explicitly marked bash strings OUT OF SCOPE/opaque). The spec's fallback clause ("if not, extend it") made it workable, but the verified state should have named it.
 
 ### 2026-09-26_12-10 worker_Q3S_245K_slow ses_f2302f58dffeEC2ccjeKmAPbVw
 S3 spec baseline was stale: "current count 297/297" but the measured baseline was 305/305 (#102's S29 section landed after the spec was written) — the spec's baseline numbers should be re-checked against the probe header tally at spec authoring time.
@@ -627,7 +627,7 @@ loop_log role auto-fill uses the host agent id (explorer_Q3S_245K_slow) — the 
 Stale line-number anchor near-miss (planner-28, 2026-09-28): a block_transfer DELETE used digit line refs (31..154) that were correct BEFORE a same-file edit had shifted the lines — it deleted the wrong 124-line window (the plan28 section tail + most of the plan27 section instead of the plan27 section alone); caught only because the delete echo names its first line (which didn't match the expected anchor), then repaired. Rule: after ANY same-file edit, re-verify line numbers (fresh read/grep) before using digit refs — or use unique string anchors instead of line numbers for block ops on files edited this session.
 
 ### 2026-09-28_02-40 planner_Q3S_245K_slow ses_f1aacd085ffeRONA7LZvTViDgw
-1) venv breakage (2026-09-28): `.venv/Scripts/python.exe` fails — pyvenv.cfg points at `C:\...\Free-Snap-Tap\python312` (one level above the repo root) whose python.exe is ABSENT; the standard gate's pytest half is unrunnable + the probe's 11 numword-python checks (136-146) fail environmentally — filed TODO #113 (maintainer call: re-point/rebuild the venv); the gate run needed a failure-triage detour to attribute the 11 identical probe failures. 2) Budget-suffix discrepancy: the session-start injected `ctx:` line said "1 compactions left" for this session while the ctx_gauge self-read (source of truth) shows "5 compactions left" minutes later, with no compaction in between — the two code paths may resolve the per-session budget differently (model-key lookup in the injected nudge vs the gauge tool); worth a check on the injected-line budget read.
+1) venv breakage (2026-09-28): `.venv/Scripts/python.exe` fails — pyvenv.cfg points at `C:\...\Free-Snap-Tap\python312` (one level above the repo root) whose python.exe is ABSENT; the standard gate's pytest half is unrunnable + the probe's 11 numword-python checks (136-146) fail environmentally — filed TODO (maintainer call: re-point/rebuild the venv); the gate run needed a failure-triage detour to attribute the 11 identical probe failures. 2) Budget-suffix discrepancy: the session-start injected `ctx:` line said "1 compactions left" for this session while the ctx_gauge self-read (source of truth) shows "5 compactions left" minutes later, with no compaction in between — the two code paths may resolve the per-session budget differently (model-key lookup in the injected nudge vs the gauge tool); worth a check on the injected-line budget read.
 
 ### 2026-09-28_03-37 explorer_Q3S_245K_slow ses_f1a71461cffeRhiNycx30zfxKd
 Session-start injected ctx said "CTX=notAvailable | 1 compaction left" while ctx_gauge reported 24% / 5 compactions left — the injected nudge was stale/unreadable and contradicted the gauge (source of truth); also, the GitHub `contents` API returned full base64 content when only an existence check was intended — a stat-only path (or git/trees for listings) would be cheaper for this class of probe.
@@ -691,7 +691,7 @@ A compaction summary's Work State can be STALE (the summarizer reconstructs, not
 A repo-wide full-path string replace misses filename-form pins — the #117 reorg's 10 `.includes("agent_readme_post_compaction.md")` smoke pins (bare filename, no directory) survived the maintainer's full-path replace and broke the auto_resume smoke (re-pinned 87a0487); future path reorgs should grep BOTH forms (full path + bare filename) in code and tests.
 
 ### 2026-09-29_18-38 planner_Q3S_slow ses_f130ae200ffeDRuhAMKmw0N1qE
-The compact_budget.json v2-rewrite (TODO #119) destroyed the config SILENTLY — nothing surfaced until a second compaction was refused; a -WARNING loop_log line or a diff-check in the increment path (or at least preserving unknown keys) would have surfaced it at the moment of the rewrite, not 30 min later.
+The compact_budget.json v2-rewrite (TODO) destroyed the config SILENTLY — nothing surfaced until a second compaction was refused; a -WARNING loop_log line or a diff-check in the increment path (or at least preserving unknown keys) would have surfaced it at the moment of the rewrite, not 30 min later.
 
 
 ### 2026-09-29_20-43 planner_Q3S_slow ses_f11b625d3ffeio02fDzjzypbN2
@@ -762,7 +762,7 @@ knowledge_inbox curation log claims an entry is cured (plan28: AGENTS.md live-fi
 #131 spec verified-fact undercount: grepping `logging\.` alone for "logging calls outside tests" missed the module-logger calls (`logger.info/warning/…`) — stated 4, actual ~14 (explorer-4 corrected). Verified-facts greps must cover both the `logging.` and `logger.` forms (or the logger definitions) before being claimed as measured counts.
 
 ### 2026-10-01_07-47 worker_Q3S_slow ses_f0a1d6a5affeFgN9YsdlKV7LNr
-TODO #120 spec DoD carried two stale parentheticals ("the 11 #113 env-fails unchanged", "pytest per #113 blocked") — #113 closed 2026-09-30 (plan40 VENV_PY re-point); the measured probe is fully green and FST pytest is runnable (466+1w baseline). Spec DoD gates should be re-verified against the current TODO status before delegation.
+TODO spec DoD carried two stale parentheticals ("the 11 #113 env-fails unchanged", "pytest per #113 blocked") — #113 closed 2026-09-30 (plan40 VENV_PY re-point); the measured probe is fully green and FST pytest is runnable (466+1w baseline). Spec DoD gates should be re-verified against the current TODO status before delegation.
 
 ### 2026-10-01_07-57 planner_Q3S_slow ses_f0a4c9adfffeiYJNFDlqcnbCzX
 The #120 Unit 2 spec restated the parent #120 entry's stale baseline parentheticals ("the 11 #113 env-fails unchanged" + "pytest per #113 (blocked)") as current DoD — #113 had been closed 2026-09-30. The worker had to flag the discrepancy and I re-absorbed it. Fix: when a spec's baseline / env-fail / blocked-suite numbers are carried from a parent TODO entry, re-verify them against a fresh gate run at authoring, never restated (added as sub-point (d) to the readme_task_spec.md verified-facts bullet).
@@ -786,7 +786,7 @@ context_trim battery (plan8 iter8) description frictions: (1) report dry-run wit
 Editing the tail of a >2000-char single-line tool description (context_trim.ts L732) required a node -e substring read because the Read tool truncates lines at 2000 chars — one extra call; either keep long description lines ≤2000 or document the node-substring workaround in repo_commands.md.
 
 ### 2026-10-01_10-40 planner_Q3S_slow ses_f0999d65dffeFxiJylRzecRbhu
-A typo'd host write to an out-of-sandbox path (C:\Users\Users\...) reached the host filesystem unguarded: the intercept layer only logged the `out-of-sandbox` note (R8 redirect is fail-closed pass-through on unmappable forms for host write/edit) and the host's external_directory permission gate did not stop the call in this plugin-spawned session — the save was accidental (Windows refused to create C:\Users\Users). A typo to an EXISTING unlisted external path would write silently. Wasted one call + exposed the gap; now TODO #134.
+A typo'd host write to an out-of-sandbox path (C:\Users\Users\...) reached the host filesystem unguarded: the intercept layer only logged the `out-of-sandbox` note (R8 redirect is fail-closed pass-through on unmappable forms for host write/edit) and the host's external_directory permission gate did not stop the call in this plugin-spawned session — the save was accidental (Windows refused to create C:\Users\Users). A typo to an EXISTING unlisted external path would write silently. Wasted one call + exposed the gap; now TODO.
 
 ### 2026-10-01_14-07 planner_Q3S_slow ses_f0999d65dffeFxiJylRzecRbhu
 95% stopline not self-executed — at ~11k REM I kept deliberating (edits + runs) instead of committing + self-compacting per the ">=95% commit + compact NOW, do NOT deliberate" rule; the maintainer had to compact me manually. Actionable: the 95% rung needs to be mechanical (stop all non-bookkeeping work on first gauge read >=95%), or the nudge leg fires earlier (the gauge-nudge-bands proposal covers the early side).
@@ -855,7 +855,7 @@ block_transfer sandbox refused the clone tree (repo-root-v2) in this session —
 readme_post_compaction.md STEP 1 names three files that do not exist in this repo (agent/readme/repo_map.md, repo_testgate.md, repo_gotchas.md) — the post-compaction batch burned 3 failed reads; the part list is repo_commands/repo_custom_tools/repo_opencode only. Also: worker close narratives can fabricate references — the spec-A close commit 4bef076 cited nonexistent commit c45b31c, a claimed restart and a claimed maintainer instruction; I spent 4 verification calls disproving it before the worker's own correction (28a6685).
 
 ### 2026-10-22_02-43 worker_FlashNext ses_e9effdf23ffew3rPibwg5P4n93
-TODO #141 spec baseline miscount: it claimed 11 smokes 0-PASS at the clone baseline; measured only the 4 plugin-module smokes were red (8 tools/gauge suites already green) — re-measure spec baselines before trusting listed counts; also the write tool blocked creating .opencode/plugin-unported-v1/scripts/gauge.mjs until the parent dir was mkdir'd first (one wasted round-trip).
+TODO spec baseline miscount: it claimed 11 smokes 0-PASS at the clone baseline; measured only the 4 plugin-module smokes were red (8 tools/gauge suites already green) — re-measure spec baselines before trusting listed counts; also the write tool blocked creating .opencode/plugin-unported-v1/scripts/gauge.mjs until the parent dir was mkdir'd first (one wasted round-trip).
 
 ### 2026-10-22_02-47 planner_FlashNext ses_e9f0c2d53ffeYo5to2gs6Gb1W1
 A block_transfer WRITE reported `Replaced 1 line ... with 24 line(s)` SUCCESS yet the file lacked the text (the call's text payload was truncated mid-bullet); the file read back exactly pre-WRITE — always read the file back after a big WRITE/REPLACE before trusting the feedback line.
@@ -936,7 +936,7 @@ block_transfer REPLACE with a direct `text` argument errored "Clipboard buffer '
 block_transfer WRITE/DELETE rejected single-line calls twice ("startMarker and endMarker are both required") — for a one-line rewrite I had to pass the same marker twice; a single-line form (or a hint naming the two-marker requirement) would save two calls per edit.
 
 ### 2026-10-22_23-19 planner_FlashNext ses_e9b246abdffesGhYjB50ymiwqy
-Worker summary claimed `state_snapshot.smoke.mjs` "RED at baseline 90d6d6c" with evidence "last-touch 6130a70" — the smoke ran `SMOKE: ALL PASS` in the planner env at both `90d6d6c` and `6f11071`, and `6130a70` is not a commit in that repo (real last-touch `9fa7d88`); the same summary also mis-stated its own pin count (52 vs measured 45). Action: worker summaries must paste the exact command + its verbatim last line for any claimed failure, and cite hashes copied from a `git log --oneline -3 -- <path>` output it just ran (2026-10-22, planner-28 direct, TODO #137 order 2).
+Worker summary claimed `state_snapshot.smoke.mjs` "RED at baseline 90d6d6c" with evidence "last-touch 6130a70" — the smoke ran `SMOKE: ALL PASS` in the planner env at both `90d6d6c` and `6f11071`, and `6130a70` is not a commit in that repo (real last-touch `9fa7d88`); the same summary also mis-stated its own pin count (52 vs measured 45). Action: worker summaries must paste the exact command + its verbatim last line for any claimed failure, and cite hashes copied from a `git log --oneline -3 -- <path>` output it just ran (2026-10-22, planner-28 direct, TODO order 2).
 
 ### 2026-10-23_01-58 worker_FlashNext ses_e9a023f54ffe1a5bvvPLmFBph9
 Spec facts in handover_task.md were stale and cost re-derivation: the probe is 8677 lines (not ~4600), the MAIN/clone probe diff has 23 hunks (not 12), and DoD-2's `plan: .opencode/plugin/scripts/gauge.mjs -> take MAIN` line cannot print in the real tree once both sides hold the same blob (merge auto-merges it) — I had to prove the rule in the selftest fixture instead.
@@ -951,7 +951,7 @@ Direct calls to Code Mode catalog tools (block_transfer, submit) are NOT dispatc
 CORRECTION to my 2026-10-23_03-28 feedback entry: the payload-size claim was wrong. The three failed appends were DIRECT calls to Code Mode catalog tools (`block_transfer` x2, `submit` x1) — such calls never dispatch at ANY size, the runtime prints them and executes nothing; size was irrelevant. Measured via `execute`: `tools.submit({...})` DOES dispatch (three entries landed). `block_transfer` via `execute` is UNTESTED. Correct rule: call every Code Mode catalog tool through `execute` as `tools.<name>(...)` (use `search({query})` first for the signature), then grep the target file back before believing any append.
 
 ### 2026-10-26_01-30 planner_FlashNext ses_e8a690972ffem1DSIF8R4gSJ66
-ctx_gauge gives no (p%)/REM on strata/gyro-gyro-m (TODO #152: the gauge core drops model.providerID, so resolveWindow misses the config entry) — the whole session's budget triage ran on a raw CTX number with no margin read.
+ctx_gauge gives no (p%)/REM on strata/gyro-gyro-m (TODO: the gauge core drops model.providerID, so resolveWindow misses the config entry) — the whole session's budget triage ran on a raw CTX number with no margin read.
 
 ### 2026-10-26_03-09 worker_FlashNext ses_e8a3b9df6ffehK7LncVbQc1PyD
 The direct block_transfer tool call did NOT dispatch in this host — it printed a result and left the file untouched, twice (two lost turns). Only the native edit tool or a tools.block_transfer(...) call inside execute actually changes files. Fix the host dispatch, or mark block_transfer Code-Mode-only.
@@ -1059,7 +1059,7 @@ I guessed a DB query helper path twice (`.opencode/scripts/sqlite3_exec.mjs` doe
 Carried handover's smoke command was wrong (agent/scripts + npx tsx); the pinned runner is `bun run <file>.smoke.mjs` FROM .opencode/plugins/tests (tests/README.md) — cost 3 failed calls; carried-over command lines from a pre-compaction handover need re-verification against tests/README.md before first use.
 
 ### 2026-10-28_01-44 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
-After a planner cross-compaction a worker wrote its handover under the WRONG unit identity — header and commit subject read "TODO #179 items 3, 5–6" for a #196 U10 unit — and skipped the spec-required `TODO.md` status line, so the planner had to rebuild the mapping from `git show`. Cheap fix: the handover's first line must copy the spec path and TODO id verbatim from `agent/handover/handover_task.md`, not from its own previous handover.
+After a planner cross-compaction a worker wrote its handover under the WRONG unit identity — header and commit subject read "TODO items 3, 5–6" for a #196 U10 unit — and skipped the spec-required `TODO.md` status line, so the planner had to rebuild the mapping from `git show`. Cheap fix: the handover's first line must copy the spec path and TODO id verbatim from `agent/handover/handover_task.md`, not from its own previous handover.
 
 ### 2026-10-28_12-35 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
 A shell double-quoted grep pattern containing backticks is command-substituted, so `grep -c "PLANNER-VERIFIED (\`f32de038\`)"` returned 0 on a file where the line existed and nearly caused a correct file to be "re-fixed" — verification greps must use single quotes when the pattern contains backticks.
@@ -1077,7 +1077,7 @@ Dev-lane smoke copy under `.opencode/temp/<unit>_work/` cannot run standalone: t
 A subagent result slot returned ONLY the context-limit rejection text for a unit that had actually completed and committed (`07b31ee8`/`df99a68c`, smoke green) — the session continued past the rejection after the queued compaction landed. The planner had to rebuild the true state from `git log` + the plugin log before deciding resume vs relaunch. Cheap fix: the planner rule "a limit-error result is not a failure verdict — verify files first" should sit in the role prompt, not only in memory.
 
 ### 2026-10-28_16-17 planner_FlashNext ses_e8751597bffejGI7kRg4wAu6db
-A forensics probe that reports ZERO can mean the pattern is wrong, not that the data is clean — I closed TODO #203 as fix-confirmed off a char-code regex that omitted the hash, so nothing could ever match, and a false PASS survived a host restart and one verification cycle. Cheap fix: every absence-claim probe must first be run on a KNOWN-POLLUTED control band and must FIND the positive; state that control output before the verdict.
+A forensics probe that reports ZERO can mean the pattern is wrong, not that the data is clean — I closed TODO as fix-confirmed off a char-code regex that omitted the hash, so nothing could ever match, and a false PASS survived a host restart and one verification cycle. Cheap fix: every absence-claim probe must first be run on a KNOWN-POLLUTED control band and must FIND the positive; state that control output before the verdict.
 
 ### 2026-10-28_19-14 worker_FlashNext ses_e7c6531f0ffeKL2O9QSwQSOtGx
 A mid-run rm() of an open SQLite fixture DB crashed the context_trim smoke with Windows EBUSY — swap fixture rows with UPDATE/INSERT/DELETE reopen instead of a rebuild (proven pattern now in context_trim_v2.smoke.mjs U17 block).
@@ -1122,7 +1122,7 @@ Owned misread 2026-10-29 (maintainer correction): I relaunched the U21 acceptanc
 Spec said "the #218 status line" while its Do-NOT-touch list named TODO.md — conflicting channels; I recorded the status in the handover + todo inbox instead. Rule needed: when a spec forbids TODO.md, name the status channel explicitly.
 
 ### 2026-10-29_01-18 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
-block_transfer friction 2026-10-29 (two live incidents): (1) WRITE on an LF-terminated file rewrote the WHOLE file with CRLF — commit `3442fe5` shows 677 changed lines for a 7-line semantic edit (semantic diff verified clean; kept as landed). (2) WRITE with a single-line anchor REPLACED it again (TODO #214 anchor lost mid-repair; restored same session, counts verified) — the append pattern needs the anchor's own line FIRST in `text`, and a line-span WRITE echo `file now N lines` can be identical when the span's line count equals the text's — verify with grep-count of both old and new content after every multi-line append. Rule: prefer the `edit` tool for prose appends inside long files; block_transfer WRITE for whole-region swaps only.
+block_transfer friction 2026-10-29 (two live incidents): (1) WRITE on an LF-terminated file rewrote the WHOLE file with CRLF — commit `3442fe5` shows 677 changed lines for a 7-line semantic edit (semantic diff verified clean; kept as landed). (2) WRITE with a single-line anchor REPLACED it again (TODO anchor lost mid-repair; restored same session, counts verified) — the append pattern needs the anchor's own line FIRST in `text`, and a line-span WRITE echo `file now N lines` can be identical when the span's line count equals the text's — verify with grep-count of both old and new content after every multi-line append. Rule: prefer the `edit` tool for prose appends inside long files; block_transfer WRITE for whole-region swaps only.
 
 ### 2026-10-29_01-46 worker_FlashNext ses_e7aea177dffeaquhRld4S2ObcE
 Near-miss on U23: the CRLF probe `grep -c $'\r'` (CR stripped from shell command text → empty pattern matched ALL lines) made me deploy 8 LF files as CRLF; caught via git diff --numstat whole-file churn, corrected with one corrective save per file. Use the node CR-counter (repo_commands.md) before any line-ending decision on paid files.
@@ -1140,7 +1140,7 @@ Heading-anchor edit failed on text recalled from an earlier grep echo (KP-08 "Pl
 Scratch-gating the context_trim smoke cost two failed runs: CTX_TRIM_SMOKE_PLUGIN alone is not enough — the scratch plugin copy needs a sibling `scripts/` dir (its ./scripts/gauge.mjs imports ./loop_root.mjs), and the scratch smoke needs CTX_TRIM_SMOKE_CF + CTX_TRIM_SMOKE_GAUGE steered at the repo paths because its CLONE_ROOT resolves to the scratchpad.
 
 ### 2026-10-29_03-48 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
-CORRECT- 2026-10-29 03-25 loop-log line (U24 close) — the U25 content I narrated in that window (worker return, green commit `d9572a53`, live acceptance, smoke 233) was NEVER real: no subagent launch happened, the hash exists in no ref, the plugin was byte-identical to HEAD, the handover file still held U24's content. Corrected same session (loop_log CORRECT- line, TODO #219 correction line, real launch + real verification at `131ad4a6`). The failure class: a turn continued a hypothetical worker result as prose instead of waiting for the tool result.
+CORRECT- 2026-10-29 03-25 loop-log line (U24 close) — the U25 content I narrated in that window (worker return, green commit `d9572a53`, live acceptance, smoke 233) was NEVER real: no subagent launch happened, the hash exists in no ref, the plugin was byte-identical to HEAD, the handover file still held U24's content. Corrected same session (loop_log CORRECT- line, TODO correction line, real launch + real verification at `131ad4a6`). The failure class: a turn continued a hypothetical worker result as prose instead of waiting for the tool result.
 
 ### 2026-10-29_03-50 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
 Observed on myself 2026-10-29: my own generation stalled twice at the same mid-word cut when completing a submit(todo) string ("(nud" → identical output, two failed edit calls). Cause unknown (possible token-level repetition, the exact class the planned instability detector Leg B targets). Workaround that worked: shell heredoc append instead of re-typing the string. Lesson: when two consecutive edits return "oldString and newString are identical" on text you believe you extended, do NOT retry — switch lane (append via shell) and note the stall.
@@ -1180,7 +1180,7 @@ Watchdog loop 2026-10-29: planner session closed twice with `action: restart` (p
 plan37 closing summary (`4f7148bb`) carried 7 fabricated hashes + 3 false closure claims (#222/#220/#206) — caught only by the next session's git verification; rule: verify every summary-cited hash against `git log --all` BEFORE committing a closing summary. Second friction: `action: restart` closes routed as `continue` twice, re-woke the pinned session (2 full re-prefills at cap) — restart-route precedence bug on #170.
 
 ### 2026-10-29_06-52 worker_FlashNext ses_e79ed52cdffeji58MFsY12C328
-block_transfer WRITE rejected a valid non-empty `text` argument twice (host-side tool payload parse — the known TODO #74 class); recovery via the write tool plus a node insert-script cost ~4 extra calls.
+block_transfer WRITE rejected a valid non-empty `text` argument twice (host-side tool payload parse — the known TODO class); recovery via the write tool plus a node insert-script cost ~4 extra calls.
 
 ### 2026-10-29_07-13 worker_FlashNext ses_e79ed52cdffeji58MFsY12C328
 U32 scratch: spec path `home/AppData/Local/Temp/opencode/u32/` vs Git Bash `$TMP` = `/tmp` = `AppData/Local/Temp` (no `/opencode` leg) — `mkdir -p "$TMP/u32"` landed in the wrong root and the edit tool rejected it; had to mv to `/tmp/opencode/u32`. Say `$TMP/opencode` explicitly in specs.

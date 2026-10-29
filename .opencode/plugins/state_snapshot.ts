@@ -1,4 +1,4 @@
-// state_snapshot.ts — the v2-NATIVE planner init digest (TODO #137 unit 5b,
+// state_snapshot.ts — the v2-NATIVE planner init digest (TODO unit 5b,
 // 2026-10-22, clone `migration`). Ports the v1 `.opencode/tools/state_snapshot.ts`
 // (the design of record, READ-ONLY — the approved 2026-09-18 p3 proposal) onto
 // the v2 plugin surfaces: `ctx.tool.transform` + `editor.add` (the compact_memory.ts
@@ -132,7 +132,7 @@ const todoSection = (root: string): string[] => {
 // `## loop` — the current looprun (spec #155): the `autorun-*` subdirectory of
 // `<root>/loop/` (exactly one → it; several → the most-recently-modified, the
 // same resolution `loop_log` uses), and its `counter.json`
-// (`{"looprun": "<folder>", "n": <int>}` — plus the TODO #171 `round` key,
+// (`{"looprun": "<folder>", "n": <int>}` — plus the TODO `round` key,
 // written by auto_resume at spawn and by the compact verify leg): present
 // form `loop=<folder> ITER=<n> log=loop/<folder>/loop_log.md`, and with a
 // readable integer `round` the ` ROUND=<r>` token rides AFTER `ITER=<n>`

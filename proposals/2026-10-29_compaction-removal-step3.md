@@ -3,7 +3,7 @@
 ## Problem
 `compact_memory` is DENIED live (step-1, `opencode.jsonc` root permission —
 verified 2026-10-29: call rejected before execute, zero side effects) and
-every flow survived a full trim-only day (step-2 verdict, TODO #215: zero
+every flow survived a full trim-only day (step-2 verdict, TODO: zero
 `COMPACT` lines in `.opencode/temp/ctx.log` since `2026-10-28_23-13`). The
 tool surface still loads, still carries a PAID description in every prompt,
 and still implies a lane that no longer runs. The A1 audit
@@ -29,7 +29,7 @@ recoveries, live guard FIRE, zero provider rejections at the ceiling.
   rows stay untouched (75 v1-era rows, excluded by #201). Prompt destill
   compaction lines = historic scope notes, KEEP (ruling on #215).
 - **Part C — the proposal trail:** move
-  `proposals/2026-10-29_reactive-wall-recovery-arm.md` per its own gate
+  `internal proposal` per its own gate
   (build only after a rejection lands DESPITE calibration — currently zero
   rejections; it stays PARKED, not superseded).
 
@@ -50,4 +50,4 @@ pass = next session start or first `cache.read=0` readout.
 ## Status
 AWAITING APPROVAL — maintainer call required (feature removal, AGENTS.md
 §Approval Boundaries). Steps 1-2 DONE (deny live-verified; trim-only cycle
-verdict on TODO #215).
+verdict on TODO).

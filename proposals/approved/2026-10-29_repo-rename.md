@@ -18,7 +18,7 @@ roles, loop, tools, memory) instead of naming the host product.
 ## Options
 1. **RECOMMENDED — `agent-estate`** (folder + remote). Matches vocabulary
    already used here (`repo_overview.md` "the opencode agent bookkeeping",
-   TODO #150 "v1-estate removal"); short, no vendor token, no collision.
+   TODO "v1-estate removal"); short, no vendor token, no collision.
 2. `agent-bookkeeping` — literal, less distinctive.
 3. `selfmanaged-agents` — describes the trim/self-management angle, longer.
 4. Keep the name until upstream complains (cheapest; you said it is

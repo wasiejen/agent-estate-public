@@ -32,6 +32,6 @@ surface.
 
 Planner verdict (2026-09-15, plan2, per maintainer #0 backlog reduction):
 - Item 1: the one-shot read was executed + recorded in the NAP (2026-09-10,
-maintainer-approved); TODO #17 CLOSED. Item 2: #34 doc purge closed (2026-09-10);
+maintainer-approved); TODO CLOSED. Item 2: #34 doc purge closed (2026-09-10);
 grep-clean of peek.py/ctxgauge in the live doc surface (one intentional
 historical pointer in repo_map.md).

@@ -1,4 +1,4 @@
-# P08 — config-error surfacing design (TODO #44 + the #1 family)
+# P08 — config-error surfacing design (TODO + the #1 family)
 
 **Proposal:** one custom `ConfigError` exception with a structured message, raised at
 the config-origin sites and caught at the user-facing boundaries (CLI print / GUI toast /
@@ -48,5 +48,5 @@ fallback is the one part that needs the maintainer's final yes.
   (st_manager.py:676, print + eturn False) - out-of-list latent-crash
   fix, sound (the constraint simply evaluates unfulfilled). Residual for #1:
   that path only console-prints (no toast) -> #1 stays OPEN for that part.
-- TODO #44 closed on this verification (the design approval incl.
+- TODO closed on this verification (the design approval incl.
   degrade-to-defaults was the maintainer's ruling).

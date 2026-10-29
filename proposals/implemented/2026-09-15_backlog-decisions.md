@@ -5,7 +5,7 @@ per section (or "all as recommended") closes them. Sources stay at the
 locations referenced; I close them on your ruling.
 
 ## Decision 1 — #11 contradiction block: keep OFF (A) or re-enable (B)
-Source: `2026-09-12_contradiction-block-decision.md` (+ TODO #11, HOLDING).
+Source: `2026-09-12_contradiction-block-decision.md` (+ TODO, HOLDING).
 Your comment there (quoted verbatim below; the line is removed from the
 source as acknowledged, per your 09-15 ruling): "still had no time to test it yet if the
 current behavior is the intented or not. i changed sometimes the way it works

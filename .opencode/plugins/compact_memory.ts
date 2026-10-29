@@ -1,4 +1,4 @@
-// compact_memory.ts — the v2-NATIVE compaction plugin (TODO #137 unit 4a,
+// compact_memory.ts — the v2-NATIVE compaction plugin (TODO unit 4a,
 // 2026-10-22, clone `migration`). Ports the v1 `.opencode/plugin/compact_memory.ts`
 // tool (the budget-gated manual compaction + the U3 marker mode) onto the v2
 // plugin surfaces: `ctx.tool.transform` + `editor.add`, `ctx.session.compact`,
@@ -16,7 +16,7 @@
 // semantics — CPU models cap 0, the SAFETY INVARIANT — same budget-store
 // v2 schema, INCREMENT-ON-SUCCESS only, the #119 additive-rewrite invariant,
 // the pure gate with the emergency-1 and the caller-scoped CROSS cap+1
-// override, TODO #128 ruling 2026-09-30). The v1 core module stays UNIMPORTED
+// override, TODO ruling 2026-09-30). The v1 core module stays UNIMPORTED
 // by v2 code (inert-dir contract).
 //
 // (2) TOOL REGISTRATION — `ctx.tool.transform((editor) => editor.add(…))`,
@@ -61,7 +61,7 @@
 // biggest deviation of this unit. (b) THE CONTINUATION FILE LEG (#158, 2026-10-26
 // DROP ruling): the native `delivery:"queue"` leg is REMOVED — measured
 // UNRELIABLE (delivered late, can deliver TWICE, uncancellable, unobservable;
-// TODO #158 measurements). The `message` continuation becomes the v1 TEMP FILE
+// TODO measurements). The `message` continuation becomes the v1 TEMP FILE
 // again: `.opencode/temp/compact_message_<sid>` (plain UTF-8, OVERWRITTEN on
 // every verified compaction), written AT VERIFIED SUCCESS (NOT at dispatch) so
 // the v1 zombie-guard guarantee stays: a continuation file present ⇒ the
@@ -365,7 +365,7 @@ function writeMessageFile(sid: string, text: string): void {
 // ~100-170 + 215): the no-overwrite naming keyed on the budget count, the ONE
 // retry per artifact (#78), the `DUMP-OK`/`DUMP-RETRY=1`/`DUMP-FAIL` ctx.log
 // lines carrying the FULL repo-relative path (#107), and the spawn of the DUMP
-// SCRIPT — here the v2 TWIN `agent/scripts/db/dump_session_v2.mjs` (TODO #137
+// SCRIPT — here the v2 TWIN `agent/scripts/db/dump_session_v2.mjs` (TODO
 // unit 4c), because a v2 session's content lives in `session_v2` + `session_message`
 // (NO `part` table). BEST-EFFORT: NEVER throws, NEVER blocks the tool — a
 // failure appends the ctx.log lines and the response carries a WARNING (the

@@ -1,4 +1,4 @@
-# v2 plugins — smokes + typecheck (TODO #137)
+# v2 plugins — smokes + typecheck (TODO)
 
 Machine-local verification for `.opencode/plugins/` (Unit A: the intercept
 observer; unit 3a: the context-family core). Every smoke resolves its repo
@@ -7,7 +7,7 @@ below FROM this directory in the MAIN checkout
 (`repo-root`) — the suite follows whatever
 checkout owns `tests/`. The only absolute paths left are the fork workspace
 (`home/Repos/opencode`) and the scratchpad
-(`home/AppData/Local/Temp/opencode`) (TODO #156, 2026-10-26).
+(`home/AppData/Local/Temp/opencode`) (TODO, 2026-10-26).
 Subfolder `v1/`: the plain-`node` smokes for `.opencode/tools/**` + the gauge
 core (relocated from the deleted v1 estate, #150 unit B) — run those from the
 repo root with `node`, not from here with bun.
@@ -47,7 +47,7 @@ scratchpad fixtures. The `tests/` dir has no `server.ts`/`index.ts`
 entrypoint, so v2 plugin discovery drops it at scan time (fork
 `packages/core/src/config/plugin/source.ts:164-167`).
 
-## Context-family smoke (TODO #137 units 3a + 3b, RE-PINNED for the #153/#154 append leg, 2026-10-26)
+## Context-family smoke (TODO units 3a + 3b, RE-PINNED for the #153/#154 append leg, 2026-10-26)
 
     bun run context_family.smoke.mjs
 
@@ -82,7 +82,7 @@ file — NEVER the live DB; the shared gauge core is steered via its test hooks;
 the store and the evidence log ride the mock WS root). Expected final line:
 `SMOKE: ALL PASS`.
 
-## compact_memory smoke (TODO #137 units 4a + 4c, 2026-10-22)
+## compact_memory smoke (TODO units 4a + 4c, 2026-10-22)
 
     bun run compact_memory.smoke.mjs
 
@@ -128,7 +128,7 @@ lines, and all three backends (`node:sqlite` default, the copied `sqlite3.
 exe` spawn lane byte-equal modulo the backend field, `bun:sqlite` FIRST under
 the bun host).
 
-## context_trim_v2 smoke (TODO #137 unit 4b, 2026-10-22)
+## context_trim_v2 smoke (TODO unit 4b, 2026-10-22)
 
     bun run context_trim_v2.smoke.mjs
 
@@ -174,9 +174,9 @@ here: the `kind:"gauge"` db-error evidence line STAYS on `execute.after` (one
 channel, pinned as A14 in `context_family.smoke.mjs`); the retired
 `session.hook("context")` leg was never revived. The append-leg ladder pins live in
 `context_family.smoke.mjs`. The clone-root resolution is fixed: this suite resolves
-its root from its own file (TODO #156, 2026-10-26).
+its root from its own file (TODO, 2026-10-26).
 
-## loop_log smoke (TODO #137 unit 5a, 2026-10-22)
+## loop_log smoke (TODO unit 5a, 2026-10-22)
 
     bun run loop_log.smoke.mjs
 
@@ -202,7 +202,7 @@ carrier, the fallthrough carries). Fixtures ride the scratchpad
 (per-fixture `setup` retargets the repo-root carrier — NEVER the live DB or
 loop folder). Expected final line: `SMOKE: ALL PASS`.
 
-## submit smoke (TODO #137 unit 5a, 2026-10-22)
+## submit smoke (TODO unit 5a, 2026-10-22)
 
     bun run submit.smoke.mjs
 
@@ -231,7 +231,7 @@ discrepancy). Fixtures ride the scratchpad
 `home/AppData/Local/Temp/opencode/small-write-tools-smoke-v2/submit`.
 Expected final line: `SMOKE: ALL PASS`.
 
-## ctx_gauge smoke (TODO #137 unit 5b, 2026-10-22)
+## ctx_gauge smoke (TODO unit 5b, 2026-10-22)
 
     bun run ctx_gauge.smoke.mjs
 
@@ -252,7 +252,7 @@ the steer restores). Fixtures ride the scratchpad
 `home/AppData/Local/Temp/opencode/ctx-gauge-smoke-v2`. Expected
 final line: `SMOKE: ALL PASS`.
 
-## state_snapshot smoke (TODO #137 unit 5b, 2026-10-22)
+## state_snapshot smoke (TODO unit 5b, 2026-10-22)
 
     bun run state_snapshot.smoke.mjs
 
@@ -285,7 +285,7 @@ from the end backwards — markers keeps 12 of 20, proposals INTACT at 100). The
 Fixtures ride the scratchpad `home/AppData/Local/Temp/opencode/
 state-snapshot-smoke-v2`. Expected final line: `SMOKE: ALL PASS`.
 
-## dev_get_tool_context_contents smoke (TODO #137 unit 5b, 2026-10-22)
+## dev_get_tool_context_contents smoke (TODO unit 5b, 2026-10-22)
 
     bun run dev_get_tool_context_contents.smoke.mjs
 
@@ -307,7 +307,7 @@ contextKeys-only string can never trip it): the v1 fallback line `JSON.stringify
 failed (…) — context keys only: <keys>`, NEVER a throw. Expected final line:
 `SMOKE: ALL PASS`.
 
-## block_transfer smoke + sandbox smoke (TODO #137 unit 5c, 2026-10-22)
+## block_transfer smoke + sandbox smoke (TODO unit 5c, 2026-10-22)
 
     bun run block_transfer.smoke.mjs
 
@@ -355,7 +355,7 @@ plugin copies read their OWN fixture `opencode.jsonc` at import (one CONFIG_ROOT
 per module instance). Teardown dispose + the ambient env restore pinned. Expected
 final line: `SMOKE: ALL PASS`.
 
-## auto_resume smoke (TODO #137 order 2, 2026-10-22)
+## auto_resume smoke (TODO order 2, 2026-10-22)
 
     bun run auto_resume.smoke.mjs
 

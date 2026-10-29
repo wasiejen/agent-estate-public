@@ -1,4 +1,4 @@
-// ctx_gauge.ts — the v2-NATIVE context-gauge readout tool (TODO #137 unit 5b,
+// ctx_gauge.ts — the v2-NATIVE context-gauge readout tool (TODO unit 5b,
 // 2026-10-22, clone `migration`). Ports the v1 `.opencode/tools/ctx_gauge.ts`
 // (the design of record, READ-ONLY — the T2 loop-tool-batch part 2) onto the
 // v2 plugin surfaces: `ctx.tool.transform` + `editor.add` (the compact_memory.ts

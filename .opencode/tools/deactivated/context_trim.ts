@@ -113,7 +113,7 @@
 // tried in order, FIRST SUCCESS wins: (1) `bun:sqlite` (the native
 // module of the bun-compiled host), (2) `node:sqlite` (system node v24+
 // — the smoke host), (3) `spawn-sqlite3` — the LAST-RESORT maintainer-
-// placed CLI (TODO #126; the gauge core's proven spawn discipline):
+// placed CLI (TODO; the gauge core's proven spawn discipline):
 // execFileSync ARGS ARRAY (no shell — no quoting surface), a hard
 // 2500 ms KILL per call (a stuck child is a db-error, never a hang).
 // report mode = read-only queries, each ONE CLI invocation on a
@@ -151,7 +151,7 @@ type Ctx = { db: any; backend: string };
 // ---------------------------------------------------------------------------
 
 // The chain in selection order (the gauge core's DEFAULT_BACKENDS
-// pattern; spawn-sqlite3 is the last resort — TODO #126).
+// pattern; spawn-sqlite3 is the last resort — TODO).
 export const TRIM_BACKENDS = Object.freeze(["bun:sqlite", "node:sqlite", "spawn-sqlite3"]);
 let backendList = [...TRIM_BACKENDS];
 // The backend-list test hook (the gauge core's setBackends pattern) —
@@ -915,7 +915,7 @@ export async function tailSet(dbPath: string, sessionID: string, targetID: strin
 }
 
 // ---------------------------------------------------------------------------
-// tailSetKeep (WRITE — the keep-COUNT boundary form of tailSet; TODO #120
+// tailSetKeep (WRITE — the keep-COUNT boundary form of tailSet; TODO
 // Unit 2). The auto-resume plugin's post-compaction tail-set leg calls
 // this: after ANY host compaction lands, the fresh compaction part's
 // tail_start_id is rewritten to the agent-requested keep boundary (the

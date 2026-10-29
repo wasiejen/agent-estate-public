@@ -7,7 +7,7 @@ import { tool } from "@opencode-ai/plugin"
 // Persistent memory cache for named clipboards across tool invocations within the session
 const clipboardBuffers: Record<string, string[]> = {};
 
-// ===== CONFIG-DRIVEN ALLOW ROOTS (TODO #140 unit A, 2026-10-22) =====
+// ===== CONFIG-DRIVEN ALLOW ROOTS (TODO unit A, 2026-10-22) =====
 // The opencode.jsonc at the TOOL's OWN repo root (the module file three levels
 // under the repo — wake-15 move: .opencode/tools/deactivated/) is read ONCE at tool load time; its
 // `permission.external_directory` keys valued "allow" join the sandbox

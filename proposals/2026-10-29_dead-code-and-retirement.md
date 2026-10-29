@@ -10,7 +10,7 @@ throwing away insurance you may still want while the v2 migration settles.
 - Evidence: `.opencode/plugins/intercept_observer.ts` (~L614-621) and the
   deactivated `block_transfer` config loader read a top-level `permissions`
   ARRAY key; `opencode.jsonc` has only `permission` (singular) — the leg
-  cannot execute with any reachable config (`grep` evidence in TODO #229).
+  cannot execute with any reachable config (`grep` evidence in TODO).
 - Options:
   1. **RECOMMENDED — keep, labeled.** Add a one-line
      `forward-compat (v2 config conversion)` header in both legs. Zero

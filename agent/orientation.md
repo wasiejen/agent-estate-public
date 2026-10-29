@@ -115,7 +115,7 @@ Menu, cost class measured in your own calls (`S` under 10, `M` 10-25, `L` 25+):
   whenever a tool description is trimmed.
 - `M` TODO/spec-library shrink: close or condense solved entries; every open
   entry must be delegable by ID alone.
-- `L` Retirement units: the v1 plugin twin (TODO #150 unit B); an archive
+- `L` Retirement units: the v1 plugin twin (TODO unit B); an archive
   retention rule for the ~50 MB of tracked compaction dumps.
 - `L` Tool-description work: only on his ranking (the 2026-10-15 2-tier proposal
   is held for migration interference — read its re-baseline section first).

@@ -20,7 +20,7 @@ The `bash` tool is **Git-Bash (bash 3.6, MINGW64)**. `opencode.jsonc` pins
   where a table would add noise.
 - **Writes**: write files with the file tools only. Use `>` or `cat >` only for
   deliberate stdin piping.
-- **Host tooling caveat (TODO #74, 2026-09-21):** tool calls can fail with
+- **Host tooling caveat (TODO, 2026-09-21):** tool calls can fail with
   server-side JSON parse errors (`JSON parsing failed: Text: {.` /
   `Expected '}'`). Payload length is NOT a reliable predictor; short args
   failed too. The fault is host-side, not our intercept. On a hit, retry
@@ -39,7 +39,7 @@ The `bash` tool is **Git-Bash (bash 3.6, MINGW64)**. `opencode.jsonc` pins
 - Gate probe: run `node .opencode/plugins/probes/handover_probe.mjs` from the repo
   root. Use plain system `node`; no venv. One `MODULE_TYPELESS_PACKAGE_JSON`
   warning on stderr is expected and harmless. `.opencode/package.json` must NOT
-  gain a "type" field (TODO #51).
+  gain a "type" field (TODO).
 - **The "standard gate" in THIS repo = this probe + the smoke suite.** No pytest:
   this repo has no FST product code (#117). The FST gate is pytest + ruff — see
   `projects/Free-Snap-Tap/repo/repo_commands.md`.
@@ -106,7 +106,7 @@ repo facts:
   read-only and prints the canonical readout form `SESSION=… CTX=n (p%)
   REM=m`. An unknown window yields `CTX=n` only; a session with no finished
   step yields `CTX=notAvailable`. The gauge line ENDS at `REM=m` — the budget
-  suffix ` | N compactions left` is RETIRED (TODO #212, U26, 2026-10-29).
+  suffix ` | N compactions left` is RETIRED (TODO, U26, 2026-10-29).
   **Margin rule (maintainer 2026-09-14):** the readout UNDER-reports actual
   usage. A compact-era save fired at a 95 % nudge landed at 119.6 K of the
   ~120 K window. Add a 5 % margin to the gauge and nudge numbers when making budget

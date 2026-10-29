@@ -1,4 +1,4 @@
-// context_trim_v2.ts — the v2-NATIVE context-trim plugin (TODO #137 unit 4b,
+// context_trim_v2.ts — the v2-NATIVE context-trim plugin (TODO unit 4b,
 // 2026-10-22, clone `migration`). Port of the v1 `.opencode/tools/context_trim.ts`
 // (1168 lines, the design of record — plan39, Unit 1: report + tail over the
 // opencode DB) onto the v2 plugin surfaces: `ctx.tool.transform` + `editor.add`
@@ -185,7 +185,7 @@
 // pattern): the smoke steers the boundary store at a scratchpad fixture; the
 // production host never calls it.
 //
-// (8) U6 PER-MESSAGE TRIM SET (TODO #190 U6, 2026-10-27, ACT-shape no-fork) —
+// (8) U6 PER-MESSAGE TRIM SET (TODO U6, 2026-10-27, ACT-shape no-fork) —
 // `mode:'mark'`: an additive per-message DROP LIST in the same store (per session
 // `marks: [messageId, …]` next to `boundary`, order-independent, de-duplicated,
 // restart-safe). `ids:[…]` adds window ids, `unmark:[…]` removes, `clear:true`
@@ -203,7 +203,7 @@
 // window-est=<window rows mass>`. `keepID` is NOT a lever (U4, 8046528) — the
 // host's automatic tail sits before the compaction row, out of this filter.
 //
-// (9) U7 STAGED MARKING + APPLY (TODO #190 U7, 2026-10-27, ACT-shape no-fork) —
+// (9) U7 STAGED MARKING + APPLY (TODO U7, 2026-10-27, ACT-shape no-fork) —
 // the (8) mark set becomes `staged`: `mark`/`unmark` keep editing the STAGED list
 // (continuous and cheap — the hook NEVER drops a staged id), and ONE explicit
 // `mode:'apply'` unions it into the `active` set the hook actually drops. Store
@@ -2315,7 +2315,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     // U10 tag lane that owned this leg is DELETED: the host re-persists live
     // rows' `data` on its own UPDATE (finalize + later updates), so ANY hook
     // write into existing part bytes lands in the store and COMPOUNDS every
-    // turn (TODO #203 mechanism). Doctrine: the hook only ever REMOVES
+    // turn (TODO mechanism). Doctrine: the hook only ever REMOVES
     // (splices) — surviving entries are BYTE-IDENTICAL, no part text changes
     // ever. COMPUTED BEFORE THE SPLICE: dropFlags are indexed against the
     // PRE-splice array (the U10 unit found the shifted-index trap live).

@@ -1,5 +1,5 @@
-// context_family.ts — the v2-native context-family core (TODO #137 units 3a +
-// 3b, 2026-10-22, clone `migration`; TODO #153 + #154 append leg, 2026-10-26).
+// context_family.ts — the v2-native context-family core (TODO units 3a +
+// 3b, 2026-10-22, clone `migration`; TODO + #154 append leg, 2026-10-26).
 // Port of the ctx readout + ctx-line injection and the nudge ladder of the v1
 // `.opencode/plugin/ctx_watchdog.ts` (v2.4 / v2.4.1 / v2.5 / v2.6 / Part 2
 // vocabulary — the v1 file is the design of record; this header records only
@@ -30,7 +30,7 @@
 // the line sits inside the session's own tool result, so naming the session is
 // waste) and WITHOUT the `ITER=<n> <folder>` suffix (the maintainer ruling —
 // `loop_log` auto-locates its folder from `status`/`content` alone, so repeating
-// it ~100 times is waste; the session-start carrier is TODO #155). The peek CLI /
+// it ~100 times is waste; the session-start carrier is TODO). The peek CLI /
 // ctx_gauge tool readouts are UNCHANGED (`formatGauge` untouched).
 //
 // (2) CACHE DISCIPLINE (the v2.3 REJECTED-approach ruling, now satisfied by

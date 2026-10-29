@@ -16,7 +16,7 @@ A1. **Friction check #53** restated near-verbatim in planner §Friction check, w
    §Checkpoint & handoff, explorer §Handoff. Canonical home: AGENTS.md §agent_feedback
    (section exists, 1 line today) — move the full rule there; roles keep ONLY their
    channel note (looprunner: --INFO-- line instead of submit). Saves ~250 words/looprun.
-A2. **No-circumvent (TODO #54)** in planner §Delegate vs do, worker §Honesty guard,
+A2. **No-circumvent (TODO)** in planner §Delegate vs do, worker §Honesty guard,
    explorer §Honesty guard (3 copies, ~175 words). Canonical: AGENTS.md §Approval-
    boundaries (the deny is a boundary — the rule belongs with the boundaries); roles keep
    one line each.

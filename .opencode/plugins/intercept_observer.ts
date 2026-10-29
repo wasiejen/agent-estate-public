@@ -1,4 +1,4 @@
-// intercept_observer.ts — the v2-native intercept observer (Unit A, TODO #137,
+// intercept_observer.ts — the v2-native intercept observer (Unit A, TODO,
 // 2026-10-15). Port of the v1 `.opencode/plugin/intercept_observer.ts`
 // surviving feature set (maintainer ruling 2026-10-15 — PAIR/NUMWORD DROPPED).
 //
@@ -90,7 +90,7 @@ import { readGauge } from "./scripts/gauge.mjs";
 
 const MAX_LINES_PER_CALL = 3;
 const MAX_FIELD_CHARS = 160;
-// TODO #140 unit B (2026-10-22, clone twin): the raised cap for a field whose
+// TODO unit B (2026-10-22, clone twin): the raised cap for a field whose
 // flattened value IS ONE path-shaped token (no surrounding whitespace) — such
 // a field prints WHOLE; a mid-path cut reads to the agent as its own mistyped
 // path. Beyond this cap such a field falls back to the short summary form (slice
@@ -179,7 +179,7 @@ function isPathShapedValue(s: string): boolean {
   return s !== "" && !/\s/.test(s) && (s.includes("/") || s.includes("\\"));
 }
 
-// The head length for a MIXED field's cut (TODO #140 unit B): the largest
+// The head length for a MIXED field's cut (TODO unit B): the largest
 // p with cap - 3 >= p >= 1 that keeps EVERY path-shaped whitespace token
 // whole (no p strictly inside one); 0 = none (the whole value is one over-cap
 // path token -> the short summary form fallback).

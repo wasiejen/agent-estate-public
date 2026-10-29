@@ -1,7 +1,7 @@
 # tools/ — legacy v1 tool-file lane (all `.ts` deactivated, 2026-10-29)
 
 Purpose: historical home of v1-format `export default tool({...})` modules.
-Registration verdict (wake-15, TODO #240): NO loader exists in fork v2 core;
+Registration verdict (wake-15, TODO): NO loader exists in fork v2 core;
 every live tool registers via its `.opencode/plugins/**` twin
 (`ctx.tool.transform` + `editor.add`). All `.ts` files here were inert twins.
 

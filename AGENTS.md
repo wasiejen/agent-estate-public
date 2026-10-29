@@ -136,14 +136,6 @@ The committed file remains canonical.
   Compaction budget remains: treat it as `action: continue`.
   Budget exhausted: treat it as `action: restart`.
 
-Plugin-side note (NOT part of the AGENTS.md paste):
-
-- `auto_resume.ts` needs the `continue` token in `ACTION_RE`.
-- Add a `route= continue` branch, exempt from `MAX_RECOVERY_ATTEMPTS`.
-  Recovery stays reserved for real deaths.
-- Today `action: resume` lands in the self-continue branch (L934).
-  That branch belongs to `continue`. Tracked as TODO #170.
-
 ### Surface Rules
 
 - The summary file is the single summary channel.

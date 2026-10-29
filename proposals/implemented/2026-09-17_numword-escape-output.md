@@ -155,7 +155,7 @@ Awaiting maintainer decision.
 - Session incidents: worker-2 sandbox stop (username bit-shift W→A produced
   an out-of-sandbox path) + context_length_exceeded at resume → full dump +
   Gemma cross-compaction + task_id resume; nothing lost. Measured gap for
-  the TODO #70 rework: cross-compaction still REQUIRES explicit
+  the TODO rework: cross-compaction still REQUIRES explicit
   providerID/modelID (no resolvable-model error otherwise).
 - Pending (maintainer domain): the AGENTS.md paste (the paste-draft line in
   decision-record §4 — his action).

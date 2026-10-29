@@ -1,4 +1,4 @@
-// auto_resume.ts — the v2-NATIVE auto-resume plugin (TODO #137 order 2,
+// auto_resume.ts — the v2-NATIVE auto-resume plugin (TODO order 2,
 // 2026-10-22, clone `migration`). Ports the v1 plugin's LOOP legs onto the
 // v2 plugin surfaces: `ctx.event.subscribe()` (the SSE stream), `ctx.session
 // .hook("context")`, `ctx.session.create` + `ctx.session.prompt(delivery:

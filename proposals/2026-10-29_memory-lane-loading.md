@@ -10,10 +10,10 @@ ignored, and the always-rendered memory block stays small.
 ## Problem
 - `opencode.jsonc` loads `agent/memory/planner/destilled_mem.md` into the
   planner roles; worker/explorer memory lanes are NOT loaded
-  (`opencode.jsonc` agent defs; TODO #224). Cured worker memories (WM-xx)
+  (`opencode.jsonc` agent defs; TODO). Cured worker memories (WM-xx)
   therefore only help when a worker happens to read the file.
 - Planner destill currently measures **19,999 B** — above the 16 KB budget
-  in `agent/memory/README.md` (MEM-0142 figure, TODO #238). Every byte of
+  in `agent/memory/README.md` (MEM-0142 figure, TODO). Every byte of
   it renders into EVERY planner request (PAID surface).
 - Deferred destill lines are queued for the next cold batch (U36 shipped
   WM-34 only; `agent/handover/maintenance_pass_3.md` §DEFERRED-DESTILL).

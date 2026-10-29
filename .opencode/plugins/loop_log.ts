@@ -1,4 +1,4 @@
-// loop_log.ts — the v2-NATIVE loop-activity logger (TODO #137 unit 5a, 2026-10-22,
+// loop_log.ts — the v2-NATIVE loop-activity logger (TODO unit 5a, 2026-10-22,
 // clone `migration`). Ports the v1 `.opencode/tools/loop_log.ts` tool (the
 // design of record, READ-ONLY — Parts A–D) onto the v2 plugin surfaces: `ctx.tool.transform`
 // + `editor.add` (the compact_memory.ts registration pattern: setup returns a teardown

@@ -50,9 +50,9 @@ Not promoted (dedup/superseded): `findbin.ps1` (PowerShell twin of binwin.cjs),
 | bt_sandbox_smoke.mjs | 12918 | // Iter-10 T1 verification: block_transfer.ts sandbox guard + description rewrite |
 | bt_smoke.mjs | 2975 | // Iter-4 verification: block_transfer.ts tool() translation |
 | bun_host_check.mjs | 605 | // bun 1.4.2 host-proxy check (TODO.md #30, re-ruling 2026-09-10): import the |
-| bunproof_api.mjs | 4687 | // bun:sqlite API verification (TODO #37) — runs under SYSTEM bun 1.4.2. |
+| bunproof_api.mjs | 4687 | // bun:sqlite API verification (TODO) — runs under SYSTEM bun 1.4.2. |
 | bunproof_diag.mjs | 1254 | (no header comment) |
-| bunproof_live.mjs | 871 | // HOST PROOF 2 (TODO #37): run the gauge CORE under SYSTEM bun 1.4.2 against |
+| bunproof_live.mjs | 871 | // HOST PROOF 2 (TODO): run the gauge CORE under SYSTEM bun 1.4.2 against |
 | bunproof_opts.mjs | 2525 | (no header comment) |
 | bunproof_wal.mjs | 1600 | // WAL + readonly probe under system bun 1.4.2 — reads the LIVE db (read-only, |
 | check_report.py | 1811 | (no header comment) |

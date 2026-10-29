@@ -85,7 +85,7 @@ Each tool exists because a manual step cost effort or caused errors. Only
 `.opencode/plugins/**` register custom tools — via `ctx.tool.transform` +
 `editor.add` (`.opencode/plugins/block_transfer.ts` L1267). `.opencode/tools/`
 is the legacy v1 lane: docs and `.md` pairs only; its `.ts` twins sit in
-`.opencode/tools/deactivated/` (TODO #239/#240). The live registered set, as a
+`.opencode/tools/deactivated/` (TODO/#240). The live registered set, as a
 worker session sees it in its own tool list:
 
 | Tool | What it replaces |

@@ -25,7 +25,7 @@ And the new worker protocol (suggested addition after the stop line):
   point), DUMPS the worker session pre-compaction
   (`node .opencode/agent/scripts/db/dump_session.cjs <sid>`), then cross-compacts
   it and resumes it via `task_id`. A pre-compaction dump keeps the session
-  corpus complete (the no-overwrite dump naming is the TODO #55 build).
+  corpus complete (the no-overwrite dump naming is the TODO build).
 
 ## Item 2 — knowledge rule (§"agent knowledge" or a new short section)
 

@@ -27,7 +27,7 @@ summary, must not be misled.
      costs more sweeps.
 
 ## Part B — closing summaries carry fabricated references
-- Evidence: TODO #228 (plan37 summary invented hashes/closure claims);
+- Evidence: TODO (plan37 summary invented hashes/closure claims);
   recurred in this session at wake-12/13 (invented fork paths, invented
   mini-pass) — caught only by `git show` / file-state checks. Knowledge
   entry KP-50-class + planner memory entries exist; the guard is manual.

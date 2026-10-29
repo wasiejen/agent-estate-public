@@ -2,7 +2,7 @@
 
 Date: 2026-09-17 · Direct session ses_f4f539d7c · Deferral lifted by the
 maintainer 2026-09-17 ("#53 deferral is lifted - it did not even know anymore
-that i deferred it"). Owed per the TODO #53 entry.
+that i deferred it"). Owed per the TODO entry.
 
 ## Problem
 `.opencode/agent/agent_feedback.md` (maintainer-only friction log) is

@@ -8,7 +8,7 @@ bundled runtime; never a same-named system CLI."
 **Context:** agent_feedback (T1, "DoD 'bun host-proxy check' verified the wrong bun"):
 the check ran under SYSTEM bun — which passes — while the bun baked into
 `opencode.exe` lacks `node:sqlite` entirely; the build + a maintainer restart cycle
-produced only the failure lines as "evidence" (TODO #37, since closed by the backend
+produced only the failure lines as "evidence" (TODO, since closed by the backend
 chain).
 
 **Impact / risk:** doc-only; prevents same-named-CLI false confidence in future builds.

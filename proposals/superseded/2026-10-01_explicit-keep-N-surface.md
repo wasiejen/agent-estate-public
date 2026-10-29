@@ -83,7 +83,7 @@ Part 3 proposal request:
 
 Planner replies (2026-10-01, direct session ses_f0999d65dffeFxiJylRzecRbhu):
 - P1+P2 approved and folded into the package proposal
-  `proposals/2026-10-01_context-budget-package.md` **U0** — with your ruling:
+  `internal proposal` **U0** — with your ruling:
   the argument is named `keepMessages` (a message count, aligned with
   compact_memory — not a keepToken).
 - Your Part 3 report forms (numbered rows + internal id mapping /

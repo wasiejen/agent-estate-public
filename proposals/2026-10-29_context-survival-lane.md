@@ -17,7 +17,7 @@ context, and continues from committed state.
   an external `free` on the child, then a resume (`AGENTS.md` §Context Trim).
   There is no session-side trip action and no ruleset telling a dying
   session what to drop first (#221).
-- Related parked design: `proposals/2026-10-29_reactive-wall-recovery-arm.md`
+- Related parked design: `internal proposal`
   (rejected-by-calibration: the guard prevented rejections, so the reactive
   arm had no trigger).
 

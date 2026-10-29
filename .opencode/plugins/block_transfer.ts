@@ -1,10 +1,10 @@
-// block_transfer.ts — TODO #137 unit 5c: the v1 tool ported to v2 as a
+// block_transfer.ts — TODO unit 5c: the v1 tool ported to v2 as a
 // plugin-registered tool (id `block_transfer`, via `ctx.tool.transform` — the
 // 5a/4a registration pattern, cf. the landed compact_memory.ts).
 //
 // The design of record is the MAIN repo's .opencode/tools/block_transfer.ts (1034
 // lines @ 2026-10-22, incl. the #140 config-roots + #142 hardening items); the
-// CLONE's stale v1 twin (845 lines, TODO #143) is NOT the baseline. The helper
+// CLONE's stale v1 twin (845 lines, TODO) is NOT the baseline. The helper
 // region, the description text, and the execute body below are carried VERBATIM
 // from the MAIN twin — same MODES set, anchor/line-number ref rules, buffer
 // semantics (last_write auto-store, last_move_source, CLEAR), the feedback-line
@@ -45,7 +45,7 @@ import type { Plugin } from "@opencode/plugin";
 // Persistent memory cache for named clipboards across tool invocations within the session
 const clipboardBuffers: Record<string, string[]> = {};
 
-// ===== CONFIG-DRIVEN ALLOW ROOTS (TODO #140 unit A, 2026-10-22; BOTH config
+// ===== CONFIG-DRIVEN ALLOW ROOTS (TODO unit A, 2026-10-22; BOTH config
 // shapes supported in v2 — the v1 object form on disk today + the v2 native
 // array form) =====
 // The opencode.jsonc at the TOOL's OWN repo root (the module file two levels

@@ -1,4 +1,4 @@
-# Proposal: plugin-spawned successors inherit the trigger's Autorun state + the trigger deactivates (TODO #90, subsumes #87)
+# Proposal: plugin-spawned successors inherit the trigger's Autorun state + the trigger deactivates (TODO, subsumes #87)
 
 Status: DRAFT (planner-11, 2026-09-23, ses_f318f0d77ffer6kIwqiNvE1xau) — awaiting maintainer
 approval BEFORE implementation (observable behavior change; #90 acceptance).
@@ -13,7 +13,7 @@ unintentional resume — with the #85 unbounded-spawn loop prevention preserved.
 Current behavior (measured, `.opencode/plugin/auto_resume.ts`, build v=d2b9d510):
 - `scopeVerdict` (L807) checks the `spawned` self-mark FIRST → a self-spawned
   successor is scope "none" — never recovered, never re-routed. Live consequence
-  (TODO #87): the self-spawned planner-8 session went idle 3× (once after a
+  (TODO): the self-spawned planner-8 session went idle 3× (once after a
   self-compaction close WITHOUT an action line) and the plugin never routed it —
   the L3 self-compaction-continue protocol has no live executor in plugin-driven
   mode; only a maintainer message rescued it.
@@ -118,7 +118,7 @@ Alternative: accept the gap (a duplicate spawn is recoverable by hand).
   "same Autorun/Direct setting transmitted"). A deactivated trigger that the
   maintainer drives by hand still gets the nudge suffix (informational only —
   accepted, not gated).
-- `TODO #87` is SUBSUMED: close it when #90 lands (its options (a)-(d) are
+- `TODO` is SUBSUMED: close it when #90 lands (its options (a)-(d) are
   resolved by Parts A+B; option (b)'s "committed progress" idea is replaced by
   the depth cap).
 - The #85 smoke pins that assert "a self-spawned successor is scope none" must
@@ -157,7 +157,7 @@ holds end-to-end.
 `.opencode/plugin/auto_resume.ts` (scopeVerdict L807, `spawned` map L290/663,
 `restartText` L736, `spawnPlanner` L615, `routeScopedIdle` L1012, the restart
 branch L1098, the factory L1262); `.opencode/plugin/tests/auto_resume.smoke.mjs`;
-TODO #90/#87 status; the NAP. Worker per the live roster (verify before launch).
+TODO/#87 status; the NAP. Worker per the live roster (verify before launch).
 
 ## Status
 

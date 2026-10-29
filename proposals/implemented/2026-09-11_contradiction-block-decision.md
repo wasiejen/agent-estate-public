@@ -29,4 +29,4 @@ input).
 
 
 
-Landed (2026-09-15, plan2 iter-2 resume): D1-A applied — decision comment below the untouched XXX 241016-1101 pin in fst_keyboard.py; TODO #11 closed (record in todo_records.md). Done.
+Landed (2026-09-15, plan2 iter-2 resume): D1-A applied — decision comment below the untouched XXX 241016-1101 pin in fst_keyboard.py; TODO closed (record in todo_records.md). Done.

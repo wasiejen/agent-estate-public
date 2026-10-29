@@ -105,7 +105,7 @@ const todoSection = (root: string): string[] => {
 // `## loop` — the current looprun (spec #155): the `autorun-*` subdirectory of
 // `<root>/loop/` (exactly one → it; several → the most-recently-modified, the
 // same resolution `loop_log` uses), and its `counter.json`
-// (`{"looprun": "<folder>", "n": <int>}` — plus the TODO #171 `round` key,
+// (`{"looprun": "<folder>", "n": <int>}` — plus the TODO `round` key,
 // written by auto_resume at spawn and by the compact verify leg): present
 // form `loop=<folder> ITER=<n> log=loop/<folder>/loop_log.md`, and with a
 // readable integer `round` the ` ROUND=<r>` token rides AFTER `ITER=<n>`

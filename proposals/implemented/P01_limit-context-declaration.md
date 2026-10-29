@@ -9,7 +9,7 @@ Task-tool launch of `worker_Q4_120K` DIED at its FIRST request
 declared — opencode's window assumption governs, and the worker-prompt initial
 request sits right at it. The raw `agent_Q4_120K` (empty prompt → smaller initial
 request) is the current workaround. Related: the "256K"-named gemma endpoint is
-actually 128k-capped (TODO #40) — the name-based assumption is already proven wrong once.
+actually 128k-capped (TODO) — the name-based assumption is already proven wrong once.
 
 **Proposed action (paste into `opencode.jsonc` → `provider.llama-swap.models`):**
 ```jsonc

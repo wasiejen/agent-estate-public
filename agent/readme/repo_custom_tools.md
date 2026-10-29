@@ -96,4 +96,4 @@ Contract pinning lives in `.opencode/plugins/probes/handover_probe.mjs`.
 - History (forensics only): before the ruling the tools were catalog-only. Across
   345 `execute` calls: 281 (81%) wrapped ONE tool call, 64 (19%) composed
   several, `fetch` appeared 4 times (3 were `file://` boundary probes). See
-  TODO #182.
+  TODO.

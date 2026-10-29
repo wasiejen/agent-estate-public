@@ -363,5 +363,5 @@ VERDICT (2026-10-01, plan1 maintenance pass): IMPLEMENTED + FULLY LIVE-ACCEPTED.
   16 MB buffer, json_set tail, async execFile) closed with #126 (2026-10-01):
   report ×2 + tail rewrite + floor-6 refusal all live-verified post-restart.
 - Unit 2 (the plugin-side post-compaction tail-set, zero fork) is tracked in
-  TODO #120 (UNHELD — its hold was the #126 tail live test). Moved to
+  TODO (UNHELD — its hold was the #126 tail live test). Moved to
   `implemented/`.

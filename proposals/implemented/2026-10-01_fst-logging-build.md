@@ -1,9 +1,9 @@
-# Proposal — FST structured-logging build (TODO #131 build)
+# Proposal — FST structured-logging build (TODO build)
 
 Date: 2026-10-01 (planner-8, autorun). Status: draft — awaiting maintainer
 decision.
 Source: `agent/research/2026-10-01_fst-logging-design.md` (commit `c899675`,
-explorer-4) + TODO #131 (status: RESEARCH LANDED — "THE BUILD = maintainer
+explorer-4) + TODO (status: RESEARCH LANDED — "THE BUILD = maintainer
 call").
 
 ## Problem

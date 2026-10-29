@@ -211,15 +211,15 @@ Adds:
    of always-injected prose. Either schedule the consolidation or tier the pair.
 4. Unit A step 6 names `agent/scripts/measure_tool_descs.mjs`; that script was
    never created. Today's numbers came from a scratchpad script — land it with
-   Unit A so the before/after is reproducible (and reusable by TODO #183).
+   Unit A so the before/after is reproducible (and reusable by TODO).
 
 ## Update 2026-10-29 (wake-8, planner-38) — baseline refreshed, ranking available
 Figures from `agent/research/2026-10-29_wake8-216-triage-183-ranking.md`: custom-tool
 description literals ≈ 27.8 KB total (up from ≈13.2 KB at 2026-10-15); block_transfer
 desc 13,249 B (9,384 main + 3,865 args); planner destill 19,999 B (MEM-0142 baseline
-15.6 KB — condensation filed as TODO #238); AGENTS.md 18,154 B. `compact_memory` and
-`session_info` are NOT in live tool lists (registration verdict pending — TODO #239),
+15.6 KB — condensation filed as TODO); AGENTS.md 18,154 B. `compact_memory` and
+`session_info` are NOT in live tool lists (registration verdict pending — TODO),
 so this table's compact_memory row is stale. Top-3 trim targets (one cold batch):
 block_transfer prose −4.5 KB, planner destill −4–6 KB, context_trim −2 KB ≈
 2.7–3.3k tokens/request. Ranking decision still maintainer's (orientation rule);
-TODO #183 stays the hygiene-pass vehicle.
+TODO stays the hygiene-pass vehicle.

@@ -1,4 +1,4 @@
-// submit.ts — the v2-NATIVE unified inbox appender (TODO #137 unit 5a, 2026-10-22,
+// submit.ts — the v2-NATIVE unified inbox appender (TODO unit 5a, 2026-10-22,
 // clone `migration`). Ports the v1 `.opencode/tools/submit.ts` tool (#53 Part B
 // channel map + stamp rule + the 2026-10-21 NEWLINE GUARD) onto the v2 plugin
 // surfaces: `ctx.tool.transform` + `editor.add` (the compact_memory.ts

@@ -1145,3 +1145,6 @@ CORRECT- 2026-10-29 03-25 loop-log line (U24 close) — the U25 content I narrat
 ### 2026-10-29_03-50 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
 Observed on myself 2026-10-29: my own generation stalled twice at the same mid-word cut when completing a submit(todo) string ("(nud" → identical output, two failed edit calls). Cause unknown (possible token-level repetition, the exact class the planned instability detector Leg B targets). Workaround that worked: shell heredoc append instead of re-typing the string. Lesson: when two consecutive edits return "oldString and newString are identical" on text you believe you extended, do NOT retry — switch lane (append via shell) and note the stall.
 
+### 2026-10-29_04-08 worker_FlashNext ses_e7a7023c0ffeEFo1RY26VQvUil
+U26 spec cited `agent/scripts/db/gauge.mjs` (nonexistent — live core is `.opencode/plugins/scripts/gauge.mjs`, same spec-path class as U24) and named F2's ROUND text in `.opencode/tools/ctx_gauge.ts` (v1 record has no ROUND sentence — the live carrier is `.opencode/plugins/ctx_gauge.ts`); both corrected in the handover.
+

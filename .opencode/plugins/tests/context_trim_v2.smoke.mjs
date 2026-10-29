@@ -53,6 +53,12 @@
 // touched (the gauge core is steered at a v2-shaped fixture DB; the boundary
 // store + the evidence log ride the mock WS root). Run: bun run
 // context_trim_v2.smoke.mjs (this dir). Expected final line: `SMOKE: ALL PASS`.
+// U28 (#A2 follow-up, 2026-10-29): the REJECT LOG lane (every rejection echo
+// logs ONE kind:reject line — the U28 F1 block + the INV pins), the static-set
+// TRACE GATE (the kind:trim line fires ONLY when the applied drop set or the
+// droppedBytes CHANGED — the G4 assembly-3 and D1 silent-assembly pins are the
+// re-pins of the old always-log behavior), and the report `next:` STEER line
+// (the R1/R2 pins + the V7 roundtrip determinism).
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
@@ -363,6 +369,7 @@ function draftBase(sessionID = SID) {
   chk("U12 (#202) PER-SESSION RANKS: the window numbers run 3..12 — rows msg_x1/msg_x2 BEFORE the head occupy ranks 1-2 (trimmed-away rows occupy their rank), so rank is contiguous 1..N over the session and is NEITHER the window position NOR a sparse global seq", lines[5] === "row: 1 #3 compaction own=5 req-at=unavailable" && lines[14] === "row: 10 #12 assistant own=3 req-at=400", JSON.stringify([lines[5], lines[14]]));
   chk("R1 the recommendation block = the trim RANGE with OWN-mass sums (U9: outputs count again — they drop with their call); (U10) anchors name rows by ORDINAL (mark accepts them)", lines[16] === "option low: msg=#7 keep=6 retained=14 (read=0 thought=10 shell=0) dropped=318 (read=100 thought=2 shell=200) hint=user four" && lines[17] === "option medium: msg=#5 keep=8 retained=330 (read=100 thought=10 shell=200) dropped=2 (read=0 thought=2 shell=0) hint=C:/a/b.ts offset=5 limit=20" && lines[18] === "option high: msg=#4 keep=9 retained=332 (read=100 thought=12 shell=200) dropped=0 (read=0 thought=0 shell=0) hint=user one", JSON.stringify([lines[16], lines[17], lines[18]]));
   chk("R1 report mode makes ZERO store writes (the report never writes)", readStore() === null && existsSync(LOG), JSON.stringify(readStore()));
+  chk("U28 F3 the report ends with exactly ONE steer line after `biggest:` (starts with 'next: ', <= 110 chars)", lines.filter((l) => l.startsWith("next: ")).length === 1 && lines[20] != null && lines[20].startsWith("next: ") && lines[20].length <= 110, JSON.stringify(lines[20] ?? null));
 }
 
 // ------------------------------------------------------------------ R2 the dry-run leg (report + target)
@@ -373,6 +380,7 @@ function draftBase(sessionID = SID) {
   chk("R2 dry-run: a legal boundary's remove/keep counts (remove = FULL own mass, U9)", lines[20] === "dry-run: target=msg_u4 remove=4 (323 tokens) keep=6 (9 tokens) verdict=ok", JSON.stringify(lines[20] ?? null));
   const out2 = await trim({ mode: "report", session: SID, target: "msg_u6" });
   chk("R2 dry-run: a boundary leaving 4 rows is REJECTED (the floor carries; counts still print)", out2.split("\n")[20] === "dry-run: target=msg_u6 remove=6 (325 tokens) keep=4 (7 tokens) verdict=rejected: retained-tail-below-floor 4", out2.split("\n")[20]);
+  chk("U28 F3 the dry-run report keeps the verdict line at index 20 and ENDS with the steer line at 21", lines[20].startsWith("dry-run:") && lines[21] != null && lines[21].startsWith("next: ") && lines[21].length <= 110 && lines.filter((l) => l.startsWith("next: ")).length === 1, JSON.stringify([lines[20] ?? null, lines[21] ?? null]));
 }
 
 // ------------------------------------------------------------------ T1 the tail store: set + clear + rejection lines
@@ -910,7 +918,7 @@ function draftBase(sessionID = SID) {
     chk("U21 G4 assembly 2, SAME set: NO notice row, drops still applied (a2/a3 gone), NO new event:auto line", noticeOf(d1).length === 0 && ids.indexOf("msg_a2") === -1 && ids.indexOf("msg_a3") === -1 && d1.messages.length === 10 && guardLines(lB).length === 0, JSON.stringify([noticeOf(d1).length, d1.messages.length]));
     const d2 = draft();
     await fire(d2);
-    chk("U21 G4 assembly 3, SAME set: still NO notice; the trim line still names autoRows=3 autoMass=4815", noticeOf(d2).length === 0 && d2.messages.length === 10 && (() => { const t = readLog().slice(lB).find((l) => l.kind === "trim"); return t != null && t.autoRows === "3" && t.autoMass === "4815"; })(), JSON.stringify(readLog().slice(lB).find((l) => l.kind === "trim") ?? null));
+    chk("U28 F2 assembly 3, SAME set: still NO notice AND the trace gate adds NO kind:trim line (zero log lines across assemblies 1-3 — the old always-log pin, repinned)", noticeOf(d2).length === 0 && d2.messages.length === 10 && readLog().slice(lB).length === 0, JSON.stringify(readLog().slice(lB)));
     const d3 = draft();
     await fire(d3);
     chk("U21 G4 assembly 4, SAME set: still no notice — ONE notice row total across the four assemblies", noticeOf(d3).length === 0 && d3.messages.length === 10, JSON.stringify(noticeOf(d3).length));
@@ -990,11 +998,11 @@ function draftBase(sessionID = SID) {
     const d2 = draft();
     await fire(d2);
     chk("U25 F3 assembly 2 on the SAME store entry: NO notice line (RED pre-fix — the window sig re-fired)", noticeOf(d2).length === 0 && d2.messages.length === 10, JSON.stringify([noticeOf(d2).length, d2.messages.length]));
-    chk("U25 F3 the silent assembly carries NO newRows token, keeps autoMass=316, and the marker did not grow", (() => { const t = readLog().slice(lB).filter((l) => l.kind === "trim").pop(); return t != null && t.newRows === undefined && t.autoMass === "316"; })() && JSON.stringify(readStore()?.sessions?.[SID]?.noticed ?? null) === JSON.stringify(["msg_a2", "msg_a3"]), JSON.stringify(readLog().slice(lB).filter((l) => l.kind === "trim").pop() ?? null));
+    chk("U28 F2 the silent assembly adds NO kind:trim line (exactly ONE trim line in the block — assembly 1's) and the marker did not grow", readLog().slice(lB).filter((l) => l.kind === "trim").length === 1 && JSON.stringify(readStore()?.sessions?.[SID]?.noticed ?? null) === JSON.stringify(["msg_a2", "msg_a3"]), JSON.stringify(readLog().slice(lB).filter((l) => l.kind === "trim")));
     RPC.rows = [...windowRows(), grownRow("msg_a10", 4412, "T")]; // the window GROWS while the stored set sits still
     const d3 = draft();
     await fire(d3);
-    chk("U25 F3 the window grows (a10 lands) while the stored set sits still: STILL no notice (the churn leg)", noticeOf(d3).length === 0, JSON.stringify(noticeOf(d3).length));
+    chk("U25 F3 the window grows (a10 lands) while the stored set sits still: STILL no notice AND (U28 F2) still ONE trim line (the set + bytes are unchanged)", noticeOf(d3).length === 0 && readLog().slice(lB).filter((l) => l.kind === "trim").length === 1, JSON.stringify([noticeOf(d3).length, readLog().slice(lB).filter((l) => l.kind === "trim").length]));
     RPC.rows = null;
     chk("U25 D1 clear PRUNES the marker, so a re-grown set notices again", await (async () => {
       const cleared = (await clearUp()) === "mark-set= +0 -2 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined;
@@ -1265,6 +1273,27 @@ function draftBase(sessionID = SID) {
   }
 }
 
+// ------------------------------------------------------------------ U28 (#A2 follow-up) the reject-logging lane
+// Every early-failure echo — rejection refusals AND usage-error lines — logs
+// ONE kind:"reject" line {ts, session, reason}; a successful call logs none.
+// The store stays clean afterwards (the C block's contract).
+
+{
+  await trim({ mode: "mark", session: SID, clear: true }); // the clean slate: an entry would change the apply rejection
+  const lB = readLog().length;
+  await trim({ mode: "tail", session: SID, target: "msg_absent999" }); // tail-set= rejected: target-not-found
+  await trim({ mode: "apply", session: SID }); // apply= rejected: nothing-staged
+  await trim({ mode: "free", session: SID, target: 77 }); // free= rejected: target-invalid 77
+  await trim({ mode: "free", session: "ses_absent000" }); // free= rejected: session-not-found
+  await trim({ mode: "sideways", session: SID }); // error: mode must be ... (usage refusal)
+  const rej = readLog().slice(lB).filter((l) => l.kind === "reject");
+  chk("U28 F1 every rejection path logs ONE kind:reject line (5 calls, 5 lines, exact reason order + session attribution)", rej.length === 5 && rej.map((l) => l.reason).join("|") === "target-not-found|nothing-staged|target-invalid 77|session-not-found|mode must be 'report', 'tail', 'mark', 'apply', or 'free'" && rej[0].session === SID && rej[3].session === "ses_absent000", JSON.stringify(rej));
+  chk("U28 F1 the reject payload is exactly {ts, kind, session, reason} — nothing else", rej.every((l) => Object.keys(l).sort().join(",") === "kind,reason,session,ts"), JSON.stringify(rej[0] ?? null));
+  const okOut = await trim({ mode: "tail", session: SID, target: "msg_u4" });
+  chk("U28 F1 a SUCCESSFUL call logs NO reject line (the reject delta stays 5)", okOut === "tail-set= none -> msg_u4 keep=6" && readLog().slice(lB).filter((l) => l.kind === "reject").length === 5, `delta=${readLog().slice(lB).filter((l) => l.kind === "reject").length}`);
+  chk("U28 F1 cleanup: the tail clear lands clean and the reject delta stays 5", (await trim({ mode: "tail", session: SID, clear: true })) === "tail-set= msg_u4 -> none" && readLog().slice(lB).filter((l) => l.kind === "reject").length === 5 && readStore()?.sessions?.[SID] === undefined);
+}
+
 // ------------------------------------------------------------------ C1 the composition block (the REAL context_family plugin, the #153 APPEND channel)
 // Re-pinned for #157 (2026-10-26): context_family contributes NO draft handler —
 // it registers EXACTLY `execute.before` + `execute.after` and appends its gauge
@@ -1368,8 +1397,9 @@ function draftBase(sessionID = SID) {
 {
   const lines = readLog();
   const kinds = new Set(lines.map((l) => l.kind));
-  chk("INV every line parses; kinds ⊂ {report, tail, trim, boundary-stale, gauge, mark, marks-stale, apply, ordinals (U10 fail-open), guard (U14), free (U18)}", [...kinds].sort().join(",") === "apply,boundary-stale,free,gauge,guard,mark,marks-stale,ordinals,report,tail,trim", JSON.stringify([...kinds].sort()));
+  chk("INV every line parses; kinds ⊂ {report, tail, trim, boundary-stale, gauge, mark, marks-stale, apply, ordinals (U10 fail-open), guard (U14), free (U18), reject (U28 F1)}", [...kinds].sort().join(",") === "apply,boundary-stale,free,gauge,guard,mark,marks-stale,ordinals,reject,report,tail,trim", JSON.stringify([...kinds].sort()));
   chk("INV every line carries ts + kind and stays within the LINE_CAP ladder", lines.every((l) => typeof l.ts === "string" && typeof l.kind === "string" && JSON.stringify(l).length <= 2000 && JSON.stringify(l).length > 0));
+  chk("U28 F1 INV the `reject` lines all name session + a non-empty reason (payload keys exactly {ts,kind,session,reason})", lines.filter((l) => l.kind === "reject").length > 0 && lines.filter((l) => l.kind === "reject").every((l) => typeof l.session === "string" && typeof l.reason === "string" && l.reason !== "" && Object.keys(l).sort().join(",") === "kind,reason,session,ts"), `count=${lines.filter((l) => l.kind === "reject").length}`);
   chk("INV the `trim` lines all name a session + boundary + the counts incl droppedProjections/orphan + the U22 droppedBytes measurement (U9; U17: the tagged/untagged counters are GONE)", lines.filter((l) => l.kind === "trim").every((l) => typeof l.session === "string" && typeof l.boundary === "string" && typeof l.droppedRows === "string" && typeof l.droppedEntries === "string" && typeof l.droppedBytes === "string" && typeof l.droppedProjections === "string" && typeof l.orphan === "string" && l.tagged === undefined && l.untagged === undefined && typeof l.keptEntries === "string"));
   chk("INV the `mark` lines all name session + added/removed/total scalars (a TOGGLE line carries `guard` instead — the exempt shape; U17: the tags exemption is gone)", lines.filter((l) => l.kind === "mark").every((l) => typeof l.session === "string" && ((typeof l.added === "string" && typeof l.removed === "string" && typeof l.total === "string") || typeof l.guard === "string")));
   chk("INV the `apply` lines all name session + n/dropEst/projected/bound/mixed scalars (U8)", lines.filter((l) => l.kind === "apply").every((l) => typeof l.session === "string" && typeof l.n === "string" && typeof l.dropEst === "string" && typeof l.projected === "string" && typeof l.bound === "string" && typeof l.mixed === "string"));
@@ -1378,7 +1408,7 @@ function draftBase(sessionID = SID) {
   chk("INV the ONE boundary-stale line for the (session,boundary) state (deduped)", lines.filter((l) => l.kind === "boundary-stale").length === 1, `count=${lines.filter((l) => l.kind === "boundary-stale").length}`);
   chk("INV the ONE marks-stale line for the (session,count) state (deduped)", lines.filter((l) => l.kind === "marks-stale").length === 1, `count=${lines.filter((l) => l.kind === "marks-stale").length}`);
   chk("INV the gauge lines' reasons are only the two honest read failures", lines.filter((l) => l.kind === "gauge").every((l) => l.reason === "context-read-failed" || l.reason === "session-not-found" || l.reason === "messages-not-array"));
-  chk("INV report mode emitted a kind:report line per call (29 lines: 9 + the 4 U10 legs + the 2 U11 compact legs + the U12 range leg + the 2 U14 G0 header legs + the 7 U15 flag legs + the U17 R5b + restore legs + the U18 ` g` flag leg; the R5a/U17 not-found/sql-fail calls emit none — rejections log nothing)", lines.filter((l) => l.kind === "report").length === 29, `count=${lines.filter((l) => l.kind === "report").length}`);
+  chk("INV report mode emitted a kind:report line per call (29 lines: 9 + the 4 U10 legs + the 2 U11 compact legs + the U12 range leg + the 2 U14 G0 header legs + the 7 U15 flag legs + the U17 R5b + restore legs + the U18 ` g` flag leg; the R5a/U17 not-found/sql-fail calls emit no kind:report line — they log ONE kind:reject line each (U28 F1))", lines.filter((l) => l.kind === "report").length === 29, `count=${lines.filter((l) => l.kind === "report").length}`);
 }
 
 // ------------------------------------------------------------------ cleanup

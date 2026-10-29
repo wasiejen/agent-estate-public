@@ -258,6 +258,17 @@
 // until `mark clear`), ONE kind:free evidence line names
 // session/target/freed/picks/short, and NOTHING is written when no row is
 // pickable. Cross-session works via `session` — the store entries are per-sid.
+//
+// (16) U28 (#A2 follow-up, 2026-10-29) CACHE-FREE USABILITY — three fixes, NO
+// paid surface (the tool description literal + the arg schema stay
+// BYTE-IDENTICAL, delta 0): (F1) every early-failure echo (`<lane>= rejected:` /
+// `<lane>= error:` / `error:` usage line) logs ONE kind:"reject" line
+// {ts, session, reason} — a failed call is auditable; (F2) the per-assembly
+// kind:"trim" trace line fires ONLY when the applied drop set or the
+// droppedBytes CHANGED since the last pass for that session (the live log
+// flooded 643 identical lines while a static set re-spliced every request);
+// (F3) every successful report ENDS with exactly ONE bounded `next:` steer
+// line (≤ 110 chars) chosen from the report's own state.
 
 import type { Plugin } from "@opencode/plugin";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -336,6 +347,16 @@ const guardFailLogged = new Map<string, string>();
 // never store state — the store entry shape stays {boundary, keep, setAt, staged,
 // active, guard, auto, noticed}).
 const guardAfter = new Map<string, number>();
+// (U28 F2, #A2 follow-up) per-session trace signature of the LAST assembly pass:
+// the applied drop set (the matched store ids, sorted) + the spliced
+// `droppedBytes`. The invariant the planner judges from: a pass that REPRODUCES
+// the previous signature emits NO `kind:"trim"` line; a pass whose drop set or
+// `droppedBytes` CHANGED emits exactly ONE line (`newRows=` keeps its meaning —
+// a changed set still prints it whenever the notice delta fired). In-memory
+// only: the first pass after a plugin load always logs; `mark clear` and the
+// full-entry prune reset the signature (the drop state resets — the next drop
+// is a fresh set); a no-drop pass empties it, so a drop that lands again logs.
+const trimApplied = new Map<string, string>();
 
 function storePath(): string {
   return join(dir, ".opencode", "temp", "context_trim_v2.json");
@@ -379,6 +400,21 @@ function appendLog(line: string): void {
   } catch {
     // best effort — never break the plugin over a write failure
   }
+}
+
+// (U28 F1) REJECT LOG: every early-failure echo — a `<lane>= rejected: <cause>`
+// refusal, a `<lane>= error: <cause>` write/read failure, or a bare
+// `error: <usage>` line — appends ONE `kind:"reject"` line `{ts, session,
+// reason}` so a failed call is auditable (the log carried NO rejection evidence
+// today). No behavior change; no DB write; the tool surface is untouched. The
+// reason captures the failure line's own tail. A report `dry-run: ...
+// verdict=rejected:` line is NOT a call rejection: the anchor requires
+// `<word>= rejected:` or `error:` at a line START, so the dry-run verdict stays
+// unmatched.
+function logReject(sid: string, output: string): void {
+  const m = /(?:^|\n)(?:[a-z-]+= (?:rejected|error)|error): (.+)/.exec(output);
+  if (m == null) return;
+  appendLog(buildLine("reject", { session: sid, reason: cap(m[1], 160) }, {}));
 }
 
 function previewOf(e: unknown): string {
@@ -1260,6 +1296,27 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
       lines.push(`dry-run: target=${tid !== "" ? tid : target} verdict=${verdict}`);
     }
   }
+  // (U28 F3) the STEER line — exactly ONE bounded next-action line closing every
+  // SUCCESSFUL report (≤ 110 chars via the U9 `cap` helper), chosen from THIS
+  // report's own state: the projection verdict, the fill % (gauge CTX over the
+  // window), the staged/active counts, the stored `auto` size (the ` g` rows),
+  // and the `biggest:` candidates. First-match ladder: over-bound -> free/force;
+  // fill >= 85% -> free; staged rows -> apply; stored drop sets (active/auto —
+  // the guard presence shows as ` g` rows) -> clear; else mark the top
+  // `biggest:` ranks. Deterministic — the same state prints the same line (the
+  // U15 V7 byte-identical roundtrip pin depends on that).
+  const fillPct = gCtx != null && gWin != null && gWin > 0 ? Math.round((gCtx * 100) / gWin) : undefined;
+  const freeN = fillPct != null && fillPct >= 90 ? 30 : 20;
+  const autoN = entry?.auto.length ?? 0;
+  const bigRanks = big.slice(0, 3).map((b) => `#${ordinalOf(ord, rows[b.row - 1])}`).join(",");
+  let steer: string;
+  if (projected != null && bound != null && projected > bound) steer = `next: free target=${freeN} (over-bound) | apply force`;
+  else if (fillPct != null && fillPct >= 85) steer = `next: free target=${freeN}`;
+  else if (staged.length > 0) steer = `next: apply (${staged.length} staged) | unmark/clear`;
+  else if (active.length + autoN > 0) steer = `next: clear (drop sets hold ${active.length + autoN}) | mark #<ranks> + apply`;
+  else if (bigRanks !== "") steer = `next: mark ${bigRanks} + apply | free target=${freeN}`;
+  else steer = "next: mark #<ranks> + apply";
+  lines.push(cap(steer, 110));
   appendLog(buildLine("report", { session: sid, state, rows: String(rows.length), staged: String(staged.length), active: String(active.length), target: target != null ? target : undefined }, {}));
   return lines.join("\n");
 }
@@ -1291,6 +1348,7 @@ async function tailSet(sid: string, form: { target?: string; keep?: number; clea
     if (!okWrite) return `tail-set= error: store-write-failed (the boundary file could not be written)`;
     appendLog(buildLine("tail", { session: sid, state: "cleared", from: before != null && before.boundary !== "" ? before.boundary : undefined, marks: keepSets ? String(before.staged.length + before.active.length) : undefined }, {}));
     staleLogged.delete(sid);
+    if (!keepSets) trimApplied.delete(sid); // (U28 F2) the entry is GONE — the trace signature resets
     return `tail-set= ${before != null && before.boundary !== "" ? before.boundary : "none"} -> none`;
   }
   const read = await readWindow(sid);
@@ -1359,6 +1417,7 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
       if (!writeSessionEntry(sid, { boundary: before?.boundary ?? "", keep: before?.keep ?? 0, setAt: new Date().toISOString(), staged: [], active: [], auto: [], guard: guardNext, noticed: [] }))
         return `mark-set= error: store-write-failed (the boundary file could not be written)`;
       marksStaleLogged.delete(sid);
+      trimApplied.delete(sid); // (U28 F2) ALL drop sets emptied — the trace signature resets (the next drop logs once)
       appendLog(buildLine("mark", { session: sid, added: "0", removed: String(removed), total: "0", est: "0", guard: form.guard !== undefined ? (form.guard ? "on" : "off") : undefined }, {}));
       return `mark-set= +0 -${removed} total=0 rows_dropped_est=0`;
     }
@@ -2014,14 +2073,29 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
         writeSessionEntry(sid, { boundary: entry.boundary, keep: entry.keep, setAt: entry.setAt, staged: entry.staged, active: entry.active, guard: entry.guard, auto: [...entry.auto, ...guardPickIds], noticed: [...entry.noticed, ...deltaIds] });
       }
     }
-    if (dropped + droppedProjections === 0) return; // stale boundary + all marks stale + nothing dropped -> nothing happened, no trim line
-    appendLog(
+    // (U28 F2) THE TRACE GATE — the invariant the planner judges from: the
+    // `kind:"trim"` line is CHANGE evidence, not a per-pass heartbeat.
+    // Signature = the applied drop set (the matched store ids, sorted) + the
+    // spliced `droppedBytes`. Unchanged signature = NO line; a changed drop set
+    // OR changed `droppedBytes` = exactly ONE line (`newRows=` semantics
+    // UNCHANGED — a changed set still prints it whenever the notice delta
+    // fired). A no-drop pass empties the signature, so a drop that lands again
+    // after a silent pass is a change and logs.
+    const sig = [...drop].sort().join(",") + ":" + droppedBytes;
+    if (dropped + droppedProjections === 0) {
+      trimApplied.set(sid, ""); // stale boundary + all marks stale + nothing dropped -> nothing happened, no trim line; the EMPTY signature makes the next drop a change
+      return;
+    }
+    if (trimApplied.get(sid) !== sig) { // the SAME drop set spliced the SAME bytes — the static-set repeat stays silent (the 643-line flood)
+      trimApplied.set(sid, sig);
+      appendLog(
       buildLine(
         "trim",
         { session: sid, boundary: entry.boundary !== "" ? entry.boundary : "none", boundaryIndex: bIdx >= 1 ? String(bIdx) : "none", marks: String(entry.active.length), droppedRows: String(drop.size), droppedEntries: String(dropped + droppedProjections), droppedBytes: String(droppedBytes), droppedProjections: String(droppedProjections), orphan: String(orphan), autoRows: autoTotal > 0 ? String(autoTotal) : undefined, autoMass: setMass > 0 ? String(setMass) : undefined, newRows: newRows > 0 ? String(newRows) : undefined, ordinal: seqSpan !== "none" ? "session-rank" : undefined, seq: seqSpan !== "none" ? seqSpan : undefined, keptEntries: String(messages.length) },
         {},
       ),
     );
+    }
   } catch {
     // the v1 house rule: never throw out of a hook — a defensive failure keeps
     // the whole window (fail-open).
@@ -2093,7 +2167,9 @@ const TOOL_INPUT = {
   }
 };
 
-async function execute(args: unknown, toolContext: { sessionID?: unknown }): Promise<{ output: string }> {
+// The dispatch core — UNCHANGED behavior; the (U28 F1) `execute` wrapper below
+// adds only the reject-evidence logging around it.
+async function dispatch(args: unknown, toolContext: { sessionID?: unknown }): Promise<{ output: string }> {
   const a: Record<string, unknown> = args != null && typeof args === "object" && !Array.isArray(args) ? (args as Record<string, unknown>) : {};
   const explicitSession = typeof a.session === "string" && a.session.trim() !== "" ? String(a.session).trim() : null;
   const callerID = typeof toolContext?.sessionID === "string" && toolContext.sessionID !== "" ? toolContext.sessionID : null;
@@ -2159,6 +2235,20 @@ async function execute(args: unknown, toolContext: { sessionID?: unknown }): Pro
   return { output: "error: mode must be 'report', 'tail', 'mark', 'apply', or 'free'" };
 }
 
+// (U28 F1) THE AUDIT WRAPPER — dispatch is untouched; every early-failure echo
+// it returns appends ONE `kind:"reject"` line, attributed with the SAME session
+// precedence dispatch uses (explicit `session` wins over the caller context; no
+// attributable session logs nothing). Successes and hook lanes are unaffected.
+async function execute(args: unknown, toolContext: { sessionID?: unknown }): Promise<{ output: string }> {
+  const result = await dispatch(args, toolContext);
+  const a: Record<string, unknown> = args != null && typeof args === "object" && !Array.isArray(args) ? (args as Record<string, unknown>) : {};
+  const explicit = typeof a.session === "string" && a.session.trim() !== "" ? String(a.session).trim() : null;
+  const caller = typeof toolContext?.sessionID === "string" && toolContext.sessionID !== "" ? toolContext.sessionID : null;
+  const sid = explicit ?? caller;
+  if (sid != null) logReject(sid, result.output);
+  return result;
+}
+
 const trimTool = {
   name: "context_trim",
   description: TOOL_DESCRIPTION,
@@ -2182,6 +2272,7 @@ const plugin: Plugin.Plugin = {
       staleLogged.clear();
       marksStaleLogged.clear();
       guardFailLogged.clear();
+      trimApplied.clear();
       void regTool.dispose();
       void regHook.dispose();
     };

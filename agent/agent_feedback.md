@@ -1164,3 +1164,6 @@ The `unmark` semantics (staged-only - an applied drop cannot be restored) appear
 ### 2026-10-29_05-03 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
 The planner's own session was silently auto-trimmed twice by the armed guard (528 rows / 281k tokens of history gone) while the gauge read 40% — arming the guard on a planner session is a dogfood decision I made this turn and it cost context I did not expect. Rule: arm the guard only on a session under active measurement, and check the projection against the gauge before arming.
 
+### 2026-10-29_05-07 worker_FlashNext ses_e7a3fd4f0ffeUvrp03cXwx3I5L
+Scratch-copy smoke run failed twice on module resolution (`./scripts/gauge.mjs`, `./loop_root.mjs`) before I copied the scripts dir — now filed to knowledge; the repo_custom_tools/readme does not document the scratch-dev layout for context_trim_v2.
+

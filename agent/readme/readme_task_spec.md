@@ -39,6 +39,11 @@
   worker run). Specs for such files MUST mandate: develop on a scratch
   copy, apply the final content to the live path in ONE write per
   checkpoint, never piecemeal live edits.
+- **The rule covers planner-direct edits too (2026-10-29 correction):**
+  multi-region prompt/doc edits assemble on a scratch copy (copy the live
+  file, apply all regions there, verify), then ONE live save — sequential
+  `edit`/WRITE calls on the live file each cause a separate re-prefill
+  (measured: 5 busts in one planner-prompt pass).
 - **Claims in a spec are the planner's verified facts** — measured at
   spec time. They are not assignments for the worker to re-derive.
 - **Flag behaviour-pinning tests explicitly.** The spec's verified-facts

@@ -52,7 +52,7 @@ Paths are relative to `agent/readme/`.
 - `readme_todo.md`: curating `TODO.md` or `todo_inbox.md`.
 - `readme_task_spec.md`: mandatory before writing or launching a task spec.
 - `readme_loop.md`: autonomous loop folders, iteration, logging, and closing.
-- `readme_post_compaction.md`: required after resuming a compacted worker.
+- `readme_post_trim.md`: required after resuming a trimmed or walled worker.
 - `agent/knowledge/`: verified repository knowledge; grep it before researching.
 - `agent/knowledge/plugin_tools/2026-09-18_tool-plugin-design-handout.md`: mandatory for plugin-tool work.
 
@@ -109,9 +109,8 @@ Work through the rungs in order, top-down:
    Close with `action: continue`. The plugin wakes this session. Never spawn.
 3. `REM ≤ 20k` (roughly ≥ 92% used): finish the current safe operation. Update the NAP. Commit.
    Trim-first: `context_trim mode:'free' target=25` on your own session, then
-   continue from committed state. Use `compact_memory` SELF (with the
-   `message` arg = next-unit pointer) only while it remains available.
-   (Ruling 2026-10-28: the trim lanes replace compaction — U22 proven.)
+   continue from committed state. (`compact_memory` is permission-denied
+   since 2026-10-29 — the trim lanes replace compaction, U22 proven.)
 4. `Compactions left = 0`: close with `action: restart`.
 5. `action: stop` covers only unrecoverable failure or direct maintainer interaction.
 
@@ -263,47 +262,48 @@ Do not rerun the full smoke, probe, or pytest suite in direct planner mode.
 
 Update the NAP after verification.
 
-## Compacted workers
+## Walled or trimmed workers
 
-A compacted worker must be resumed.
+A walled worker must be resumed.
 Do not relaunch the task in a new worker session.
 
-A worker is compacted when:
+A worker is walled or trimmed when:
 
-- its result or handover reports compaction
-- its loop log has `START` without `DONE`
-- its session database contains a compaction part
+- its result reports a provider rejection (`request exceeds the context window`)
+- a trim drop landed mid-run (steps absent from its context, report flags ` g`/`x`)
+- its loop log has `START` without `DONE` and its gauge reads ≥ 90%
 
 Before resuming:
 
-1. Prefer trim-first recovery: `context_trim mode:'free' target=25` on the
-   worker session (cross-session `session` arg), then resume the same
-   `task_id` with the instruction to re-read the committed files and write
-   a short self-summary file + commit BEFORE any self-trim.
-2. `compact_memory` cross-dispatch only while the tool remains available;
-   a cross-session call is fire-and-forget — treat the verified `COMPACT`
-   record as success; a failed dispatch consumes no budget.
-3. Instruct the worker to follow `readme_post_compaction.md`.
+1. `context_trim mode:'report'` on its session id, then
+   `mode:'free' target=25..45` (cross-session `session` arg).
+2. Resume the same `task_id` with the instruction: re-read the committed
+   files, write a short self-summary file, commit, then trim your own
+   spent payload.
+3. Instruct the worker to follow `readme_post_trim.md`.
+
+`compact_memory` is permission-denied (2026-10-29) — the trim lanes are
+the only recovery lane.
 
 If a worker reports `Task cancelled`, context-size exhaustion, or equivalent:
 
 - treat it as a context-limit hit in a running session
 - do not treat it as a failed launch
-- compact or resume the same worker session
-- follow the post-compaction protocol
+- `free` on it and resume the same worker session
+- follow the post-trim protocol
 
 ## Planner context budget
 
-`AGENTS.md` defines the general compaction rules.
+`AGENTS.md` defines the general trim rules.
 This section defines planner-specific timing.
 
 `AGENTS.md` §Context Budget defines the nudge rungs and the call estimates.
 Treat the live nudge as the primary trigger.
 The planner's per-rung actions:
 
-- `triage`: estimate remaining calls before starting a unit; compact if more than approximately 10 calls remain
-- `stop`: compact if more than approximately 6 calls remain; otherwise perform an emergency handover
-- `emergency`: commit the current state and compact immediately; do not deliberate first
+- `triage`: estimate remaining calls before starting a unit; free context if more than approximately 10 calls remain
+- `stop`: free context if more than approximately 6 calls remain; otherwise perform an emergency handover
+- `emergency`: commit the current state and free context immediately; do not deliberate first
 - `maintainer`: report the context state to the maintainer
 
 If no live nudge exists, use the thresholds in
@@ -324,7 +324,7 @@ At `REM ≤ 20k`, or when the next unit cannot finish safely:
 4. Compact SELF. Pass the `message` arg = next-unit pointer.
 5. Continue this session.
 
-A worker context-limit hit requires cross-session compaction and resume.
+A worker context-limit hit requires a cross-session trim and resume.
 Do not launch a replacement worker.
 
 ## Friction check

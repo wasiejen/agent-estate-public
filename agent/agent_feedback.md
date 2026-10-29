@@ -1148,3 +1148,9 @@ Observed on myself 2026-10-29: my own generation stalled twice at the same mid-w
 ### 2026-10-29_04-08 worker_FlashNext ses_e7a7023c0ffeEFo1RY26VQvUil
 U26 spec cited `agent/scripts/db/gauge.mjs` (nonexistent — live core is `.opencode/plugins/scripts/gauge.mjs`, same spec-path class as U24) and named F2's ROUND text in `.opencode/tools/ctx_gauge.ts` (v1 record has no ROUND sentence — the live carrier is `.opencode/plugins/ctx_gauge.ts`); both corrected in the handover.
 
+### 2026-10-29_04-09 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
+My spec error 2026-10-29 (U26): `agent/handover/specs/2026-10-29_u26-suffix-drop.md` cited the gauge core as `agent/scripts/db/gauge.mjs` — the live core is `.opencode/plugins/scripts/gauge.mjs`. The worker found it and corrected it, costing a detour. Cause: I wrote the path from the A1 map's shorthand instead of a live `ls`. Rule for me: verify every file path in a spec with one `ls`/`test -f` before committing the spec (MEM-0137 covers counts; this extends it to paths).
+
+### 2026-10-29_04-10 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
+block_transfer friction 2026-10-29: I emitted a malformed parameter name for `targetMarker` in a PASTE call and the tool did NOT reject it — it applied the PASTE at EOF, putting 2 NAP lines into the `## Standing` section (fixed with a same-file MOVE). Treat a PASTE/MOVE feedback line that says "(at EOF)" as a red flag when a targetMarker was intended: check the feedback phrase before trusting placement.
+

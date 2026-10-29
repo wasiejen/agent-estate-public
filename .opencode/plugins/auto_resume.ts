@@ -326,12 +326,34 @@ function storeScopeOf(stored: SessionMode | null): "planner" | "autorun" | "none
   return null;
 }
 
-// #98 part A of the action-line scan: the LAST line-anchored action match wins.
+// #98 part A: the action-line scan — (U32 #170) TRAILING-line-only: the LAST
+// non-empty line of the accumulated text (trailing blank lines/whitespace
+// trimmed) must match the line-anchored action form, else null. A bare
+// `action:` line mid-body (ladder/summary NARRATION) never routes — the old
+// last-match-wins scan re-woke active-work sessions (observed 24× mid-work
+// `route= continue`).
 export function actionFromText(text: string): string | null {
+  const lines = text.split("\n");
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i];
+    if (line.trim() === "") continue; // trailing blank lines + whitespace trimmed
+    ACTION_RE.lastIndex = 0;
+    const m = ACTION_RE.exec(line); // the trailing line is the WHOLE subject — the line anchor holds
+    return m != null ? m[1] : null; // prose trail -> null
+  }
+  return null; // blank or empty text: no trailing line at all
+}
+
+// (U32 #170 F0) the mid-work NARRATION marker: any line-anchored `action:` line
+// ANYWHERE in the text means the message is active-work narration, not a close.
+// The idle gate (`session.step.ended` TERMINAL finish, the arm leg of
+// `armEvent`) keeps tool-calls step-ends from arming routing at all; a terminal
+// idle whose prose trail carries a mid-body action line must route NOTHING —
+// recovery included (the wake-loop class).
+function carriesActionLine(text: string): boolean {
   ACTION_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  let found: string | null = null;
-  while ((m = ACTION_RE.exec(text)) !== null) found = m[1];
+  const found = ACTION_RE.test(text);
+  ACTION_RE.lastIndex = 0;
   return found;
 }
 
@@ -1099,6 +1121,11 @@ async function routeScopedIdle(sid: string, w: Watch): Promise<void> {
     log(`note= resume-unimplemented sid=${sid}`);
     return;
   }
+  // (U32 #170 F0) the narration guard: a null scan whose text still carries a
+  // line-anchored action line somewhere is ACTIVE-WORK narration (prose trail) —
+  // route NOTHING, recovery included. Recovery stays reserved for the genuinely
+  // action-less idle (dead stream / protocol gap: no action line anywhere).
+  if (action === null && carriesActionLine(w.lastText)) return;
   if (action === null && w.recoveryCount < MAX_RECOVERY_ATTEMPTS) {
     w.recoveryCount += 1;
     // #167: `cause=` names which event the watchdog OBSERVED last — the same

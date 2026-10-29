@@ -364,6 +364,18 @@ await mod.runTick();
 chk("S4 #170(b) budget exemption: a following null-action idle still gets `recovery= sid=ses_r_continue attempt=1`",
   has("recovery= sid=ses_r_continue attempt=1") && !has("recovery= sid=ses_r_continue attempt=2"));
 
+// (U32 #170) THE WAKE-LOOP class: a mid-work narrative with a bare `action:`
+// line mid-body + a prose trail must route NOTHING at the idle — not continue,
+// not recovery, no send.
+await armOnScoped("ses_r_narr");
+pushEvent({ type: "session.text.ended", data: { sessionID: "ses_r_narr", assistantMessageID: "m_n1", ordinal: 0, text: "ladder narrative\naction: continue\nthen more prose about the queue state" } });
+pushEvent({ type: "session.status", data: { sessionID: "ses_r_narr", status: { type: "idle" } } });
+await sleep(20);
+await mod.runTick();
+chk("U32 #170 mid-work narrative (mid-body action line + prose trail) routes NOTHING: no route, no recovery, no send",
+  !has("route= sid=ses_r_narr") && !has("recovery= sid=ses_r_narr") &&
+    PROMPT.calls.filter((c) => c.sessionID === "ses_r_narr").length === 0);
+
 // #167: the cause-sensitive continue text — the SAME predicate as the #109
 // clause-(4) skip. (a) a NEW ctx.log COMPACT line for the watched sid (the
 // #98 re-arm tail stamps `lastCompactAt` in the SAME tick) -> the compaction
@@ -654,7 +666,7 @@ chk("S9 #158 a MISSING file = unchanged behavior: NO `intent=` line, NO hint in 
 
 // ------------------------------------------------------------------ S7 pure-leg pins + fail-open + cleanup
 
-chk("S7 the action-line scan is LINE-ANCHORED, last match wins (#98 part A) + the #170 `continue` token",
+chk("S7 the action-line scan is TRAILING-anchored (U32 #170: only the last non-empty line routes; the #170 `continue` token)",
   mod.actionFromText("x\naction: stop") === "stop" &&
   mod.actionFromText('a quoted "action: restart" mid-line') === null &&
   mod.actionFromText('a quoted "action: continue" mid-line') === null &&
@@ -662,6 +674,17 @@ chk("S7 the action-line scan is LINE-ANCHORED, last match wins (#98 part A) + th
   mod.actionFromText("action: continue\naction: restart") === "restart" &&
   mod.actionFromText("action: resume\naction: restart") === "restart" &&
   mod.actionFromText("bullet-prefixed\n- action: restart") === null);
+// (U32 #170 F2) the trailing-line-only rule — five pins.
+chk("U32 F2(a) a message ENDING `action: restart` routes restart",
+  mod.actionFromText("all done.\naction: restart") === "restart");
+chk("U32 F2(b) a bare `action: continue` line MID-BODY ending in prose -> null (never routes)",
+  mod.actionFromText("narrative prose\naction: continue\nand then more prose about the run") === null);
+chk("U32 F2(c) an action line followed by TRAILING blank lines/whitespace still routes",
+  mod.actionFromText("closed.\naction: continue\n\n  \n") === "continue");
+chk("U32 F2(d) a bullet-quoted `action: continue` trailing line never routes",
+  mod.actionFromText("notes\n- `action: continue`") === null);
+chk("U32 F2(e) an action line NOT at the final line (followed by more prose) -> null",
+  mod.actionFromText("action: continue\ntrailing prose after the line") === null);
 chk("S7 the scope verdict ladder: Direct beats the agent test; an ON toggle is ANY agent; NO toggle falls to the planner prefix",
   mod.scopeVerdict("off", "planner_x") === "none" && mod.scopeVerdict("on", "task_worker") === "autorun" &&
   mod.scopeVerdict(null, "planner_FlashNext") === "planner" && mod.scopeVerdict(null, "task_worker") === "none");

@@ -881,7 +881,8 @@ function draftBase(sessionID = SID) {
     const gl = guardLines(lB);
     chk("U22 G2 ONE kind:guard event:auto line: projected = LIVE 110400 x R 2.5 = 276000, r=2.50, live=110400, src=assembly, fit=96000, after=275684, bound=110400, n=2, mass=316, ranks #5,#6, prev=110085 (the band legs above)", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "2" && gl[0].mass === "316" && gl[0].ranks === "#5,#6" && gl[0].projected === "276000" && gl[0].r === "2.50" && gl[0].live === "110400" && gl[0].src === "assembly" && gl[0].fit === "96000" && gl[0].after === "275684" && gl[0].bound === "110400" && gl[0].marks === "0" && gl[0].prev === "110085", JSON.stringify(gl[0] ?? null));
     chk("U21 G2 the auto set is SEPARATE from active (store auto=[msg_a3,msg_a2], no active key)", readStore()?.sessions?.[SID]?.auto?.join(",") === "msg_a3,msg_a2" && readStore()?.sessions?.[SID]?.active === undefined, JSON.stringify(readStore()?.sessions?.[SID] ?? null));
-    chk("U21 G2 the trim line carries autoRows=2 + autoMass=316", (() => { const t = readLog().slice(lB).find((l) => l.kind === "trim"); return t != null && t.autoRows === "2" && t.autoMass === "316" && t.droppedRows === "2" && t.droppedEntries === "5" && t.keptEntries === "11"; })(), JSON.stringify(readLog().slice(lB).find((l) => l.kind === "trim") ?? null));
+    chk("U25 F1 the fired notice persists its `noticed` marker in the store entry (restart-surviving)", JSON.stringify(readStore()?.sessions?.[SID]?.noticed ?? null) === JSON.stringify(["msg_a2", "msg_a3"]), JSON.stringify(readStore()?.sessions?.[SID] ?? null));
+    chk("U21 G2 the trim line carries autoRows=2 + autoMass=316 (+ U25 F5 newRows=2)", (() => { const t = readLog().slice(lB).find((l) => l.kind === "trim"); return t != null && t.autoRows === "2" && t.autoMass === "316" && t.newRows === "2" && t.droppedRows === "2" && t.droppedEntries === "5" && t.keptEntries === "11"; })(), JSON.stringify(readLog().slice(lB).find((l) => l.kind === "trim") ?? null));
   }
   // G3 (U21 F2 + F3) the NEXT step crosses the trigger again: the re-check rides
   // the LIVE estimate and the CHANGED set picks the heavy FLOOR row (D3 rule) while
@@ -897,7 +898,7 @@ function draftBase(sessionID = SID) {
     const gl = guardLines(lB);
     chk("U22 G3 event:auto names only the NEW pick (n=1, mass=4499, ranks #15) + prev=275684; the grown window's ratio (20000/15830 = 1.26) clamps to r=2.00 -> projected=220800, after=216301", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "1" && gl[0].mass === "4499" && gl[0].ranks === "#15" && gl[0].projected === "220800" && gl[0].r === "2.00" && gl[0].live === "110400" && gl[0].src === "assembly" && gl[0].after === "216301" && gl[0].prev === "275684", JSON.stringify(gl[0] ?? null));
     const nt = noticeOf(d);
-    chk("U21 G3 the CHANGED set notices again: one fresh entry naming #5,#6,#15 = 4815 tokens over the 10-entry kept draft + notice", nt.length === 1 && nt[0].content[0].text === "emergency trim: dropped #5,#6,#15 = 4815 tokens; your marks were empty" && d.messages.length === 11, JSON.stringify([nt[0]?.content?.[0]?.text ?? null, d.messages.length]));
+    chk("U25 G3 the notice names ONLY the NEW pick (the DELTA lane, #219): #15 = 4499 tokens over the 10-entry kept draft + notice", nt.length === 1 && nt[0].content[0].text === "emergency trim: dropped #15 = 4499 tokens; your marks were empty" && d.messages.length === 11, JSON.stringify([nt[0]?.content?.[0]?.text ?? null, d.messages.length]));
   }
   // G4 (U21 F4 notice-once) the same drop set over consecutive assemblies: exactly
   // ONE notice row total; the drops stay sticky-and-applied.
@@ -913,15 +914,16 @@ function draftBase(sessionID = SID) {
     const d3 = draft();
     await fire(d3);
     chk("U21 G4 assembly 4, SAME set: still no notice — ONE notice row total across the four assemblies", noticeOf(d3).length === 0 && d3.messages.length === 10, JSON.stringify(noticeOf(d3).length));
-    RPC.rows = null; // msg_a10 LEAVES the window: the in-window drop set CHANGES (#5,#6 only)
+    RPC.rows = null; // msg_a10 LEAVES the window: the in-window MEMBERSHIP of the same STORED set changes
     const d4 = draft();
     await fire(d4);
-    chk("U21 G4 a CHANGED set (a10 out of the window) notices again: one entry naming #5,#6 = 316 tokens", noticeOf(d4).length === 1 && noticeOf(d4)[0].content[0].text === "emergency trim: dropped #5,#6 = 316 tokens; your marks were empty" && d4.messages.length === 11, JSON.stringify(noticeOf(d4)[0]?.content?.[0]?.text ?? null));
+    chk("U25 G4 (#219 churn — RED pre-fix): a10 leaves the window, the STORE set is unchanged -> NO re-notice, the drops stay applied", noticeOf(d4).length === 0 && d4.messages.length === 10 && !d4.messages.some((m) => m.id === "msg_a2") && !d4.messages.some((m) => m.id === "msg_a3"), JSON.stringify([noticeOf(d4).length, d4.messages.length]));
+    chk("U25 G4 the churn assembly's trim line keeps the full-set fields (autoRows=2 autoMass=316) and carries NO newRows (delta 0)", (() => { const t = readLog().slice(lB).filter((l) => l.kind === "trim").pop(); return t != null && t.autoRows === "2" && t.autoMass === "316" && t.newRows === undefined; })(), JSON.stringify(readLog().slice(lB).filter((l) => l.kind === "trim").pop() ?? null));
   }
   // G5 (U21 F1 fallback) an UNUSABLE draft array (a circular entry) -> the lane
   // falls back to the gauge last-req figure and NAMES it in the log.
   {
-    chk("U21 G5 clear empties the auto set from the G4 fire (3 ids) and the notice signature", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -3 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID]?.auto === undefined && readStore()?.sessions?.[SID]?.guard === true);
+    chk("U21 G5 clear empties the auto set from the G4 fire (3 ids) and the (U25) notice marker", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -3 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID]?.auto === undefined && readStore()?.sessions?.[SID]?.noticed === undefined && readStore()?.sessions?.[SID]?.guard === true);
     fxSet(110400, 0); // last-req EXACTLY at the trigger; the live estimate is unavailable here
     const lB = readLog().length;
     const d = draft();
@@ -956,6 +958,100 @@ function draftBase(sessionID = SID) {
   }
   fxRestore(); // the gauge fixture returns to the 57000-of-120K mass for the C block
   if (typeof pluginMod.setSysTokForTest === "function") pluginMod.setSysTokForTest(-1); // (U21) a non-positive value restores the production overhead constant
+}
+
+// ------------------------------------------------------------------ U25 (#219) the notice-DELTA leg
+// The notice fires ONLY on ids the store `auto` set gained SINCE THE LAST
+// NOTICE: the per-session `noticed` id list rides the store entry (survives a
+// process restart), so a STATIC drop set never re-notices — not across
+// assemblies, not when the window head moves membership (the measured #219
+// churn). A legacy entry WITHOUT the key = nothing noticed: the set notices
+// ONCE. `autoMass=` keeps the full-set mass; `newRows=` names the delta.
+{
+  RPC.rows = null; // the base 10-row window; the gauge fixture sits at 57000/120K
+  const noticeOf = (d) => d.messages.filter((m) => typeof m.id === "string" && m.id === "msg_ctx_guard_notice");
+  const inject = (entry) => {
+    const base = existsSync(STORE) ? JSON.parse(readFileSync(STORE, "utf8")) : {};
+    base.sessions = { ...(base.sessions ?? {}), [SID]: entry };
+    writeFileSync(STORE, JSON.stringify(base), "utf8");
+  };
+  const clearUp = async () => await trim({ mode: "mark", session: SID, clear: true });
+  const grownRow = (id, seq, ch) => ({ id, seq, type: "assistant", agent: "worker-1", model: { id: MODEL_ID, providerID: "llama-swap" }, time: { created: seq, completed: seq + 1 }, tokens: { input: 100, output: 50, reasoning: 0, cache: { read: 0, write: 0 } }, content: [{ type: "tool", id: "t_" + id, name: "bash", executed: true, state: { status: "completed", input: { command: "ls -la" }, content: [{ type: "text", text: ch.repeat(400) }] } }] });
+  // D1 a legacy entry (no `noticed` key) notices ONCE, persists the marker,
+  // and stays silent on every later assembly of the SAME set.
+  {
+    const lB = readLog().length;
+    inject({ boundary: "", keep: 0, set_at: "2026-01-01T00:00:00Z", auto: ["msg_a3", "msg_a2"] });
+    const d1 = draft();
+    await fire(d1);
+    chk("U25 D1 legacy entry WITHOUT `noticed`: assembly 1 notices ONCE naming the full set (#5,#6 = 316)", noticeOf(d1).length === 1 && noticeOf(d1)[0].content[0].text === "emergency trim: dropped #5,#6 = 316 tokens; your marks were empty", JSON.stringify(noticeOf(d1)[0]?.content?.[0]?.text ?? null));
+    chk("U25 D1 the trim line names newRows=2 and keeps autoRows=2 + autoMass=316", (() => { const t = readLog().slice(lB).find((l) => l.kind === "trim"); return t != null && t.newRows === "2" && t.autoRows === "2" && t.autoMass === "316"; })(), JSON.stringify(readLog().slice(lB).find((l) => l.kind === "trim") ?? null));
+    chk("U25 F1 the marker landed in the store entry (the notice state is store-backed, not in-process)", JSON.stringify(readStore()?.sessions?.[SID]?.noticed ?? null) === JSON.stringify(["msg_a2", "msg_a3"]), JSON.stringify(readStore()?.sessions?.[SID] ?? null));
+    const d2 = draft();
+    await fire(d2);
+    chk("U25 F3 assembly 2 on the SAME store entry: NO notice line (RED pre-fix — the window sig re-fired)", noticeOf(d2).length === 0 && d2.messages.length === 10, JSON.stringify([noticeOf(d2).length, d2.messages.length]));
+    chk("U25 F3 the silent assembly carries NO newRows token, keeps autoMass=316, and the marker did not grow", (() => { const t = readLog().slice(lB).filter((l) => l.kind === "trim").pop(); return t != null && t.newRows === undefined && t.autoMass === "316"; })() && JSON.stringify(readStore()?.sessions?.[SID]?.noticed ?? null) === JSON.stringify(["msg_a2", "msg_a3"]), JSON.stringify(readLog().slice(lB).filter((l) => l.kind === "trim").pop() ?? null));
+    RPC.rows = [...windowRows(), grownRow("msg_a10", 4412, "T")]; // the window GROWS while the stored set sits still
+    const d3 = draft();
+    await fire(d3);
+    chk("U25 F3 the window grows (a10 lands) while the stored set sits still: STILL no notice (the churn leg)", noticeOf(d3).length === 0, JSON.stringify(noticeOf(d3).length));
+    RPC.rows = null;
+    chk("U25 D1 clear PRUNES the marker, so a re-grown set notices again", await (async () => {
+      const cleared = (await clearUp()) === "mark-set= +0 -2 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined;
+      inject({ boundary: "", keep: 0, set_at: "2026-01-01T00:00:00Z", auto: ["msg_a3", "msg_a2"] });
+      const d = draft();
+      await fire(d);
+      const again = noticeOf(d).length === 1;
+      await clearUp();
+      return cleared && again;
+    })(), "the marker survived the clear or the re-grown set stayed silent");
+  }
+  // D2 the 12 shown-rank cap over a 13-id DELTA (F2): the notice shows the
+  // first 12 ranks + the ` +N rows` tail; ONE entry covers all 13.
+  {
+    const odb = new DatabaseSync(ORD_DB);
+    for (const [rid, sq] of [["msg_u11", 4413], ["msg_a12", 4414], ["msg_a13", 4415]]) odb.prepare("INSERT INTO session_message VALUES(?, ?, 'assistant', ?)").run(rid, SID, sq);
+    odb.close();
+    RPC.rows = [...windowRows(), grownRow("msg_a10", 4412, "T"), grownRow("msg_u11", 4413, "U"), grownRow("msg_a12", 4414, "V"), grownRow("msg_a13", 4415, "W")];
+    inject({ boundary: "", keep: 0, set_at: "2026-01-01T00:00:00Z", auto: ["msg_u1", "msg_a2", "msg_a3", "msg_u4", "msg_a5", "msg_u6", "msg_a7", "msg_u8", "msg_a9", "msg_a10", "msg_u11", "msg_a12", "msg_a13"] });
+    const d = draft();
+    await fire(d);
+    const nt = noticeOf(d);
+    const text = nt[0]?.content?.[0]?.text ?? "";
+    chk("U25 F2 a 13-id delta prints the 12-rank cap: the first 12 ranks (#4..#12 + #15,#16,#17) + ` +1 rows`, ONE notice", nt.length === 1 && text.startsWith("emergency trim: dropped #4,#5,#6,#7,#8,#9,#10,#11,#12,#15,#16,#17 +1 rows = ") && text.endsWith("; your marks were empty"), JSON.stringify(text.slice(0, 130)));
+    chk("U25 F2 the delta marker covers ALL 13 ids", (readStore()?.sessions?.[SID]?.noticed ?? []).length === 13, JSON.stringify(readStore()?.sessions?.[SID]?.noticed ?? null));
+    const odb2 = new DatabaseSync(ORD_DB);
+    odb2.exec("DELETE FROM session_message WHERE seq >= 4413");
+    odb2.close();
+    RPC.rows = null;
+    chk("U25 D2 cleanup: the ORD_DB extras are gone and the clear prunes the 13-id set + marker", (await clearUp()) === "mark-set= +0 -13 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined, JSON.stringify(readStore()?.sessions?.[SID] ?? null));
+  }
+  // D3 (F4) a GUARD fire PLUS a stored free pick in the SAME assembly: exactly
+  // ONE notice over the UNION delta — the U21 D4 once-per-changed-set behavior,
+  // delta-shaped.
+  {
+    const db = new DatabaseSync(FX_DB);
+    db.prepare("UPDATE session_message SET data=? WHERE id=1").run(JSON.stringify({ tokens: { input: 10000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }, time: { completed: 123 } }));
+    db.close();
+    const est = Math.floor(draftBase().messages.reduce((b, m) => b + JSON.stringify(m).length, 0) / 4);
+    if (typeof pluginMod.setSysTokForTest === "function") pluginMod.setSysTokForTest(110400 - est); // the live estimate sits EXACTLY at the trigger
+    inject({ boundary: "", keep: 0, set_at: "2026-01-01T00:00:00Z", guard: true, auto: ["msg_a5"] });
+    const lB = readLog().length;
+    const d = draft();
+    await fire(d);
+    const nt = noticeOf(d);
+    chk("U25 D3 (F4) guard picks (a3+a2) PLUS a stored un-noticed pick (a5): ONE notice over the union #5,#6,#8 = 316", nt.length === 1 && nt[0].content[0].text === "emergency trim: dropped #5,#6,#8 = 316 tokens; your marks were empty", JSON.stringify(nt[0]?.content?.[0]?.text ?? null));
+    chk("U25 D3 the trim line names the union: autoRows=3, autoMass=316, newRows=3", (() => { const t = readLog().slice(lB).find((l) => l.kind === "trim"); return t != null && t.autoRows === "3" && t.autoMass === "316" && t.newRows === "3"; })(), JSON.stringify(readLog().slice(lB).find((l) => l.kind === "trim") ?? null));
+    chk("U25 D3 cleanup: clear empties the union set (3 ids), the marker prunes, and the guard toggle-OFF prunes the entry", await (async () => {
+      const cleared = (await clearUp()) === "mark-set= +0 -3 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID]?.auto === undefined && readStore()?.sessions?.[SID]?.noticed === undefined && readStore()?.sessions?.[SID]?.guard === true;
+      const off = (await trim({ mode: "mark", session: SID, guard: false })) === "mark-set= guard=off" && readStore()?.sessions?.[SID] === undefined;
+      return cleared && off;
+    })(), JSON.stringify(readStore()?.sessions?.[SID] ?? null));
+    const db2 = new DatabaseSync(FX_DB);
+    db2.prepare("UPDATE session_message SET data=? WHERE id=1").run(JSON.stringify({ tokens: { input: 10000, output: 2000, reasoning: 0, cache: { read: 45000, write: 0 } }, time: { completed: 123 } }));
+    db2.close();
+    if (typeof pluginMod.setSysTokForTest === "function") pluginMod.setSysTokForTest(-1);
+  }
 }
 
 // ------------------------------------------------------------------ U15 (#204) the report drop-indicator leg

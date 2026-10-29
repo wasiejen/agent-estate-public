@@ -74,7 +74,8 @@
 //
 // (3) TAIL — a persistent per-session BOUNDARY STORE:
 // `.opencode/temp/context_trim_v2.json` (`{sessions: {<sid>: {boundary, keep,
-// set_at}}}`, fail-open read, additive read-modify-write — every pre-existing
+// set_at, staged, active, guard, auto, noticed}}}`, fail-open read, additive
+// read-modify-write — every pre-existing
 // top-level key survives, the #119 discipline of the budget core). NO DB write
 // EVER. Validation is fail-closed against the CURRENT window rows:
 // (a) the session exists (the context read + a `session.get` existence probe);
@@ -279,7 +280,7 @@ export function setGaugeCoreForTest(m: { formatGauge: typeof formatGauge; getDbP
 const LINE_CAP = 2000;
 const CAPS = [500, 150, 60];
 const DOT = "\u2026";
-const FLOOR = 6; // the keepMessages floor (v1, the maintainer's round-2 ruling)
+const FLOOR = 6; // the keepMessages floor (v1, the maintainer's round-2 ruling) — cache-probe comment edit 2026-10-29
 // (U21 D3, #214) the floor protects DIALOG STRUCTURE, not mass: a row inside the
 // last floor rows is droppable when its OWN mass is tool-output-dominant — above
 // this token threshold. Head, user, and compaction rows and the newest assistant
@@ -326,14 +327,14 @@ const marksStaleLogged = new Map<string, string>();
 // (U14) per-session dedup for the guard fail-safe line — ONE `guard event:fail`
 // line per session per plugin load (the spec's "logged ONCE per session").
 const guardFailLogged = new Map<string, string>();
-// (U21 D4, #214) per-session notice signature: the drop-set signature the LAST
-// notice named. The notice entry is appended ONLY when the set CHANGED — the U20
-// wall run appended it at EVERY assembly while the set was identical (6 identical
-// kind:trim lines, 22:21:20→22:22:12Z, keptEntries 32→42).
-const noticeSig = new Map<string, string>();
+// (U25 #219) the (U21 D4, #214) in-process notice signature is GONE: the
+// "already announced" state rides the store entry's `noticed` id list, so the
+// notice survives a process restart and a STATIC drop set can never re-notice
+// through window-membership churn (the #219 churn: three identical notices in
+// 20 s while the stored auto set sat still).
 // (U21 F2) per-session projected-after-drops of the last fire (in-memory evidence,
 // never store state — the store entry shape stays {boundary, keep, setAt, staged,
-// active, guard, auto}).
+// active, guard, auto, noticed}).
 const guardAfter = new Map<string, number>();
 
 function storePath(): string {
@@ -408,7 +409,11 @@ function storeFile(): string {
 // when ON) — and `auto`, the guard's OWN drop set,
 // SEPARATE from the agent's `active` set (sticky: stored ids keep leaving the
 // draft even after the flag goes OFF until `mark clear` empties it).
-type StoreEntry = { boundary: string; keep: number; setAt: string; staged: string[]; active: string[]; guard: boolean; auto: string[] };
+// (U25 #219) adds `noticed` — the ids the notice ALREADY announced: the notice
+// fires only on ids the `auto` set gained since the last notice. A legacy entry
+// without the key = nothing noticed (the whole set notices once); the key prunes
+// whenever `auto` empties, so a re-grown set always notices again.
+type StoreEntry = { boundary: string; keep: number; setAt: string; staged: string[]; active: string[]; guard: boolean; auto: string[]; noticed: string[] };
 
 function readIds(v: unknown): string[] {
   const out: string[] = [];
@@ -438,6 +443,7 @@ function readStore(): { sessions: Record<string, StoreEntry> } {
     const staged = readIds(rec["staged"]);
     const guard = rec["guard"] === true; // (U14) opt-in wall guard; anything else is OFF
     const auto = readIds(rec["auto"]); // (U14) the guard's own drop ids (separate from `active`)
+    const noticed = readIds(rec["noticed"]); // (U25 #219) the already-announced ids; an absent key = nothing noticed
     // (U17 #203) a legacy `tags` key is IGNORED here — no other lever → noise entry.
     if (boundary === "" && staged.length === 0 && active.length === 0 && guard !== true && auto.length === 0) continue; // an entry with NO lever is noise
     const keep = rec["keep"];
@@ -450,6 +456,7 @@ function readStore(): { sessions: Record<string, StoreEntry> } {
       active,
       guard,
       auto,
+      noticed,
     };
   }
   return { sessions: out };
@@ -479,6 +486,9 @@ function writeSessionEntry(sid: string, entry: StoreEntry | null): boolean {
       if (entry.active.length > 0) rec["active"] = entry.active;
       if (entry.guard === true) rec["guard"] = true; // (U14) the wall-guard flag prints ONLY when ON
       if (entry.auto.length > 0) rec["auto"] = entry.auto; // (U14) the guard's drop ids print only when non-empty
+      // (U25 #219) the notice marker rides ONLY while `auto` is non-empty: an
+      // emptied drop set prunes it, so a re-grown set notices again.
+      if (entry.auto.length > 0 && entry.noticed.length > 0) rec["noticed"] = entry.noticed;
       s[sid] = rec;
     }
     raw["sessions"] = s;
@@ -1276,7 +1286,7 @@ async function tailSet(sid: string, form: { target?: string; keep?: number; clea
     // sets, keeps the boundary) — the entry is deleted only when nothing is left.
     const keepSets = before != null && (before.staged.length > 0 || before.active.length > 0 || before.auto.length > 0);
     const okWrite = keepSets
-      ? writeSessionEntry(sid, { boundary: "", keep: 0, setAt: before.setAt, staged: before.staged, active: before.active, guard: before.guard, auto: before.auto })
+      ? writeSessionEntry(sid, { boundary: "", keep: 0, setAt: before.setAt, staged: before.staged, active: before.active, guard: before.guard, auto: before.auto, noticed: before.noticed })
       : writeSessionEntry(sid, null);
     if (!okWrite) return `tail-set= error: store-write-failed (the boundary file could not be written)`;
     appendLog(buildLine("tail", { session: sid, state: "cleared", from: before != null && before.boundary !== "" ? before.boundary : undefined, marks: keepSets ? String(before.staged.length + before.active.length) : undefined }, {}));
@@ -1311,7 +1321,7 @@ async function tailSet(sid: string, form: { target?: string; keep?: number; clea
   }
   if (targetID === "") return `tail-set= rejected: target-not-found`;
   const before = readStore().sessions[sid];
-  if (!writeSessionEntry(sid, { boundary: targetID, keep: retained, setAt: new Date().toISOString(), staged: before?.staged ?? [], active: before?.active ?? [], guard: before?.guard ?? false, auto: before?.auto ?? [] })) {
+  if (!writeSessionEntry(sid, { boundary: targetID, keep: retained, setAt: new Date().toISOString(), staged: before?.staged ?? [], active: before?.active ?? [], guard: before?.guard ?? false, auto: before?.auto ?? [], noticed: before?.noticed ?? [] })) {
     return `tail-set= error: store-write-failed (the boundary file could not be written)`;
   }
   staleLogged.delete(sid);
@@ -1330,8 +1340,8 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
   if (form.guard !== undefined && form.ids == null && form.unmark == null && form.clear !== true) {
     const before = readStore().sessions[sid];
     const next: StoreEntry = before != null
-      ? { boundary: before.boundary, keep: before.keep, setAt: new Date().toISOString(), staged: before.staged, active: before.active, guard: form.guard ?? before.guard, auto: before.auto }
-      : { boundary: "", keep: 0, setAt: new Date().toISOString(), staged: [], active: [], guard: form.guard ?? false, auto: [] };
+      ? { boundary: before.boundary, keep: before.keep, setAt: new Date().toISOString(), staged: before.staged, active: before.active, guard: form.guard ?? before.guard, auto: before.auto, noticed: before.noticed }
+      : { boundary: "", keep: 0, setAt: new Date().toISOString(), staged: [], active: [], guard: form.guard ?? false, auto: [], noticed: [] };
     if (!writeSessionEntry(sid, next)) return `mark-set= error: store-write-failed (the boundary file could not be written)`;
     appendLog(buildLine("mark", { session: sid, guard: form.guard ? "on" : "off", total: String(next.staged.length + next.active.length) }, {}));
     return `mark-set= guard=${form.guard ? "on" : "off"}`;
@@ -1346,7 +1356,7 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
     if (removed > 0 || form.guard !== undefined) {
       // (U14) `clear` empties the guard's `auto` set TOO (all three drop sets);
       // the guard FLAG survives a clear — a separate lever.
-      if (!writeSessionEntry(sid, { boundary: before?.boundary ?? "", keep: before?.keep ?? 0, setAt: new Date().toISOString(), staged: [], active: [], auto: [], guard: guardNext }))
+      if (!writeSessionEntry(sid, { boundary: before?.boundary ?? "", keep: before?.keep ?? 0, setAt: new Date().toISOString(), staged: [], active: [], auto: [], guard: guardNext, noticed: [] }))
         return `mark-set= error: store-write-failed (the boundary file could not be written)`;
       marksStaleLogged.delete(sid);
       appendLog(buildLine("mark", { session: sid, added: "0", removed: String(removed), total: "0", est: "0", guard: form.guard !== undefined ? (form.guard ? "on" : "off") : undefined }, {}));
@@ -1446,7 +1456,7 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
   if (retained < FLOOR)
     return `mark-set= rejected: mark-floor ${retained} breach=${cap(newIds.length > 0 ? newIds.join(",") : "none", 160)}`; // (U12) names the offending resolved rows
   const est = markEstimate(rows, staged);
-  if (!writeSessionEntry(sid, { boundary, keep: entry?.keep ?? 0, setAt: new Date().toISOString(), staged, active, guard: form.guard ?? entry?.guard ?? false, auto: entry?.auto ?? [] }))
+  if (!writeSessionEntry(sid, { boundary, keep: entry?.keep ?? 0, setAt: new Date().toISOString(), staged, active, guard: form.guard ?? entry?.guard ?? false, auto: entry?.auto ?? [], noticed: entry?.noticed ?? [] }))
     return `mark-set= error: store-write-failed (the boundary file could not be written)`;
   marksStaleLogged.delete(sid);
   appendLog(buildLine("mark", { session: sid, added: String(newIds.length), removed: String(removed), total: String(staged.length), est: String(est) }, {}));
@@ -1517,7 +1527,7 @@ async function applySet(sid: string, force: boolean): Promise<string> {
   if (projected > bound && !force) return `apply= rejected: over-bound ${projected} ${bound}`;
   const active = [...(entry?.active ?? [])];
   for (const id of staged) if (!active.includes(id)) active.push(id);
-  if (!writeSessionEntry(sid, { boundary: entry?.boundary ?? "", keep: entry?.keep ?? 0, setAt: new Date().toISOString(), staged: [], active, guard: entry?.guard ?? false, auto: entry?.auto ?? [] }))
+  if (!writeSessionEntry(sid, { boundary: entry?.boundary ?? "", keep: entry?.keep ?? 0, setAt: new Date().toISOString(), staged: [], active, guard: entry?.guard ?? false, auto: entry?.auto ?? [], noticed: entry?.noticed ?? [] }))
     return `apply= error: store-write-failed (the boundary file could not be written)`;
   marksStaleLogged.delete(sid);
   appendLog(buildLine("apply", { session: sid, n: String(staged.length), dropEst: String(dropEst), projected: String(projected), bound: String(bound), mixed: String(mixed), forced: force ? "true" : undefined }, {}));
@@ -1583,7 +1593,7 @@ async function freeSet(sid: string, pct: number): Promise<string> {
   if (picks.length > 0) {
     // sticky like the guard picks: they leave the draft on the NEXT assembly
     // (the hook's `auto` leg) and stay until `mark clear`.
-    if (!writeSessionEntry(sid, { boundary: entry?.boundary ?? "", keep: entry?.keep ?? 0, setAt: entry?.setAt ?? new Date().toISOString(), staged: entry?.staged ?? [], active: entry?.active ?? [], guard: entry?.guard ?? false, auto: [...(entry?.auto ?? []), ...picks] }))
+    if (!writeSessionEntry(sid, { boundary: entry?.boundary ?? "", keep: entry?.keep ?? 0, setAt: entry?.setAt ?? new Date().toISOString(), staged: entry?.staged ?? [], active: entry?.active ?? [], guard: entry?.guard ?? false, auto: [...(entry?.auto ?? []), ...picks], noticed: entry?.noticed ?? [] }))
       return `free= error: store-write-failed (the boundary file could not be written)`;
   }
   const lastReq = gCtx != null ? (gOut != null ? gCtx - gOut : gCtx) : undefined;
@@ -1820,7 +1830,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
                 .filter((x): x is number => typeof x === "number")
                 .sort((a, b) => a - b);
               const rankText = rankNums.length > 0 ? rankNums.slice(0, 12).map((n) => `#${n}`).join(",") + (rankNums.length > 12 ? ` +${rankNums.length - 12} more` : "") : "unavailable";
-              const wrote = writeSessionEntry(sid, { boundary: entry.boundary, keep: entry.keep, setAt: entry.setAt, staged: entry.staged, active: entry.active, guard: true, auto: [...entry.auto, ...pickedIds] });
+              const wrote = writeSessionEntry(sid, { boundary: entry.boundary, keep: entry.keep, setAt: entry.setAt, staged: entry.staged, active: entry.active, guard: true, auto: [...entry.auto, ...pickedIds], noticed: entry.noticed });
               appendLog(buildLine("guard", { session: sid, event: "auto", n: String(pickedIds.length), mass: String(pickedMass), ranks: rankText, projected: String(projection), src, r: ratio.toFixed(2), live: live != null ? String(live) : undefined, fit: String(gFit), after: String(projected), prev: prevAfter != null ? String(prevAfter) : undefined, bound: String(gBound), marks: String(entry.active.length), store: wrote ? undefined : "write-failed" }, {}));
             }
           }
@@ -1951,52 +1961,64 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     // ONE FRESH entry the plugin BUILT, pushed at the END after the splice:
     // never counted, never a mutation of history (the plugin owns this object,
     // no shared draft part is touched; the tag lane it once rode behind is
-    // deleted). Draft-only: never persisted. Names the dropped RANKS + the total
-    // token mass + whether the session's marks set was empty.
-    // (U21 F4, #214 D4) NOTICE ONCE PER CHANGED DROP SET: the U20 wall run
-    // appended this entry at EVERY assembly while the drop set was identical (6
-    // identical kind:trim lines 22:21:20→22:22:12Z, droppedRows=12 autoMass=62179,
-    // keptEntries 32→42 churn). The entry is appended ONLY when the in-window drop
-    // set CHANGED since the last notice; the drops themselves stay
-    // sticky-and-applied (the splice lane above is untouched), and an EMPTY set
-    // clears the signature so a later set always notices.
-    let noticeMass = 0;
+    // deleted). Draft-only: never persisted. Names the dropped RANKS + the mass
+    // of THIS notice + whether the session's marks set was empty.
+    // (U21 F4, #214 D4) NOTICE ONCE PER CHANGED DROP SET rode an in-process
+    // signature built from the ids FOUND IN THIS ASSEMBLY'S WINDOW. (U25 #219)
+    // That churned: the same stored auto set re-noticed every time the window
+    // head moved its membership (measured 2026-10-29: three identical notices in
+    // 20 s at droppedRows=50), and the mass figure named neither this fire's
+    // rows nor a stable sum. The rule is now DELTA: the notice covers only rows
+    // the STORE `auto` set gained SINCE THE LAST NOTICE — the per-session
+    // `noticed` id list rides the store entry, so the state survives a restart
+    // and a static drop set never re-notices whatever the window does. A legacy
+    // entry without the key = nothing noticed (the set notices ONCE). N3
+    // ruling: the notice keeps firing for `free`-created auto sets even while
+    // the guard flag is OFF — the agent must know content vanished — but ONCE
+    // per delta, never per assembly. The drops themselves stay
+    // sticky-and-applied (the splice lane above is untouched).
+    let noticeMass = 0; // (U25) the DELTA mass — the notice figure names THIS notice's rows
+    let setMass = 0; // the FULL in-window drop-set mass — `autoMass=` keeps its meaning
+    let newRows = 0; // (U25 F5) the delta count — the `kind:"trim"` line's `newRows=` field
     const autoTotal = autoInWindow + guardPicked;
-    if (autoTotal === 0) noticeSig.delete(sid);
-    else {
+    if (autoTotal > 0) {
       const noticeIds = new Set<string>(entry.auto);
       for (const id of guardPickIds) noticeIds.add(id);
+      const noticed = new Set<string>(entry.noticed);
       const ord = await ordOf();
       const ranks: number[] = [];
-      const sigIds: string[] = [];
+      const deltaIds: string[] = [];
       let unnamed = 0;
       rows.forEach((r, i) => {
         if (i === 0) return; // the head is NEVER a guard row
         const id = idOf(r);
         if (id === "" || !noticeIds.has(id)) return; // stale ids outside the window are absent here
+        setMass += ownMassOf(r);
+        if (noticed.has(id)) return; // (U25) already announced — never re-notice
+        deltaIds.push(id);
         noticeMass += ownMassOf(r);
-        sigIds.push(id);
         const rk = ord.ok === true ? ord.byId.get(id) : undefined;
         if (typeof rk === "number") ranks.push(rk);
         else unnamed++;
       });
-      sigIds.sort();
-      const sig = sigIds.join(",");
-      ranks.sort((a, b) => a - b);
-      const shown = ranks.slice(0, 12);
-      const more = ranks.length - shown.length + unnamed;
-      const rankText = ranks.length > 0 ? shown.map((n) => `#${n}`).join(",") + (more > 0 ? ` +${more} rows` : "") : `${autoTotal} rows`;
-      const marksText = entry.active.length === 0 ? "empty" : `non-empty (${entry.active.length})`;
-      if (noticeSig.get(sid) !== sig) {
-        noticeSig.set(sid, sig);
+      if (deltaIds.length > 0) {
+        ranks.sort((a, b) => a - b);
+        const shown = ranks.slice(0, 12); // (U21) the 12 shown-rank cap stays
+        const more = ranks.length - shown.length + unnamed;
+        const rankText = ranks.length > 0 ? shown.map((n) => `#${n}`).join(",") + (more > 0 ? ` +${more} rows` : "") : `${deltaIds.length} rows`;
+        const marksText = entry.active.length === 0 ? "empty" : `non-empty (${entry.active.length})`;
         messages.push({ role: "user", content: [{ type: "text", text: `emergency trim: dropped ${rankText} = ${noticeMass} tokens; your marks were ${marksText}` }], id: "msg_ctx_guard_notice" });
+        newRows = deltaIds.length;
+        // (U25 F1) the marker persists in the store entry so the delta survives a
+        // process restart; a failed write degrades to one repeat notice at worst.
+        writeSessionEntry(sid, { boundary: entry.boundary, keep: entry.keep, setAt: entry.setAt, staged: entry.staged, active: entry.active, guard: entry.guard, auto: [...entry.auto, ...guardPickIds], noticed: [...entry.noticed, ...deltaIds] });
       }
     }
     if (dropped + droppedProjections === 0) return; // stale boundary + all marks stale + nothing dropped -> nothing happened, no trim line
     appendLog(
       buildLine(
         "trim",
-        { session: sid, boundary: entry.boundary !== "" ? entry.boundary : "none", boundaryIndex: bIdx >= 1 ? String(bIdx) : "none", marks: String(entry.active.length), droppedRows: String(drop.size), droppedEntries: String(dropped + droppedProjections), droppedBytes: String(droppedBytes), droppedProjections: String(droppedProjections), orphan: String(orphan), autoRows: autoTotal > 0 ? String(autoTotal) : undefined, autoMass: noticeMass > 0 ? String(noticeMass) : undefined, ordinal: seqSpan !== "none" ? "session-rank" : undefined, seq: seqSpan !== "none" ? seqSpan : undefined, keptEntries: String(messages.length) },
+        { session: sid, boundary: entry.boundary !== "" ? entry.boundary : "none", boundaryIndex: bIdx >= 1 ? String(bIdx) : "none", marks: String(entry.active.length), droppedRows: String(drop.size), droppedEntries: String(dropped + droppedProjections), droppedBytes: String(droppedBytes), droppedProjections: String(droppedProjections), orphan: String(orphan), autoRows: autoTotal > 0 ? String(autoTotal) : undefined, autoMass: setMass > 0 ? String(setMass) : undefined, newRows: newRows > 0 ? String(newRows) : undefined, ordinal: seqSpan !== "none" ? "session-rank" : undefined, seq: seqSpan !== "none" ? seqSpan : undefined, keptEntries: String(messages.length) },
         {},
       ),
     );

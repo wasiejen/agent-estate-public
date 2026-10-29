@@ -59,6 +59,9 @@
 // droppedBytes CHANGED — the G4 assembly-3 and D1 silent-assembly pins are the
 // re-pins of the old always-log behavior), and the report `next:` STEER line
 // (the R1/R2 pins + the V7 roundtrip determinism).
+// U31 (#227, 2026-10-29): the HARD SAFETY LEG pins (auth=assembly-hardleg, the
+// 25% per-fire cap, the #225 corrected-estimate fixture); the tie fixture runs at the
+// realistic 262,144 scale (trigger 241,172, fit 209,715, hard threshold 237,568).
 // U29 (#225, 2026-10-29): the guard's trigger AUTHORITY is the provider figure
 // (CTX − output) — the U22 assembly-scaling pins are repinned (G1/G2/G3 lines
 // carry `src=last-req` + `auth=last-req`), the band block became the #225
@@ -858,17 +861,102 @@ function draftBase(sessionID = SID) {
     await fire(d);
     chk("U29 G4(ii) R-scaled assembly would hit the trigger but authority 50000 is UNDER it: NO fire, NO line of any kind, store clean (#225 regression)", cleared && guardLines(lB).length === 0 && noticeOf(d).length === 0 && JSON.stringify(d.messages) === JSON.stringify(draft().messages) && readStore()?.sessions?.[SID]?.auto === undefined, JSON.stringify(guardLines(lB)));
   }
-  // (U29 G4(i) + G2 + G3) CONVERGENCE in a steered 1000-token window: authority
-  // 950 at trigger 920 -> ONE fire drains to after=728 < fit=800; the provider
-  // figure then reflects the spliced request (728) -> SILENT next assembly; a
-  // GROWN pool re-fires legitimately (tie_a3); the EXHAUSTED pool logs ONE
-  // deduped event:skip line. tie rows: a1/a2 own-mass 111, a3 50 (age tie-break
-  // sends a1 first).
+  // (U31 H5) HARD LEG fixture — window 262,144 (hard threshold = window −
+  // OUTPUT_RESERVE 24,576 = 237,568; per-fire cap floor(262144 x 0.25) = 65,536),
+  // provider figure UNDER the trigger (120,647): the CORRECTED estimate alone
+  // drives the fire. (i) ONE hard-leg fire (auth=assembly-hardleg) draining
+  // UNDER the fit bound (H5(iii)); the SAME set next assembly stays SILENT (the
+  // corrected figure now sits UNDER the threshold). (cap) a heavy burst drains
+  // AT MOST a quarter of the window — the third pick is refused by the CAP.
+  // (ii) the #225 fixture: raw estimate ABOVE the threshold + sticky drops
+  // carrying 281,824 own-mass -> corrected ~0 -> NO fire, NO line.
+  {
+    const heavy = (id, ch, n) => ({ id, type: "assistant", text: ch.repeat(n) }); // text rows: the draft entries carry the bytes the estimate reads
+    const hlRows = () => [
+      { id: "hl_c0", type: "compaction", text: "head" },
+      heavy("hl_a1", "x", 159920), // own-mass ~40000
+      heavy("hl_a2", "y", 159920), // own-mass ~40000
+      { id: "hl_u3", type: "user", text: "user three" },
+      { id: "hl_u4", type: "user", text: "user four" },
+      { id: "hl_u5", type: "user", text: "user five" },
+      { id: "hl_u6", type: "user", text: "user six" },
+      { id: "hl_a7", type: "assistant", content: [{ type: "text", text: "tail seven" }] },
+    ];
+    const burstRows = () => [
+      { id: "br_c0", type: "compaction", text: "head" },
+      heavy("br_a1", "b", 119920), // own-mass ~30000 each
+      heavy("br_a2", "c", 119920),
+      heavy("br_a3", "d", 119920),
+      { id: "br_u4", type: "user", text: "user four" },
+      { id: "br_u5", type: "user", text: "user five" },
+      { id: "br_a6", type: "assistant", content: [{ type: "text", text: "tail six" }] },
+    ];
+    const pjRows = () => [
+      { id: "pj_c0", type: "compaction", text: "head" },
+      heavy("pj_a1", "z", 563583), // own-mass ~140912 — the fixture pair carries ~281,824
+      heavy("pj_a2", "z", 563583),
+      { id: "pj_u3", type: "user", text: "user three" },
+      { id: "pj_u4", type: "user", text: "user four" },
+      { id: "pj_u5", type: "user", text: "user five" },
+      { id: "pj_u6", type: "user", text: "user six" },
+      { id: "pj_u7", type: "user", text: "user seven" },
+      { id: "pj_u8", type: "user", text: "user eight" },
+      { id: "pj_u9", type: "user", text: "user nine" },
+      { id: "pj_u10", type: "user", text: "user ten" },
+      { id: "pj_a11", type: "assistant", content: [{ type: "text", text: "tail eleven" }] },
+    ];
+    const goodH = gaugeMod;
+    const steerH = (ctx) => pluginMod.setGaugeCoreForTest({ formatGauge: goodH.formatGauge, getDbPath: goodH.getDbPath, readGauge: async () => ({ ok: true, kind: "ok", sid: SID, modelId: MODEL_ID, total: ctx, output: 0, ctx, window: 262144 }) });
+    const liveTo = (rows, target) => pluginMod.setSysTokForTest(target - Math.floor(rows.reduce((b, r) => b + JSON.stringify(r).length, 0) / 4));
+    // A draft shaped from the fixture rows: the HARD LEG reads the live draft
+    // (assemblyEstimate over the DRAFT entries), so the burst fixture sends the
+    // heavy rows in the DRAFT too, not only in the DB lane.
+    const rowsDraft = (rows) => ({ sessionID: SID, agent: "worker-1", model: { id: MODEL_ID, providerID: "llama-swap" }, system: [{ type: "text", text: "the system part" }], messages: rows.map((r) => ({ id: r.id, role: r.type === "user" ? "user" : "assistant", parts: [{ type: "text", text: String(r.text ?? "") }] })) });
+    await trim({ mode: "mark", session: SID, clear: true });
+    RPC.rows = hlRows();
+    liveTo(hlRows(), 239000); // corrected estimate (nothing dropped yet) ABOVE 237,568
+    steerH(120647); // provider UNDER the trigger — the hard leg is the only authority here
+    const lB1 = readLog().length;
+    await fire(rowsDraft(hlRows()));
+    const gh1 = guardLines(lB1);
+    chk("U31 H5(i)+(iii) hard-leg fire: provider 120647 under trigger + corrected 239000 >= window-24576 -> auth=assembly-hardleg, projected = live, drains UNDER the fit bound (the second pick would CROSS the cap -> n=1)", gh1.length === 1 && gh1[0].event === "auto" && gh1[0].auth === "assembly-hardleg" && gh1[0].n === "1" && gh1[0].projected === gh1[0].live && Number(gh1[0].projected) >= 237568 && Number(gh1[0].after) < 209715 && Number(gh1[0].after) === Number(gh1[0].projected) - Number(gh1[0].mass) && Number(gh1[0].mass) <= 65536, JSON.stringify(gh1[0] ?? null));
+    await fire(draft());
+    await fire(rowsDraft(hlRows()));
+    chk("U31 H5(i) the SAME drop set next assembly: the corrected estimate sits UNDER the threshold -> SILENT (no new guard line)", guardLines(lB1).length === 1, JSON.stringify(guardLines(lB1).length));
+    await trim({ mode: "mark", session: SID, clear: true });
+    RPC.rows = burstRows();
+    liveTo(burstRows(), 300000);
+    const lB2 = readLog().length;
+    await fire(rowsDraft(burstRows()));
+    const gh2 = guardLines(lB2);
+    chk("U31 H3 the per-fire CAP bites: estimate 300000, three ~30000-mass rows -> n=2 mass <= 65536 (a quarter of the window), the third pick REFUSED by the cap", gh2.length === 1 && gh2[0].event === "auto" && gh2[0].auth === "assembly-hardleg" && gh2[0].n === "2" && Number(gh2[0].mass) <= 65536 && Number(gh2[0].mass) >= 55000, JSON.stringify(gh2[0] ?? null));
+    await trim({ mode: "mark", session: SID, clear: true });
+    RPC.rows = pjRows();
+    liveTo(pjRows(), 245000); // RAW estimate ABOVE 237,568 — the uncorrected sum must never drive the leg
+    const mk = await trim({ mode: "mark", session: SID, ids: ["pj_a1", "pj_a2"] });
+    chk("U31 the fixture stages the two pj rows (mark ids echo total=2)", mk.startsWith("mark-set= +2 -0 total=2"), mk.split("\n")[0]);
+    const ap = await trim({ mode: "apply", session: SID, force: true }); // the sticky drops ride ACTIVE (force = the #201 escape hatch)
+    chk("U31 apply(force) moves the pj rows to ACTIVE", ap.startsWith("apply= staged->active"), ap.split("\n")[0]);
+    steerH(120647);
+    const lB3 = readLog().length;
+    await fire(rowsDraft(pjRows()));
+    chk("U31 H5(ii) #225 fixture GREEN: provider 120647 under trigger + raw estimate ABOVE the hard threshold + 2 drops carrying 281,824 own-mass -> corrected ~0 -> NO fire, zero guard lines", guardLines(lB3).length === 0 && JSON.stringify(readStore()?.sessions?.[SID]?.active ?? null) === JSON.stringify(["pj_a1", "pj_a2"]), JSON.stringify(guardLines(lB3)));
+    await trim({ mode: "mark", session: SID, clear: true });
+    RPC.rows = null;
+    pluginMod.setGaugeCoreForTest(goodH);
+    sysToLive(44160);
+  }
+  // (U31 H5(ii) + U29 G4(i)/G2/G3) CONVERGENCE at REALISTIC scale (window
+  // 262,144: trigger 241,172, fit bound 209,715): ONE provider-leg fire drains the
+  // heavy rows UNDER the fit bound in a SINGLE pass; the provider figure then
+  // reflects the spliced request -> SILENT next assembly; a CHANGED pool re-fires
+  // legitimately (tie_a3); the EXHAUSTED pool logs ONE deduped event:skip line.
+  // tie rows: a1/a2 own-mass ~16000, a3 54.
   {
     const tieRows = () => [
       { id: "tie_c0", type: "compaction", text: "head" },
-      { id: "tie_a1", type: "assistant", content: [{ type: "tool", id: "t1", name: "bash", executed: true, state: { status: "completed", input: { command: "ls" }, content: [{ type: "text", text: "c".repeat(431) }] } }] },
-      { id: "tie_a2", type: "assistant", content: [{ type: "tool", id: "t2", name: "bash", executed: true, state: { status: "completed", input: { command: "ls" }, content: [{ type: "text", text: "d".repeat(431) }] } }] },
+      { id: "tie_a1", type: "assistant", content: [{ type: "tool", id: "t1", name: "bash", executed: true, state: { status: "completed", input: { command: "ls" }, content: [{ type: "text", text: "c".repeat(63936) }] } }] },
+      { id: "tie_a2", type: "assistant", content: [{ type: "tool", id: "t2", name: "bash", executed: true, state: { status: "completed", input: { command: "ls" }, content: [{ type: "text", text: "d".repeat(63936) }] } }] },
       { id: "tie_a3", type: "assistant", content: [{ type: "tool", id: "t3", name: "bash", executed: true, state: { status: "completed", input: { command: "ls" }, content: [{ type: "text", text: "e".repeat(200) }] } }] },
       { id: "tie_u4", type: "user", text: "user four" },
       { id: "tie_u5", type: "user", text: "tail five" },
@@ -879,28 +967,28 @@ function draftBase(sessionID = SID) {
     ];
     const goodG = gaugeMod;
     const steerG = (r) => pluginMod.setGaugeCoreForTest({ formatGauge: goodG.formatGauge, getDbPath: goodG.getDbPath, readGauge: async () => r });
-    const tieSteer = (ctx) => ({ ok: true, kind: "ok", sid: SID, modelId: MODEL_ID, total: ctx, output: 0, ctx, window: 1000 });
+    const tieSteer = (ctx) => ({ ok: true, kind: "ok", sid: SID, modelId: MODEL_ID, total: ctx, output: 0, ctx, window: 262144 });
     RPC.rows = tieRows();
     await trim({ mode: "mark", session: SID, clear: true }); // the guard FLAG survives the clear
     const autoOfT = () => JSON.stringify(readStore()?.sessions?.[SID]?.auto ?? null);
-    steerG(tieSteer(950));
+    steerG(tieSteer(241172));
     const lB = readLog().length;
     await fire(draft());
     const gl1 = guardLines(lB).filter((l) => l.event === "auto");
-    chk("U29 G4(i) ONE fire REACHES the bound: authority 950 >= 920 drains tie_a1+tie_a2 (mass 222) to after=728 < fit=800 in a SINGLE pass; auth=last-req", gl1.length === 1 && gl1[0].n === "2" && gl1[0].mass === "222" && gl1[0].projected === "950" && gl1[0].after === "728" && gl1[0].fit === "800" && gl1[0].bound === "920" && gl1[0].auth === "last-req" && autoOfT() === JSON.stringify(["tie_a1", "tie_a2"]), JSON.stringify([gl1[0] ?? null, autoOfT()]));
-    steerG(tieSteer(728));
+    chk("U31 ONE fire REACHES the bound: authority 241172 at trigger 241172 drains tie_a1+tie_a2 (~32000 own-mass) UNDER fit=209715 in a SINGLE pass; auth=last-req (corrected estimate UNDER the hard threshold here)", gl1.length === 1 && gl1[0].n === "2" && gl1[0].projected === "241172" && Number(gl1[0].after) < 209715 && Number(gl1[0].after) === 241172 - Number(gl1[0].mass) && Number(gl1[0].mass) <= 65536 && gl1[0].fit === "209715" && gl1[0].bound === "241172" && gl1[0].auth === "last-req" && autoOfT() === JSON.stringify(["tie_a1", "tie_a2"]), JSON.stringify([gl1[0] ?? null, autoOfT()]));
+    steerG(tieSteer(209172));
     const lB2 = readLog().length;
     await fire(draft());
-    chk("U29 G2 CONVERGED: the provider figure reflects the spliced request (728 < 920) -> NO re-fire, NO line, the picks stay sticky", guardLines(lB2).length === 0 && autoOfT() === JSON.stringify(["tie_a1", "tie_a2"]), JSON.stringify([guardLines(lB2), autoOfT()]));
-    steerG(tieSteer(950));
+    chk("U31 the CONVERGED authority (209172 < trigger; corrected estimate UNDER the hard threshold) fires NOTHING — no line at all (the #225 silence)", guardLines(lB2).length === 0 && autoOfT() === JSON.stringify(["tie_a1", "tie_a2"]), JSON.stringify([guardLines(lB2), autoOfT()]));
+    steerG(tieSteer(241172));
     const lB3 = readLog().length;
     await fire(draft());
     const gl3 = guardLines(lB3).filter((l) => l.event === "auto");
-    chk("U29 G2 a re-at-trigger authority re-fires ONLY for the CHANGED set: the fresh candidate tie_a3 (own-mass 54) drains to after=896 (>= fit — pool exhausts), ONE auto line n=1, prev=728", gl3.length === 1 && gl3[0].n === "1" && gl3[0].mass === "54" && gl3[0].after === "896" && gl3[0].prev === "728" && autoOfT() === JSON.stringify(["tie_a1", "tie_a2", "tie_a3"]), JSON.stringify(gl3[0] ?? null));
+    chk("U31 a re-at-trigger authority re-fires ONLY for the CHANGED set: the fresh candidate tie_a3 (own-mass 54) drains to after=241118 (>= fit — pool exhausts), ONE auto line n=1, prev = the fire-1 after", gl3.length === 1 && gl3[0].n === "1" && gl3[0].mass === "54" && gl3[0].after === "241118" && gl3[0].prev === String(241172 - Number(gl1[0].mass)) && gl3[0].auth === "last-req" && autoOfT() === JSON.stringify(["tie_a1", "tie_a2", "tie_a3"]), JSON.stringify(gl3[0] ?? null));
     const lB4 = readLog().length;
     await fire(draft());
     const gl4 = guardLines(lB4);
-    chk("U29 G2/G3 pool EXHAUSTED at authority AT the trigger: NO picks, NO auto line, exactly ONE event:skip line auth=pool-exhausted projected=950 (the audit trail; the set is unchanged)", gl4.length === 1 && gl4[0].event === "skip" && gl4[0].auth === "pool-exhausted" && gl4[0].projected === "950" && autoOfT() === JSON.stringify(["tie_a1", "tie_a2", "tie_a3"]), JSON.stringify(gl4));
+    chk("U29 G2/G3 pool EXHAUSTED at authority AT the trigger: NO picks, NO auto line, exactly ONE event:skip line auth=pool-exhausted projected=241172 (the audit trail; the set is unchanged)", gl4.length === 1 && gl4[0].event === "skip" && gl4[0].auth === "pool-exhausted" && gl4[0].projected === "241172" && autoOfT() === JSON.stringify(["tie_a1", "tie_a2", "tie_a3"]), JSON.stringify(gl4));
     const lB5 = readLog().length;
     await fire(draft());
     chk("U29 G3 the skip line is DEDUPED per (session,reason): the next exhausted assembly adds NOTHING while the set is unchanged", guardLines(lB5).length === 0, JSON.stringify(guardLines(lB5)));
@@ -922,7 +1010,7 @@ function draftBase(sessionID = SID) {
     chk("U29 G2 authority AT trigger: fires — msg_a3 + msg_a2 leave WITH their linked outputs (drain toward the fit bound exhausts the pool)", ids.indexOf("msg_a3") === -1 && ids.indexOf("msg_a2") === -1 && !JSON.stringify(d.messages).includes("a3 output") && !JSON.stringify(d.messages).includes("a2 output") && ids.includes("msg_u1") && d.messages.length === 11, JSON.stringify(ids));
     chk("U29 G2 the notice = ONE fresh entry AT THE END naming both ranks + the total mass (add lane)", nt.length === 1 && d.messages[d.messages.length - 1]?.id === "msg_ctx_guard_notice" && nt[0].content[0].text === "emergency trim: dropped #5,#6 = 316 tokens; your marks were empty", JSON.stringify(nt[0]?.content?.[0]?.text ?? null));
     const gl = guardLines(lB);
-    chk("U29 G2 ONE kind:guard event:auto line: projected = AUTHORITY 110400, src=last-req, auth=last-req, forensics r=2.50 + live=110400, fit=96000, after=110084 (bytes/4 drain), bound=110400, n=2, mass=316, ranks #5,#6, prev=896 (the tie leg above)", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "2" && gl[0].mass === "316" && gl[0].ranks === "#5,#6" && gl[0].projected === "110400" && gl[0].r === "2.50" && gl[0].live === "110400" && gl[0].src === "last-req" && gl[0].auth === "last-req" && gl[0].fit === "96000" && gl[0].after === "110084" && gl[0].bound === "110400" && gl[0].marks === "0" && gl[0].prev === "896", JSON.stringify(gl[0] ?? null));
+    chk("U31 G2 ONE kind:guard event:auto line: projected = AUTHORITY 110400, src=last-req, auth=both (provider AT trigger + corrected 110400 >= hard threshold 95424), forensics r=2.50 + live=110400, fit=96000, after=110084 (bytes/4 drain), bound=110400, n=2, mass=316, ranks #5,#6, prev=241118 (the tie leg above)", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "2" && gl[0].mass === "316" && gl[0].ranks === "#5,#6" && gl[0].projected === "110400" && gl[0].r === "2.50" && gl[0].live === "110400" && gl[0].src === "last-req" && gl[0].auth === "both" && gl[0].fit === "96000" && gl[0].after === "110084" && gl[0].bound === "110400" && gl[0].marks === "0" && gl[0].prev === "241118", JSON.stringify(gl[0] ?? null));
     chk("U21 G2 the auto set is SEPARATE from active (store auto=[msg_a3,msg_a2], no active key)", readStore()?.sessions?.[SID]?.auto?.join(",") === "msg_a3,msg_a2" && readStore()?.sessions?.[SID]?.active === undefined, JSON.stringify(readStore()?.sessions?.[SID] ?? null));
     chk("U25 F1 the fired notice persists its `noticed` marker in the store entry (restart-surviving)", JSON.stringify(readStore()?.sessions?.[SID]?.noticed ?? null) === JSON.stringify(["msg_a2", "msg_a3"]), JSON.stringify(readStore()?.sessions?.[SID] ?? null));
     chk("U21 G2 the trim line carries autoRows=2 + autoMass=316 (+ U25 F5 newRows=2)", (() => { const t = readLog().slice(lB).find((l) => l.kind === "trim"); return t != null && t.autoRows === "2" && t.autoMass === "316" && t.newRows === "2" && t.droppedRows === "2" && t.droppedEntries === "5" && t.keptEntries === "11"; })(), JSON.stringify(readLog().slice(lB).find((l) => l.kind === "trim") ?? null));
@@ -939,7 +1027,7 @@ function draftBase(sessionID = SID) {
     await fire(d);
     chk("U21 G3 second fire on the live estimate: auto grows to {a3,a2,a10} — the heavy FLOOR row leaves; the heavy USER row, the heavy NEWEST assistant row and the head never", readStore()?.sessions?.[SID]?.auto?.slice().sort().join(",") === "msg_a10,msg_a2,msg_a3", JSON.stringify(readStore()?.sessions?.[SID]?.auto ?? null));
     const gl = guardLines(lB);
-    chk("U29 G3 event:auto names only the NEW pick (n=1, mass=4499, ranks #15) + prev=110084: projected = AUTHORITY 110400 (src/auth last-req), forensics r=2.50 (grown mass 15832, 6.97 clamps to the cap) + live=110400, after=105901 (pool exhausts above the fit bound)", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "1" && gl[0].mass === "4499" && gl[0].ranks === "#15" && gl[0].projected === "110400" && gl[0].r === "2.50" && gl[0].live === "110400" && gl[0].src === "last-req" && gl[0].auth === "last-req" && gl[0].after === "105901" && gl[0].prev === "110084", JSON.stringify(gl[0] ?? null));
+    chk("U29 G3 event:auto names only the NEW pick (n=1, mass=4499, ranks #15) + prev=110084: projected = AUTHORITY 110400 (src=last-req, auth=both — corrected 108864 >= 95424), forensics r=2.50 (grown mass 15832, 6.97 clamps to the cap) + live=110400, after=105901 (pool exhausts above the fit bound)", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "1" && gl[0].mass === "4499" && gl[0].ranks === "#15" && gl[0].projected === "110400" && gl[0].r === "2.50" && gl[0].live === "110400" && gl[0].src === "last-req" && gl[0].auth === "both" && gl[0].after === "105901" && gl[0].prev === "110084", JSON.stringify(gl[0] ?? null));
     const nt = noticeOf(d);
     chk("U25 G3 the notice names ONLY the NEW pick (the DELTA lane, #219): #15 = 4499 tokens over the 10-entry kept draft + notice", nt.length === 1 && nt[0].content[0].text === "emergency trim: dropped #15 = 4499 tokens; your marks were empty" && d.messages.length === 11, JSON.stringify([nt[0]?.content?.[0]?.text ?? null, d.messages.length]));
   }
@@ -1439,7 +1527,7 @@ function draftBase(sessionID = SID) {
   chk("INV the `mark` lines all name session + added/removed/total scalars (a TOGGLE line carries `guard` instead — the exempt shape; U17: the tags exemption is gone)", lines.filter((l) => l.kind === "mark").every((l) => typeof l.session === "string" && ((typeof l.added === "string" && typeof l.removed === "string" && typeof l.total === "string") || typeof l.guard === "string")));
   chk("INV the `apply` lines all name session + n/dropEst/projected/bound/mixed scalars (U8)", lines.filter((l) => l.kind === "apply").every((l) => typeof l.session === "string" && typeof l.n === "string" && typeof l.dropEst === "string" && typeof l.projected === "string" && typeof l.bound === "string" && typeof l.mixed === "string"));
   chk("INV the `free` lines (U18) all name session + target/freed/picks/short scalars and there are EXACTLY 6 (the base shortfall, the boundary picks=0 leg, the tie-break leg, the U21 heavy-floor leg, the ctx-missing leg, the cross-session leg — every rejection logs nothing)", lines.filter((l) => l.kind === "free").length === 6 && lines.filter((l) => l.kind === "free").every((l) => typeof l.session === "string" && typeof l.target === "string" && typeof l.freed === "string" && typeof l.picks === "string" && (l.short === "yes" || l.short === "no")), `count=${lines.filter((l) => l.kind === "free").length}`);
-  chk("INV the applied kind:apply lines (rejections log nothing — fail-closed; U9 retry leg, U10 ordinal legs, U15 V3 leg; U17: the tag-lane applies are gone)", lines.filter((l) => l.kind === "apply").length === 7, `count=${lines.filter((l) => l.kind === "apply").length}`);
+  chk("INV the applied kind:apply lines (rejections log nothing — fail-closed; U9 retry leg, U10 ordinal legs, U15 V3 leg; U17: the tag-lane applies are gone; U31: the fixture force-apply + its floor-reject leg)", lines.filter((l) => l.kind === "apply").length === 8, `count=${lines.filter((l) => l.kind === "apply").length}`);
   chk("INV the ONE boundary-stale line for the (session,boundary) state (deduped)", lines.filter((l) => l.kind === "boundary-stale").length === 1, `count=${lines.filter((l) => l.kind === "boundary-stale").length}`);
   chk("INV the ONE marks-stale line for the (session,count) state (deduped)", lines.filter((l) => l.kind === "marks-stale").length === 1, `count=${lines.filter((l) => l.kind === "marks-stale").length}`);
   chk("INV the gauge lines' reasons are only the two honest read failures", lines.filter((l) => l.kind === "gauge").every((l) => l.reason === "context-read-failed" || l.reason === "session-not-found" || l.reason === "messages-not-array"));

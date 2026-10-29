@@ -799,6 +799,28 @@ function assemblyEstimate(messages: unknown): number | undefined {
   }
 }
 
+// (U31 H1, #227) the CORRECTED live estimate: `assemblyEstimate` MINUS the
+// bytes/4 own-mass sum of the rows the hook is dropping for THIS session
+// (boundary region + active + auto — same weight source as `ownMassOf`). The
+// raw estimate over-counts ~4x on a trimmed session (planner session: own-mass
+// sum 298,167 vs provider request 120,647 with 530 sticky drops — the #225
+// churn class); subtracting the dropped rows' own mass removes exactly that, so
+// the hard leg stays stable. NEVER reuse the `window-est` sum uncorrected.
+// Result is >= 0.
+function droppedOwnMass(rows: Array<Record<string, unknown>>, dropIdx: Set<number>): number {
+  let m = 0;
+  for (const i of dropIdx) {
+    const r = rows[i];
+    if (r != null) m += ownMassOf(r);
+  }
+  return m;
+}
+
+function correctedEstimate(messages: unknown, rows: Array<Record<string, unknown>>, dropIdx: Set<number>): number | undefined {
+  const est = assemblyEstimate(messages);
+  return est == null ? undefined : Math.max(0, est - droppedOwnMass(rows, dropIdx));
+}
+
 // (U22 F1, #218; U29 #225 — FORENSICS ONLY: since the trigger rode the provider
 // figure this ratio DECIDES NOTHING, it only annotates the guard log line) the
 // per-session RENDER RATIO the guard scales the assembly estimate by: the last
@@ -1564,6 +1586,16 @@ let GUARD_FRAC = 0.92;
 export function setGuardFracForTest(f: number): void {
   GUARD_FRAC = f;
 }
+// (U31 H2, #227) OUTPUT_RESERVE — the HARD SAFETY LEG's output reserve: the leg
+// fires when the CORRECTED live estimate reaches window MINUS this reserve, so
+// the ANSWER still fits. 24,576 tokens = 1/6 of the 262,144-token window (the
+// planner's 2026-10-29 ruling). The provider figure cannot see what the step
+// grew AFTER the last finished request (U20: last-req ~185k, the request died
+// at 284,070) — this leg covers that class.
+const OUTPUT_RESERVE = 24576;
+// (U31 H3) the hard leg's per-fire drain cap: at most 25% of the window leaves
+// in ONE fire — a growth burst must not strip the session bare.
+const HARD_CAP_FRAC = 0.25;
 
 // Moves `staged` into `active` (union, staged emptied) ONLY after the projected
 // request size passes the bound; a rejection writes NOTHING (fail-closed, like
@@ -1876,25 +1908,47 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
           // spliced request, so the next assembly sits under the trigger -> no
           // re-fire; while the drop set is unchanged nothing is picked again.
           const ratio = renderRatio(rows, lastReq); // forensics only (U29)
-          const projection = lastReq; // THE authority — the provider figure (shape (a))
-          const src = "last-req"; // the authority's name; the assembly path decides nothing (U29)
+          const projection = lastReq; // THE provider-figure authority (U29, shape (a)) — UNCHANGED
+          const src = "last-req"; // (U29) the provider leg's name; the hard leg names itself via `auth` (U31 H4)
           const gBound = Math.floor(gWin * GUARD_FRAC);
           const gFit = Math.floor(gWin * BOUND_FRAC);
+          // (U31 H1/H2, #227) THE HARD SAFETY LEG — an ADDITIONAL trigger that
+          // covers the class the provider figure CANNOT see: growth INSIDE the
+          // step (U20 died at request 284,070 while last-req sat ~185k). Fire
+          // when the CORRECTED live estimate (assemblyEstimate − droppedOwnMass)
+          // reaches window − OUTPUT_RESERVE. The correction keeps the #225
+          // fixture GREEN: the planner session (own sum 298,167, 530 sticky drops
+          // / mass 281,825, provider ~120,647) corrects to ~16k — far UNDER the
+          // hard threshold — so the over-count that caused the churn can NEVER
+          // fire this leg, and the provider leg keeps the trigger.
+          const floorKeep = Math.max(FLOOR, entry.keep);
+          const dropIdx = new Set<number>();
+          if (bIdx >= 1) for (let k = 0; k < bIdx; k++) dropIdx.add(k); // the boundary drop region
+          for (const m of [...entry.active, ...entry.auto]) {
+            const i = rows.findIndex((r) => idOf(r) === m);
+            if (i >= 1) dropIdx.add(i);
+          }
+          const corrected = correctedEstimate(messages, rows, dropIdx); // (U31 H1) >= 0
+          const hardAt = gWin - OUTPUT_RESERVE;
+          const providerLeg = projection != null && projection >= gBound;
+          const hardLeg = corrected != null && corrected >= hardAt;
+          let auth = "last-req";
+          if (hardLeg) auth = providerLeg ? "both" : "assembly-hardleg"; // (U31 H4) which authority decided
           let skipReason: string | undefined;
-          if (projection == null) skipReason = "no-request-fig"; // unreadable provider figure -> never fire blind
-          else if (projection < gBound) skipReason = "under-trigger"; // the REAL request is under the trigger — SILENT, never logged
-          if (projection != null && projection >= gBound) {
-            const floorKeep = Math.max(FLOOR, entry.keep);
-            const dropIdx = new Set<number>();
-            if (bIdx >= 1) for (let k = 0; k < bIdx; k++) dropIdx.add(k); // the boundary drop region
-            for (const m of [...entry.active, ...entry.auto]) {
-              const i = rows.findIndex((r) => idOf(r) === m);
-              if (i >= 1) dropIdx.add(i);
-            }
+          if (projection == null && !hardLeg) skipReason = "no-request-fig"; // no provider figure AND no visible in-flight mass -> never fire blind
+          else if (!providerLeg && !hardLeg) skipReason = "under-trigger"; // the REAL request is under the trigger — SILENT, never logged
+          if (providerLeg || hardLeg) {
+            // Drain base: the provider leg drains the PROVIDER figure (U29 math
+            // UNCHANGED); a hard-leg-only fire drains the CORRECTED estimate
+            // toward the same fit bound; `both` drains from the provider figure
+            // (the authority keeps precedence) under the hard cap.
+            let base = providerLeg ? projection : (corrected ?? 0);
+            if (hardLeg && !providerLeg && base > (corrected ?? base)) base = corrected ?? base;
+            const capTok = hardLeg ? Math.floor(gWin * HARD_CAP_FRAC) : undefined; // (U31 H3) <= 25% of the window per fire
             const cand = dropCandidates(rows, floorKeep, bIdx, dropIdx);
             const pickedIds: string[] = guardPickIds;
             let pickedMass = 0;
-            let projected = projection;
+            let projected = base;
             const prevAfter = guardAfter.get(sid);
             // (U22 F1, #218; U29) the drain arithmetic is UNCHANGED: `c.mass` is a
             // bytes/4 own-mass subtracted from the PROVIDER figure, so the picks drain
@@ -1903,6 +1957,11 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
             // bound, never above it (the #214 survival property).
             for (const c of cand) {
               if (projected < gFit) break; // the projection sits UNDER the fit bound — stop
+              // (U31 H3) the hard leg's 25%-per-fire cap: stop BEFORE a pick that
+              // would CROSS it — at most one fire drains a quarter of the window.
+              // The FIRST pick may cross (a single over-cap heavy row must still
+              // leave, or the wall stays unprotected); picks are never split.
+              if (capTok != null && pickedIds.length > 0 && pickedMass + c.mass > capTok) break;
               pickedIds.push(c.id);
               pickedMass += c.mass;
               projected -= c.mass;
@@ -1918,8 +1977,8 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
                 .sort((a, b) => a - b);
               const rankText = rankNums.length > 0 ? rankNums.slice(0, 12).map((n) => `#${n}`).join(",") + (rankNums.length > 12 ? ` +${rankNums.length - 12} more` : "") : "unavailable";
               const wrote = writeSessionEntry(sid, { boundary: entry.boundary, keep: entry.keep, setAt: entry.setAt, staged: entry.staged, active: entry.active, guard: true, auto: [...entry.auto, ...pickedIds], noticed: entry.noticed });
-              appendLog(buildLine("guard", { session: sid, event: "auto", auth: "last-req", n: String(pickedIds.length), mass: String(pickedMass), ranks: rankText, projected: String(projection), src, r: ratio.toFixed(2), live: live != null ? String(live) : undefined, fit: String(gFit), after: String(projected), prev: prevAfter != null ? String(prevAfter) : undefined, bound: String(gBound), marks: String(entry.active.length), store: wrote ? undefined : "write-failed" }, {}));
-            } else skipReason = "pool-exhausted"; // authority AT the trigger, NO candidate left — the audit trail (the wall is imminent and nothing is droppable)
+              appendLog(buildLine("guard", { session: sid, event: "auto", auth, n: String(pickedIds.length), mass: String(pickedMass), ranks: rankText, projected: String(base), src, r: ratio.toFixed(2), live: live != null ? String(live) : undefined, fit: String(gFit), after: String(projected), prev: prevAfter != null ? String(prevAfter) : undefined, bound: String(gBound), marks: String(entry.active.length), store: wrote ? undefined : "write-failed" }, {}));
+            } else skipReason = "pool-exhausted"; // a leg AT its threshold, NO candidate left — the audit trail (the wall is imminent and nothing is droppable)
           }
           // (U29 G3) ONE deduped `event:skip` line per (session, reason) — the two
           // REAL skips only; `under-trigger` is the steady state and stays SILENT.

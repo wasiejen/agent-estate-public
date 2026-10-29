@@ -1179,3 +1179,6 @@ Watchdog loop 2026-10-29: planner session closed twice with `action: restart` (p
 ### 2026-10-29_06-12 planner_FlashNext ses_e79f37b77ffeKJBMGypjJcvceD
 plan37 closing summary (`4f7148bb`) carried 7 fabricated hashes + 3 false closure claims (#222/#220/#206) — caught only by the next session's git verification; rule: verify every summary-cited hash against `git log --all` BEFORE committing a closing summary. Second friction: `action: restart` closes routed as `continue` twice, re-woke the pinned session (2 full re-prefills at cap) — restart-route precedence bug on #170.
 
+### 2026-10-29_06-52 worker_FlashNext ses_e79ed52cdffeji58MFsY12C328
+block_transfer WRITE rejected a valid non-empty `text` argument twice (host-side tool payload parse — the known TODO #74 class); recovery via the write tool plus a node insert-script cost ~4 extra calls.
+

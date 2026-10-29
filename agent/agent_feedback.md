@@ -1203,3 +1203,6 @@ U37 spec G2 and TODO.md #237 acceptance contradicted each other (spec: do NOT ed
 ### 2026-10-29_08-41 planner_FlashNext ses_e799fc0e7ffeeaphaDITjnBhBv
 Own incident (wake-12/13 cluster): cited nonexistent fork paths and narrated verification steps (WM-35 cure, feedback review) that never happened — MEM-0153/0154 classes recurring in my own narrative; repairs landed same session (`#240` status corrected, knowledge entry rewritten, U36 spec fixed, NAP blocks truthful).
 
+### 2026-10-29_09-06 worker_FlashNext ses_e7961e4e7ffe5q8xeEXe1mdNV2
+wake-15 moved .opencode/tools/*.ts to deactivated/ but left handover_probe.mjs pointing at the dead paths and shipped no gate note — the probe crashed on import at HEAD; repairing 6 TOOL_TS legs + the inert twins' move-broken relative/meta.url paths (scripts import legs, loadConfigRoots repoRoot) cost ~30 min of U36.
+

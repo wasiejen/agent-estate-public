@@ -1167,3 +1167,9 @@ The planner's own session was silently auto-trimmed twice by the armed guard (52
 ### 2026-10-29_05-07 worker_FlashNext ses_e7a3fd4f0ffeUvrp03cXwx3I5L
 Scratch-copy smoke run failed twice on module resolution (`./scripts/gauge.mjs`, `./loop_root.mjs`) before I copied the scripts dir — now filed to knowledge; the repo_custom_tools/readme does not document the scratch-dev layout for context_trim_v2.
 
+### 2026-10-29_05-59 worker_FlashNext ses_e7a3fd4f0ffeUvrp03cXwx3I5L
+None beyond the fixture-shape discovery already filed to knowledge; no rule confusion this session.
+
+### 2026-10-29_06-04 planner_FlashNext ses_e7ccc7f25ffes03wxfaa57KJDm
+Equilibrium micro-fire regime 2026-10-29 (planner session pinned at ceiling): once the hard leg converges, it fires EVERY step with ~110-500 tok drops, each emitting a notice user-entry and each busting the backend cache slot (full re-prefill/step, ~100 s). The gauge CTX= (112k) reads the trimmed assembly while the provider request rides ~240k — the two diverge in heavy regime. Desired: batch equilibrium micro-fires (e.g. only fire when a step adds > ~2k tokens, or hold the steady bound a floor below the ceiling). Filed as candidate micro-unit under #222.
+

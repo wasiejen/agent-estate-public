@@ -7,6 +7,7 @@ handover/NAP files (`loop/`, `agent/handover/`), and per-project
 bookkeeping (`projects/<name>/`). No FST product code lives here; its
 bookkeeping and repo docs sit in `projects/Free-Snap-Tap/`. The map is split
 into the parts in THIS folder. Read the part you need, not the whole set.
+The architecture-first identity of the whole repo is the root `README.md`.
 
 The maintainer and the agents maintain these parts (ruling 2026-10-26:
 agents may edit them — they exist for agent work, not for the maintainer's

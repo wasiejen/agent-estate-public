@@ -153,7 +153,13 @@ const ACTION_RE = /(?:^|\n)\s*action:\s*(restart|resume|stop|ask_maintainer|cont
 const COMPACT_SID_RE = /\bCOMPACT\s+(ses_[A-Za-z0-9_]+)/;
 
 // The v2 high-volume delta classes — the v1 `message.part.delta` analogue
-// (#96). NEVER logged (they are ~97% of the volume); they also arm nothing.
+// (#96). NEVER logged; they also arm nothing. FORWARD-COMPAT INSURANCE,
+// inert TODAY (#216 finding 1, decision 2026-10-29): the census
+// `agent/research/2026-10-28_event-census.md` (`9e3432a7`, 269,021 lines /
+// 54 classes) shows the v2 host emits ZERO rows of these three names. The
+// list stays as cheap flood protection: `auto_resume.log` is trimmed ONLY
+// at init (`trimLogIfNeeded` in setup), so a future delta-emitting host
+// (the v1 flood class was ~97% of the volume) would flood the watchdog log.
 const NEVER_LOGGED: ReadonlyArray<string> = ["session.text.delta", "session.reasoning.delta", "session.tool.input.delta"];
 
 // The v2 candidate session-domain methods probed at init (the v1 list,

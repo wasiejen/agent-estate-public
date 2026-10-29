@@ -108,8 +108,10 @@ Work through the rungs in order, top-down:
 2. Queue blocked and context healthy: run the orientation's idle maintenance scope in this session.
    Close with `action: continue`. The plugin wakes this session. Never spawn.
 3. `REM ≤ 20k` (roughly ≥ 92% used): finish the current safe operation. Update the NAP. Commit.
-   Fire `compact_memory` SELF with the `message` arg = next-unit pointer.
-   Continue this session after the compaction.
+   Trim-first: `context_trim mode:'free' target=25` on your own session, then
+   continue from committed state. Use `compact_memory` SELF (with the
+   `message` arg = next-unit pointer) only while it remains available.
+   (Ruling 2026-10-28: the trim lanes replace compaction — U22 proven.)
 4. `Compactions left = 0`: close with `action: restart`.
 5. `action: stop` covers only unrecoverable failure or direct maintainer interaction.
 
@@ -274,13 +276,14 @@ A worker is compacted when:
 
 Before resuming:
 
-1. Optionally compact the worker session with `compact_memory`.
-2. Resume the same `task_id`.
+1. Prefer trim-first recovery: `context_trim mode:'free' target=25` on the
+   worker session (cross-session `session` arg), then resume the same
+   `task_id` with the instruction to re-read the committed files and write
+   a short self-summary file + commit BEFORE any self-trim.
+2. `compact_memory` cross-dispatch only while the tool remains available;
+   a cross-session call is fire-and-forget — treat the verified `COMPACT`
+   record as success; a failed dispatch consumes no budget.
 3. Instruct the worker to follow `readme_post_compaction.md`.
-
-A cross-session `compact_memory` call is fire-and-forget.
-Treat the verified `COMPACT` record as success.
-A failed dispatch consumes no compaction budget.
 
 If a worker reports `Task cancelled`, context-size exhaustion, or equivalent:
 

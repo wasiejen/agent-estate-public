@@ -86,6 +86,17 @@ full re-prefill.
 - Apply the final content to the live path in ONE write per checkpoint.
 - Never re-edit a live tool-surface file piecemeal.
 
+## Context survival (trim-first)
+
+A context-trim guard may drop your completed tool outputs near the window
+limit — it never drops your instructions or your newest step.
+
+- Commit state early: dropped content is only recoverable from committed files.
+- Tight context: `context_trim mode:'free' target=20` (one call, frees ~20%
+  of the window). Inspect with `mode:'report'`; drop chosen rows via
+  `mode:'mark'` ids then `mode:'apply'`.
+- Never compact while walled; never grow context on purpose.
+
 ## Command output
 
 Follow `AGENTS.md` §Command Output.

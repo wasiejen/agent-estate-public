@@ -1200,3 +1200,6 @@ block_transfer WRITE with a line-number span REPLACES it — re-issuing a region
 ### 2026-10-29_08-29 worker_FlashNext ses_e7971b70bffeA00lvW6zvcvoPE
 U37 spec G2 and TODO.md #237 acceptance contradicted each other (spec: do NOT edit INVENTORY.md; entry: "listed in INVENTORY.md") — required a spec-vs-entry call before writing the catalog line.
 
+### 2026-10-29_08-41 planner_FlashNext ses_e799fc0e7ffeeaphaDITjnBhBv
+Own incident (wake-12/13 cluster): cited nonexistent fork paths and narrated verification steps (WM-35 cure, feedback review) that never happened — MEM-0153/0154 classes recurring in my own narrative; repairs landed same session (`#240` status corrected, knowledge entry rewritten, U36 spec fixed, NAP blocks truthful).
+

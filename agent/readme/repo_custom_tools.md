@@ -54,7 +54,9 @@ Contract pinning lives in `.opencode/plugins/probes/handover_probe.mjs`.
 - `report`: read-only window map (ranks `#N`, `own=`, flags) — read it
   before any manual drop.
 - `mark` + `apply`: drop chosen rows behind the fit bound; `guard:true`
-  arms the wall guard.
+  arms the wall guard. `unmark` is PRE-APPLY only — it edits the STAGED
+  list; an applied (`active`) or `free`/guard (`auto`) drop clears only
+  via `clear` (which empties all drop sets).
 - `free target=N`: one call frees ~N % of the window — the stop-line and
   recovery lane. `tail`: keep-boundary (shapes the report, not the live
   request). `clear`: empty the drop sets.
@@ -63,6 +65,12 @@ Contract pinning lives in `.opencode/plugins/probes/handover_probe.mjs`.
 - CROSS (planner): rescue a walled or dead child — `report`, then `free`
   ~25–45 %, then resume with the recovery flow: re-read committed files,
   write a self-summary file + commit, then an informed self-trim.
+- `session:'all'`: the store-hygiene sentinel (not a session). `report` lists
+  the trim-store entries read-only; `tail` + `clear:true` + `ids` clears named
+  DEAD entries. An entry is DEAD once its session is INACTIVE (the session API
+  says idle or gone and no step is running) or the session row is gone — a
+  finished worker's entry clears even when it self-trimmed mid-run. The
+  caller's own entry is never clearable.
 
 ## NOT here
 - Built-ins (`task`, `skill`, `webfetch`, …) are not custom tools.

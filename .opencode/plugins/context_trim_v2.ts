@@ -1177,9 +1177,11 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
   // (U15 #204) the per-row drop mask for the REPORT — flags come from the STORE
   // ids matched against WINDOW rows: a stale stored id matches no row, so it
   // neither flags a kept row nor inflates the in-window counts. Precedence
-  // ` x` (active) over ` g` (guard-auto) over ` s` (staged-only); a kept row
-  // carries NO flag token (byte-identity). The flag names SET MEMBERSHIP per
-  // the spec — the boundary/pair interplay stays the hook's business.
+  // ` x` (the ACTIVE set — an applied drop) over ` g` (the `auto` set: a guard
+  // pick OR a `free` pick) over ` s` (staged-only); a kept row carries NO flag
+  // token (byte-identity). The flag names SET MEMBERSHIP per the spec — the
+  // boundary/pair interplay stays the hook's business. (U33 #223 vocabulary:
+  // ONE term per drop set — `staged`, `active`, `auto` — the legend too.)
   const activeSet = new Set(active);
   const autoSet = new Set(entry?.auto ?? []);
   const stagedSet = new Set(staged);
@@ -1259,7 +1261,7 @@ async function reportWindow(sid: string, target?: string, ids = false): Promise<
   // refs `A-B` as refs.
   // (U15 #204) the legend — printed ONLY when at least one row carries a flag
   // (a clean report gains nothing, keeping it byte-identical).
-  if (droppedIn + stagedIn > 0) lines.push("flags: s=staged x=dropped g=guard-auto");
+  if (droppedIn + stagedIn > 0) lines.push("flags: s=staged x=active g=auto (guard or free)");
   rows.forEach((r, i) => {
     const reqAt = providerTotalOf(r);
     // (U15) the per-row state flag RIGHT AFTER the rank: ` x` active (leaves
@@ -1731,29 +1733,45 @@ async function freeSet(sid: string, pct: number): Promise<string> {
 }
 // ------------------------------------------------------------------ (U30 #226 R5) the store-hygiene lanes
 
-// The newest COMPLETED-assistant ("provider") row per sid — the DEAD-sid guard
-// input. One read-only statement over the SAME backend chain + path resolution as
-// the report lane; NOTHING is ever written. null = the DB lane is unreadable (the
-// caller fails closed); a sid ABSENT from the Map = zero provider rows (DEAD).
+// The newest COMPLETED-assistant ("provider") row + the newest row OVERALL per
+// sid — the DEAD-sid guard inputs. Two read-only statements over the SAME
+// backend chain + path resolution as the report lane; NOTHING is ever written.
+// null = the DB lane is unreadable (the caller fails closed); a sid ABSENT from
+// the Map = zero provider rows AND no running step.
 const HYGIENE_SQL =
   "SELECT seq, json_extract(data, '$.time.completed') AS tc FROM session_message WHERE session_id = ? AND type = 'assistant' AND json_extract(data, '$.time.completed') IS NOT NULL ORDER BY seq DESC LIMIT 1";
+// (U33 #226 G2) the IN-FLIGHT leg: an assistant row with NO `time.completed` as
+// the session's NEWEST row means a step is running NOW — LIVE, whatever the
+// session API's recency reads.
+const HYGIENE_LAST_SQL =
+  "SELECT type, json_extract(data, '$.time.completed') AS tc FROM session_message WHERE session_id = ? ORDER BY seq DESC LIMIT 1";
 
-async function newestProviderRows(sids: string[]): Promise<Map<string, { seq: number; tc: number }> | null> {
+type HygieneRow = { seq: number; tc: number; inflight: boolean };
+
+async function newestProviderRows(sids: string[]): Promise<Map<string, HygieneRow> | null> {
   const p = reportOverridePath ?? ordinalsOverridePath ?? getDbPath();
   for (const backend of ["node:sqlite", "bun:sqlite"]) {
     try {
       const db = await openReadonlySqlite(backend, p);
       if (db == null) continue;
-      const out = new Map<string, { seq: number; tc: number }>();
+      const out = new Map<string, HygieneRow>();
       try {
         const stmt = db.prepare(HYGIENE_SQL);
+        const lastStmt = db.prepare(HYGIENE_LAST_SQL);
         for (const sid of sids) {
           const raw = stmt.all(sid);
           const row = asRecord(Array.isArray(raw) ? raw[0] : undefined);
+          const rawLast = lastStmt.all(sid);
+          const last = asRecord(Array.isArray(rawLast) ? rawLast[0] : undefined);
+          const inflight = last != null && last["type"] === "assistant" && last["tc"] == null;
           if (row != null && typeof row["seq"] === "number") {
             const tcRaw = row["tc"];
             const tc = typeof tcRaw === "number" ? tcRaw : Date.parse(String(tcRaw ?? ""));
-            out.set(sid, { seq: row["seq"], tc: Number.isFinite(tc) ? tc : NaN });
+            out.set(sid, { seq: row["seq"], tc: Number.isFinite(tc) ? tc : NaN, inflight });
+          } else if (inflight) {
+            // no completed provider row yet but a step IS running: the listing
+            // prints `newest=none`, the verdict reads the entry as LIVE
+            out.set(sid, { seq: -1, tc: NaN, inflight: true });
           }
         }
       } finally {
@@ -1771,35 +1789,94 @@ async function newestProviderRows(sids: string[]): Promise<Map<string, { seq: nu
   return null;
 }
 
+// (U33 #226 G2) THE DEADNESS SIGNAL — an entry is DEAD when its session is
+// INACTIVE, not merely when no provider row postdates `set_at`: a completed
+// worker that self-trimmed mid-run carries rows AFTER `set_at` and stayed
+// `live=yes` forever (13 of 14 store entries, planner listing 2026-10-29).
+// Read-only legs in order: (1) the session API `get` — a missing session reads
+// `gone`, one whose `time.updated` sits inside HYGIENE_IDLE_MS reads `active`,
+// anything else `inactive`; (2) the in-flight row leg above; (3) the U30
+// row-staleness rule ONLY as the fail-closed FALLBACK when the API lane is
+// absent or unreadable. NO DB write, no write-lane call, no `session.active`
+// (that endpoint is not on the plugin surface).
+const HYGIENE_IDLE_MS = 30 * 60 * 1000;
+
+export type HygieneLiveness = Map<string, "active" | "inactive" | "gone"> | null;
+let livenessOverride: ((sids: string[]) => Promise<HygieneLiveness>) | undefined;
+export function setLivenessForTest(fn: ((sids: string[]) => Promise<HygieneLiveness>) | undefined): void {
+  livenessOverride = fn;
+}
+
+function msOf(v: unknown): number {
+  if (typeof v === "number") return v;
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === "string") return Date.parse(v);
+  return NaN;
+}
+
+async function livenessOf(sids: string[]): Promise<HygieneLiveness> {
+  if (livenessOverride != null) return livenessOverride(sids);
+  const get = sessionApi?.get;
+  if (typeof get !== "function") return null;
+  const out = new Map<string, "active" | "inactive" | "gone">();
+  for (const sid of sids) {
+    try {
+      const info = await (get as (i: { sessionID: string }) => Promise<unknown>)({ sessionID: sid });
+      if (info == null) {
+        out.set(sid, "gone");
+        continue;
+      }
+      const rec = asRecord(info);
+      const updated = msOf(asRecord(rec?.["time"])?.["updated"] ?? rec?.["time_updated"]);
+      out.set(sid, Number.isFinite(updated) && Date.now() - updated <= HYGIENE_IDLE_MS ? "active" : "inactive");
+    } catch (e: unknown) {
+      const p = previewOf(e);
+      if (/not.found/i.test(p) || /NotFound/i.test(p)) out.set(sid, "gone");
+      else return null; // ONE unreadable sid fails the WHOLE lane closed
+    }
+  }
+  return out;
+}
+
 // The DEAD verdict for ONE entry (shared by the listing and the clear lane):
-// the caller's own entry is NEVER clearable; an unreadable `set_at`, an unreadable
-// DB, or an unreadable provider-row time REFUSE fail-closed; a provider row newer
-// than `set_at` means the session is still LIVE — refuse (it clears once it dies).
-function entryVerdict(sid: string, entry: StoreEntry, callerID: string | null, newest: Map<string, { seq: number; tc: number }> | null): { dead: boolean; cause: string } {
+// the caller's own entry is NEVER clearable; an unreadable `set_at`, an
+// unreadable DB, a running step, an API-active session, or an UNMAPPED
+// liveness all REFUSE fail-closed; a `gone` or `inactive` session is DEAD.
+function entryVerdict(sid: string, entry: StoreEntry, callerID: string | null, newest: Map<string, HygieneRow> | null, live: HygieneLiveness): { dead: boolean; cause: string } {
   if (callerID != null && sid === callerID) return { dead: false, cause: "self" };
   const setMs = entry.setAt === "" ? NaN : Date.parse(entry.setAt);
   if (!Number.isFinite(setMs)) return { dead: false, cause: "set_at-unreadable" };
   if (newest == null) return { dead: false, cause: "store-db-unreadable" };
   const row = newest.get(sid);
-  if (row == null) return { dead: true, cause: "" };
-  if (!Number.isFinite(row.tc)) return { dead: false, cause: "newest-row-time-unreadable" };
-  if (row.tc > setMs) return { dead: false, cause: "live" };
-  return { dead: true, cause: "" };
+  if (row != null && row.inflight) return { dead: false, cause: "live" };
+  const lv = live?.get(sid);
+  if (lv === "active") return { dead: false, cause: "live" };
+  if (lv === "inactive") return { dead: true, cause: "" };
+  if (lv === "gone") return { dead: true, cause: "" };
+  if (live == null) {
+    // (U30 FALLBACK) no API lane — the row-staleness rule decides, fail-closed
+    if (row == null) return { dead: true, cause: "" };
+    if (!Number.isFinite(row.tc)) return { dead: false, cause: "newest-row-time-unreadable" };
+    if (row.tc > setMs) return { dead: false, cause: "live" };
+    return { dead: true, cause: "" };
+  }
+  return { dead: false, cause: "liveness-unknown" };
 }
 
 async function storeListing(callerID: string | null): Promise<string> {
   const store = readStore();
   const sids = Object.keys(store.sessions).sort();
-  const newest = sids.length > 0 ? await newestProviderRows(sids) : new Map<string, { seq: number; tc: number }>();
+  const newest = sids.length > 0 ? await newestProviderRows(sids) : new Map<string, HygieneRow>();
+  const live = sids.length > 0 ? await livenessOf(sids) : new Map<string, "active" | "inactive" | "gone">();
   const lines = [`trim-store: ${storeFile()} (${sids.length} entries)`];
   for (const sid of sids) {
     const e = store.sessions[sid];
     const row = newest?.get(sid);
-    const v = entryVerdict(sid, e, callerID, newest);
+    const v = entryVerdict(sid, e, callerID, newest, live);
     const liveTok = v.dead ? "no" : v.cause === "live" || v.cause === "self" ? "yes" : "?";
     lines.push(
       `entry: ${sid} set_at=${e.setAt !== "" ? e.setAt : "-"} auto=${e.auto.length} noticed=${e.noticed.length}` +
-        ` newest=${newest == null ? "unavailable" : row != null ? row.seq : "none"} live=${liveTok} self=${callerID != null && sid === callerID ? "yes" : "no"}`,
+        ` newest=${newest == null ? "unavailable" : row != null && row.seq >= 0 ? row.seq : "none"} live=${liveTok} self=${callerID != null && sid === callerID ? "yes" : "no"}`,
     );
   }
   if (sids.length === 0) return `${lines[0]}\n(empty — no session holds a trim entry)`;
@@ -1812,7 +1889,8 @@ async function storeClear(callerID: string | null, ids: string[]): Promise<strin
   const named: string[] = [];
   for (const s of ids) if (!named.includes(s)) named.push(s);
   const present = named.filter((s) => store.sessions[s] != null);
-  const newest = present.length > 0 ? await newestProviderRows(present) : new Map<string, { seq: number; tc: number }>();
+  const newest = present.length > 0 ? await newestProviderRows(present) : new Map<string, HygieneRow>();
+  const live = present.length > 0 ? await livenessOf(present) : new Map<string, "active" | "inactive" | "gone">();
   const cleared: string[] = [];
   const refused: string[] = [];
   for (const sid of named) {
@@ -1821,7 +1899,7 @@ async function storeClear(callerID: string | null, ids: string[]): Promise<strin
       refused.push(`${sid} not-in-store`);
       continue;
     }
-    const v = entryVerdict(sid, entry, callerID, newest);
+    const v = entryVerdict(sid, entry, callerID, newest, live);
     if (!v.dead) {
       refused.push(`${sid} ${v.cause}`);
       continue;
@@ -1835,8 +1913,8 @@ async function storeClear(callerID: string | null, ids: string[]): Promise<strin
   }
   if (cleared.length > 0) appendLog(buildLine("store-clear", { session: callerID ?? "store", cleared: String(cleared.length), refused: String(refused.length) }, {}));
   if (cleared.length === 0) {
-    const rem = refused.some((r) => r.includes("live") || r.includes("unreadable"))
-      ? "an entry clears once no provider row is newer than its set_at; the caller's own entry never clears"
+    const rem = refused.some((r) => r.includes("live") || r.includes("unreadable") || r.includes("unknown"))
+      ? "an entry clears once its session is INACTIVE (session API: idle or gone, and no running step); the caller's own entry never clears"
       : "see the listing first (mode:'report' session:'all')";
     return `store-clear= rejected: nothing cleared (kept: ${cap(refused.join(", "), 160)}) — ${rem}`;
   }
@@ -2287,8 +2365,21 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
         const shown = ranks.slice(0, 12); // (U21) the 12 shown-rank cap stays
         const more = ranks.length - shown.length + unnamed;
         const rankText = ranks.length > 0 ? shown.map((n) => `#${n}`).join(",") + (more > 0 ? ` +${more} rows` : "") : `${deltaIds.length} rows`;
-        const marksText = entry.active.length === 0 ? "empty" : `non-empty (${entry.active.length})`;
-        messages.push({ role: "user", content: [{ type: "text", text: `emergency trim: dropped ${rankText} = ${noticeMass} tokens; your marks were ${marksText}` }], id: "msg_ctx_guard_notice" });
+        const activeText = entry.active.length === 0 ? "empty" : `non-empty (${entry.active.length})`;
+        // (U33 #222 notice attribution, #223 vocabulary) THE SOURCE LANE — this
+        // notice fires for ANY drop that lands at assembly, so it names who
+        // dropped the rows: ids the guard picked IN THIS assembly read `guard`;
+        // ids already in the store `auto` set read `free` (a guard pick is
+        // noticed by the very notice that records it, so an un-noticed `auto`
+        // id can only come from a manual `free`). The trim log's `kind:` field
+        // stays the forensic source (KP-47). The old word `marks` is GONE —
+        // the ACTIVE set is the same entity the report flags ` x`.
+        const guardPickSet = new Set(guardPickIds);
+        const autoIdSet = new Set(entry.auto);
+        const fromGuard = deltaIds.some((id) => guardPickSet.has(id));
+        const fromFree = deltaIds.some((id) => autoIdSet.has(id));
+        const src = fromGuard && fromFree ? "guard+free" : fromGuard ? "guard" : "free";
+        messages.push({ role: "user", content: [{ type: "text", text: `trim: dropped ${rankText} = ${noticeMass} tokens (source: ${src}); active set ${activeText}` }], id: "msg_ctx_guard_notice" });
         newRows = deltaIds.length;
         // (U25 F1) the marker persists in the store entry so the delta survives a
         // process restart; a failed write degrades to one repeat notice at worst.
@@ -2327,7 +2418,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
 // ------------------------------------------------------------------ the tool surface
 
 const TOOL_DESCRIPTION =
-  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = the PER-SESSION RANK (1..N over the append order — stable forever; refs take a bare rank, a range `A-B`, or an id). `mode:'report'` — READ-ONLY window map (post-compaction rows): header = head, count, BOUNDARY state, retained, STAGED/ACTIVE counts (active-est=own sum); rows flag s/x/g, header in-window drop counts; `window_rows != request` (request-est=CTX; window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: window position + `#N` (rows omit `id=` unless `showIds`), `own=` OWN weight (bytes/4 of own parts), rows add `req-at=` = REQUEST size at that step (NOT weight; a missing provider figure prints `req-at=unavailable`); tool targets; `last: N`; low/med/high trim options (rank, keep, own retained/dropped + read/thought/shell, hint ≤ 80); `biggest:` top-5 turns by OWN weight; `target` = dry-run; `gauge:` = the shared core. `mode:'tail'` — WRITE the boundary store `.opencode/temp/context_trim_v2.json`: boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ranks/ranges `A-B`), `unmark` remove (ranges too), `clear` empties all drop sets (boundary stays), `guard` on/off wall guard (at 92% drops heaviest rows + notice); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req minus drop_est; refuses `nothing-staged` / `over-bound` unless `force:true`; same-step mark+apply re-reads). `mode:'free'` — free_space: drops heaviest+oldest rows into `auto` until `target`% of the window frees (int 5..60, default 20). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (call-id link, adjacency fallback — `orphan=`); history untouched; stale refs log ONE deduped line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` rejections or `error: <usage>`; guards: outside the window (`*-not-found`), head (`*-at-window-head`), floor keep >= 6 (`mark-floor`/`retained-tail-below-floor`), range (`mark-range-*`); read failures print `context-read-failed`; unreadable ordinals print `#?`. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>` (+`resolved=… ordinals=…` on ranges), `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
+  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = PER-SESSION RANK (1..N by append order, stable; refs take a rank, `A-B`, or an id). `mode:'report'` — READ-ONLY window map: header = head, count, BOUNDARY state, retained, STAGED/ACTIVE (active-est=own sum); rows flag s/x/g, header in-window counts; `window_rows != request` (request-est=CTX, window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: position + `#N` (`id=` only with `showIds`), `own=` own weight (bytes/4), `req-at=` = request size at that step (not mass); tool targets; `last: N`; low/med/high trim options (rank, keep, retained/dropped, hint ≤ 80); `biggest:` top-5 turns by OWN weight; `target` = dry-run; `gauge:` = shared core. `mode:'tail'` — WRITE the trim store boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. The boundary shapes the REPORT WINDOW only — it does NOT shrink the request (only applied drops do). `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ranks/ranges `A-B`), `unmark` remove PRE-APPLY ONLY (an `active`/`auto` drop stays until `mark clear`), `clear` empties all drop sets (boundary stays), `guard` on/off wall guard (at 92% drops heaviest rows); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req − drop_est; refuses `nothing-staged`/`over-bound` unless `force:true`; same-step mark+apply re-reads). `mode:'free'` — free_space: drops heaviest+oldest rows into `auto` until `target`% of the window frees (int 5..60, default 20). `session:'all'` = the store-hygiene sentinel: `report` lists trim-store entries read-only; `tail` + `clear:true` + `ids` clears named DEAD sessions (never your own). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (`orphan=` on a lost pair); history untouched; stale refs log ONE line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` echoes or `error: <usage>`; guards reject outside-window (`*-not-found`), head, keep floor < 6, bad ranges (`mark-*`); read failures print `context-read-failed`; unreadable ordinals print `#?`. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>` (ranges add `resolved=`), `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
 
 const TOOL_INPUT = {
   "type": "object",

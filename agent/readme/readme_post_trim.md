@@ -8,7 +8,10 @@ re-plan from memory what it defines.
 
 WHAT HAPPENED:
 - The provider request shrank; stored history is untouched until the store
-  entry is cleared. Drops are reversible (unmark / clear).
+  entry is cleared. Drops are reversible, but the lane matters: `unmark`
+  removes STAGED rows PRE-APPLY only; an applied (`active`) or `free`/guard
+  (`auto`) id clears only via `mode:'mark' clear:true`, which empties all
+  drop sets. There is no un-apply for a single row.
 - Dropped content is recoverable ONLY from committed files.
 
 STEPS — do them in ONE batch:

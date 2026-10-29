@@ -368,7 +368,7 @@ function draftBase(sessionID = SID) {
   chk("R1 (U7) the projection line: last-req = gauge CTX 57000 − output 2000; bound = 80% of the 120K window", lines[3] === "projection: last-req=55000 staged-est=0 projected=55000 bound=96000 ok", JSON.stringify(lines[3] ?? null));
   chk("R1 the gauge line rides the shared v2-paired core (fixture mass 57000 / 120K, NO budget suffix — #212)", lines[4] === `gauge: SESSION=${SID} CTX=57000 (47%) REM=63000`, JSON.stringify(lines[4] ?? null));
   chk("S0b the tool's name is 'context_trim' (the v1 name — a same-name twin is precedent) and the args mirror v1 (+ clear, + mark ids/unmark, + U7 apply mode + force, + U11 showIds, + U14 guard; U17 #203: the `tags` arg is GONE; U18 #209: the mode enum gains `free` and `target` accepts string OR number — the percent form)", TOOL.name === "context_trim" && JSON.stringify(Object.keys(TOOL.input.properties).sort()) === JSON.stringify(["clear", "force", "guard", "ids", "keepMessages", "mode", "session", "showIds", "target", "unmark"]) && JSON.stringify(TOOL.input.properties.mode.enum) === JSON.stringify(["report", "tail", "mark", "apply", "free"]) && JSON.stringify(TOOL.input.properties.target.type) === JSON.stringify(["string", "number"]) && TOOL.output.type === "string", JSON.stringify(TOOL.name + "|" + Object.keys(TOOL.input.properties)));
-  chk("U14 the description literal grew by AT MOST 80 chars over the pre-U14 2369 and names the guard (U15: AT MOST +60 over the pre-U15 2430, names the flags; U18: cap 2499 = pre-U18 2439 + 60, names the free_space clause)", TOOL.description.length <= 2499 && TOOL.description.includes("`guard` on/off wall guard") && TOOL.description.includes("rows flag s/x/g") && TOOL.description.includes("`mode:'free'` — free_space"), `len=${TOOL.description.length}`);
+  chk("U14/U18 cap: the description literal stays <= 2499 (ladder: pre-U14 2369 -> pre-U18 2439 + 60) and names the guard, the flags and the free_space clause; (U33 #223 G1) it ALSO states the boundary semantics (REPORT WINDOW only), `unmark` PRE-APPLY ONLY, and the `session:'all'` store-hygiene sentinel — U33 net -35 chars vs the pre-U33 2494", TOOL.description.length <= 2499 && TOOL.description.includes("`guard` on/off wall guard") && TOOL.description.includes("rows flag s/x/g") && TOOL.description.includes("`mode:'free'` — free_space") && TOOL.description.includes("shapes the REPORT WINDOW only") && TOOL.description.includes("PRE-APPLY ONLY") && TOOL.description.includes("store-hygiene sentinel"), `len=${TOOL.description.length}`);
   chk("R1 (U10+U11) row 1 = the compaction head + its ABSOLUTE ordinal #4300 — COMPACT form, NO id= by default (the opaque id costs ~8-10 tokens/row); (U30 #222 R4) rows that cannot carry the figure (user/system/synthetic/compaction/idle) print NO req-at token; an unfinished assistant row still prints req-at=unavailable", lines[5] === "row: 1 #3 compaction own=5", JSON.stringify(lines[5] ?? null));
   chk("R1 user rows take the own-bytes4 mass + stable ordinals (#4301/#4304/#4308), compact, NO req-at token at all (U30 #222 R4)", lines[6] === "row: 2 #4 user own=2" && lines[9] === "row: 5 #7 user own=2" && lines[13] === "row: 9 #11 user own=2", JSON.stringify([lines[6], lines[9], lines[13]]));
   chk("R1 (U8 pin) row 3 asserts OWN mass (111 = input-JSON 45 + output 400 / 4), NOT the provider sum — the cumulative figure rides relabeled req-at=5200; (U10) ordinal #4302, (U11) no id", lines[7] === "row: 3 #5 assistant own=111 req-at=5200 tool=read target=C:/a/b.ts offset=5 limit=20", JSON.stringify(lines[7] ?? null));
@@ -1008,7 +1008,7 @@ function draftBase(sessionID = SID) {
     const ids = d.messages.map((m) => m.id ?? "(none)");
     const nt = noticeOf(d);
     chk("U29 G2 authority AT trigger: fires — msg_a3 + msg_a2 leave WITH their linked outputs (drain toward the fit bound exhausts the pool)", ids.indexOf("msg_a3") === -1 && ids.indexOf("msg_a2") === -1 && !JSON.stringify(d.messages).includes("a3 output") && !JSON.stringify(d.messages).includes("a2 output") && ids.includes("msg_u1") && d.messages.length === 11, JSON.stringify(ids));
-    chk("U29 G2 the notice = ONE fresh entry AT THE END naming both ranks + the total mass (add lane)", nt.length === 1 && d.messages[d.messages.length - 1]?.id === "msg_ctx_guard_notice" && nt[0].content[0].text === "emergency trim: dropped #5,#6 = 316 tokens; your marks were empty", JSON.stringify(nt[0]?.content?.[0]?.text ?? null));
+    chk("U29 G2 the notice = ONE fresh entry AT THE END naming both ranks + the total mass + the SOURCE lane (add lane = guard picks)", nt.length === 1 && d.messages[d.messages.length - 1]?.id === "msg_ctx_guard_notice" && nt[0].content[0].text === "trim: dropped #5,#6 = 316 tokens (source: guard); active set empty", JSON.stringify(nt[0]?.content?.[0]?.text ?? null));
     const gl = guardLines(lB);
     chk("U31 G2 ONE kind:guard event:auto line: projected = AUTHORITY 110400, src=last-req, auth=both (provider AT trigger + corrected 110400 >= hard threshold 95424), forensics r=2.50 + live=110400, fit=96000, after=110084 (bytes/4 drain), bound=110400, n=2, mass=316, ranks #5,#6, prev=241118 (the tie leg above)", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "2" && gl[0].mass === "316" && gl[0].ranks === "#5,#6" && gl[0].projected === "110400" && gl[0].r === "2.50" && gl[0].live === "110400" && gl[0].src === "last-req" && gl[0].auth === "both" && gl[0].fit === "96000" && gl[0].after === "110084" && gl[0].bound === "110400" && gl[0].marks === "0" && gl[0].prev === "241118", JSON.stringify(gl[0] ?? null));
     chk("U21 G2 the auto set is SEPARATE from active (store auto=[msg_a3,msg_a2], no active key)", readStore()?.sessions?.[SID]?.auto?.join(",") === "msg_a3,msg_a2" && readStore()?.sessions?.[SID]?.active === undefined, JSON.stringify(readStore()?.sessions?.[SID] ?? null));
@@ -1029,7 +1029,7 @@ function draftBase(sessionID = SID) {
     const gl = guardLines(lB);
     chk("U29 G3 event:auto names only the NEW pick (n=1, mass=4499, ranks #15) + prev=110084: projected = AUTHORITY 110400 (src=last-req, auth=both — corrected 108864 >= 95424), forensics r=2.50 (grown mass 15832, 6.97 clamps to the cap) + live=110400, after=105901 (pool exhausts above the fit bound)", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "1" && gl[0].mass === "4499" && gl[0].ranks === "#15" && gl[0].projected === "110400" && gl[0].r === "2.50" && gl[0].live === "110400" && gl[0].src === "last-req" && gl[0].auth === "both" && gl[0].after === "105901" && gl[0].prev === "110084", JSON.stringify(gl[0] ?? null));
     const nt = noticeOf(d);
-    chk("U25 G3 the notice names ONLY the NEW pick (the DELTA lane, #219): #15 = 4499 tokens over the 10-entry kept draft + notice", nt.length === 1 && nt[0].content[0].text === "emergency trim: dropped #15 = 4499 tokens; your marks were empty" && d.messages.length === 11, JSON.stringify([nt[0]?.content?.[0]?.text ?? null, d.messages.length]));
+    chk("U25 G3 the notice names ONLY the NEW pick (the DELTA lane, #219) + the source: #15 = 4499 tokens over the 10-entry kept draft + notice", nt.length === 1 && nt[0].content[0].text === "trim: dropped #15 = 4499 tokens (source: guard); active set empty" && d.messages.length === 11, JSON.stringify([nt[0]?.content?.[0]?.text ?? null, d.messages.length]));
   }
   // G4 (U21 F4 notice-once + U29 authority) the same drop set over consecutive
   // assemblies: exactly ONE notice row total, NO guard line at all (the
@@ -1117,7 +1117,7 @@ function draftBase(sessionID = SID) {
     inject({ boundary: "", keep: 0, set_at: "2026-01-01T00:00:00Z", auto: ["msg_a3", "msg_a2"] });
     const d1 = draft();
     await fire(d1);
-    chk("U25 D1 legacy entry WITHOUT `noticed`: assembly 1 notices ONCE naming the full set (#5,#6 = 316)", noticeOf(d1).length === 1 && noticeOf(d1)[0].content[0].text === "emergency trim: dropped #5,#6 = 316 tokens; your marks were empty", JSON.stringify(noticeOf(d1)[0]?.content?.[0]?.text ?? null));
+    chk("U25 D1 legacy entry WITHOUT `noticed`: assembly 1 notices ONCE naming the full set (#5,#6 = 316) + the source (stored auto set = free)", noticeOf(d1).length === 1 && noticeOf(d1)[0].content[0].text === "trim: dropped #5,#6 = 316 tokens (source: free); active set empty", JSON.stringify(noticeOf(d1)[0]?.content?.[0]?.text ?? null));
     chk("U25 D1 the trim line names newRows=2 and keeps autoRows=2 + autoMass=316", (() => { const t = readLog().slice(lB).find((l) => l.kind === "trim"); return t != null && t.newRows === "2" && t.autoRows === "2" && t.autoMass === "316"; })(), JSON.stringify(readLog().slice(lB).find((l) => l.kind === "trim") ?? null));
     chk("U25 F1 the marker landed in the store entry (the notice state is store-backed, not in-process)", JSON.stringify(readStore()?.sessions?.[SID]?.noticed ?? null) === JSON.stringify(["msg_a2", "msg_a3"]), JSON.stringify(readStore()?.sessions?.[SID] ?? null));
     const d2 = draft();
@@ -1151,7 +1151,7 @@ function draftBase(sessionID = SID) {
     await fire(d);
     const nt = noticeOf(d);
     const text = nt[0]?.content?.[0]?.text ?? "";
-    chk("U25 F2 a 13-id delta prints the 12-rank cap: the first 12 ranks (#4..#12 + #15,#16,#17) + ` +1 rows`, ONE notice", nt.length === 1 && text.startsWith("emergency trim: dropped #4,#5,#6,#7,#8,#9,#10,#11,#12,#15,#16,#17 +1 rows = ") && text.endsWith("; your marks were empty"), JSON.stringify(text.slice(0, 130)));
+    chk("U25 F2 a 13-id delta prints the 12-rank cap: the first 12 ranks (#4..#12 + #15,#16,#17) + ` +1 rows`, ONE notice (source: the stored auto set = free)", nt.length === 1 && text.startsWith("trim: dropped #4,#5,#6,#7,#8,#9,#10,#11,#12,#15,#16,#17 +1 rows = ") && text.endsWith("; active set empty"), JSON.stringify(text.slice(0, 130)));
     chk("U25 F2 the delta marker covers ALL 13 ids", (readStore()?.sessions?.[SID]?.noticed ?? []).length === 13, JSON.stringify(readStore()?.sessions?.[SID]?.noticed ?? null));
     const odb2 = new DatabaseSync(ORD_DB);
     odb2.exec("DELETE FROM session_message WHERE seq >= 4413");
@@ -1171,7 +1171,7 @@ function draftBase(sessionID = SID) {
     const d = draft();
     await fire(d);
     const nt = noticeOf(d);
-    chk("U25 D3 (F4) guard picks (a3+a2) PLUS a stored un-noticed pick (a5): ONE notice over the union #5,#6,#8 = 316", nt.length === 1 && nt[0].content[0].text === "emergency trim: dropped #5,#6,#8 = 316 tokens; your marks were empty", JSON.stringify(nt[0]?.content?.[0]?.text ?? null));
+    chk("U25 D3 (F4) guard picks (a3+a2) PLUS a stored un-noticed pick (a5): ONE notice over the union #5,#6,#8 = 316, source names BOTH lanes", nt.length === 1 && nt[0].content[0].text === "trim: dropped #5,#6,#8 = 316 tokens (source: guard+free); active set empty", JSON.stringify(nt[0]?.content?.[0]?.text ?? null));
     chk("U25 D3 the trim line names the union: autoRows=3, autoMass=316, newRows=3", (() => { const t = readLog().slice(lB).find((l) => l.kind === "trim"); return t != null && t.autoRows === "3" && t.autoMass === "316" && t.newRows === "3"; })(), JSON.stringify(readLog().slice(lB).find((l) => l.kind === "trim") ?? null));
     chk("U25 D3 cleanup: clear empties the union set (3 ids), the marker prunes, and the guard toggle-OFF prunes the entry", await (async () => {
       const cleared = (await clearUp()) === "mark-set= +0 -3 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID]?.auto === undefined && readStore()?.sessions?.[SID]?.noticed === undefined && readStore()?.sessions?.[SID]?.guard === true;
@@ -1186,7 +1186,8 @@ function draftBase(sessionID = SID) {
 }
 
 // ------------------------------------------------------------------ U15 (#204) the report drop-indicator leg
-// Per-row state flags RIGHT AFTER the rank (` x` active, ` g` guard-auto,
+// Per-row state flags RIGHT AFTER the rank (` x` active set, ` g` auto set
+// (guard OR free picks),
 // ` s` staged-only; precedence x > g > s), header ` dropped-in-window=`/
 // ` staged-in-window=` counted over WINDOW rows (stale ids never inflate),
 // ONE legend line iff any row is flagged, and a CLEAN report BYTE-IDENTICAL
@@ -1203,7 +1204,7 @@ function draftBase(sessionID = SID) {
   {
     const mk = await trim({ mode: "mark", session: SID, ids: ["4"] });
     const r2 = await trim({ mode: "report", session: SID });
-    chk("U15 V2 stage #4 (msg_u1): the row flags ` s` after the rank + staged-in-window=1 + the legend appears exactly once", mk === "mark-set= +1 -0 total=1 rows_dropped_est=2" && rowLine(r2, 2) === "row: 2 #4 s user own=2" && headerOf(r2).endsWith(" dropped-in-window=0 staged-in-window=1") && legends(r2).join("|") === "flags: s=staged x=dropped g=guard-auto", JSON.stringify([rowLine(r2, 2), headerOf(r2)]));
+    chk("U15 V2 stage #4 (msg_u1): the row flags ` s` after the rank + staged-in-window=1 + the legend appears exactly once", mk === "mark-set= +1 -0 total=1 rows_dropped_est=2" && rowLine(r2, 2) === "row: 2 #4 s user own=2" && headerOf(r2).endsWith(" dropped-in-window=0 staged-in-window=1") && legends(r2).join("|") === "flags: s=staged x=active g=auto (guard or free)", JSON.stringify([rowLine(r2, 2), headerOf(r2)]));
   }
   // V3 applied -> ` x`; staged drains, the drop count rides
   {
@@ -1315,7 +1316,7 @@ function draftBase(sessionID = SID) {
     const texts = JSON.stringify(d.messages);
     const t = readLog().slice(lB).find((l) => l.kind === "trim");
     chk("U21 F3 the hook lane removes the free picks WITH their outputs (2 ids + 3 projections) and KEEPS the user row msg_u1 (never a candidate)", ids.includes("msg_u1") && !ids.includes("msg_a2") && !ids.includes("msg_a3") && ids.includes("msg_c0") && ids.includes("msg_u4") && ids.includes("msg_a9") && !texts.includes("a2 output") && !texts.includes("a2 adjacent output") && !texts.includes("a3 output") && d.messages.filter((m) => !("id" in m)).length === 2, JSON.stringify(d.messages.map((m) => m.id ?? "(none)")));
-    chk("U21 F3 the notice + trim line ride the free picks (autoRows=2, autoMass=316, 5 entries dropped, 11 kept incl the notice)", d.messages.length === 11 && d.messages[d.messages.length - 1]?.id === "msg_ctx_guard_notice" && d.messages[d.messages.length - 1]?.content[0].text === "emergency trim: dropped #5,#6 = 316 tokens; your marks were empty" && t != null && t.autoRows === "2" && t.autoMass === "316" && t.droppedRows === "2" && t.droppedEntries === "5" && t.keptEntries === "11", JSON.stringify(t ?? null));
+    chk("U21 F3 the notice + trim line ride the free picks (autoRows=2, autoMass=316, 5 entries dropped, 11 kept incl the notice; source: free)", d.messages.length === 11 && d.messages[d.messages.length - 1]?.id === "msg_ctx_guard_notice" && d.messages[d.messages.length - 1]?.content[0].text === "trim: dropped #5,#6 = 316 tokens (source: free); active set empty" && t != null && t.autoRows === "2" && t.autoMass === "316" && t.droppedRows === "2" && t.droppedEntries === "5" && t.keptEntries === "11", JSON.stringify(t ?? null));
     chk("U21 F3 mark clear empties the free picks too (the third drop set; the entry prunes)", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -2 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
   }
   // F2 the never-rules: a stored boundary makes its whole drop region
@@ -1521,7 +1522,9 @@ function draftBase(sessionID = SID) {
   // Fixture store: one DEAD entry (set_at in the future — every provider row is
   // older, auto/noticed counts to show), one LIVE entry (set_at at the epoch ->
   // provider rows newer than it), one legacy entry (set_at unparseable), and the
-  // CALLER's own entry (SID) which must NEVER be clearable.
+  // CALLER's own entry (SID) which must NEVER be clearable. (U33 #226 G2) NO
+  // liveness lane is injected here: `sessionApi` is absent in the smoke process,
+  // so these legs exercise the ROW-STALENESS FALLBACK — byte-identical to U30.
   writeFileSync(STORE, JSON.stringify({
     sessions: {
       "ses_dead001": { boundary: "msg_z1", keep: 3, set_at: "2999-01-01T00:00:00.000Z", auto: ["msg_q1", "msg_q2"], noticed: ["msg_q1"] },
@@ -1540,6 +1543,10 @@ function draftBase(sessionID = SID) {
     db.close();
   }
   const all = (args) => trim({ session: "all", ...args });
+  // (U33 #226 G2) the API lane is FORCED UNREADABLE here, so these U30 pins ride
+  // the ROW-STALENESS FALLBACK byte-identically (the smoke's fake `session.get`
+  // would otherwise answer every sid).
+  pluginMod.setLivenessForTest(async () => null);
   const logBefore = readLog().length;
   const storeBefore = readFileSync(STORE, "utf8");
   const listing = await all({ mode: "report" });
@@ -1555,7 +1562,7 @@ function draftBase(sessionID = SID) {
   chk("U30 R5 the listing is READ-ONLY: the store byte-identical and ZERO log lines gained", readFileSync(STORE, "utf8") === storeBefore && readLog().length === logBefore, "storeDelta=" + String(readFileSync(STORE, "utf8") !== storeBefore) + " logDelta=" + String(readLog().length - logBefore));
   chk("U30 R5 refusing clear: a LIVE sid (actionable, names sid + the live cause)", await (async () => {
     const out = await all({ mode: "tail", clear: true, ids: ["ses_live001"] });
-    return out === "store-clear= rejected: nothing cleared (kept: ses_live001 live) — an entry clears once no provider row is newer than its set_at; the caller's own entry never clears" && JSON.parse(readFileSync(STORE, "utf8")).sessions["ses_live001"] !== undefined;
+    return out === "store-clear= rejected: nothing cleared (kept: ses_live001 live) — an entry clears once its session is INACTIVE (session API: idle or gone, and no running step); the caller's own entry never clears" && JSON.parse(readFileSync(STORE, "utf8")).sessions["ses_live001"] !== undefined;
   })(), "live clear drifted");
   chk("U30 R5 refusing clear: the caller's OWN sid + an unknown sid (fail-closed, nothing written)", await (async () => {
     const out = await all({ mode: "tail", clear: true, ids: [SID, "ses_ghost999"] });
@@ -1582,6 +1589,67 @@ function draftBase(sessionID = SID) {
     const o3 = await all({ mode: "tail", clear: true });
     return o1 === "error: session='all' supports mode 'report' (read-only store listing) or mode 'tail' with clear:true + ids (named DEAD sids to clear)" && o2 === o1 && o3 === "error: the store-hygiene clear needs ids — the list of sids to clear, exactly as the listing names them";
   })(), "all-usage drifted");
+  // (U33 #226 G2) THE DEADNESS HEURISTIC — session INACTIVITY wins over the
+  // row-staleness rule: a completed worker that self-trimmed mid-run carries
+  // provider rows AFTER `set_at` (the U30 rule read it `live=yes` forever — 13
+  // of 14 entries, planner listing 2026-10-29). The read-only API lane is
+  // INJECTED here (no live RPC in the smoke): `inactive`/`gone` clear, an
+  // `active` session refuses even with rows that look DEAD, and a sid the lane
+  // does not map refuses `liveness-unknown` (fail-closed).
+  {
+    writeFileSync(STORE, JSON.stringify({
+      sessions: {
+        "ses_busy001": { boundary: "msg_z8", keep: 1, set_at: "2999-01-01T00:00:00.000Z" },
+        "ses_ghost01": { boundary: "msg_z7", keep: 1, set_at: "1970-01-01T00:00:00.000Z" },
+        "ses_idle001": { boundary: "msg_z9", keep: 2, set_at: "1970-01-01T00:00:00.000Z", auto: ["msg_q9"], noticed: [] },
+        "ses_partial1": { boundary: "msg_z6", keep: 1, set_at: "1970-01-01T00:00:00.000Z" },
+      },
+    }), "utf8");
+    {
+      // EVERY entry carries a provider row NEWER than its own `set_at` (the U30
+      // row rule would read all four LIVE) — the API lane decides now.
+      const db = new DatabaseSync(REPORT_DB);
+      const ins = db.prepare("INSERT INTO session_message VALUES(?, ?, ?, ?, ?)");
+      const nowRow = () => JSON.stringify({ type: "assistant", time: { created: Date.now(), completed: Date.now() }, tokens: { input: 40, output: 10, cache: { read: 0, write: 0 } } });
+      ins.run("msg_i1", "ses_busy001", "assistant", 9011, nowRow());
+      ins.run("msg_i2", "ses_ghost01", "assistant", 9012, nowRow());
+      ins.run("msg_i3", "ses_idle001", "assistant", 9010, nowRow());
+      ins.run("msg_i4", "ses_partial1", "assistant", 9013, nowRow());
+      db.close();
+    }
+    pluginMod.setLivenessForTest(async (sids) => {
+      const m = new Map();
+      for (const s of sids) {
+        if (s === "ses_idle001") m.set(s, "inactive"); // trimmed mid-run, then FINISHED -> DEAD
+        else if (s === "ses_busy001") m.set(s, "active"); // still running -> LIVE though its rows look old
+        else if (s === "ses_ghost01") m.set(s, "gone"); // no session row -> DEAD
+        // ses_partial1 stays UNMAPPED -> the fail-closed refusal
+      }
+      return m;
+    });
+    const listing2 = await all({ mode: "report" });
+    chk("U33 G2 listing on the API lane: post-`set_at` rows no longer decide — inactive/gone read live=no, API-active live=yes, an unmapped sid live=?", (() => {
+      const L = listing2.split("\n");
+      return L[0].includes("(4 entries)") &&
+        L.some((l) => /^entry: ses_busy001 set_at=2999-01-01T00:00:00\.000Z auto=0 noticed=0 newest=9011 live=yes self=no$/.test(l)) &&
+        L.some((l) => /^entry: ses_ghost01 set_at=1970-01-01T00:00:00\.000Z auto=0 noticed=0 newest=9012 live=no self=no$/.test(l)) &&
+        L.some((l) => /^entry: ses_idle001 set_at=1970-01-01T00:00:00\.000Z auto=1 noticed=0 newest=9010 live=no self=no$/.test(l)) &&
+        L.some((l) => /^entry: ses_partial1 set_at=1970-01-01T00:00:00\.000Z auto=0 noticed=0 newest=9013 live=\? self=no$/.test(l));
+    })(), JSON.stringify(listing2.split("\n")));
+    chk("U33 G2 the INACTIVE entry with post-`set_at` rows CLEARS (the U30 forever-live bug); `gone` clears; API-active + unmapped refuse", await (async () => {
+      const out = await all({ mode: "tail", clear: true, ids: ["ses_idle001", "ses_busy001", "ses_ghost01", "ses_partial1"] });
+      const st = JSON.parse(readFileSync(STORE, "utf8")).sessions;
+      return out === "store-clear= cleared=2 (ses_idle001,ses_ghost01) refused=2 (kept: ses_busy001 live, ses_partial1 liveness-unknown)" &&
+        st["ses_idle001"] === undefined && st["ses_ghost01"] === undefined && st["ses_busy001"] !== undefined && st["ses_partial1"] !== undefined;
+    })(), "the deadness heuristic drifted");
+    chk("U33 G2 fallback leg again: with the API lane REMOVED the U30 row-staleness rule decides (busy001 row 2026 vs set_at 2999 -> DEAD; partial1 row newer -> live)", await (async () => {
+      pluginMod.setLivenessForTest(async () => null);
+      const out = await all({ mode: "tail", clear: true, ids: ["ses_busy001", "ses_partial1"] });
+      const st = JSON.parse(readFileSync(STORE, "utf8")).sessions;
+      return out === "store-clear= cleared=1 (ses_busy001) refused=1 (kept: ses_partial1 live)" && st["ses_busy001"] === undefined && st["ses_partial1"] !== undefined;
+    })(), "fallback leg drifted");
+    pluginMod.setLivenessForTest(undefined); // the lane is absent again for the later legs
+  }
   // leave the store fixture clean for the cleanup pins (S3 keeps it readable)
   writeFileSync(STORE, JSON.stringify({ sessions: {} }), "utf8");
 }

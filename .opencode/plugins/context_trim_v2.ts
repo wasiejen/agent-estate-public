@@ -1455,13 +1455,25 @@ async function tailSet(sid: string, form: { target?: string; keep?: number; clea
 
 // ------------------------------------------------------------------ markSet (the (8)/(9) staged drop-list store write)
 
-async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; clear?: boolean; guard?: boolean }): Promise<string> {
+// (U36 #231) the SELF-trim row shape: an assistant row whose content carries a
+// COMPLETED `context_trim` tool part (any mode) — the self-report lane source.
+function isSelfTrimRow(r: Record<string, unknown>): boolean {
+  for (const item of asArray(r["content"])) {
+    const it = asRecord(item);
+    if (it == null || it["type"] !== "tool" || it["name"] !== "context_trim") continue;
+    const state = asRecord(it["state"]);
+    if (state != null && state["status"] === "completed") return true;
+  }
+  return false;
+}
+
+async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; clear?: boolean; guard?: boolean; self?: boolean }): Promise<string> {
   // (U14) GUARD TOGGLE — a TOGGLE-ONLY call (`guard`, no ids/unmark/clear) is
   // valid: it writes ONLY the per-session flag (a flag-only entry survives the
   // empty-sets prune). DEFAULT OFF — the control arm stays clean until a
   // session opts in. (U17 #203) the (U10) tags TOGGLE is DELETED with the tag
   // lane — a legacy store `tags` key prunes on this write.
-  if (form.guard !== undefined && form.ids == null && form.unmark == null && form.clear !== true) {
+  if (form.guard !== undefined && form.ids == null && form.unmark == null && form.clear !== true && form.self !== true) {
     const before = readStore().sessions[sid];
     const next: StoreEntry = before != null
       ? { boundary: before.boundary, keep: before.keep, setAt: new Date().toISOString(), staged: before.staged, active: before.active, guard: form.guard ?? before.guard, auto: before.auto, noticed: before.noticed }
@@ -1563,6 +1575,21 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
     if (i === 0) return `mark-set= rejected: mark-at-window-head ${ord.ok === true ? `#${ord.byId.get(id) ?? "?"} ` : ""}${id} — the head is never droppable`; // (U12) names the offending row
     newIds.push(id);
   }
+  // (U36 #231) SELF lane — `self:true` stages the session's OWN completed
+  // `context_trim` call rows. Same guards as ids: the window head (index 0)
+  // is skipped, un-marked ids stay out, already-staged ids are no-ops, and
+  // the floor guard below runs over the UNION incl. these picks.
+  let selfCount = 0;
+  if (form.self === true) {
+    for (let i = 1; i < rows.length; i++) {
+      const id = idOf(rows[i]);
+      if (id === "" || dropUnmark.has(id) || current.includes(id) || newIds.includes(id)) continue;
+      if (isSelfTrimRow(rows[i])) {
+        newIds.push(id);
+        selfCount++;
+      }
+    }
+  }
   const staged = [...kept, ...newIds];
   // (9) the floor guard over the UNION: the boundary inside-drop PLUS the ACTIVE
   // set PLUS the staged result must leave >= FLOOR retained rows (a staged id
@@ -1598,6 +1625,8 @@ async function markSet(sid: string, form: { ids?: string[]; unmark?: string[]; c
     }
     echo = ` resolved=${resolvedById.size} ordinals=${first}-${last}`;
   }
+  // (U36 #231) the SELF lane echoes how many own-context_trim rows it staged.
+  if (form.self === true) echo += ` self=${selfCount}`;
   return `mark-set= +${newIds.length} -${removed} total=${staged.length} rows_dropped_est=${est}${echo}`;
 }
 
@@ -2430,7 +2459,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
 // ------------------------------------------------------------------ the tool surface
 
 const TOOL_DESCRIPTION =
-  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = PER-SESSION RANK (1..N by append order, stable; refs take a rank, `A-B`, or an id). `mode:'report'` — READ-ONLY window map: header = head, count, BOUNDARY state, retained, STAGED/ACTIVE (active-est=own sum); rows flag s/x/g, header in-window counts; `window_rows != request` (request-est=CTX, window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: position + `#N` (`id=` only with `showIds`), `own=` own weight (bytes/4), `req-at=` = request size at that step (not mass); tool targets; `last: N`; low/med/high trim options (rank, keep, retained/dropped, hint ≤ 80); `biggest:` top-5 turns by OWN weight; `target` = dry-run; `gauge:` = shared core. `mode:'tail'` — WRITE the trim store boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. The boundary shapes the REPORT WINDOW only — it does NOT shrink the request (only applied drops do). `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ranks/ranges `A-B`), `unmark` remove PRE-APPLY ONLY (an `active`/`auto` drop stays until `mark clear`), `clear` empties all drop sets (boundary stays), `guard` on/off wall guard (at 92% drops heaviest rows); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req − drop_est; refuses `nothing-staged`/`over-bound` unless `force:true`; same-step mark+apply re-reads). `mode:'free'` — free_space: drops heaviest+oldest rows into `auto` until `target`% of the window frees (int 5..60, default 20). `session:'all'` = the store-hygiene sentinel: `report` lists trim-store entries read-only; `tail` + `clear:true` + `ids` clears named DEAD sessions (never your own). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (`orphan=` on a lost pair); history untouched; stale refs log ONE line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` echoes or `error: <usage>`; guards reject outside-window (`*-not-found`), head, keep floor < 6, bad ranges (`mark-*`); read failures print `context-read-failed`; unreadable ordinals print `#?`. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>` (ranges add `resolved=`), `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
+  "Reports and trims a session's model context on the v2 session store (NO DB write). Rows carry `#N` = PER-SESSION RANK (1..N by append order, stable; refs take a rank, `A-B`, or an id). `mode:'report'` — READ-ONLY window map: header = head, count, BOUNDARY state, retained, STAGED/ACTIVE (active-est=own sum); rows flag s/x/g, header in-window counts; `window_rows != request` (request-est=CTX, window-est=own sum); `projection:` (last-req, staged-est, projected, bound, ok|over); rows: position + `#N`, `own=` own weight (bytes/4), `req-at=` = request size at that step (not mass); tool targets; `last: N`; low/med/high trim options (rank, keep, retained/dropped, hint ≤ 80); `biggest:` top-5 turns by OWN weight; `target` = dry-run; `gauge:` = shared core. `mode:'tail'` — WRITE the trim store boundary (first KEPT) via `target` or `keepMessages` (count; exclusive), REMOVE via `clear`. The boundary shapes the REPORT WINDOW only — it does NOT shrink the request (only applied drops do). `mode:'mark'` — WRITE the STAGED drop list: `ids` add rows (ids/ranks/ranges `A-B`), `self:true` stages the session's own completed `context_trim` rows, `unmark` remove PRE-APPLY ONLY (an `active`/`auto` drop stays until `mark clear`), `clear` empties all drop sets (boundary stays), `guard` on/off wall guard (at 92% drops heaviest rows); nothing drops until `apply`. `mode:'apply'` — union staged into ACTIVE behind an 80%-of-window projection (last-req − drop_est; refuses `nothing-staged`/`over-bound` unless `force:true`; same-step mark+apply re-reads). `mode:'free'` — free_space: drops heaviest+oldest rows into `auto` until `target`% of the window frees. `session:'all'` = the store-hygiene sentinel: `report` lists trim-store entries read-only; `tail` + `clear:true` + `ids` clears named DEAD sessions (never your own). The `session.context` hook drops pre-boundary AND active entries ATOMICALLY with their tool outputs (`orphan=` on a lost pair); history untouched; stale refs log ONE line each. Fail-closed (rejections write NOTHING): `report=`/`tail-set=`/`mark-set=`/`apply=` echoes or `error: <usage>`; guards reject outside-window (`*-not-found`), head, keep floor < 6, bad ranges (`mark-*`); read failures print `context-read-failed`; unreadable ordinals print `#?`. Success lines: `tail-set= <old> -> <new> keep=<n>`, `mark-set= +<n> -<m> total=<size> rows_dropped_est=<own>` (ranges add `resolved=`), `apply= staged->active ... ok mixed=<c>`. `session` may be omitted.";
 
 const TOOL_INPUT = {
   "type": "object",
@@ -2445,7 +2474,7 @@ const TOOL_INPUT = {
         "apply",
         "free"
       ],
-      "description": "One of: 'report' (read-only window map), 'tail' (boundary write — target, keepMessages, or clear), 'mark' (STAGED drop-list write — ids/ranges, unmark, or clear), 'apply' (union staged into ACTIVE behind the 80% projection bound), 'free' (free_space — auto-drops the heaviest+oldest droppable rows into the sticky `auto` set until `target`% of the gauge window is freed; shortfall echoes `short=yes` and stops)."
+      "description": "One of: 'report' (read-only window map), 'tail' (boundary write — target, keepMessages, or clear), 'mark' (STAGED drop-list write — ids/ranges/self, unmark, or clear), 'apply' (union staged into ACTIVE behind the 80% projection bound), 'free' (free_space — auto-drops the heaviest+oldest droppable rows into the sticky `auto` set until `target`% of the gauge window is freed; shortfall echoes `short=yes` and stops)."
     },
     "session": {
       "type": "string",
@@ -2488,6 +2517,10 @@ const TOOL_INPUT = {
     "showIds": {
       "type": "boolean",
       "description": "report: print `id=` on rows (default OFF — `#<seq>` names the row)."
+    },
+    "self": {
+      "type": "boolean",
+      "description": "mark: ALSO stage the session's own completed `context_trim` call rows (the self-trim lane); rides the same head/floor guards; rejected with clear."
     }
   }
 };
@@ -2509,13 +2542,14 @@ const ARG_LANES: Record<string, string> = {
   ids: "mark",
   unmark: "mark",
   guard: "mark",
+  self: "mark",
   force: "apply",
   showIds: "report",
 };
 const MODE_ARGS: Record<string, string[]> = {
   report: ["target", "showIds"],
   tail: ["target", "keepMessages", "clear"],
-  mark: ["ids", "unmark", "clear", "guard"],
+  mark: ["ids", "unmark", "clear", "guard", "self"],
   apply: ["force"],
   free: ["target"],
 };
@@ -2581,14 +2615,15 @@ async function dispatch(args: unknown, toolContext: { sessionID?: unknown }): Pr
     if (usage !== "") return { output: usage };
     // (U30 #222 R2) `clear` with ANY other mark arg refuses — the guard toggle
     // rides its own call (before it was silently ignored by the clear write).
-    if (isClear && (a.ids != null || a.unmark != null || guardArg != null)) {
-      return { output: "error: mark mode: clear is mutually exclusive with ids/unmark/guard (send the guard toggle in its own call)" };
+    // (U36 #231) `self` joins the exclusivity set — a clear call carries no adds.
+    if (isClear && (a.ids != null || a.unmark != null || guardArg != null || a.self != null)) {
+      return { output: "error: mark mode: clear is mutually exclusive with ids/unmark/guard/self (send the guard toggle in its own call)" };
     }
-    if (!isClear && ids == null && unmark == null && guardArg == null) {
-      return { output: "error: mark mode requires ids (window rows to stage — ids or bare ordinals), unmark (refs to restore), clear (empty ALL drop sets — staged, active, guard auto — a stored boundary stays), or guard (the opt-in preventive wall guard on/off)" };
+    if (!isClear && ids == null && unmark == null && guardArg == null && a.self !== true) {
+      return { output: "error: mark mode requires ids (window rows to stage — ids or bare ordinals), unmark (refs to restore), clear (empty ALL drop sets — staged, active, guard auto — a stored boundary stays), guard (the opt-in preventive wall guard on/off), or self:true (stage the session's own completed context_trim call rows)" };
     }
     if (isClear) return { output: await markSet(sid, { clear: true }) };
-    return { output: await markSet(sid, { ids, unmark, guard: guardArg }) };
+    return { output: await markSet(sid, { ids, unmark, guard: guardArg, self: a.self === true }) };
   }
   if (mode === "apply") return { output: await applySet(sid, a.force === true) };
   if (mode === "free") {

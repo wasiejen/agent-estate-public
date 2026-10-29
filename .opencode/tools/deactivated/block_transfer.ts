@@ -8,8 +8,8 @@ import { tool } from "@opencode-ai/plugin"
 const clipboardBuffers: Record<string, string[]> = {};
 
 // ===== CONFIG-DRIVEN ALLOW ROOTS (TODO #140 unit A, 2026-10-22) =====
-// The opencode.jsonc at the TOOL's OWN repo root (the module file two levels
-// under .opencode/tools/) is read ONCE at tool load time; its
+// The opencode.jsonc at the TOOL's OWN repo root (the module file three levels
+// under the repo — wake-15 move: .opencode/tools/deactivated/) is read ONCE at tool load time; its
 // `permission.external_directory` keys valued "allow" join the sandbox
 // allow-list. A trailing `/**` is stripped — a dir key and its `/**` twin
 // DEDUPE to ONE root (the same rule the R8 resolver in
@@ -85,7 +85,7 @@ function loadConfigRoots(): string[] {
   const out: string[] = [];
   try {
     const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-    const repoRoot = path.resolve(moduleDir, "..", "..");
+    const repoRoot = path.resolve(moduleDir, "..", "..", "..");
     const cfg = JSON.parse(stripTrailingCommas(stripJsoncComments(fs.readFileSync(path.join(repoRoot, "opencode.jsonc"), "utf-8"))));
     const top = cfg && typeof cfg === "object" ? (cfg as Record<string, unknown>) : {};
     const permission = top.permission && typeof top.permission === "object" ? (top.permission as Record<string, unknown>) : null;

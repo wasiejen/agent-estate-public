@@ -1653,7 +1653,7 @@ const MOCK_LOG = [];
 // setDbPath steering below reaches the tool's reads. The tool is READ-ONLY:
 // no fs writes, no plugin hooks, no sandbox log lines — the sandbox stays
 // clean.
-const CG_TOOL_TS = path.join(REPO_ROOT, ".opencode", "tools", "ctx_gauge.ts");
+const CG_TOOL_TS = path.join(REPO_ROOT, ".opencode", "tools", "deactivated", "ctx_gauge.ts");
 let cgTool;
 const dbPathBeforeS12 = getDbPath(); // the hook-restore capture (cf. check 39)
 
@@ -1750,7 +1750,7 @@ const dbPathBeforeS12 = getDbPath(); // the hook-restore capture (cf. check 39)
 // path (check 10.13) is rejected BEFORE any fs access. Plain tool() object:
 // no plugin hooks, no sandbox plugin.log lines — the sandbox stays
 // clean.
-const BT_TOOL_TS = path.join(REPO_ROOT, ".opencode", "tools", "block_transfer.ts");
+const BT_TOOL_TS = path.join(REPO_ROOT, ".opencode", "tools", "deactivated", "block_transfer.ts");
 const BT_CTX = { directory: SANDBOX };
 const BT_DIR = path.join(SANDBOX, "bt");
 mkdirSync(BT_DIR, { recursive: true });
@@ -2202,7 +2202,7 @@ let btTool;
 // folder stamp is local-clock, minute resolution — pinned by FORMAT (regex),
 // never the exact value (the AGENTS.md pattern-5 discipline). Plain tool()
 // object: no plugin hooks — the sandbox stays clean.
-const LL_TOOL_TS = path.join(REPO_ROOT, ".opencode", "tools", "loop_log.ts");
+const LL_TOOL_TS = path.join(REPO_ROOT, ".opencode", "tools", "deactivated", "loop_log.ts");
 const LL_A = path.join(SANDBOX, "ll-a"); // the single-folder case (checks 10.19-122)
 const LL_MULTI = path.join(SANDBOX, "ll-multi"); // the several-folders anomaly case (check 123)
 const STAMP_RE = /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}$/;
@@ -2560,7 +2560,7 @@ for (const w of NW_REJECT) {
 // minute resolution — pinned by FORMAT (regex) + the minute-boundary
 // before/after trick, never the exact value. role + session are AUTO-FILLED from the tool context (context.agent / context.sessionID, falling back to `agent`/`unknown`) — the agent supplies the three channel texts only; there is NO role/session parameter. Plain tool() object: no
 // plugin hooks — the sandbox stays clean.
-const SUB_TOOL_TS = path.join(REPO_ROOT, ".opencode", "tools", "submit.ts");
+const SUB_TOOL_TS = path.join(REPO_ROOT, ".opencode", "tools", "deactivated", "submit.ts");
 const SUB_FB = path.join(SANDBOX, "submit-fb"); // no-params error + the feedback append (checks 230/231)
 const SUB_KN = path.join(SANDBOX, "submit-kn"); // the knowledge append (check 234)
 const SUB_TODO = path.join(SANDBOX, "submit-todo"); // the todo append (check 235)
@@ -3024,7 +3024,7 @@ let subTool;
 // ses_ct_nomark (3 messages, no marker). The fixture DB is NEVER the
 // live one. Plain tool() object: no hooks, no sandbox plugin.log lines —
 // the sandbox stays clean.
-const CT_TOOL_TS = path.join(REPO_ROOT, ".opencode", "tools", "context_trim.ts");
+const CT_TOOL_TS = path.join(REPO_ROOT, ".opencode", "tools", "deactivated", "context_trim.ts");
 const CT_DIR = path.join(SANDBOX, "context_trim");
 mkdirSync(CT_DIR, { recursive: true });
 const CT_DB = path.join(CT_DIR, "fixture.db");
@@ -3348,7 +3348,7 @@ let n34 = 352;
 }
 
 // ------------------------------------------------------------------ S35 state_snapshot tool (3) — 2026-10-04 (p3-state-snapshot: the planner init digest tool — the approved proposal 2026-09-18_p3-state-snapshot-tool.md): the tool file's existence + the tool() default export shape + the registration-shape pin (the EMPTY args key list — the compact_memory check-86 / context_trim check-346 pattern) + the planner-only steer in the description. The digest BEHAVIOR is smoke-pinned (state_snapshot.smoke.mjs) — the probe pins the SURFACE only (no fixture build here; the tool is READ-ONLY — the sandbox stays clean).
-const SS_TOOL_TS = path.join(REPO_ROOT, ".opencode", "tools", "state_snapshot.ts");
+const SS_TOOL_TS = path.join(REPO_ROOT, ".opencode", "tools", "deactivated", "state_snapshot.ts");
 let ssTool;
 let n35 = 354;
 

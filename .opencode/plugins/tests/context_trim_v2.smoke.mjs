@@ -367,7 +367,7 @@ function draftBase(sessionID = SID) {
   chk("R1 (#189+U8) the two-quantity line: window_rows != request + request-est (gauge CTX) + OWN-mass window-est 332", lines[2] === "window_rows != request; request also carries system prompt + retained slice request-est=57000 window-est=332", JSON.stringify(lines[2] ?? null));
   chk("R1 (U7) the projection line: last-req = gauge CTX 57000 − output 2000; bound = 80% of the 120K window", lines[3] === "projection: last-req=55000 staged-est=0 projected=55000 bound=96000 ok", JSON.stringify(lines[3] ?? null));
   chk("R1 the gauge line rides the shared v2-paired core (fixture mass 57000 / 120K, NO budget suffix — #212)", lines[4] === `gauge: SESSION=${SID} CTX=57000 (47%) REM=63000`, JSON.stringify(lines[4] ?? null));
-  chk("S0b the tool's name is 'context_trim' (the v1 name — a same-name twin is precedent) and the args mirror v1 (+ clear, + mark ids/unmark, + U7 apply mode + force, + U11 showIds, + U14 guard; U17 #203: the `tags` arg is GONE; U18 #209: the mode enum gains `free` and `target` accepts string OR number — the percent form)", TOOL.name === "context_trim" && JSON.stringify(Object.keys(TOOL.input.properties).sort()) === JSON.stringify(["clear", "force", "guard", "ids", "keepMessages", "mode", "session", "showIds", "target", "unmark"]) && JSON.stringify(TOOL.input.properties.mode.enum) === JSON.stringify(["report", "tail", "mark", "apply", "free"]) && JSON.stringify(TOOL.input.properties.target.type) === JSON.stringify(["string", "number"]) && TOOL.output.type === "string", JSON.stringify(TOOL.name + "|" + Object.keys(TOOL.input.properties)));
+  chk("S0b the tool's name is 'context_trim' (the v1 name — a same-name twin is precedent) and the args mirror v1 (+ clear, + mark ids/unmark, + U7 apply mode + force, + U11 showIds, + U14 guard; U17 #203: the `tags` arg is GONE; U18 #209: the mode enum gains `free` and `target` accepts string OR number — the percent form; U36 #231: `self` joins the mark lane)", TOOL.name === "context_trim" && JSON.stringify(Object.keys(TOOL.input.properties).sort()) === JSON.stringify(["clear", "force", "guard", "ids", "keepMessages", "mode", "self", "session", "showIds", "target", "unmark"]) && JSON.stringify(TOOL.input.properties.mode.enum) === JSON.stringify(["report", "tail", "mark", "apply", "free"]) && JSON.stringify(TOOL.input.properties.target.type) === JSON.stringify(["string", "number"]) && TOOL.output.type === "string", JSON.stringify(TOOL.name + "|" + Object.keys(TOOL.input.properties)));
   chk("U14/U18 cap: the description literal stays <= 2499 (ladder: pre-U14 2369 -> pre-U18 2439 + 60) and names the guard, the flags and the free_space clause; (U33 #223 G1) it ALSO states the boundary semantics (REPORT WINDOW only), `unmark` PRE-APPLY ONLY, and the `session:'all'` store-hygiene sentinel — U33 net -35 chars vs the pre-U33 2494", TOOL.description.length <= 2499 && TOOL.description.includes("`guard` on/off wall guard") && TOOL.description.includes("rows flag s/x/g") && TOOL.description.includes("`mode:'free'` — free_space") && TOOL.description.includes("shapes the REPORT WINDOW only") && TOOL.description.includes("PRE-APPLY ONLY") && TOOL.description.includes("store-hygiene sentinel"), `len=${TOOL.description.length}`);
   chk("R1 (U10+U11) row 1 = the compaction head + its ABSOLUTE ordinal #4300 — COMPACT form, NO id= by default (the opaque id costs ~8-10 tokens/row); (U30 #222 R4) rows that cannot carry the figure (user/system/synthetic/compaction/idle) print NO req-at token; an unfinished assistant row still prints req-at=unavailable", lines[5] === "row: 1 #3 compaction own=5", JSON.stringify(lines[5] ?? null));
   chk("R1 user rows take the own-bytes4 mass + stable ordinals (#4301/#4304/#4308), compact, NO req-at token at all (U30 #222 R4)", lines[6] === "row: 2 #4 user own=2" && lines[9] === "row: 5 #7 user own=2" && lines[13] === "row: 9 #11 user own=2", JSON.stringify([lines[6], lines[9], lines[13]]));
@@ -639,7 +639,7 @@ function draftBase(sessionID = SID) {
   }
   chk("M10 clear leaves the store CLEAN for the C block", (await m({ session: SID, clear: true })) === "mark-set= +0 -1 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID] === undefined);
   // M11 the usage + validation lanes
-  chk("M11 usage lines (form guards + id-array validation) + the unknown-session rejection", (await m({ session: SID, clear: true, ids: ["msg_u1"] })) === "error: mark mode: clear is mutually exclusive with ids/unmark/guard (send the guard toggle in its own call)" && (await m({ session: SID })) === "error: mark mode requires ids (window rows to stage — ids or bare ordinals), unmark (refs to restore), clear (empty ALL drop sets — staged, active, guard auto — a stored boundary stays), or guard (the opt-in preventive wall guard on/off)" && (await m({ session: SID, ids: "msg_u1" })) === "error: mark mode: ids and unmark must be arrays of non-empty message id strings" && (await trim({ mode: "mark", session: "ses_absent000", ids: ["msg_x"] })) === "mark-set= rejected: session-not-found ses_absent000 — pass a live session id");
+  chk("M11 usage lines (form guards + id-array validation incl the U36 self clause) + the unknown-session rejection", (await m({ session: SID, clear: true, ids: ["msg_u1"] })) === "error: mark mode: clear is mutually exclusive with ids/unmark/guard/self (send the guard toggle in its own call)" && (await m({ session: SID, clear: true, self: true })) === "error: mark mode: clear is mutually exclusive with ids/unmark/guard/self (send the guard toggle in its own call)" && (await m({ session: SID })) === "error: mark mode requires ids (window rows to stage — ids or bare ordinals), unmark (refs to restore), clear (empty ALL drop sets — staged, active, guard auto — a stored boundary stays), guard (the opt-in preventive wall guard on/off), or self:true (stage the session's own completed context_trim call rows)" && (await m({ session: SID, self: false })) === "error: mark mode requires ids (window rows to stage — ids or bare ordinals), unmark (refs to restore), clear (empty ALL drop sets — staged, active, guard auto — a stored boundary stays), guard (the opt-in preventive wall guard on/off), or self:true (stage the session's own completed context_trim call rows)" && (await m({ session: SID, ids: "msg_u1" })) === "error: mark mode: ids and unmark must be arrays of non-empty message id strings" && (await trim({ mode: "mark", session: "ses_absent000", ids: ["msg_x"] })) === "mark-set= rejected: session-not-found ses_absent000 — pass a live session id");
 }
 
 // ------------------------------------------------------------------ U9 the #194 pins: hint cap + same-step apply truthfulness
@@ -1722,6 +1722,55 @@ function draftBase(sessionID = SID) {
   chk("INV the ONE marks-stale line for the (session,count) state (deduped)", lines.filter((l) => l.kind === "marks-stale").length === 1, `count=${lines.filter((l) => l.kind === "marks-stale").length}`);
   chk("INV the gauge lines' reasons are only the two honest read failures", lines.filter((l) => l.kind === "gauge").every((l) => l.reason === "context-read-failed" || l.reason === "session-not-found" || l.reason === "messages-not-array"));
   chk("INV report mode emitted a kind:report line per call (32 lines: 9 + the 4 U10 legs + the 2 U11 compact legs + the U12 range leg + the 2 U14 G0 header legs + the 7 U15 flag legs + the U17 R5b + restore legs + the U18 ` g` flag leg + the U30 R4 carrier leg + the 2 U35 (#230) store-missing/entry-exists header legs — the U30 R5 `session:'all'` listing calls emit NO report line; the R5a/U17 not-found/sql-fail calls emit no kind:report line — they log ONE kind:reject line each (U28 F1))", lines.filter((l) => l.kind === "report").length === 32, `count=${lines.filter((l) => l.kind === "report").length}`);
+}
+
+// ------------------------------------------------------------------ U36 (#231) SELF lane
+// `self:true` stages the CALLER's own completed `context_trim` call rows. The leg
+// swaps the RPC window fixture (the WRITE lanes' row source) to an 8-row fixture
+// with TWO completed context_trim rows + ONE running row (skipped); staging the
+// two leaves the floor-6 retained count legal. Store left clean, fixture restored.
+{
+  const selfRows = [
+    { id: "msg_s0", seq: 4500, type: "compaction", status: "completed", summary: "SELF-SUM", recent: "SELF-REC", time: { created: 3000, completed: 3001 } },
+    { id: "msg_s1", seq: 4501, type: "user", text: "self one", time: { created: 3100 } },
+    { id: "msg_s2", seq: 4502, type: "assistant", agent: "worker-1", model: { id: MODEL_ID, providerID: "llama-swap" }, time: { created: 3200, completed: 3201 }, tokens: { input: 900, output: 60, reasoning: 0, cache: { read: 0, write: 0 } }, content: [{ type: "tool", id: "tc1", name: "context_trim", executed: true, state: { status: "completed", input: { mode: "report" }, content: [{ type: "text", text: "REPORT-WINDOW-MAP" }] } }] },
+    { id: "msg_s3", seq: 4503, type: "assistant", agent: "worker-1", model: { id: MODEL_ID, providerID: "llama-swap" }, time: { created: 3300, completed: 3301 }, tokens: { input: 400, output: 40, reasoning: 0, cache: { read: 0, write: 0 } }, content: [{ type: "tool", id: "tc2", name: "context_trim", executed: true, state: { status: "completed", input: { mode: "mark", ids: ["7"] }, content: [{ type: "text", text: "mark-set= +1 -0 total=1 rows_dropped_est=2" }] } }] },
+    { id: "msg_s4", seq: 4504, type: "assistant", agent: "worker-1", model: { id: MODEL_ID, providerID: "llama-swap" }, time: { created: 3400 }, tokens: { input: 100, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }, content: [{ type: "tool", id: "tc3", name: "context_trim", executed: false, state: { status: "running", input: { mode: "free" } } }] },
+    { id: "msg_s5", seq: 4505, type: "user", text: "self five", time: { created: 3500 } },
+    { id: "msg_s6", seq: 4506, type: "user", text: "self six", time: { created: 3600 } },
+    { id: "msg_s7", seq: 4507, type: "user", text: "self seven", time: { created: 3700 } },
+    { id: "msg_s8", seq: 4508, type: "user", text: "self eight", time: { created: 3800 } },
+  ];
+  const stagedOfSelf = () => JSON.stringify(readStore()?.sessions?.[SID]?.staged ?? null);
+  // Lane hygiene: the guard FLAG from earlier legs must be OFF here, and both
+  // drop sets start empty (a stale guard would keep the P4 entry un-pruned).
+  await trim({ mode: "mark", session: SID, guard: false });
+  await trim({ mode: "mark", session: SID, clear: true });
+  await trim({ mode: "tail", session: SID, clear: true }); // a stale boundary would keep the entry alive
+  RPC.rows = selfRows;
+  chk("U36 P1 self:true stages EXACTLY the two completed context_trim rows (running row stays out; floor-6 retained) + the self=2 count echo", await (async () => {
+    await trim({ mode: "mark", session: SID, clear: true });
+    const out = await trim({ mode: "mark", session: SID, self: true });
+    return out.startsWith("mark-set= +2 -0 total=2 rows_dropped_est=") && out.endsWith(" self=2") && stagedOfSelf() === JSON.stringify(["msg_s2", "msg_s3"]);
+  })(), stagedOfSelf());
+  chk("U36 P2 re-mark is a no-op (+0, self=0 echo — already-staged rows are not re-counted)", await (async () => {
+    const out = await trim({ mode: "mark", session: SID, self: true });
+    return out.startsWith("mark-set= +0 -0 total=2 rows_dropped_est=") && out.endsWith(" self=0") && stagedOfSelf() === JSON.stringify(["msg_s2", "msg_s3"]);
+  })(), "");
+  chk("U36 P3 ids + self in ONE call: the id AND both self rows stage together (+3, self=2)", await (async () => {
+    await trim({ mode: "mark", session: SID, clear: true });
+    const out = await trim({ mode: "mark", session: SID, ids: ["msg_s5"], self: true });
+    return out.startsWith("mark-set= +3 -0 total=3 rows_dropped_est=") && out.endsWith(" self=2") && stagedOfSelf() === JSON.stringify(["msg_s5", "msg_s2", "msg_s3"]);
+  })(), stagedOfSelf());
+  RPC.rows = null;
+  chk("U36 P4 self:true on the BASE window (no context_trim rows) is a clean +0/no-op self=0 (entry pruned)", await (async () => {
+    await trim({ mode: "mark", session: SID, clear: true });
+    const out = await trim({ mode: "mark", session: SID, self: true });
+    return out === "mark-set= +0 -0 total=0 rows_dropped_est=0 self=0" && readStore()?.sessions?.[SID] === undefined;
+  })(), JSON.stringify(readStore()?.sessions?.[SID] ?? "absent"));
+  chk("U36 P5 the foreign-arg gate: 'self' on report mode rejects naming the mark lane", await trim({ mode: "report", session: SID, self: true }) === "error: 'report' mode does not take 'self' (only on mark)", "");
+  chk("U36 P6 self:false alone is refused by the mark usage gate", await trim({ mode: "mark", session: SID, self: false }) === "error: mark mode requires ids (window rows to stage — ids or bare ordinals), unmark (refs to restore), clear (empty ALL drop sets — staged, active, guard auto — a stored boundary stays), guard (the opt-in preventive wall guard on/off), or self:true (stage the session's own completed context_trim call rows)", "");
+  await trim({ mode: "mark", session: SID, clear: true });
 }
 
 // ------------------------------------------------------------------ cleanup

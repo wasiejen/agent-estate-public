@@ -18,7 +18,7 @@
 // left`) and the ` (unlisted)` marker are RETIRED — the readout ends at the
 // CTX/REM (or CTX=notAvailable) field.
 import { tool } from "@opencode-ai/plugin"
-import { readGauge, formatGauge } from "../plugins/scripts/gauge.mjs"
+import { readGauge, formatGauge } from "../../plugins/scripts/gauge.mjs"
 
 export default tool({
   description: `Reads the context usage of the current (or a named) session, read-only.

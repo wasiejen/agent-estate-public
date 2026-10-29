@@ -24,7 +24,7 @@ import { tool } from "@opencode-ai/plugin"
 import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
-import { currentLoopFolder, readLoopCounter } from "../plugins/scripts/loop_root.mjs"
+import { currentLoopFolder, readLoopCounter } from "../../plugins/scripts/loop_root.mjs"
 
 // The ready-made marker sweep (planner prompt §maintainer calls/decisions —
 // verbatim pattern list). `2>/dev/null` keeps missing target files (README.md /

@@ -259,6 +259,20 @@
 // session/target/freed/picks/short, and NOTHING is written when no row is
 // pickable. Cross-session works via `session` — the store entries are per-sid.
 //
+// (17) U29 (#225, 2026-10-29, planner dogfood) GUARD CONVERGENCE — the wall
+// guard's TRIGGER authority is the PROVIDER-measured request figure (gauge CTX
+// − output = the report's `request-est`), NOT the assembly estimate: scaled by
+// `renderRatio` it re-fired EVERY step (CTX=107042 vs projected=991452 — an
+// `after=942283 > bound=241172` that can never converge, busting the prompt
+// cache once per step). One fire drains from the authority to the 0.8 fit
+// bound; the next assembly reads the REDUCED provider figure and stays silent.
+// `assemblyEstimate` + `renderRatio` ride as FORENSICS ONLY (`live=` / `r=`).
+// `event:auto` gains `auth=last-req`; a deduped `event:skip` line
+// (`auth=no-request-fig | pool-exhausted`) audits the armed session's real
+// skips; UNDER the trigger the lane stays SILENT (no line). The selection rule
+// and the #214 survival property (bytes/4 subtraction stops picks LATER — the
+// real request lands BELOW the bound) are UNCHANGED.
+//
 // (16) U28 (#A2 follow-up, 2026-10-29) CACHE-FREE USABILITY — three fixes, NO
 // paid surface (the tool description literal + the arg schema stay
 // BYTE-IDENTICAL, delta 0): (F1) every early-failure echo (`<lane>= rejected:` /
@@ -347,6 +361,9 @@ const guardFailLogged = new Map<string, string>();
 // never store state — the store entry shape stays {boundary, keep, setAt, staged,
 // active, guard, auto, noticed}).
 const guardAfter = new Map<string, number>();
+// (U29 G3) per-session dedup for the guard's `event:skip` line: ONE line per
+// (session, reason) — bounded by the two reasons; cleared on dispose.
+const guardSkipLogged = new Map<string, string>();
 // (U28 F2, #A2 follow-up) per-session trace signature of the LAST assembly pass:
 // the applied drop set (the matched store ids, sorted) + the spliced
 // `droppedBytes`. The invariant the planner judges from: a pass that REPRODUCES
@@ -782,10 +799,12 @@ function assemblyEstimate(messages: unknown): number | undefined {
   }
 }
 
-// (U22 F1, #218) the per-session RENDER RATIO the guard scales the assembly
-// estimate by: the last provider CTX figure (the gauge core's prompt tokens of the
-// last FINISHED step) over that step's byte/4 estimate — `massSum(rows)`, the same
-// quantity the report prints as `window-est=`. Clamped into
+// (U22 F1, #218; U29 #225 — FORENSICS ONLY: since the trigger rode the provider
+// figure this ratio DECIDES NOTHING, it only annotates the guard log line) the
+// per-session RENDER RATIO the guard scales the assembly estimate by: the last
+// provider CTX figure (the gauge core's prompt tokens of the last FINISHED step)
+// over that step's byte/4 estimate — `massSum(rows)`, the same quantity the
+// report prints as `window-est=`. Clamped into
 // [RENDER_RATIO_FLOOR, RENDER_RATIO_CAP]; a missing provider figure or a zero row
 // mass yields the floor (R = 2.0).
 function renderRatio(rows: Array<Record<string, unknown>>, lastReq: number | undefined): number {
@@ -1812,18 +1831,16 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     // mutation and the whole lane rides its own try/catch (fail-safe): a throw
     // logs ONE kind:guard event:fail line per session and the request
     // continues WITHOUT guard picks — byte-identical to the guard-off path.
-    // (U21 F1, #214 D1) projection authority = the LIVE assembly estimate
-    // (`assemblyEstimate`: bytes/4 over THIS draft array + `SYS_PROMPT_TOK`). The
-    // gauge `last-req` figure (U8) rides ONLY as the fallback when the array is
-    // unusable — U20 measured last-req 190,241 against an assembly of 224,000
-    // `in=` + 16,384 `cache.read`: ~34k blind, request dead at 284,070 with the
-    // projection still `ok`. (U22 F1, #218) that byte/4 estimate UNDERCOUNTS the
-    // provider render by ≈ 2x on tool-output-heavy sessions (E1: window-est 106,508
-    // vs provider 207,132 → rejected 267,659), so the projection is
-    // `max(live x R, last-req)` with `R` = the session's clamped render ratio
-    // (`renderRatio`, floor 2.0 / cap 2.5). Trigger/bound math UNCHANGED: 0.92
-    // trigger, drain to the 0.8 fit bound. Trigger: projection >= GUARD_FRAC (0.92) of the
-    // window — UNCHANGED. Selection: the SHARED `dropCandidates` rule (U21 F3 —
+    // (U29 G1(a), #225) TRIGGER AUTHORITY = the PROVIDER-measured request figure:
+    // gauge CTX − output of the last FINISHED step (the report's `request-est`).
+    // The U21 assembly estimate did NOT track the request: scaled by
+    // `renderRatio` (floor 2.0) it projected 991,452 against a gauge CTX of
+    // 107,042, the fire landed at `after=942,283 > bound=241,172`, and the guard
+    // RE-FIRED EVERY STEP — the #225 cache churn. `assemblyEstimate` and the
+    // ratio ride as FORENSICS ONLY (`live=` / `r=` fields). Missing figure ->
+    // skip (never fire blind); UNDER the trigger -> SILENT. Trigger/bound math
+    // UNCHANGED: 0.92 trigger, drain to the 0.8 fit bound.
+    // Selection: the SHARED `dropCandidates` rule (U21 F3 —
     // head/user/compaction/newest-assistant never; a tool-output-dominant floor
     // row CAN leave). Drain target (U21 F2): the picks run until the projection
     // sits UNDER the apply-side fit bound (BOUND_FRAC = 0.8 of the window); the
@@ -1833,7 +1850,7 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
     // pair-rule block (they ride the #193 atomic call+output drop; the splice
     // mutates the array the host builds THIS request from, so the drop reduces the
     // request the fire fires ON), persist to `auto`, and log ONE kind:guard
-    // event:auto line with ranks + mass + the projection figures.
+    // event:auto line with ranks + mass + the projection figures + `auth` (U29 G3).
     let guardPicked = 0;
     const guardPickIds: string[] = []; // kept OUTSIDE the try: the fail-safe must be able to UNDO the picks
     if (entry.guard === true) {
@@ -1846,16 +1863,26 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
         if (gWin != null) {
           // An unknown OUTPUT prints CTX itself (the apply lane's own rule).
           const lastReq = gCtx != null ? (gOut != null ? gCtx - gOut : gCtx) : undefined;
-          const live = assemblyEstimate(messages);
-          // (U22 F1, #218) the RENDER-CORRECTED projection: max(live x R, last-req),
-          // `R` = `renderRatio(rows, lastReq)`. `last-req` stays a second input, so an
-          // unusable array still projects; the fire needs ONE input AT the trigger —
-          // below it on BOTH inputs the lane stays silent (no over-fire).
-          const ratio = renderRatio(rows, lastReq);
-          const projection = live != null ? Math.max(Math.floor(live * ratio), lastReq ?? live) : lastReq;
-          const src = live != null ? "assembly" : "last-req";
+          const live = assemblyEstimate(messages); // (U29) FORENSICS ONLY — decides nothing
+          // (U29 G1(a), #225) THE AUTHORITY = the PROVIDER-measured request figure:
+          // gauge CTX − output of the last FINISHED step (the report's
+          // `request-est`). It tracks the REAL request; the U21 assembly estimate
+          // did NOT (live=495726 projected=991452 vs gauge CTX=107042 — ~4.6x
+          // over-count, `after=942283 > bound=241172`: the guard re-fired every
+          // step and busted the cache once per step). Missing authority -> SKIP
+          // (never fire blind); authority UNDER the trigger -> SILENT (steady
+          // state, no line — the log stays the audit trail of fires + real
+          // skips). Convergence: after a fire the provider figure reflects the
+          // spliced request, so the next assembly sits under the trigger -> no
+          // re-fire; while the drop set is unchanged nothing is picked again.
+          const ratio = renderRatio(rows, lastReq); // forensics only (U29)
+          const projection = lastReq; // THE authority — the provider figure (shape (a))
+          const src = "last-req"; // the authority's name; the assembly path decides nothing (U29)
           const gBound = Math.floor(gWin * GUARD_FRAC);
           const gFit = Math.floor(gWin * BOUND_FRAC);
+          let skipReason: string | undefined;
+          if (projection == null) skipReason = "no-request-fig"; // unreadable provider figure -> never fire blind
+          else if (projection < gBound) skipReason = "under-trigger"; // the REAL request is under the trigger — SILENT, never logged
           if (projection != null && projection >= gBound) {
             const floorKeep = Math.max(FLOOR, entry.keep);
             const dropIdx = new Set<number>();
@@ -1869,10 +1896,11 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
             let pickedMass = 0;
             let projected = projection;
             const prevAfter = guardAfter.get(sid);
-            // (U22 F1) the drain arithmetic is UNCHANGED: `c.mass` is a bytes/4
-            // own-mass subtracted from the R-scaled figure, so the picks drain
-            // CONSERVATIVELY — they stop later than a unit-matched drain would, and
-            // the real request lands BELOW the fit bound, never above it.
+            // (U22 F1, #218; U29) the drain arithmetic is UNCHANGED: `c.mass` is a
+            // bytes/4 own-mass subtracted from the PROVIDER figure, so the picks drain
+            // CONSERVATIVELY — bytes/4 understates the provider render, they stop LATER
+            // than a unit-matched drain would, and the real request lands BELOW the fit
+            // bound, never above it (the #214 survival property).
             for (const c of cand) {
               if (projected < gFit) break; // the projection sits UNDER the fit bound — stop
               pickedIds.push(c.id);
@@ -1890,8 +1918,14 @@ async function onContext(event: { sessionID?: unknown; messages?: unknown }): Pr
                 .sort((a, b) => a - b);
               const rankText = rankNums.length > 0 ? rankNums.slice(0, 12).map((n) => `#${n}`).join(",") + (rankNums.length > 12 ? ` +${rankNums.length - 12} more` : "") : "unavailable";
               const wrote = writeSessionEntry(sid, { boundary: entry.boundary, keep: entry.keep, setAt: entry.setAt, staged: entry.staged, active: entry.active, guard: true, auto: [...entry.auto, ...pickedIds], noticed: entry.noticed });
-              appendLog(buildLine("guard", { session: sid, event: "auto", n: String(pickedIds.length), mass: String(pickedMass), ranks: rankText, projected: String(projection), src, r: ratio.toFixed(2), live: live != null ? String(live) : undefined, fit: String(gFit), after: String(projected), prev: prevAfter != null ? String(prevAfter) : undefined, bound: String(gBound), marks: String(entry.active.length), store: wrote ? undefined : "write-failed" }, {}));
-            }
+              appendLog(buildLine("guard", { session: sid, event: "auto", auth: "last-req", n: String(pickedIds.length), mass: String(pickedMass), ranks: rankText, projected: String(projection), src, r: ratio.toFixed(2), live: live != null ? String(live) : undefined, fit: String(gFit), after: String(projected), prev: prevAfter != null ? String(prevAfter) : undefined, bound: String(gBound), marks: String(entry.active.length), store: wrote ? undefined : "write-failed" }, {}));
+            } else skipReason = "pool-exhausted"; // authority AT the trigger, NO candidate left — the audit trail (the wall is imminent and nothing is droppable)
+          }
+          // (U29 G3) ONE deduped `event:skip` line per (session, reason) — the two
+          // REAL skips only; `under-trigger` is the steady state and stays SILENT.
+          if (skipReason != null && skipReason !== "under-trigger" && guardSkipLogged.get(sid) !== skipReason) {
+            guardSkipLogged.set(sid, skipReason);
+            appendLog(buildLine("guard", { session: sid, event: "skip", auth: skipReason, projected: projection != null ? String(projection) : "unavailable", src: "last-req", r: ratio.toFixed(2), live: live != null ? String(live) : undefined, fit: String(gFit), bound: String(gBound) }, {}));
           }
         }
       } catch (e) {
@@ -2273,6 +2307,7 @@ const plugin: Plugin.Plugin = {
       marksStaleLogged.clear();
       guardFailLogged.clear();
       trimApplied.clear();
+      guardSkipLogged.clear();
       void regTool.dispose();
       void regHook.dispose();
     };

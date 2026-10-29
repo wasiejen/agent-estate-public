@@ -59,6 +59,12 @@
 // droppedBytes CHANGED — the G4 assembly-3 and D1 silent-assembly pins are the
 // re-pins of the old always-log behavior), and the report `next:` STEER line
 // (the R1/R2 pins + the V7 roundtrip determinism).
+// U29 (#225, 2026-10-29): the guard's trigger AUTHORITY is the provider figure
+// (CTX − output) — the U22 assembly-scaling pins are repinned (G1/G2/G3 lines
+// carry `src=last-req` + `auth=last-req`), the band block became the #225
+// REGRESSION pin (assembly can never trigger), the tie block pins one-shot-to-
+// bound CONVERGENCE + the deduped `event:skip` line, and D1/D3 ride the
+// authority via the gauge fixture.
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
@@ -815,101 +821,132 @@ function draftBase(sessionID = SID) {
     { id: "msg_u11", seq: 4413, type: "user", text: "U".repeat(20000), time: { created: 2500 } },
     { id: "msg_a12", seq: 4414, type: "assistant", agent: "worker-1", model: { id: MODEL_ID, providerID: "llama-swap" }, time: { created: 2600, completed: 2601 }, tokens: { input: 100, output: 50, reasoning: 0, cache: { read: 0, write: 0 } }, content: [{ type: "tool", id: "t12", name: "bash", executed: true, state: { status: "completed", input: { command: "ls -la" }, content: [{ type: "text", text: "V".repeat(23979) }] } }] },
   ];
-  // G1 (U22 F2 no-over-fire) BOTH projection inputs sit BELOW the trigger: the
-  // R-scaled estimate (44159 x 2.5 = floor 110397) AND last-req (100000) -> NO fire.
+  // G1 (U29 G4(ii)) the AUTHORITY sits BELOW the trigger while the assembly
+  // estimate scaled by the band R would sit AT it (44159 x 2.5 = 110397) -> NO
+  // fire, and NO line of any kind: under-trigger is the SILENT steady state.
   {
     sysToLive(44159);
-    fxSet(100000, 0); // last-req 100000 < trigger; R = clamp(100000/332) = 2.5 (cap)
+    fxSet(100000, 0); // authority (provider CTX-output) 100000 < trigger 110400
     const lB = readLog().length;
     const d = draft();
     await fire(d);
-    chk("U22 G1 max(byte/4 x R, last-req) below the trigger on BOTH inputs: NO fire — draft byte-identical, no guard line, no notice, no auto set", d.messages.length === 15 && noticeOf(d).length === 0 && guardLines(lB).length === 0 && JSON.stringify(d.messages) === JSON.stringify(draft().messages) && readStore()?.sessions?.[SID]?.auto === undefined, `len=${d.messages.length}`);
+    chk("U29 G1/G4(ii) authority 100000 UNDER the trigger (#225 regression: the old R-scaled lane fired here): NO fire — draft byte-identical, NO guard line of ANY kind (under-trigger stays SILENT), no notice, no auto set", d.messages.length === 15 && noticeOf(d).length === 0 && guardLines(lB).length === 0 && JSON.stringify(d.messages) === JSON.stringify(draft().messages) && readStore()?.sessions?.[SID]?.auto === undefined, `len=${d.messages.length}`);
   }
-  // (U22 F2, #218 E1) the byte/4 estimate sits FAR below the trigger while the
-  // R-scaled figure crosses it -> the guard FIRES. The pre-fix copy compares the raw
-  // estimate only, so this leg is RED there (WM-18 red-before via CTX_TRIM_SMOKE_PLUGIN).
+  // (U29 G4(i)) the AUTHORITY sits AT the trigger exactly -> ONE fire; the picks
+  // drain from the provider figure toward the fit bound; the base pool exhausts
+  // (after=110084 >= 96000 — the bytes/4 drain is deliberately conservative).
   {
-    sysToLive(44160); // 44160 x 2.5 = 110400 = the trigger exactly
-    fxSet(100000, 0);
+    sysToLive(44160); // FORENSICS ONLY since U29: live=44160 prints, it decides nothing
+    fxSet(110400, 0); // THE authority: provider figure = the trigger exactly
     const lB = readLog().length;
     const d = draft();
     await fire(d);
     const ids = d.messages.map((m) => m.id ?? "(none)");
     const gl = guardLines(lB);
-    chk("U22 F2 byte/4 44160 (< trigger) scaled by R 2.5 lands AT the trigger: FIRES with last-req 100000 below it — a3+a2 leave WITH their outputs, notice once", ids.indexOf("msg_a3") === -1 && ids.indexOf("msg_a2") === -1 && !JSON.stringify(d.messages).includes("a3 output") && !JSON.stringify(d.messages).includes("a2 output") && d.messages.length === 11 && noticeOf(d).length === 1, JSON.stringify([ids.length, noticeOf(d).length]));
-    chk("U22 F2 the event:auto line names the scaled projection AND its inputs: projected=110400, r=2.50, live=44160, src=assembly, bound=110400, fit=96000, after=110084, n=2, mass=316", gl.length === 1 && gl[0].event === "auto" && gl[0].projected === "110400" && gl[0].r === "2.50" && gl[0].live === "44160" && gl[0].src === "assembly" && gl[0].bound === "110400" && gl[0].fit === "96000" && gl[0].after === "110084" && gl[0].n === "2" && gl[0].mass === "316", JSON.stringify(gl[0] ?? null));
+    chk("U29 the authority AT the trigger FIRES once: a3+a2 leave WITH their outputs, notice once", ids.indexOf("msg_a3") === -1 && ids.indexOf("msg_a2") === -1 && !JSON.stringify(d.messages).includes("a3 output") && !JSON.stringify(d.messages).includes("a2 output") && d.messages.length === 11 && noticeOf(d).length === 1, JSON.stringify([ids.length, noticeOf(d).length]));
+    chk("U29 G3 the event:auto line: projected = AUTHORITY 110400, src=last-req, auth=last-req, forensics r=2.50 + live=44160, bound=110400, fit=96000, after=110084, n=2, mass=316, no prev (first fire)", gl.length === 1 && gl[0].event === "auto" && gl[0].projected === "110400" && gl[0].src === "last-req" && gl[0].auth === "last-req" && gl[0].r === "2.50" && gl[0].live === "44160" && gl[0].bound === "110400" && gl[0].fit === "96000" && gl[0].after === "110084" && gl[0].n === "2" && gl[0].mass === "316" && gl[0].prev === undefined, JSON.stringify(gl[0] ?? null));
   }
-  // (U22 F1) the ratio band is CLAMPED: a provider figure 358x the row mass must not
-  // project 358x (cap 2.5), a measured 1.81x still fires (floor 2.0), and a ratio
-  // inside the band rides unclamped.
+  // (U29 G4(ii)) the #225 REGRESSION pin: the assembly estimate scaled by the
+  // band R would sit AT the trigger while the PROVIDER authority sits UNDER it —
+  // the lane stays SILENT (the old R-scaled lane fired here every step).
   {
-    const clearLeg = async () => (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -2 total=0 rows_dropped_est=0";
-    await clearLeg();
+    const cleared = (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -2 total=0 rows_dropped_est=0"; // prunes the fire-leg picks
     sysToLive(44160);
-    fxSet(50000, 0); // ratio 50000/332 = 150.6 -> the cap
+    fxSet(50000, 0); // authority 50000 < trigger; the old lane projected 44160 x R(2.5) = 110400 and FIRED
+    const lB = readLog().length;
+    const d = draft();
+    await fire(d);
+    chk("U29 G4(ii) R-scaled assembly would hit the trigger but authority 50000 is UNDER it: NO fire, NO line of any kind, store clean (#225 regression)", cleared && guardLines(lB).length === 0 && noticeOf(d).length === 0 && JSON.stringify(d.messages) === JSON.stringify(draft().messages) && readStore()?.sessions?.[SID]?.auto === undefined, JSON.stringify(guardLines(lB)));
+  }
+  // (U29 G4(i) + G2 + G3) CONVERGENCE in a steered 1000-token window: authority
+  // 950 at trigger 920 -> ONE fire drains to after=728 < fit=800; the provider
+  // figure then reflects the spliced request (728) -> SILENT next assembly; a
+  // GROWN pool re-fires legitimately (tie_a3); the EXHAUSTED pool logs ONE
+  // deduped event:skip line. tie rows: a1/a2 own-mass 111, a3 50 (age tie-break
+  // sends a1 first).
+  {
+    const tieRows = () => [
+      { id: "tie_c0", type: "compaction", text: "head" },
+      { id: "tie_a1", type: "assistant", content: [{ type: "tool", id: "t1", name: "bash", executed: true, state: { status: "completed", input: { command: "ls" }, content: [{ type: "text", text: "c".repeat(431) }] } }] },
+      { id: "tie_a2", type: "assistant", content: [{ type: "tool", id: "t2", name: "bash", executed: true, state: { status: "completed", input: { command: "ls" }, content: [{ type: "text", text: "d".repeat(431) }] } }] },
+      { id: "tie_a3", type: "assistant", content: [{ type: "tool", id: "t3", name: "bash", executed: true, state: { status: "completed", input: { command: "ls" }, content: [{ type: "text", text: "e".repeat(200) }] } }] },
+      { id: "tie_u4", type: "user", text: "user four" },
+      { id: "tie_u5", type: "user", text: "tail five" },
+      { id: "tie_u6", type: "user", text: "tail six" },
+      { id: "tie_u7", type: "user", text: "tail seven" },
+      { id: "tie_u8", type: "user", text: "tail eight" },
+      { id: "tie_a9", type: "assistant", content: [{ type: "text", text: "tail nine" }] },
+    ];
+    const goodG = gaugeMod;
+    const steerG = (r) => pluginMod.setGaugeCoreForTest({ formatGauge: goodG.formatGauge, getDbPath: goodG.getDbPath, readGauge: async () => r });
+    const tieSteer = (ctx) => ({ ok: true, kind: "ok", sid: SID, modelId: MODEL_ID, total: ctx, output: 0, ctx, window: 1000 });
+    RPC.rows = tieRows();
+    await trim({ mode: "mark", session: SID, clear: true }); // the guard FLAG survives the clear
+    const autoOfT = () => JSON.stringify(readStore()?.sessions?.[SID]?.auto ?? null);
+    steerG(tieSteer(950));
     const lB = readLog().length;
     await fire(draft());
-    const gl = guardLines(lB);
-    chk("U22 F1 cap: a 150x measured ratio clamps to r=2.50 — projected stays 110400 (an unclamped 150x render would project ~6.65M)", gl.length === 1 && gl[0].r === "2.50" && gl[0].projected === "110400", JSON.stringify(gl[0] ?? null));
-    await clearLeg();
-    sysToLive(55200);
-    fxSet(600, 0); // ratio 600/332 = 1.81 -> the floor (an unclamped 1.81x ≈ 99,759 < trigger: silent)
+    const gl1 = guardLines(lB).filter((l) => l.event === "auto");
+    chk("U29 G4(i) ONE fire REACHES the bound: authority 950 >= 920 drains tie_a1+tie_a2 (mass 222) to after=728 < fit=800 in a SINGLE pass; auth=last-req", gl1.length === 1 && gl1[0].n === "2" && gl1[0].mass === "222" && gl1[0].projected === "950" && gl1[0].after === "728" && gl1[0].fit === "800" && gl1[0].bound === "920" && gl1[0].auth === "last-req" && autoOfT() === JSON.stringify(["tie_a1", "tie_a2"]), JSON.stringify([gl1[0] ?? null, autoOfT()]));
+    steerG(tieSteer(728));
     const lB2 = readLog().length;
     await fire(draft());
-    const gl2 = guardLines(lB2);
-    chk("U22 F1 floor: a measured 1.81x ratio clamps UP to r=2.00 — 55200 x 2.0 = 110400 fires (the E1 band 1.15-2x)", gl2.length === 1 && gl2[0].r === "2.00" && gl2[0].projected === "110400" && gl2[0].live === "55200", JSON.stringify(gl2[0] ?? null));
-    await clearLeg();
-    sysToLive(50210);
-    fxSet(730, 0); // ratio 730/332 = 2.1988 sits INSIDE the band: no clamp
+    chk("U29 G2 CONVERGED: the provider figure reflects the spliced request (728 < 920) -> NO re-fire, NO line, the picks stay sticky", guardLines(lB2).length === 0 && autoOfT() === JSON.stringify(["tie_a1", "tie_a2"]), JSON.stringify([guardLines(lB2), autoOfT()]));
+    steerG(tieSteer(950));
     const lB3 = readLog().length;
     await fire(draft());
-    const gl3 = guardLines(lB3);
-    chk("U22 F1 mid-band: an unclamped r=2.20 projects floor(50210 x 730/332) = 110401", gl3.length === 1 && gl3[0].r === "2.20" && gl3[0].projected === "110401", JSON.stringify(gl3[0] ?? null));
-    await clearLeg();
-    // a silent assembly (both inputs far below the trigger) CLEARS the notice
-    // signature so the G2 leg below notices again.
-    sysToLive(1000);
-    fxSet(1000, 0);
+    const gl3 = guardLines(lB3).filter((l) => l.event === "auto");
+    chk("U29 G2 a re-at-trigger authority re-fires ONLY for the CHANGED set: the fresh candidate tie_a3 (own-mass 54) drains to after=896 (>= fit — pool exhausts), ONE auto line n=1, prev=728", gl3.length === 1 && gl3[0].n === "1" && gl3[0].mass === "54" && gl3[0].after === "896" && gl3[0].prev === "728" && autoOfT() === JSON.stringify(["tie_a1", "tie_a2", "tie_a3"]), JSON.stringify(gl3[0] ?? null));
     const lB4 = readLog().length;
     await fire(draft());
-    chk("U22 F1 band cleanup: the silent assembly adds NO guard line and the store stays clean", guardLines(lB4).length === 0 && readStore()?.sessions?.[SID]?.auto === undefined, JSON.stringify(readStore()?.sessions?.[SID] ?? null));
+    const gl4 = guardLines(lB4);
+    chk("U29 G2/G3 pool EXHAUSTED at authority AT the trigger: NO picks, NO auto line, exactly ONE event:skip line auth=pool-exhausted projected=950 (the audit trail; the set is unchanged)", gl4.length === 1 && gl4[0].event === "skip" && gl4[0].auth === "pool-exhausted" && gl4[0].projected === "950" && autoOfT() === JSON.stringify(["tie_a1", "tie_a2", "tie_a3"]), JSON.stringify(gl4));
+    const lB5 = readLog().length;
+    await fire(draft());
+    chk("U29 G3 the skip line is DEDUPED per (session,reason): the next exhausted assembly adds NOTHING while the set is unchanged", guardLines(lB5).length === 0, JSON.stringify(guardLines(lB5)));
+    RPC.rows = null;
+    pluginMod.setGaugeCoreForTest(goodG);
+    await trim({ mode: "mark", session: SID, clear: true }); // prunes the tie picks; the flag stays ON for the G2 leg
   }
-  // G2 (U21 F1 + F2) last-req FAR BELOW the trigger but the LIVE assembly AT it:
-  // fires, and the picks drain toward the 80% fit bound until the pool exhausts.
+  // G2 (U29) the AUTHORITY AT the trigger again on the base fixture (the tie-leg
+  // clears pruned the picks): ONE fire, the notice lane, the store shape and the
+  // trim-line semantics UNCHANGED; the drain exhausts the base pool.
   {
     sysToLive(TRIGGER);
-    fxSet(20000, 0); // last-req 20000 — the pre-U21 lane stayed silent here (RED-before)
+    fxSet(110400, 0); // (U29) the provider figure AT the trigger — src is ALWAYS last-req now
     const lB = readLog().length;
     const d = draft();
     await fire(d);
     const ids = d.messages.map((m) => m.id ?? "(none)");
     const nt = noticeOf(d);
-    chk("U21 G2 assembly AT trigger with last-req 20000: fires — msg_a3 + msg_a2 leave WITH their linked outputs (drain toward the fit bound exhausts the pool)", ids.indexOf("msg_a3") === -1 && ids.indexOf("msg_a2") === -1 && !JSON.stringify(d.messages).includes("a3 output") && !JSON.stringify(d.messages).includes("a2 output") && ids.includes("msg_u1") && d.messages.length === 11, JSON.stringify(ids));
-    chk("U21 G2 the notice = ONE fresh entry AT THE END naming both ranks + the total mass (add lane)", nt.length === 1 && d.messages[d.messages.length - 1]?.id === "msg_ctx_guard_notice" && nt[0].content[0].text === "emergency trim: dropped #5,#6 = 316 tokens; your marks were empty", JSON.stringify(nt[0]?.content?.[0]?.text ?? null));
+    chk("U29 G2 authority AT trigger: fires — msg_a3 + msg_a2 leave WITH their linked outputs (drain toward the fit bound exhausts the pool)", ids.indexOf("msg_a3") === -1 && ids.indexOf("msg_a2") === -1 && !JSON.stringify(d.messages).includes("a3 output") && !JSON.stringify(d.messages).includes("a2 output") && ids.includes("msg_u1") && d.messages.length === 11, JSON.stringify(ids));
+    chk("U29 G2 the notice = ONE fresh entry AT THE END naming both ranks + the total mass (add lane)", nt.length === 1 && d.messages[d.messages.length - 1]?.id === "msg_ctx_guard_notice" && nt[0].content[0].text === "emergency trim: dropped #5,#6 = 316 tokens; your marks were empty", JSON.stringify(nt[0]?.content?.[0]?.text ?? null));
     const gl = guardLines(lB);
-    chk("U22 G2 ONE kind:guard event:auto line: projected = LIVE 110400 x R 2.5 = 276000, r=2.50, live=110400, src=assembly, fit=96000, after=275684, bound=110400, n=2, mass=316, ranks #5,#6, prev=110085 (the band legs above)", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "2" && gl[0].mass === "316" && gl[0].ranks === "#5,#6" && gl[0].projected === "276000" && gl[0].r === "2.50" && gl[0].live === "110400" && gl[0].src === "assembly" && gl[0].fit === "96000" && gl[0].after === "275684" && gl[0].bound === "110400" && gl[0].marks === "0" && gl[0].prev === "110085", JSON.stringify(gl[0] ?? null));
+    chk("U29 G2 ONE kind:guard event:auto line: projected = AUTHORITY 110400, src=last-req, auth=last-req, forensics r=2.50 + live=110400, fit=96000, after=110084 (bytes/4 drain), bound=110400, n=2, mass=316, ranks #5,#6, prev=896 (the tie leg above)", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "2" && gl[0].mass === "316" && gl[0].ranks === "#5,#6" && gl[0].projected === "110400" && gl[0].r === "2.50" && gl[0].live === "110400" && gl[0].src === "last-req" && gl[0].auth === "last-req" && gl[0].fit === "96000" && gl[0].after === "110084" && gl[0].bound === "110400" && gl[0].marks === "0" && gl[0].prev === "896", JSON.stringify(gl[0] ?? null));
     chk("U21 G2 the auto set is SEPARATE from active (store auto=[msg_a3,msg_a2], no active key)", readStore()?.sessions?.[SID]?.auto?.join(",") === "msg_a3,msg_a2" && readStore()?.sessions?.[SID]?.active === undefined, JSON.stringify(readStore()?.sessions?.[SID] ?? null));
     chk("U25 F1 the fired notice persists its `noticed` marker in the store entry (restart-surviving)", JSON.stringify(readStore()?.sessions?.[SID]?.noticed ?? null) === JSON.stringify(["msg_a2", "msg_a3"]), JSON.stringify(readStore()?.sessions?.[SID] ?? null));
     chk("U21 G2 the trim line carries autoRows=2 + autoMass=316 (+ U25 F5 newRows=2)", (() => { const t = readLog().slice(lB).find((l) => l.kind === "trim"); return t != null && t.autoRows === "2" && t.autoMass === "316" && t.newRows === "2" && t.droppedRows === "2" && t.droppedEntries === "5" && t.keptEntries === "11"; })(), JSON.stringify(readLog().slice(lB).find((l) => l.kind === "trim") ?? null));
   }
-  // G3 (U21 F2 + F3) the NEXT step crosses the trigger again: the re-check rides
-  // the LIVE estimate and the CHANGED set picks the heavy FLOOR row (D3 rule) while
+  // G3 (U21 F2 + F3, U29 authority) the NEXT step rides the provider figure AT
+  // the trigger again: the CHANGED set picks the heavy FLOOR row (D3 rule) while
   // the heavy user / newest-assistant rows stay.
   {
     RPC.rows = grownRows();
     sysToLive(TRIGGER);
-    fxSet(20000, 0);
+    fxSet(TRIGGER, 0); // (U29) authority AT the trigger
     const lB = readLog().length;
     const d = draft();
     await fire(d);
     chk("U21 G3 second fire on the live estimate: auto grows to {a3,a2,a10} — the heavy FLOOR row leaves; the heavy USER row, the heavy NEWEST assistant row and the head never", readStore()?.sessions?.[SID]?.auto?.slice().sort().join(",") === "msg_a10,msg_a2,msg_a3", JSON.stringify(readStore()?.sessions?.[SID]?.auto ?? null));
     const gl = guardLines(lB);
-    chk("U22 G3 event:auto names only the NEW pick (n=1, mass=4499, ranks #15) + prev=275684; the grown window's ratio (20000/15830 = 1.26) clamps to r=2.00 -> projected=220800, after=216301", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "1" && gl[0].mass === "4499" && gl[0].ranks === "#15" && gl[0].projected === "220800" && gl[0].r === "2.00" && gl[0].live === "110400" && gl[0].src === "assembly" && gl[0].after === "216301" && gl[0].prev === "275684", JSON.stringify(gl[0] ?? null));
+    chk("U29 G3 event:auto names only the NEW pick (n=1, mass=4499, ranks #15) + prev=110084: projected = AUTHORITY 110400 (src/auth last-req), forensics r=2.50 (grown mass 15832, 6.97 clamps to the cap) + live=110400, after=105901 (pool exhausts above the fit bound)", gl.length === 1 && gl[0].event === "auto" && gl[0].n === "1" && gl[0].mass === "4499" && gl[0].ranks === "#15" && gl[0].projected === "110400" && gl[0].r === "2.50" && gl[0].live === "110400" && gl[0].src === "last-req" && gl[0].auth === "last-req" && gl[0].after === "105901" && gl[0].prev === "110084", JSON.stringify(gl[0] ?? null));
     const nt = noticeOf(d);
     chk("U25 G3 the notice names ONLY the NEW pick (the DELTA lane, #219): #15 = 4499 tokens over the 10-entry kept draft + notice", nt.length === 1 && nt[0].content[0].text === "emergency trim: dropped #15 = 4499 tokens; your marks were empty" && d.messages.length === 11, JSON.stringify([nt[0]?.content?.[0]?.text ?? null, d.messages.length]));
   }
-  // G4 (U21 F4 notice-once) the same drop set over consecutive assemblies: exactly
-  // ONE notice row total; the drops stay sticky-and-applied.
+  // G4 (U21 F4 notice-once + U29 authority) the same drop set over consecutive
+  // assemblies: exactly ONE notice row total, NO guard line at all (the
+  // pool-exhausted skip was already logged by the tie leg — deduped per
+  // (session,reason)), and the drops stay sticky-and-applied.
   {
     const lB = readLog().length;
     const d1 = draft();
@@ -928,8 +965,8 @@ function draftBase(sessionID = SID) {
     chk("U25 G4 (#219 churn — RED pre-fix): a10 leaves the window, the STORE set is unchanged -> NO re-notice, the drops stay applied", noticeOf(d4).length === 0 && d4.messages.length === 10 && !d4.messages.some((m) => m.id === "msg_a2") && !d4.messages.some((m) => m.id === "msg_a3"), JSON.stringify([noticeOf(d4).length, d4.messages.length]));
     chk("U25 G4 the churn assembly's trim line keeps the full-set fields (autoRows=2 autoMass=316) and carries NO newRows (delta 0)", (() => { const t = readLog().slice(lB).filter((l) => l.kind === "trim").pop(); return t != null && t.autoRows === "2" && t.autoMass === "316" && t.newRows === undefined; })(), JSON.stringify(readLog().slice(lB).filter((l) => l.kind === "trim").pop() ?? null));
   }
-  // G5 (U21 F1 fallback) an UNUSABLE draft array (a circular entry) -> the lane
-  // falls back to the gauge last-req figure and NAMES it in the log.
+  // G5 (U21 F1 fallback; U29: src is ALWAYS last-req) an UNUSABLE draft array
+  // (a circular entry) -> no `live=` forensics token; the authority fires.
   {
     chk("U21 G5 clear empties the auto set from the G4 fire (3 ids) and the (U25) notice marker", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -3 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID]?.auto === undefined && readStore()?.sessions?.[SID]?.noticed === undefined && readStore()?.sessions?.[SID]?.guard === true);
     fxSet(110400, 0); // last-req EXACTLY at the trigger; the live estimate is unavailable here
@@ -940,7 +977,7 @@ function draftBase(sessionID = SID) {
     d.messages.push(cyc);
     await fire(d);
     const gl = guardLines(lB);
-    chk("U21 G5 unusable assembly array: fires on last-req 110400 with src=last-req, picks a3+a2 (n=2, mass=316)", gl.length === 1 && gl[0].event === "auto" && gl[0].src === "last-req" && gl[0].projected === "110400" && gl[0].n === "2" && gl[0].mass === "316" && d.messages.filter((m) => m.id === "msg_a2").length === 0, JSON.stringify(gl[0] ?? null));
+    chk("U29 G5 fires on the authority with an UNUSABLE assembly array: src=auth=last-req, NO live= forensics token, picks a3+a2 (n=2, mass=316)", gl.length === 1 && gl[0].event === "auto" && gl[0].src === "last-req" && gl[0].auth === "last-req" && gl[0].live === undefined && gl[0].projected === "110400" && gl[0].n === "2" && gl[0].mass === "316" && d.messages.filter((m) => m.id === "msg_a2").length === 0, JSON.stringify(gl[0] ?? null));
     chk("U21 G5 clear after the fallback fire", (await trim({ mode: "mark", session: SID, clear: true })) === "mark-set= +0 -2 total=0 rows_dropped_est=0" && readStore()?.sessions?.[SID]?.auto === undefined);
   }
   // G5b the fail-safe: the gauge throws -> request UNMODIFIED + ONE fail line
@@ -1039,10 +1076,8 @@ function draftBase(sessionID = SID) {
   // delta-shaped.
   {
     const db = new DatabaseSync(FX_DB);
-    db.prepare("UPDATE session_message SET data=? WHERE id=1").run(JSON.stringify({ tokens: { input: 10000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }, time: { completed: 123 } }));
+    db.prepare("UPDATE session_message SET data=? WHERE id=1").run(JSON.stringify({ tokens: { input: 110400, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }, time: { completed: 123 } })); // (U29) the AUTHORITY rides the provider figure: CTX = the trigger exactly (output 0)
     db.close();
-    const est = Math.floor(draftBase().messages.reduce((b, m) => b + JSON.stringify(m).length, 0) / 4);
-    if (typeof pluginMod.setSysTokForTest === "function") pluginMod.setSysTokForTest(110400 - est); // the live estimate sits EXACTLY at the trigger
     inject({ boundary: "", keep: 0, set_at: "2026-01-01T00:00:00Z", guard: true, auto: ["msg_a5"] });
     const lB = readLog().length;
     const d = draft();
